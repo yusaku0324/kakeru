@@ -9,12 +9,14 @@ import time
 import logging
 import datetime
 import requests
-from typing import Dict, List, Any, Optional
+import csv
+from typing import Dict, List, Any, Optional, Tuple
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,9 +27,9 @@ logger = logging.getLogger(__name__)
 FIGMA_API_KEY = os.environ.get("FIGMA_API_KEY")
 FIGMA_FILE_ID = os.environ.get("FIGMA_FILE_ID", "aJ8OkMzwRoLlpjnEUdHvfN")
 FIGMA_NODE_ID = os.environ.get("FIGMA_NODE_ID", "20-2")
-NIIJIMA_COOKIES_PATH = "niijima_cookies.json"
-QA_CSV_PATH = "qa_sheet_polite_fixed.csv"
-QUEUE_FILE = "queue/queue_2025-04-28.yaml"  # Use fixed file for testing
+X_COOKIE_PATH = os.environ.get("X_COOKIE_PATH", "niijima_cookies.json")
+QA_CSV_PATH = os.environ.get("QA_CSV_PATH", "qa_sheet_polite_fixed.csv")
+QUEUE_FILE = os.environ.get("QUEUE_FILE", "queue/queue_2025-04-28.yaml")
 VIDEO_DURATION = 1  # seconds per video (1 second as requested for Canva-like format)
 VIDEO_OUTPUT_DIR = "videos"
 
@@ -43,15 +45,38 @@ def load_qa_data() -> Dict[str, str]:
     
     try:
         with open(QA_CSV_PATH, 'r', encoding='utf-8') as f:
-            next(f)
-            for line in f:
-                if '","' in line:
-                    question, answer = line.strip().split('","')
-                    question = question.strip('"')
-                    answer = answer.strip('"')
-                    qa_dict[question] = answer
-        
+            csv_reader = csv.reader(f)
+            headers = next(csv_reader)  # Skip header row
+            
+            if len(headers) >= 2:
+                prompt_idx = 0  # Default to first column for prompt
+                completion_idx = 1  # Default to second column for completion
+                
+                for i, header in enumerate(headers):
+                    if header.lower() == 'prompt':
+                        prompt_idx = i
+                    elif header.lower() == 'completion':
+                        completion_idx = i
+                
+                for row in csv_reader:
+                    if len(row) > max(prompt_idx, completion_idx):
+                        question = row[prompt_idx].strip('"')
+                        answer = row[completion_idx].strip('"')
+                        qa_dict[question] = answer
+            
         logger.info(f"Loaded {len(qa_dict)} Q&A pairs from {QA_CSV_PATH}")
+        
+        queue_items = load_queue_questions()
+        for item in queue_items:
+            if 'text' in item:
+                question = item['text']
+                if question not in qa_dict:
+                    for q in qa_dict.keys():
+                        if question in q or q in question:
+                            qa_dict[question] = qa_dict[q]
+                            logger.info(f"Manually matched question: '{question}' to existing answer for: '{q}'")
+                            break
+        
         return qa_dict
     except Exception as e:
         logger.error(f"Error loading Q&A data: {e}")
@@ -134,7 +159,7 @@ def create_video_from_image(image_path: str, output_path: str) -> bool:
 
 def setup_webdriver() -> Optional[webdriver.Chrome]:
     """
-    Set up Chrome WebDriver with niijima cookies
+    Set up Chrome WebDriver with X cookies
     
     Returns:
         webdriver.Chrome: Chrome WebDriver instance
@@ -144,22 +169,39 @@ def setup_webdriver() -> Optional[webdriver.Chrome]:
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option("useAutomationExtension", False)
         
         driver = webdriver.Chrome(options=chrome_options)
         
-        with open(NIIJIMA_COOKIES_PATH, 'r', encoding='utf-8') as f:
+        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+            "source": """
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+            """
+        })
+        
+        logger.info(f"Loading cookies from {X_COOKIE_PATH}")
+        with open(X_COOKIE_PATH, 'r', encoding='utf-8') as f:
             cookies = json.load(f)
         
-        driver.get("https://twitter.com")
+        driver.get("https://x.com")
+        time.sleep(2)
         
         for cookie in cookies:
             if 'expiry' in cookie:
                 del cookie['expiry']
-            driver.add_cookie(cookie)
+            try:
+                driver.add_cookie(cookie)
+            except Exception as cookie_error:
+                logger.warning(f"Could not add cookie {cookie.get('name')}: {cookie_error}")
         
-        driver.get("https://twitter.com/home")
+        driver.get("https://x.com/home")
         
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "body"))
         )
         
@@ -172,7 +214,7 @@ def setup_webdriver() -> Optional[webdriver.Chrome]:
 
 def post_to_twitter(driver: webdriver.Chrome, text: str, video_path: str) -> Optional[str]:
     """
-    Post to Twitter with video
+    Post to X (formerly Twitter) with video
     
     Args:
         driver: Chrome WebDriver instance
@@ -183,36 +225,135 @@ def post_to_twitter(driver: webdriver.Chrome, text: str, video_path: str) -> Opt
         Optional[str]: Tweet URL if successful, None otherwise
     """
     try:
-        post_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='tweetTextarea_0']"))
-        )
-        post_button.click()
+        driver.get("https://x.com/home")
+        time.sleep(3)
+        
+        selectors = [
+            "[data-testid='tweetTextarea_0']",
+            "[data-testid='SideNav_NewTweet_Button']",
+            "[aria-label='Post']",
+            "[aria-label='Tweet']",
+            "[data-testid='tweetButtonInline']"
+        ]
+        
+        post_element = None
+        for selector in selectors:
+            try:
+                post_element = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                )
+                logger.info(f"Found post element with selector: {selector}")
+                post_element.click()
+                break
+            except Exception:
+                continue
+        
+        if not post_element:
+            logger.error("Could not find post button or text area")
+            driver.save_screenshot("x_post_error.png")
+            logger.info("Saved screenshot to x_post_error.png")
+            return None
         
         text_area = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='tweetTextarea_0']"))
         )
-        text_area.send_keys(text)
         
-        file_input = driver.find_element(By.CSS_SELECTOR, "input[type='file']")
-        file_input.send_keys(os.path.abspath(video_path))
+        text_area.clear()
+        for char in text:
+            text_area.send_keys(char)
+            time.sleep(0.01)
         
-        WebDriverWait(driver, 60).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='videoPlayer']"))
-        )
+        logger.info("Entered post text")
         
-        post_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='tweetButton']"))
-        )
+        try:
+            file_input_selectors = [
+                "input[type='file']",
+                "[data-testid='fileInput']",
+                "[accept='image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime']"
+            ]
+            
+            file_input = None
+            for selector in file_input_selectors:
+                try:
+                    file_input = driver.find_element(By.CSS_SELECTOR, selector)
+                    break
+                except Exception:
+                    continue
+            
+            if not file_input:
+                media_button = driver.find_element(By.CSS_SELECTOR, "[data-testid='imageOrGifIcon']")
+                media_button.click()
+                time.sleep(1)
+                file_input = driver.find_element(By.CSS_SELECTOR, "input[type='file']")
+            
+            video_abs_path = os.path.abspath(video_path)
+            if not os.path.exists(video_abs_path):
+                logger.error(f"Video file does not exist: {video_abs_path}")
+                return None
+            
+            logger.info(f"Uploading video: {video_abs_path}")
+            file_input.send_keys(video_abs_path)
+            
+            logger.info("Waiting for video to upload and process...")
+            WebDriverWait(driver, 120).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='videoPlayer']"))
+            )
+            logger.info("Video uploaded successfully")
+            
+        except Exception as e:
+            logger.error(f"Error uploading video: {e}")
+            driver.save_screenshot("video_upload_error.png")
+            logger.info("Saved screenshot to video_upload_error.png")
+            return None
+        
+        post_button_selectors = [
+            "[data-testid='tweetButton']",
+            "[data-testid='postButton']",
+            "[aria-label='Post']"
+        ]
+        
+        post_button = None
+        for selector in post_button_selectors:
+            try:
+                post_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                )
+                logger.info(f"Found post button with selector: {selector}")
+                break
+            except Exception:
+                continue
+        
+        if not post_button:
+            logger.error("Could not find post button")
+            driver.save_screenshot("post_button_error.png")
+            logger.info("Saved screenshot to post_button_error.png")
+            return None
+        
         post_button.click()
+        logger.info("Clicked post button")
         
-        time.sleep(5)
+        time.sleep(10)
         
-        tweet_url = driver.current_url
-        logger.info(f"Posted to Twitter: {tweet_url}")
-        
-        return tweet_url
+        try:
+            tweet_url = driver.current_url
+            
+            if "home" in tweet_url:
+                tweet_elements = driver.find_elements(By.CSS_SELECTOR, "[data-testid='tweet']")
+                if tweet_elements:
+                    timestamp = tweet_elements[0].find_element(By.CSS_SELECTOR, "[data-testid='timestamp']")
+                    timestamp.click()
+                    time.sleep(3)
+                    tweet_url = driver.current_url
+            
+            logger.info(f"Posted to X: {tweet_url}")
+            return tweet_url
+        except Exception as e:
+            logger.error(f"Error getting tweet URL: {e}")
+            return None
     except Exception as e:
-        logger.error(f"Error posting to Twitter: {e}")
+        logger.error(f"Error posting to X: {e}")
+        driver.save_screenshot("post_error.png")
+        logger.info("Saved screenshot to post_error.png")
         return None
 
 
@@ -265,33 +406,99 @@ def reply_to_tweet(driver: webdriver.Chrome, tweet_url: str, text: str) -> Optio
         Optional[str]: Reply URL if successful, None otherwise
     """
     try:
+        logger.info(f"Navigating to tweet: {tweet_url}")
         driver.get(tweet_url)
+        time.sleep(3)
         
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='reply']"))
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "body"))
         )
         
-        reply_button = driver.find_element(By.CSS_SELECTOR, "[data-testid='reply']")
+        reply_selectors = [
+            "[data-testid='reply']",
+            "[aria-label='Reply']",
+            "[data-testid='replyButton']"
+        ]
+        
+        reply_button = None
+        for selector in reply_selectors:
+            try:
+                reply_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                )
+                logger.info(f"Found reply button with selector: {selector}")
+                break
+            except Exception:
+                continue
+        
+        if not reply_button:
+            logger.error("Could not find reply button")
+            driver.save_screenshot("reply_button_error.png")
+            logger.info("Saved screenshot to reply_button_error.png")
+            return None
+        
         reply_button.click()
+        logger.info("Clicked reply button")
         
         text_area = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='tweetTextarea_0']"))
         )
-        text_area.send_keys(text)
         
-        reply_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='tweetButton']"))
-        )
-        reply_button.click()
+        text_area.clear()
+        for char in text:
+            text_area.send_keys(char)
+            time.sleep(0.01)
         
-        time.sleep(5)
+        logger.info("Entered reply text")
         
-        reply_url = driver.current_url
-        logger.info(f"Replied to tweet: {reply_url}")
+        reply_button_selectors = [
+            "[data-testid='tweetButton']",
+            "[data-testid='postButton']",
+            "[aria-label='Reply']"
+        ]
         
-        return reply_url
+        post_button = None
+        for selector in reply_button_selectors:
+            try:
+                post_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                )
+                logger.info(f"Found post button with selector: {selector}")
+                break
+            except Exception:
+                continue
+        
+        if not post_button:
+            logger.error("Could not find post button for reply")
+            driver.save_screenshot("reply_post_button_error.png")
+            logger.info("Saved screenshot to reply_post_button_error.png")
+            return None
+        
+        post_button.click()
+        logger.info("Clicked post button for reply")
+        
+        time.sleep(10)
+        
+        try:
+            reply_url = driver.current_url
+            
+            if reply_url == tweet_url:
+                reply_elements = driver.find_elements(By.CSS_SELECTOR, "[data-testid='tweet']")
+                if len(reply_elements) > 1:  # First one is the original tweet
+                    timestamp = reply_elements[1].find_element(By.CSS_SELECTOR, "[data-testid='timestamp']")
+                    timestamp.click()
+                    time.sleep(3)
+                    reply_url = driver.current_url
+            
+            logger.info(f"Replied to tweet: {reply_url}")
+            return reply_url
+        except Exception as e:
+            logger.error(f"Error getting reply URL: {e}")
+            return None
     except Exception as e:
         logger.error(f"Error replying to tweet: {e}")
+        driver.save_screenshot("reply_error.png")
+        logger.info("Saved screenshot to reply_error.png")
         return None
 
 
@@ -306,11 +513,32 @@ def find_answer_for_question(qa_dict: Dict[str, str], question: str) -> str:
     Returns:
         str: Answer for the question, or default message if not found
     """
+    if question in qa_dict:
+        logger.info(f"Found exact match for question: '{question}'")
+        return qa_dict[question]
+    
     for q, a in qa_dict.items():
         if question in q or q in question:
+            logger.info(f"Found partial match: '{question}' matches with '{q}'")
             return a
     
-    logger.warning(f"No answer found for question: {question}")
+    question_words = set(question.replace('？', '').replace('?', '').split())
+    best_match = None
+    best_match_score = 0
+    
+    for q, a in qa_dict.items():
+        q_words = set(q.replace('？', '').replace('?', '').split())
+        common_words = question_words.intersection(q_words)
+        
+        if len(common_words) > best_match_score:
+            best_match_score = len(common_words)
+            best_match = q
+    
+    if best_match and best_match_score >= 2:  # At least 2 common words
+        logger.info(f"Found fuzzy match: '{question}' matches with '{best_match}' (score: {best_match_score})")
+        return qa_dict[best_match]
+    
+    logger.warning(f"No answer found for question: '{question}'")
     return "申し訳ございませんが、この質問に対する回答は現在準備中です。"
 
 
@@ -319,17 +547,28 @@ def main():
     try:
         os.makedirs(VIDEO_OUTPUT_DIR, exist_ok=True)
         
-        # Load Q&A data
+        # Load Q&A data with improved CSV parsing
+        logger.info(f"Loading Q&A data from {QA_CSV_PATH}")
         qa_dict = load_qa_data()
         
+        if not qa_dict:
+            logger.warning("No Q&A data loaded, will use default answers")
+        else:
+            logger.info(f"Loaded {len(qa_dict)} Q&A pairs")
+        
+        # Load questions from queue file
+        logger.info(f"Loading questions from {QUEUE_FILE}")
         queue_items = load_queue_questions()
         
         if not queue_items:
-            logger.error("No questions found in queue")
+            logger.error(f"No questions found in queue file: {QUEUE_FILE}")
             return 1
+        
+        logger.info(f"Loaded {len(queue_items)} questions from queue")
         
         video_paths = []
         questions = []
+        
         for i, item in enumerate(queue_items):
             if 'text' not in item:
                 logger.warning(f"Item missing 'text' field: {item}")
@@ -343,15 +582,23 @@ def main():
             questions.append(question)
             image_url = item['png_url']
             
+            logger.info(f"Processing question {i+1}: {question}")
+            
             video_path = f"{VIDEO_OUTPUT_DIR}/question_{i+1}.mp4"
             if create_video_from_image(image_url, video_path):
                 video_paths.append(video_path)
+                logger.info(f"Created video for question {i+1}: {video_path}")
+            else:
+                logger.error(f"Failed to create video for question {i+1}")
         
         if not video_paths:
-            logger.error("No videos created")
+            logger.error("No videos created, cannot continue")
             return 1
         
+        # Create combined video
         combined_video_path = f"{VIDEO_OUTPUT_DIR}/combined_questions.mp4"
+        logger.info(f"Creating combined video: {combined_video_path}")
+        
         if not create_combined_video(video_paths, combined_video_path):
             logger.error("Failed to create combined video")
             return 1
@@ -360,13 +607,14 @@ def main():
         logger.info(f"Individual videos: {video_paths}")
         logger.info(f"Combined video: {combined_video_path}")
         
-        # Skip Twitter posting for testing
+        # Skip Twitter posting for testing if SKIP_TWITTER is set to True
         skip_twitter = os.environ.get("SKIP_TWITTER", "True").lower() == "true"
         if skip_twitter:
-            logger.info("Skipping Twitter posting for testing purposes")
-            logger.info("To enable Twitter posting, set SKIP_TWITTER=False")
+            logger.info("Skipping X posting for testing purposes")
+            logger.info("To enable X posting, set SKIP_TWITTER=False")
             return 0
         
+        logger.info("Setting up WebDriver for X posting")
         driver = setup_webdriver()
         if not driver:
             logger.error("Failed to set up WebDriver")
@@ -374,38 +622,56 @@ def main():
         
         try:
             first_question = questions[0]
+            logger.info(f"Finding answer for first question: {first_question}")
             first_answer = find_answer_for_question(qa_dict, first_question)
             
             main_post_text = f"【質問と回答】\n\n質問1: {first_question}\n\n回答: {first_answer}"
+            logger.info("Prepared main post text")
             
             # Post main post with combined video
+            logger.info(f"Posting main post with combined video: {combined_video_path}")
             tweet_url = post_to_twitter(driver, main_post_text, combined_video_path)
             
             if not tweet_url:
                 logger.error("Failed to post main tweet")
+                driver.save_screenshot("main_post_error.png")
+                logger.info("Saved screenshot to main_post_error.png")
                 return 1
+            
+            logger.info(f"Successfully posted main tweet: {tweet_url}")
             
             for i in range(1, len(questions)):
                 question = questions[i]
+                logger.info(f"Finding answer for question {i+1}: {question}")
                 answer = find_answer_for_question(qa_dict, question)
                 
                 reply_text = f"質問{i+1}: {question}\n\n回答: {answer}"
+                logger.info(f"Posting reply {i} with text: {reply_text[:50]}...")
+                
+                time.sleep(10)
                 
                 reply_url = reply_to_tweet(driver, tweet_url, reply_text)
                 
                 if not reply_url:
                     logger.warning(f"Failed to reply with answer {i+1}")
+                    driver.save_screenshot(f"reply_{i+1}_error.png")
+                    logger.info(f"Saved screenshot to reply_{i+1}_error.png")
                     continue
                 
-                time.sleep(5)
+                logger.info(f"Successfully posted reply {i}: {reply_url}")
+                
+                time.sleep(15)
             
             logger.info("Successfully posted all questions and answers")
             return 0
         finally:
+            logger.info("Quitting WebDriver")
             driver.quit()
     
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
+        logger.error(f"Unexpected error in main function: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return 1
 
 
