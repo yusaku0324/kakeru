@@ -10,13 +10,24 @@ import logging
 import datetime
 import requests
 import csv
+import io
+import tempfile
+import random
+import pyperclip
 from typing import Dict, List, Any, Optional, Tuple
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import (
+    TimeoutException, 
+    NoSuchElementException, 
+    ElementClickInterceptedException
+)
+from webdriver_manager.chrome import ChromeDriverManager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,7 +42,7 @@ X_COOKIE_PATH = os.environ.get("COOKIE_NIIJIMA", "niijima_cookies.json")
 if not os.path.exists(X_COOKIE_PATH):
     X_COOKIE_PATH = "niijima_cookies.json"
 QA_CSV_PATH = os.environ.get("QA_CSV_PATH", "qa_sheet_polite_fixed.csv")
-QUEUE_FILE = os.environ.get("QUEUE_FILE", "queue/queue_2025-04-28.yaml")
+QUEUE_FILE = os.environ.get("QUEUE_FILE", "../queue/queue_2025-04-28.yaml")
 VIDEO_DURATION = 1  # seconds per video (1 second as requested for Canva-like format)
 VIDEO_OUTPUT_DIR = "videos"
 
@@ -168,30 +179,66 @@ def create_video_from_image(image_path: str, output_path: str) -> bool:
         return False
 
 
+def random_delay(min_sec=1.0, max_sec=3.0):
+    """ランダムな待機時間を返す（秒）"""
+    return random.uniform(min_sec, max_sec)
+
+
+def ensure_utf8_encoding():
+    """
+    標準出力のエンコーディングをUTF-8に設定する
+    
+    Returns:
+        bool: 設定に成功したかどうか
+    """
+    try:
+        old_stdout = sys.stdout
+        
+        if hasattr(sys.stdout, "encoding") and sys.stdout.encoding.lower() != "utf-8":
+            sys.stdout = io.TextIOWrapper(
+                sys.stdout.buffer, encoding="utf-8", line_buffering=True
+            )
+            logger.info(
+                f"stdoutのエンコーディングを{old_stdout.encoding}からutf-8に変更しました"
+            )
+        
+        return True
+    except Exception as e:
+        logger.error(f"stdoutのエンコーディング変更中にエラーが発生しました: {e}")
+        return False
+
+
 def setup_webdriver() -> Optional[webdriver.Chrome]:
     """
-    Set up Chrome WebDriver with X cookies
+    Set up Chrome WebDriver with X cookies using ChromeDriverManager
     
     Returns:
         webdriver.Chrome: Chrome WebDriver instance
     """
     try:
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+        ensure_utf8_encoding()
         
-        import tempfile
         temp_dir = tempfile.mkdtemp()
-        chrome_options.add_argument(f"--user-data-dir={temp_dir}")
+        logger.info(f"Using temporary directory for user data: {temp_dir}")
         
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option("useAutomationExtension", False)
+        # Set up Chrome options
+        options = Options()
+        options.add_argument("--headless=new")  # New headless mode
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1920,1080")
+        options.add_argument("--remote-debugging-port=9222")
+        options.add_argument(f"--user-data-dir={temp_dir}")
         
-        driver = webdriver.Chrome(options=chrome_options)
+        options.add_argument("--start-maximized")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option("useAutomationExtension", False)
         
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.implicitly_wait(10)
+        
+        # Add script to hide webdriver
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
             "source": """
                 Object.defineProperty(navigator, 'webdriver', {
@@ -200,34 +247,88 @@ def setup_webdriver() -> Optional[webdriver.Chrome]:
             """
         })
         
-        logger.info(f"Loading cookies from {X_COOKIE_PATH}")
-        with open(X_COOKIE_PATH, 'r', encoding='utf-8') as f:
-            cookies = json.load(f)
-        
-        driver.get("https://x.com")
-        time.sleep(2)
-        
-        for cookie in cookies:
-            if 'expiry' in cookie:
-                del cookie['expiry']
-            if 'sameSite' in cookie:
-                del cookie['sameSite']
+        if not os.path.exists(X_COOKIE_PATH):
+            logger.error(f"Cookie file not found: {X_COOKIE_PATH}")
+            return None
+            
+        try:
+            logger.info(f"Loading cookies from {X_COOKIE_PATH}")
+            with open(X_COOKIE_PATH, 'r', encoding='utf-8') as f:
+                cookies = json.load(f)
+            
+            driver.get("https://x.com")
+            time.sleep(random_delay(2, 4))
+            
+            for cookie in cookies:
+                try:
+                    if 'expiry' in cookie:
+                        del cookie['expiry']
+                    if 'sameSite' in cookie:
+                        del cookie['sameSite']
+                    
+                    driver.add_cookie(cookie)
+                    logger.debug(f"Cookie added successfully: {cookie.get('name')}")
+                except Exception as cookie_error:
+                    logger.warning(f"Could not add cookie {cookie.get('name')}: {cookie_error}")
+                    time.sleep(random_delay(0.5, 1.5))
+            
+            driver.refresh()
+            time.sleep(random_delay(3, 5))
+            
+            driver.get("https://x.com/home")
+            
+            WebDriverWait(driver, 20).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "body"))
+            )
+            
             try:
-                driver.add_cookie(cookie)
-            except Exception as cookie_error:
-                logger.warning(f"Could not add cookie {cookie.get('name')}: {cookie_error}")
-        
-        driver.get("https://x.com/home")
-        
-        WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "body"))
-        )
+                compose_button = driver.find_element(By.CSS_SELECTOR, "a[data-testid='SideNav_NewTweet_Button']")
+                logger.info("Successfully logged in to X")
+            except NoSuchElementException:
+                logger.warning("Could not verify login status, but continuing anyway")
+        except Exception as e:
+            logger.error(f"Error loading cookies: {e}")
+            return None
         
         logger.info("WebDriver set up successfully")
         return driver
     except Exception as e:
         logger.error(f"Error setting up WebDriver: {e}")
         return None
+
+
+def click_element(driver, element):
+    """
+    要素をクリックする（通常クリックが失敗した場合はJSクリックを試行）
+    
+    Args:
+        driver: WebDriverインスタンス
+        element: クリックする要素
+    """
+    try:
+        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+        time.sleep(random_delay(1, 2))
+        element.click()
+    except ElementClickInterceptedException:
+        logger.info("通常クリックが要素被りで失敗したため、JSクリックを試します。")
+        driver.execute_script("arguments[0].click();", element)
+
+
+def paste_text(driver, element, text):
+    """
+    テキストを貼り付ける（クリップボード経由）
+    
+    Args:
+        driver: WebDriverインスタンス
+        element: テキストを入力する要素
+        text: 入力するテキスト
+    """
+    pyperclip.copy(text)
+    if sys.platform.startswith('darwin'):
+        paste_keys = (Keys.COMMAND, 'v')
+    else:
+        paste_keys = (Keys.CONTROL, 'v')
+    element.send_keys(*paste_keys)
 
 
 def post_to_twitter(driver: webdriver.Chrome, text: str, video_path: str) -> Optional[str]:
@@ -278,9 +379,11 @@ def post_to_twitter(driver: webdriver.Chrome, text: str, video_path: str) -> Opt
         )
         
         text_area.clear()
-        for char in text:
-            text_area.send_keys(char)
-            time.sleep(0.01)
+        click_element(driver, text_area)
+        time.sleep(random_delay(0.5, 1.0))
+        
+        paste_text(driver, text_area, text)
+        time.sleep(random_delay(1.0, 2.0))
         
         logger.info("Entered post text")
         
@@ -562,9 +665,11 @@ def reply_to_tweet(driver: webdriver.Chrome, tweet_url: str, text: str) -> Optio
         )
         
         text_area.clear()
-        for char in text:
-            text_area.send_keys(char)
-            time.sleep(0.01)
+        click_element(driver, text_area)
+        time.sleep(random_delay(0.5, 1.0))
+        
+        paste_text(driver, text_area, text)
+        time.sleep(random_delay(1.0, 2.0))
         
         logger.info("Entered reply text")
         
