@@ -28,6 +28,8 @@ FIGMA_API_KEY = os.environ.get("FIGMA_API_KEY")
 FIGMA_FILE_ID = os.environ.get("FIGMA_FILE_ID", "aJ8OkMzwRoLlpjnEUdHvfN")
 FIGMA_NODE_ID = os.environ.get("FIGMA_NODE_ID", "20-2")
 X_COOKIE_PATH = os.environ.get("COOKIE_NIIJIMA", "niijima_cookies.json")
+if not os.path.exists(X_COOKIE_PATH):
+    X_COOKIE_PATH = "niijima_cookies.json"
 QA_CSV_PATH = os.environ.get("QA_CSV_PATH", "qa_sheet_polite_fixed.csv")
 QUEUE_FILE = os.environ.get("QUEUE_FILE", "queue/queue_2025-04-28.yaml")
 VIDEO_DURATION = 1  # seconds per video (1 second as requested for Canva-like format)
@@ -51,17 +53,26 @@ def load_qa_data() -> Dict[str, str]:
             if len(headers) >= 2:
                 prompt_idx = 0  # Default to first column for prompt
                 completion_idx = 1  # Default to second column for completion
+                media_url_idx = None  # Look for media_url column
                 
                 for i, header in enumerate(headers):
                     if header.lower() == 'prompt':
                         prompt_idx = i
                     elif header.lower() == 'completion':
                         completion_idx = i
+                    elif header.lower() == 'media_url' or header.lower() == 'media url':
+                        media_url_idx = i
                 
                 for row in csv_reader:
                     if len(row) > max(prompt_idx, completion_idx):
                         question = row[prompt_idx].strip('"')
-                        answer = row[completion_idx].strip('"')
+                        
+                        if media_url_idx is not None and len(row) > media_url_idx and row[media_url_idx].strip():
+                            answer = row[media_url_idx].strip('"')
+                            logger.info(f"Using media URL as answer for question: '{question}' -> '{answer}'")
+                        else:
+                            answer = row[completion_idx].strip('"')
+                        
                         qa_dict[question] = answer
             
         logger.info(f"Loaded {len(qa_dict)} Q&A pairs from {QA_CSV_PATH}")
@@ -194,6 +205,8 @@ def setup_webdriver() -> Optional[webdriver.Chrome]:
         for cookie in cookies:
             if 'expiry' in cookie:
                 del cookie['expiry']
+            if 'sameSite' in cookie:
+                del cookie['sameSite']
             try:
                 driver.add_cookie(cookie)
             except Exception as cookie_error:
@@ -228,31 +241,32 @@ def post_to_twitter(driver: webdriver.Chrome, text: str, video_path: str) -> Opt
         driver.get("https://x.com/home")
         time.sleep(3)
         
-        selectors = [
-            "[data-testid='tweetTextarea_0']",
+        compose_button_selectors = [
             "[data-testid='SideNav_NewTweet_Button']",
             "[aria-label='Post']",
             "[aria-label='Tweet']",
             "[data-testid='tweetButtonInline']"
         ]
         
-        post_element = None
-        for selector in selectors:
+        compose_button = None
+        for selector in compose_button_selectors:
             try:
-                post_element = WebDriverWait(driver, 5).until(
+                compose_button = WebDriverWait(driver, 5).until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
                 )
-                logger.info(f"Found post element with selector: {selector}")
-                post_element.click()
+                logger.info(f"Found compose button with selector: {selector}")
+                compose_button.click()
                 break
             except Exception:
                 continue
         
-        if not post_element:
-            logger.error("Could not find post button or text area")
-            driver.save_screenshot("x_post_error.png")
-            logger.info("Saved screenshot to x_post_error.png")
+        if not compose_button:
+            logger.error("Could not find compose button")
+            driver.save_screenshot("compose_button_error.png")
+            logger.info("Saved screenshot to compose_button_error.png")
             return None
+        
+        time.sleep(2)
         
         text_area = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='tweetTextarea_0']"))
@@ -309,7 +323,13 @@ def post_to_twitter(driver: webdriver.Chrome, text: str, video_path: str) -> Opt
         post_button_selectors = [
             "[data-testid='tweetButton']",
             "[data-testid='postButton']",
-            "[aria-label='Post']"
+            "[aria-label='Post']",
+            "[aria-label='Tweet']",
+            "div[role='button'][data-testid='tweetButton']",
+            "div[role='button'][data-testid='postButton']",
+            "div[role='button'][aria-label='Post']",
+            "div[role='button'][aria-label='Tweet']",
+            "div[data-testid='tweetButtonInline']"
         ]
         
         post_button = None
@@ -324,9 +344,55 @@ def post_to_twitter(driver: webdriver.Chrome, text: str, video_path: str) -> Opt
                 continue
         
         if not post_button:
+            try:
+                xpath_selectors = [
+                    "//div[@role='button' and contains(text(), 'Post')]",
+                    "//div[@role='button' and contains(text(), 'Tweet')]",
+                    "//span[contains(text(), 'Post')]/ancestor::div[@role='button']",
+                    "//span[contains(text(), 'Tweet')]/ancestor::div[@role='button']",
+                    "//div[@role='button' and contains(text(), 'ポストする')]",
+                    "//span[contains(text(), 'ポストする')]/ancestor::div[@role='button']"
+                ]
+                
+                for xpath in xpath_selectors:
+                    try:
+                        post_button = driver.find_element(By.XPATH, xpath)
+                        logger.info(f"Found post button with XPath: {xpath}")
+                        break
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.error(f"Error finding post button with XPath: {e}")
+        
+        if not post_button:
             logger.error("Could not find post button")
             driver.save_screenshot("post_button_error.png")
             logger.info("Saved screenshot to post_button_error.png")
+            
+            try:
+                buttons = driver.find_elements(By.CSS_SELECTOR, "div[role='button']")
+                logger.info(f"Found {len(buttons)} potential buttons")
+                
+                for i, button in enumerate(buttons):
+                    try:
+                        text = button.text
+                        logger.info(f"Button {i}: text='{text}'")
+                        
+                        if text.lower() in ['post', 'tweet', 'send'] or text == 'ポストする':
+                            logger.info(f"Found potential post button with text: {text}")
+                            button.click()
+                            logger.info(f"Clicked button with text: {text}")
+                            time.sleep(5)
+                            
+                            if not driver.find_elements(By.CSS_SELECTOR, "[data-testid='tweetTextarea_0']"):
+                                tweet_url = driver.current_url
+                                logger.info(f"Posted to X: {tweet_url}")
+                                return tweet_url
+                    except Exception as e:
+                        logger.warning(f"Error getting text for button {i}: {e}")
+            except Exception as e:
+                logger.error(f"Error finding potential buttons: {e}")
+            
             return None
         
         post_button.click()
@@ -515,7 +581,7 @@ def find_answer_for_question(qa_dict: Dict[str, str], question: str) -> str:
     """
     manual_matches = {
         "メンズエステで働くメリットは何でしょうか？": "派遣型と店舗型、どちらが稼ぎやすい？メリットとデメリットは？",
-        "未経験でも稼げるのでしょうか？": "本指名率は何％で\"人気セラピスト\"？",
+        "未経験でも稼げるのでしょうか？": "未経験でも稼げる？",
         "出稼ぎの交通費は支給されるのでしょうか？": "交通費を負担してもらう交渉のコツは？",
         "本指名率を上げるコツはありますか？": "リピート率を上げる即効策は？"
     }
