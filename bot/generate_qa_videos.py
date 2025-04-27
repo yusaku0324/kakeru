@@ -14,6 +14,7 @@ import io
 import tempfile
 import random
 import pyperclip
+import urllib.request
 from typing import Dict, List, Any, Optional, Tuple
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -38,21 +39,21 @@ logger = logging.getLogger(__name__)
 FIGMA_API_KEY = os.environ.get("FIGMA_API_KEY")
 FIGMA_FILE_ID = os.environ.get("FIGMA_FILE_ID", "aJ8OkMzwRoLlpjnEUdHvfN")
 FIGMA_NODE_ID = os.environ.get("FIGMA_NODE_ID", "20-2")
-X_COOKIE_PATH = os.environ.get("COOKIE_NIIJIMA", "niijima_cookies.json")
+X_COOKIE_PATH = os.environ.get("COOKIE_NIIJIMA", os.path.join(os.path.dirname(os.path.dirname(__file__)), "profiles", "niijima"))
 if not os.path.exists(X_COOKIE_PATH):
-    X_COOKIE_PATH = "niijima_cookies.json"
+    X_COOKIE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "profiles", "niijima")
 QA_CSV_PATH = os.environ.get("QA_CSV_PATH", "qa_sheet_polite_fixed.csv")
 QUEUE_FILE = os.environ.get("QUEUE_FILE", "../queue/queue_2025-04-28.yaml")
 VIDEO_DURATION = 1  # seconds per video (1 second as requested for Canva-like format)
 VIDEO_OUTPUT_DIR = "videos"
 
 
-def load_qa_data() -> Dict[str, str]:
+def load_qa_data() -> Dict[str, Dict[str, str]]:
     """
     Load Q&A data from the CSV file
     
     Returns:
-        Dict[str, str]: Dictionary mapping questions to answers
+        Dict[str, Dict[str, str]]: Dictionary mapping questions to answer data (text and media_url)
     """
     qa_dict = {}
     
@@ -73,18 +74,25 @@ def load_qa_data() -> Dict[str, str]:
                         completion_idx = i
                     elif header.lower() == 'media_url' or header.lower() == 'media url':
                         media_url_idx = i
+                        logger.info(f"Found media_url column at index {media_url_idx}")
                 
                 for row in csv_reader:
                     if len(row) > max(prompt_idx, completion_idx):
                         question = row[prompt_idx].strip('"')
+                        answer_text = row[completion_idx].strip('"')
                         
-                        if media_url_idx is not None and len(row) > media_url_idx and row[media_url_idx].strip():
-                            answer = row[media_url_idx].strip('"')
-                            logger.info(f"Using media URL as answer for question: '{question}' -> '{answer}'")
-                        else:
-                            answer = row[completion_idx].strip('"')
+                        answer_data = {
+                            "text": answer_text,
+                            "media_url": ""
+                        }
                         
-                        qa_dict[question] = answer
+                        if media_url_idx is not None and len(row) > media_url_idx:
+                            media_url = row[media_url_idx].strip('"')
+                            if media_url:
+                                answer_data["media_url"] = media_url
+                                logger.info(f"Found media URL for question: '{question}' -> '{media_url}'")
+                        
+                        qa_dict[question] = answer_data
             
         logger.info(f"Loaded {len(qa_dict)} Q&A pairs from {QA_CSV_PATH}")
         
@@ -218,77 +226,134 @@ def setup_webdriver() -> Optional[webdriver.Chrome]:
     try:
         ensure_utf8_encoding()
         
-        temp_dir = tempfile.mkdtemp()
-        logger.info(f"Using temporary directory for user data: {temp_dir}")
-        
         # Set up Chrome options
         options = Options()
-        options.add_argument("--headless=new")  # New headless mode
+        # options.add_argument("--headless=new")  # Disable headless mode for debugging
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
-        options.add_argument("--remote-debugging-port=9222")
-        options.add_argument(f"--user-data-dir={temp_dir}")
-        
         options.add_argument("--start-maximized")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
         
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        driver.implicitly_wait(10)
+        import tempfile
+        import uuid
+        temp_dir = os.path.join(tempfile.gettempdir(), f"chrome_profile_{uuid.uuid4().hex}")
+        os.makedirs(temp_dir, exist_ok=True)
+        options.add_argument(f"--user-data-dir={temp_dir}")
+        logger.info(f"Using temporary Chrome profile directory: {temp_dir}")
         
-        # Add script to hide webdriver
-        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-            "source": """
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                });
-            """
-        })
-        
-        if not os.path.exists(X_COOKIE_PATH):
-            logger.error(f"Cookie file not found: {X_COOKIE_PATH}")
-            return None
-            
         try:
-            logger.info(f"Loading cookies from {X_COOKIE_PATH}")
-            with open(X_COOKIE_PATH, 'r', encoding='utf-8') as f:
-                cookies = json.load(f)
+            import undetected_chromedriver as uc
+            logger.info("Using undetected-chromedriver")
             
-            driver.get("https://x.com")
-            time.sleep(random_delay(2, 4))
+            uc_options = uc.ChromeOptions()
+            uc_options.add_argument("--no-sandbox")
+            uc_options.add_argument("--disable-dev-shm-usage")
+            uc_options.add_argument("--disable-gpu")
+            uc_options.add_argument("--window-size=1920,1080")
+            uc_options.add_argument(f"--user-data-dir={temp_dir}")
             
-            for cookie in cookies:
-                try:
-                    if 'expiry' in cookie:
-                        del cookie['expiry']
-                    if 'sameSite' in cookie:
-                        del cookie['sameSite']
-                    
-                    driver.add_cookie(cookie)
-                    logger.debug(f"Cookie added successfully: {cookie.get('name')}")
-                except Exception as cookie_error:
-                    logger.warning(f"Could not add cookie {cookie.get('name')}: {cookie_error}")
-                    time.sleep(random_delay(0.5, 1.5))
+            driver = uc.Chrome(options=uc_options)
+            driver.implicitly_wait(10)
             
-            driver.refresh()
-            time.sleep(random_delay(3, 5))
+        except (ImportError, Exception) as e:
+            logger.warning(f"Failed to use undetected-chromedriver: {e}. Falling back to regular ChromeDriver")
+            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+            driver.implicitly_wait(10)
             
-            driver.get("https://x.com/home")
-            
-            WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "body"))
-            )
-            
+            # Add script to hide webdriver
+            driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+                "source": """
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => undefined
+                    });
+                """
+            })
+        
+        driver.get("https://x.com")
+        time.sleep(2)
+        
+        cookies_loaded = False
+        cookie_file_path = "bot/niijima_cookies.json"
+        if os.path.exists(cookie_file_path):
             try:
-                compose_button = driver.find_element(By.CSS_SELECTOR, "a[data-testid='SideNav_NewTweet_Button']")
-                logger.info("Successfully logged in to X")
-            except NoSuchElementException:
-                logger.warning("Could not verify login status, but continuing anyway")
-        except Exception as e:
-            logger.error(f"Error loading cookies: {e}")
-            return None
+                logger.info(f"Loading cookies from file: {cookie_file_path}")
+                with open(cookie_file_path, 'r') as f:
+                    cookies = json.load(f)
+                    
+                if cookies and len(cookies) > 0:
+                    for cookie in cookies:
+                        if 'name' in cookie and 'value' in cookie:
+                            try:
+                                cookie_dict = {
+                                    'name': cookie['name'],
+                                    'value': cookie['value'],
+                                    'domain': cookie.get('domain', '.x.com'),
+                                    'path': cookie.get('path', '/'),
+                                    'secure': cookie.get('secure', True),
+                                    'httpOnly': cookie.get('httpOnly', False)
+                                }
+                                if 'expiry' in cookie:
+                                    cookie_dict['expiry'] = cookie['expiry']
+                                driver.add_cookie(cookie_dict)
+                            except Exception as e:
+                                logger.warning(f"Error setting cookie {cookie.get('name')}: {e}")
+                    
+                    cookies_loaded = True
+                    logger.info(f"Loaded {len(cookies)} cookies from file")
+            except Exception as e:
+                logger.warning(f"Error loading cookies from file: {e}")
+        
+        if not cookies_loaded:
+            cookie_niijima = os.getenv("COOKIE_NIIJIMA")
+            if cookie_niijima:
+                try:
+                    logger.info("Setting cookies from COOKIE_NIIJIMA environment variable")
+                    cookies = json.loads(cookie_niijima)
+                    
+                    for cookie in cookies:
+                        if 'name' in cookie and 'value' in cookie:
+                            try:
+                                cookie_dict = {
+                                    'name': cookie['name'],
+                                    'value': cookie['value'],
+                                    'domain': cookie.get('domain', '.x.com'),
+                                    'path': cookie.get('path', '/'),
+                                    'secure': cookie.get('secure', True),
+                                    'httpOnly': cookie.get('httpOnly', False)
+                                }
+                                if 'expiry' in cookie:
+                                    cookie_dict['expiry'] = cookie['expiry']
+                                driver.add_cookie(cookie_dict)
+                            except Exception as e:
+                                logger.warning(f"Error setting cookie {cookie.get('name')}: {e}")
+                    
+                    cookies_loaded = True
+                    logger.info(f"Loaded {len(cookies)} cookies from environment variable")
+                except Exception as e:
+                    logger.warning(f"Error loading cookies from environment variable: {e}")
+            else:
+                logger.warning("COOKIE_NIIJIMA not found in environment variables")
+        
+        driver.refresh()
+        time.sleep(3)
+        
+        driver.get("https://x.com/home")
+        time.sleep(random_delay(3, 5))
+        
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "body"))
+        )
+        
+        try:
+            compose_button = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "a[data-testid='SideNav_NewTweet_Button']"))
+            )
+            logger.info("Successfully logged in to X using cookies")
+        except (NoSuchElementException, TimeoutException):
+            logger.warning("Could not verify login status, but continuing anyway")
         
         logger.info("WebDriver set up successfully")
         return driver
@@ -613,14 +678,15 @@ def create_combined_video(video_paths: List[str], output_path: str) -> bool:
         return False
 
 
-def reply_to_tweet(driver: webdriver.Chrome, tweet_url: str, text: str) -> Optional[str]:
+def reply_to_tweet(driver: webdriver.Chrome, tweet_url: str, text: str, media_path: Optional[str] = None) -> Optional[str]:
     """
-    Reply to a tweet with text only (no video)
+    Reply to a tweet with text and optional media
     
     Args:
         driver: Chrome WebDriver instance
         tweet_url: URL of the tweet to reply to
         text: Text to post
+        media_path: Optional path to media file to attach
         
     Returns:
         Optional[str]: Reply URL if successful, None otherwise
@@ -673,6 +739,44 @@ def reply_to_tweet(driver: webdriver.Chrome, tweet_url: str, text: str) -> Optio
         
         logger.info("Entered reply text")
         
+        if media_path and os.path.exists(media_path):
+            try:
+                logger.info(f"Attaching media to reply: {media_path}")
+                
+                media_input_selectors = [
+                    "input[type='file']",
+                    "input[data-testid='fileInput']",
+                    "input[accept='image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime']"
+                ]
+                
+                media_input = None
+                for selector in media_input_selectors:
+                    try:
+                        media_input = driver.find_element(By.CSS_SELECTOR, selector)
+                        logger.info(f"Found media input with selector: {selector}")
+                        break
+                    except Exception:
+                        continue
+                
+                if not media_input:
+                    logger.warning("Could not find media input element")
+                else:
+                    media_input.send_keys(os.path.abspath(media_path))
+                    
+                    try:
+                        WebDriverWait(driver, 30).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-testid='attachments']"))
+                        )
+                        logger.info("Media uploaded successfully")
+                    except TimeoutException:
+                        logger.warning("Timed out waiting for media upload confirmation, but continuing anyway")
+                    
+                    time.sleep(random_delay(2, 4))
+            except Exception as e:
+                logger.error(f"Error attaching media: {e}")
+                driver.save_screenshot("media_attachment_error.png")
+                logger.info("Saved screenshot to media_attachment_error.png")
+        
         reply_button_selectors = [
             "[data-testid='tweetButton']",
             "[data-testid='postButton']",
@@ -724,22 +828,27 @@ def reply_to_tweet(driver: webdriver.Chrome, tweet_url: str, text: str) -> Optio
         return None
 
 
-def find_answer_for_question(qa_dict: Dict[str, str], question: str) -> str:
+def find_answer_for_question(qa_dict: Dict[str, Dict[str, str]], question: str) -> Dict[str, str]:
     """
     Find the answer for a question in the Q&A dictionary
     
     Args:
-        qa_dict: Dictionary mapping questions to answers
+        qa_dict: Dictionary mapping questions to answer data (text and media_url)
         question: Question to find the answer for
         
     Returns:
-        str: Answer for the question, or default message if not found
+        Dict[str, str]: Dictionary with 'text' and 'media_url' keys
     """
     manual_matches = {
-        "メンズエステで働くメリットは何でしょうか？": "派遣型と店舗型、どちらが稼ぎやすい？メリットとデメリットは？",
-        "未経験でも稼げるのでしょうか？": "未経験でも稼げる？",
-        "出稼ぎの交通費は支給されるのでしょうか？": "交通費を負担してもらう交渉のコツは？",
-        "本指名率を上げるコツはありますか？": "リピート率を上げる即効策は？"
+        "メンズエステで働くメリットは何でしょうか？": "メンズエステで働くメリットは何でしょうか？",
+        "未経験でも稼げるのでしょうか？": "未経験でも稼げるのでしょうか？",
+        "出稼ぎの交通費は支給されるのでしょうか？": "出稼ぎの交通費は支給されるのでしょうか？",
+        "本指名率を上げるコツはありますか？": "本指名率を上げるコツはありますか？"
+    }
+    
+    default_response = {
+        "text": "申し訳ございませんが、この質問に対する回答は現在準備中です。",
+        "media_url": ""
     }
     
     if question in manual_matches:
@@ -775,7 +884,7 @@ def find_answer_for_question(qa_dict: Dict[str, str], question: str) -> str:
         return qa_dict[best_match]
     
     logger.warning(f"No answer found for question: '{question}'")
-    return "申し訳ございませんが、この質問に対する回答は現在準備中です。"
+    return default_response
 
 
 def main():
@@ -859,9 +968,9 @@ def main():
         try:
             first_question = questions[0]
             logger.info(f"Finding answer for first question: {first_question}")
-            first_answer = find_answer_for_question(qa_dict, first_question)
+            first_answer_data = find_answer_for_question(qa_dict, first_question)
             
-            main_post_text = f"【質問と回答】\n\n質問1: {first_question}\n\n回答: {first_answer}"
+            main_post_text = f"【質問と回答】\n\n質問1: {first_question}\n\n回答: {first_answer_data['text']}"
             logger.info("Prepared main post text")
             
             # Post main post with combined video
@@ -879,14 +988,36 @@ def main():
             for i in range(1, len(questions)):
                 question = questions[i]
                 logger.info(f"Finding answer for question {i+1}: {question}")
-                answer = find_answer_for_question(qa_dict, question)
+                answer_data = find_answer_for_question(qa_dict, question)
                 
-                reply_text = f"質問{i+1}: {question}\n\n回答: {answer}"
+                reply_text = f"質問{i+1}: {question}\n\n回答: {answer_data['text']}"
                 logger.info(f"Posting reply {i} with text: {reply_text[:50]}...")
+                
+                media_path = None
+                if answer_data.get('media_url'):
+                    media_url = answer_data['media_url']
+                    logger.info(f"Found media URL for question {i+1}: {media_url}")
+                    
+                    if os.path.exists(media_url):
+                        media_path = media_url
+                        logger.info(f"Using local media path: {media_path}")
+                    elif media_url.startswith(('http://', 'https://')):
+                        try:
+                            media_filename = f"answer_{i+1}.png"
+                            urllib.request.urlretrieve(media_url, media_filename)
+                            media_path = media_filename
+                            logger.info(f"Downloaded media from {media_url} to {media_path}")
+                        except Exception as e:
+                            logger.error(f"Failed to download media from {media_url}: {e}")
+                    else:
+                        logger.warning(f"Unrecognized media URL format: {media_url}")
+                else:
+                    logger.info(f"No media URL found for question {i+1}")
+                
                 
                 time.sleep(10)
                 
-                reply_url = reply_to_tweet(driver, tweet_url, reply_text)
+                reply_url = reply_to_tweet(driver, tweet_url, reply_text, media_path)
                 
                 if not reply_url:
                     logger.warning(f"Failed to reply with answer {i+1}")
