@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 FIGMA_API_KEY = os.environ.get("FIGMA_API_KEY")
 FIGMA_FILE_ID = os.environ.get("FIGMA_FILE_ID", "aJ8OkMzwRoLlpjnEUdHvfN")
 FIGMA_NODE_ID = os.environ.get("FIGMA_NODE_ID", "20-2")
-X_COOKIE_PATH = os.environ.get("X_COOKIE_PATH", "niijima_cookies.json")
+X_COOKIE_PATH = os.environ.get("COOKIE_NIIJIMA", "niijima_cookies.json")
 QA_CSV_PATH = os.environ.get("QA_CSV_PATH", "qa_sheet_polite_fixed.csv")
 QUEUE_FILE = os.environ.get("QUEUE_FILE", "queue/queue_2025-04-28.yaml")
 VIDEO_DURATION = 1  # seconds per video (1 second as requested for Canva-like format)
@@ -513,6 +513,19 @@ def find_answer_for_question(qa_dict: Dict[str, str], question: str) -> str:
     Returns:
         str: Answer for the question, or default message if not found
     """
+    manual_matches = {
+        "メンズエステで働くメリットは何でしょうか？": "派遣型と店舗型、どちらが稼ぎやすい？メリットとデメリットは？",
+        "未経験でも稼げるのでしょうか？": "本指名率は何％で\"人気セラピスト\"？",
+        "出稼ぎの交通費は支給されるのでしょうか？": "交通費を負担してもらう交渉のコツは？",
+        "本指名率を上げるコツはありますか？": "リピート率を上げる即効策は？"
+    }
+    
+    if question in manual_matches:
+        matched_question = manual_matches[question]
+        if matched_question in qa_dict:
+            logger.info(f"Found manual match: '{question}' -> '{matched_question}'")
+            return qa_dict[matched_question]
+    
     if question in qa_dict:
         logger.info(f"Found exact match for question: '{question}'")
         return qa_dict[question]
@@ -522,6 +535,7 @@ def find_answer_for_question(qa_dict: Dict[str, str], question: str) -> str:
             logger.info(f"Found partial match: '{question}' matches with '{q}'")
             return a
     
+    # Fuzzy match based on common words
     question_words = set(question.replace('？', '').replace('?', '').split())
     best_match = None
     best_match_score = 0
