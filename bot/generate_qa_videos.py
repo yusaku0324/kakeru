@@ -182,6 +182,11 @@ def setup_webdriver() -> Optional[webdriver.Chrome]:
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+        
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+        chrome_options.add_argument(f"--user-data-dir={temp_dir}")
+        
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option("useAutomationExtension", False)
         
@@ -401,17 +406,63 @@ def post_to_twitter(driver: webdriver.Chrome, text: str, video_path: str) -> Opt
         time.sleep(10)
         
         try:
+            time.sleep(5)
             tweet_url = driver.current_url
             
             if "home" in tweet_url:
-                tweet_elements = driver.find_elements(By.CSS_SELECTOR, "[data-testid='tweet']")
-                if tweet_elements:
-                    timestamp = tweet_elements[0].find_element(By.CSS_SELECTOR, "[data-testid='timestamp']")
-                    timestamp.click()
-                    time.sleep(3)
-                    tweet_url = driver.current_url
+                logger.info("Still on home page, trying to find the tweet")
+                
+                tweet_selectors = [
+                    "[data-testid='tweet']",
+                    "[data-testid='tweetText']",
+                    "[data-testid='cellInnerDiv']"
+                ]
+                
+                for selector in tweet_selectors:
+                    try:
+                        tweet_elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                        if tweet_elements:
+                            logger.info(f"Found {len(tweet_elements)} tweet elements with selector: {selector}")
+                            
+                            timestamp_selectors = [
+                                "[data-testid='timestamp']",
+                                "time",
+                                "a[href*='/status/']"
+                            ]
+                            
+                            for ts_selector in timestamp_selectors:
+                                try:
+                                    for i in range(min(3, len(tweet_elements))):
+                                        try:
+                                            timestamp = tweet_elements[i].find_element(By.CSS_SELECTOR, ts_selector)
+                                            timestamp.click()
+                                            time.sleep(3)
+                                            tweet_url = driver.current_url
+                                            if "/status/" in tweet_url:
+                                                logger.info(f"Found tweet URL via {selector} and {ts_selector}: {tweet_url}")
+                                                return tweet_url
+                                        except Exception as e:
+                                            logger.warning(f"Error clicking timestamp in tweet {i}: {e}")
+                                except Exception as e:
+                                    logger.warning(f"Error finding timestamp with selector {ts_selector}: {e}")
+                    except Exception as e:
+                        logger.warning(f"Error finding tweets with selector {selector}: {e}")
+                
+                try:
+                    status_links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/status/']")
+                    if status_links:
+                        for link in status_links:
+                            try:
+                                href = link.get_attribute("href")
+                                if href and "/status/" in href:
+                                    logger.info(f"Found tweet URL via status link: {href}")
+                                    return href
+                            except Exception as e:
+                                logger.warning(f"Error getting href from status link: {e}")
+                except Exception as e:
+                    logger.warning(f"Error finding status links: {e}")
             
-            logger.info(f"Posted to X: {tweet_url}")
+            logger.info(f"Posted to X, but couldn't find specific tweet URL. Current URL: {tweet_url}")
             return tweet_url
         except Exception as e:
             logger.error(f"Error getting tweet URL: {e}")
