@@ -43,7 +43,7 @@ X_COOKIE_PATH = os.environ.get("COOKIE_NIIJIMA", os.path.join(os.path.dirname(os
 if not os.path.exists(X_COOKIE_PATH):
     X_COOKIE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "profiles", "niijima")
 QA_CSV_PATH = os.environ.get("QA_CSV_PATH", "qa_sheet_polite_fixed.csv")
-QUEUE_FILE = os.environ.get("QUEUE_FILE", "../queue/queue_2025-04-28.yaml")
+QUEUE_FILE = os.environ.get("QUEUE_FILE", "queue/queue_2025-04-28.yaml")
 VIDEO_DURATION = 1  # seconds per video (1 second as requested for Canva-like format)
 VIDEO_OUTPUT_DIR = "videos"
 
@@ -234,33 +234,53 @@ def setup_webdriver() -> Optional[webdriver.Chrome]:
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
         options.add_argument("--start-maximized")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-infobars")
+        options.add_argument("--disable-notifications")
+        options.add_argument("--disable-popup-blocking")
+        options.add_argument("--disable-translate")
+        options.add_argument("--disable-features=TranslateUI")
+        options.add_argument("--disable-features=Translate")
+        options.add_argument("--disable-features=PasswordManager")
+        options.add_argument("--disable-features=ChromeWhatsNewUI")
+        options.add_argument("--disable-features=PrivacySandboxSettings4")
+        options.add_argument("--disable-features=AutofillEnableAccountWalletStorage")
+        options.add_argument("--disable-features=AutofillServerCommunication")
+        options.add_argument("--disable-features=ImprovedCookieControls")
+        options.add_argument("--disable-features=OptimizationHints")
+        options.add_argument("--disable-features=OptimizationHintsFetching")
+        options.add_argument("--disable-features=OptimizationTargetPrediction")
+        options.add_argument("--disable-features=OptimizationHintsFetchingAnonymousDataConsent")
+        options.add_argument("--disable-features=PrivacySandboxSettings3")
+        options.add_argument("--disable-features=PrivacySandboxAdsAPIsOverride")
+        options.add_argument("--disable-features=PrivacySandboxSettings")
+        options.add_argument("--disable-features=PrivacyGuide3")
+        options.add_argument("--disable-features=PrivacyGuide")
+        options.add_argument("--disable-features=PrivacyReview")
+        options.add_argument("--disable-features=PrivacySandboxPromptV2")
+        options.add_argument("--disable-features=PrivacySandboxPrompt")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
         
         import tempfile
         import uuid
+        import shutil
+        import time
+        import psutil
+        
+        # Create a completely fresh Chrome profile
         temp_dir = os.path.join(tempfile.gettempdir(), f"chrome_profile_{uuid.uuid4().hex}")
         os.makedirs(temp_dir, exist_ok=True)
         options.add_argument(f"--user-data-dir={temp_dir}")
-        logger.info(f"Using temporary Chrome profile directory: {temp_dir}")
+        logger.info(f"Using fresh Chrome profile directory: {temp_dir}")
+        
+        logger.info("Using regular ChromeDriver with headless mode")
+        
+        options.add_argument("--headless=new")
         
         try:
-            import undetected_chromedriver as uc
-            logger.info("Using undetected-chromedriver")
-            
-            uc_options = uc.ChromeOptions()
-            uc_options.add_argument("--no-sandbox")
-            uc_options.add_argument("--disable-dev-shm-usage")
-            uc_options.add_argument("--disable-gpu")
-            uc_options.add_argument("--window-size=1920,1080")
-            uc_options.add_argument(f"--user-data-dir={temp_dir}")
-            
-            driver = uc.Chrome(options=uc_options)
-            driver.implicitly_wait(10)
-            
-        except (ImportError, Exception) as e:
-            logger.warning(f"Failed to use undetected-chromedriver: {e}. Falling back to regular ChromeDriver")
-            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
             driver.implicitly_wait(10)
             
             # Add script to hide webdriver
@@ -271,71 +291,43 @@ def setup_webdriver() -> Optional[webdriver.Chrome]:
                     });
                 """
             })
+        except Exception as e:
+            logger.error(f"Error creating WebDriver: {e}")
+            return None
         
         driver.get("https://x.com")
         time.sleep(2)
         
         cookies_loaded = False
-        cookie_file_path = "bot/niijima_cookies.json"
-        if os.path.exists(cookie_file_path):
+        cookie_niijima = os.getenv("COOKIE_NIIJIMA")
+        if cookie_niijima:
             try:
-                logger.info(f"Loading cookies from file: {cookie_file_path}")
-                with open(cookie_file_path, 'r') as f:
-                    cookies = json.load(f)
-                    
-                if cookies and len(cookies) > 0:
-                    for cookie in cookies:
-                        if 'name' in cookie and 'value' in cookie:
-                            try:
-                                cookie_dict = {
-                                    'name': cookie['name'],
-                                    'value': cookie['value'],
-                                    'domain': cookie.get('domain', '.x.com'),
-                                    'path': cookie.get('path', '/'),
-                                    'secure': cookie.get('secure', True),
-                                    'httpOnly': cookie.get('httpOnly', False)
-                                }
-                                if 'expiry' in cookie:
-                                    cookie_dict['expiry'] = cookie['expiry']
-                                driver.add_cookie(cookie_dict)
-                            except Exception as e:
-                                logger.warning(f"Error setting cookie {cookie.get('name')}: {e}")
-                    
-                    cookies_loaded = True
-                    logger.info(f"Loaded {len(cookies)} cookies from file")
+                logger.info("Setting cookies from COOKIE_NIIJIMA environment variable")
+                cookies = json.loads(cookie_niijima)
+                
+                for cookie in cookies:
+                    if 'name' in cookie and 'value' in cookie:
+                        try:
+                            cookie_dict = {
+                                'name': cookie['name'],
+                                'value': cookie['value'],
+                                'domain': cookie.get('domain', '.x.com'),
+                                'path': cookie.get('path', '/'),
+                                'secure': cookie.get('secure', True),
+                                'httpOnly': cookie.get('httpOnly', False)
+                            }
+                            if 'expiry' in cookie:
+                                cookie_dict['expiry'] = cookie['expiry']
+                            driver.add_cookie(cookie_dict)
+                        except Exception as e:
+                            logger.warning(f"Error setting cookie {cookie.get('name')}: {e}")
+                
+                cookies_loaded = True
+                logger.info(f"Loaded {len(cookies)} cookies from environment variable")
             except Exception as e:
-                logger.warning(f"Error loading cookies from file: {e}")
-        
-        if not cookies_loaded:
-            cookie_niijima = os.getenv("COOKIE_NIIJIMA")
-            if cookie_niijima:
-                try:
-                    logger.info("Setting cookies from COOKIE_NIIJIMA environment variable")
-                    cookies = json.loads(cookie_niijima)
-                    
-                    for cookie in cookies:
-                        if 'name' in cookie and 'value' in cookie:
-                            try:
-                                cookie_dict = {
-                                    'name': cookie['name'],
-                                    'value': cookie['value'],
-                                    'domain': cookie.get('domain', '.x.com'),
-                                    'path': cookie.get('path', '/'),
-                                    'secure': cookie.get('secure', True),
-                                    'httpOnly': cookie.get('httpOnly', False)
-                                }
-                                if 'expiry' in cookie:
-                                    cookie_dict['expiry'] = cookie['expiry']
-                                driver.add_cookie(cookie_dict)
-                            except Exception as e:
-                                logger.warning(f"Error setting cookie {cookie.get('name')}: {e}")
-                    
-                    cookies_loaded = True
-                    logger.info(f"Loaded {len(cookies)} cookies from environment variable")
-                except Exception as e:
-                    logger.warning(f"Error loading cookies from environment variable: {e}")
-            else:
-                logger.warning("COOKIE_NIIJIMA not found in environment variables")
+                logger.warning(f"Error loading cookies from environment variable: {e}")
+        else:
+            logger.warning("COOKIE_NIIJIMA not found in environment variables")
         
         driver.refresh()
         time.sleep(3)
@@ -413,10 +405,30 @@ def post_to_twitter(driver: webdriver.Chrome, text: str, video_path: str) -> Opt
         time.sleep(3)
         
         compose_button_selectors = [
-            "[data-testid='SideNav_NewTweet_Button']",
-            "[aria-label='Post']",
-            "[aria-label='Tweet']",
-            "[data-testid='tweetButtonInline']"
+            "a[data-testid='SideNav_NewTweet_Button']",
+            "a[href='/compose/tweet']",
+            "div[aria-label='ツイートする']",
+            "div[aria-label='Post']",
+            "div[aria-label='Tweet']",
+            "div[data-testid='tweetButtonInline']",
+            "a[aria-label='ツイートする']",
+            "a[aria-label='Post']",
+            "a[aria-label='Tweet']",
+            "div[role='button'][data-testid='tweetButtonInline']",
+            "a[role='link'][href='/compose/tweet']",
+            "div[role='button'][aria-label='ツイートする']",
+            "div[role='button'][aria-label='Post']",
+            "div[role='button'][aria-label='Tweet']",
+            "div[role='button'][data-testid='SideNav_NewTweet_Button']",
+            "a[role='link'][data-testid='SideNav_NewTweet_Button']",
+            "div[role='button'][data-testid='tweetButton']",
+            "a[role='link'][data-testid='tweetButton']",
+            "div[role='button'][data-testid='toolBar_tweet_button']",
+            "a[role='link'][data-testid='toolBar_tweet_button']",
+            "div[role='button'][data-testid='tweetButtonInHeader']",
+            "a[role='link'][data-testid='tweetButtonInHeader']",
+            "div[role='button'][data-testid='SideNav_NewPost_Button']",
+            "a[role='link'][data-testid='SideNav_NewPost_Button']"
         ]
         
         compose_button = None
@@ -952,12 +964,60 @@ def main():
         logger.info(f"Individual videos: {video_paths}")
         logger.info(f"Combined video: {combined_video_path}")
         
-        # Skip Twitter posting for testing if SKIP_TWITTER is set to True
-        skip_twitter = os.environ.get("SKIP_TWITTER", "True").lower() == "true"
-        if skip_twitter:
-            logger.info("Skipping X posting for testing purposes")
-            logger.info("To enable X posting, set SKIP_TWITTER=False")
+        logger.info("Starting X posting process...")
+        
+        driver = setup_webdriver()
+        if not driver:
+            logger.error("Failed to set up WebDriver")
+            return 1
+        
+        try:
+            # Post main tweet with combined video
+            tweet_text = "メンズエステに関する4つの質問と回答をお届けします。\n\n#メンエス #メンズエステ #求人"
+            tweet_url = post_to_twitter(driver, tweet_text, combined_video_path)
+            
+            if not tweet_url:
+                logger.error("Failed to post main tweet")
+                return 1
+            
+            logger.info(f"Posted main tweet: {tweet_url}")
+            
+            # Post replies with answers
+            for i, question in enumerate(questions):
+                answer_data = find_answer_for_question(qa_dict, question)
+                
+                if isinstance(answer_data, dict):
+                    answer_text = answer_data.get('text', '')
+                    media_url = answer_data.get('media_url', '')
+                else:
+                    answer_text = answer_data
+                    media_url = ''
+                
+                reply_text = f"Q{i+1}: {question}\n\nA: {answer_text}"
+                
+                if media_url:
+                    reply_url = reply_to_tweet(driver, tweet_url, reply_text, media_url)
+                else:
+                    reply_url = reply_to_tweet(driver, tweet_url, reply_text)
+                
+                if reply_url:
+                    logger.info(f"Posted reply {i+1}: {reply_url}")
+                else:
+                    logger.warning(f"Failed to post reply {i+1}")
+            
+            logger.info("X posting completed successfully!")
             return 0
+        
+        except Exception as e:
+            logger.error(f"Error during X posting: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return 1
+        
+        finally:
+            if driver:
+                driver.quit()
+                logger.info("WebDriver closed")
         
         logger.info("Setting up WebDriver for X posting")
         driver = setup_webdriver()
