@@ -27,7 +27,7 @@ FIGMA_FILE_ID = os.environ.get("FIGMA_FILE_ID", "aJ8OkMzwRoLlpjnEUdHvfN")
 FIGMA_NODE_ID = os.environ.get("FIGMA_NODE_ID", "20-2")
 NIIJIMA_COOKIES_PATH = "niijima_cookies.json"
 QA_CSV_PATH = "qa_sheet_polite_fixed.csv"
-QUEUE_FILE = f"queue/queue_{datetime.date.today().isoformat()}.yaml"
+QUEUE_FILE = "queue/queue_2025-04-28.yaml"  # Use fixed file for testing
 VIDEO_DURATION = 1  # seconds per video (1 second as requested for Canva-like format)
 VIDEO_OUTPUT_DIR = "videos"
 
@@ -80,12 +80,12 @@ def load_queue_questions() -> List[Dict[str, Any]]:
         return []
 
 
-def create_video_from_image(image_url: str, output_path: str) -> bool:
+def create_video_from_image(image_path: str, output_path: str) -> bool:
     """
-    Create a video from an image URL in Canva-like format
+    Create a video from an image URL or local file path in Canva-like format
     
     Args:
-        image_url: URL of the image
+        image_path: URL or local path of the image
         output_path: Path to save the video
         
     Returns:
@@ -94,17 +94,26 @@ def create_video_from_image(image_url: str, output_path: str) -> bool:
     try:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
-        # Download the image
-        response = requests.get(image_url)
-        response.raise_for_status()
+        temp_image_path = f"{output_path}.png"
         
-        image_path = f"{output_path}.png"
-        with open(image_path, 'wb') as f:
-            f.write(response.content)
+        if image_path.startswith(('http://', 'https://')):
+            # Download the image from URL
+            response = requests.get(image_path)
+            response.raise_for_status()
+            
+            with open(temp_image_path, 'wb') as f:
+                f.write(response.content)
+        else:
+            if os.path.exists(image_path):
+                import shutil
+                shutil.copy(image_path, temp_image_path)
+            else:
+                logger.error(f"Local image file not found: {image_path}")
+                return False
         
         # Use ffmpeg to create a 1-second video from the image
         ffmpeg_cmd = (
-            f"ffmpeg -y -loop 1 -i {image_path} -c:v libx264 -t {VIDEO_DURATION} "
+            f"ffmpeg -y -loop 1 -i {temp_image_path} -c:v libx264 -t {VIDEO_DURATION} "
             f"-pix_fmt yuv420p -vf \"scale=1920:1080,format=yuv420p\" "
             f"-profile:v high -level:v 4.0 -crf 18 -r 30 -movflags +faststart {output_path}"
         )
@@ -346,6 +355,17 @@ def main():
         if not create_combined_video(video_paths, combined_video_path):
             logger.error("Failed to create combined video")
             return 1
+        
+        logger.info("Video generation completed successfully!")
+        logger.info(f"Individual videos: {video_paths}")
+        logger.info(f"Combined video: {combined_video_path}")
+        
+        # Skip Twitter posting for testing
+        skip_twitter = os.environ.get("SKIP_TWITTER", "True").lower() == "true"
+        if skip_twitter:
+            logger.info("Skipping Twitter posting for testing purposes")
+            logger.info("To enable Twitter posting, set SKIP_TWITTER=False")
+            return 0
         
         driver = setup_webdriver()
         if not driver:
