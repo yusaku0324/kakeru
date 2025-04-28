@@ -1,0 +1,90 @@
+# Ultra-optimized multi-stage build for minimal image size
+FROM python:3.9-alpine as builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    build-base \
+    python3-dev \
+    libffi-dev \
+    openssl-dev
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install pip tools for optimization
+RUN pip install --no-cache-dir pip-tools
+
+# Copy only requirements file
+COPY requirements.txt .
+
+# Generate optimized requirements with minimal dependencies
+RUN pip-compile requirements.txt --output-file requirements-optimized.txt
+
+# Install only required dependencies with aggressive optimization
+RUN pip install --no-cache-dir -r requirements-optimized.txt && \
+    find /opt/venv -name '*.pyc' -delete && \
+    find /opt/venv -name '__pycache__' -delete && \
+    find /opt/venv -name 'tests' -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/venv -name '*.dist-info' -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/venv -name '*.egg-info' -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/venv -name '*.whl' -delete
+
+# Intermediate stage for minimal Chromium
+FROM alpine:3.15 as chromium
+
+# Install only chromium-headless instead of full chromium
+RUN apk add --no-cache chromium-chromedriver
+
+# Intermediate stage for directory preparation
+FROM alpine:3.15 as prep
+
+# Create necessary directories
+WORKDIR /app
+RUN mkdir -p /app/bot/utils /app/bot/services/twitter_client
+
+# Copy only necessary application code
+COPY bot/utils/fingerprint.py /app/bot/utils/
+COPY bot/utils/__init__.py /app/bot/utils/
+COPY bot/services/twitter_client/cookie_loader.py /app/bot/services/twitter_client/
+COPY bot/services/twitter_client/cdp_input.py /app/bot/services/twitter_client/
+COPY bot/services/twitter_client/__init__.py /app/bot/services/twitter_client/
+COPY bot/services/__init__.py /app/bot/services/
+COPY bot/__init__.py /app/bot/
+COPY bot/main.py /app/bot/
+
+# Final minimal stage - use busybox for smallest possible image
+FROM busybox:1.35 as busybox
+
+# Final stage
+FROM scratch
+
+# Copy only essential system files from busybox
+COPY --from=busybox /bin/sh /bin/sh
+COPY --from=busybox /bin/mkdir /bin/mkdir
+COPY --from=busybox /lib/ /lib/
+
+# Copy minimal Python runtime from builder
+COPY --from=builder /usr/local/bin/python3.9 /usr/local/bin/python3
+COPY --from=builder /usr/local/lib/libpython3.9.so.1.0 /usr/local/lib/
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:/usr/local/bin:$PATH"
+ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+ENV PYTHONPATH="/opt/venv/lib/python3.9/site-packages"
+
+# Copy only necessary Chromium files from intermediate stage
+COPY --from=chromium /usr/bin/chromedriver /usr/bin/chromedriver
+
+# Copy prepared application code
+COPY --from=prep /app /app
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV CHROME_DRIVER_PATH=/usr/bin/chromedriver
+
+# Run the application
+CMD ["/usr/local/bin/python3", "-m", "bot.main"]
