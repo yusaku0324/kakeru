@@ -25,6 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install "setuptools<70"   # provides the distutils shim on Python 3.12
           pip install -e .[dev]
 
       # 4️⃣ テスト + カバレッジ 84% 以上必須

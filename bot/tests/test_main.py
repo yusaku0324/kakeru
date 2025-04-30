@@ -1,10 +1,12 @@
+import os
+os.environ["SKIP_WDM"] = "1"   # ChromeDriverManager をスキップ
+
 """
 Tests for main.py
 """
 import unittest
 from unittest.mock import patch, MagicMock
 import sys
-import os
 
 from bot.main import main, process_queue
 

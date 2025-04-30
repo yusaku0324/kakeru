@@ -1,9 +1,11 @@
+import os
+os.environ["SKIP_WDM"] = "1"   # ChromeDriverManager をスキップ
+
 """
 Test module for User-Agent functionality
 """
 import pytest
 from unittest.mock import MagicMock, patch
-import os
 
 from bot.accounts import Account
 from bot.services.twitter_client.driver_factory import setup_webdriver
