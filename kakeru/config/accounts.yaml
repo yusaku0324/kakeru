@@ -1,0 +1,5 @@
+
+yusaku:
+  cookie: secrets/yusaku.jar
+dev_bot:
+  cookie: secrets/dev_bot.jar

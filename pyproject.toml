@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "kakeru"
 version = "0.1.0"
-description = "Social media automation for men's massage recruitment"
+description = "X (Twitter) Automation System"
 requires-python = ">=3.12"
 dependencies = [
     "selenium>=4.0.0",
@@ -23,19 +23,9 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
-    "black>=22.0.0",
+    "black>=23.0.0",
     "isort>=5.0.0",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["bot*", "services*", "utils*"]
-exclude = ["tests*"]
-
-[tool.black]
-line-length = 88
-target-version = ['py312']
-
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+[tool.setuptools]
+packages = ["kakeru", "bot"]

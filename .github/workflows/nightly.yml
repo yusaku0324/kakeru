@@ -6,9 +6,19 @@ on:
     - cron: '0 17 * * *'
   workflow_dispatch:
     # Allow manual trigger
+    inputs:
+      stop_bot:
+        description: 'メンテナンスモード（実行しない）'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  STOP_BOT: ${{ github.event.inputs.stop_bot || 'false' }}
 
 jobs:
   render:
+    if: env.STOP_BOT != 'true'
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -25,6 +35,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install requests pyyaml
+      
+      - name: Setup accounts configuration
+        run: |
+          mkdir -p kakeru/config secrets
+          cat > kakeru/config/accounts.yaml << EOF
+          # Kakeru X (Twitter) Accounts Configuration
+          yusaku:
+            cookie: secrets/yusaku.jar
+          EOF
+          
+          # Setup cookie files from secrets
+          echo '${{ secrets.X_NIIJIMA_COOKIES }}' | base64 -d > secrets/yusaku.jar
       
       - name: Run patch and render
         env:

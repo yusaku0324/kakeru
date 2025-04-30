@@ -1,0 +1,14 @@
+
+ip_rotation_strategy: per_session
+
+proxies:
+  tokyo:
+    host: proxy.tokyo.example.com
+    port: 8080
+    username: user1
+    password: pass1
+  osaka:
+    host: proxy.osaka.example.com
+    port: 8080
+    username: user2
+    password: pass2

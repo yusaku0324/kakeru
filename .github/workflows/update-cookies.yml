@@ -6,10 +6,62 @@ on:
     - cron: '0 3 * * 1'
   workflow_dispatch:
     # 手動実行も可能
+    inputs:
+      stop_bot:
+        description: 'メンテナンスモード（実行しない）'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  STOP_BOT: ${{ github.event.inputs.stop_bot || 'false' }}
 
 jobs:
-  update-cookies:
+  setup-accounts:
+    if: env.STOP_BOT != 'true'
     runs-on: ubuntu-22.04
+    outputs:
+      accounts: ${{ steps.get-accounts.outputs.accounts }}
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.12'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          
+      - name: Setup accounts configuration
+        run: |
+          mkdir -p kakeru/config secrets
+          cat > kakeru/config/accounts.yaml << EOF
+          # Kakeru X (Twitter) Accounts Configuration
+          yusaku:
+            cookie: secrets/yusaku.jar
+          EOF
+          
+          # Setup cookie files from secrets
+          echo '${{ secrets.X_NIIJIMA_COOKIES }}' | base64 -d > secrets/yusaku.jar
+          
+      - id: get-accounts
+        name: Get accounts list
+        run: |
+          ACCOUNTS=$(python -m kakeru list-accounts --json)
+          echo "accounts=$ACCOUNTS" >> $GITHUB_OUTPUT
+          echo "Found accounts: $ACCOUNTS"
+          
+  update-cookies:
+    needs: setup-accounts
+    if: env.STOP_BOT != 'true'
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        account: ${{ fromJson(needs.setup-accounts.outputs.accounts) }}
+      fail-fast: false
     steps:
       - uses: actions/checkout@v2
       
@@ -30,16 +82,24 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           
+      - name: Setup accounts configuration
+        run: |
+          mkdir -p kakeru/config secrets
+          cat > kakeru/config/accounts.yaml << EOF
+          # Kakeru X (Twitter) Accounts Configuration
+          ${{ matrix.account }}:
+            cookie: secrets/${{ matrix.account }}.jar
+          EOF
+          
+          # Setup cookie files from secrets
+          echo '${{ secrets.X_NIIJIMA_COOKIES }}' | base64 -d > secrets/${{ matrix.account }}.jar
+          
       - name: Validate cookies
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          X_NIIJIMA_COOKIES: ${{ secrets.X_NIIJIMA_COOKIES }}
         run: |
-          # Base64デコードしてクッキーファイルを作成
-          echo $X_NIIJIMA_COOKIES | base64 -d > niijima_cookies.json
-          
           # クッキーの検証のみを実行
-          python update_cookies.py --all --validate --repo ${{ github.repository }}
+          python -m kakeru login ${{ matrix.account }} --validate
           
       - name: Notify if cookies need update
         if: ${{ failure() }}
@@ -50,7 +110,7 @@ jobs:
             const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: 'X Cookiesの更新が必要です',
-              body: 'X Cookiesの有効期限が近づいているか、期限切れです。手動でログインして更新してください。'
+              title: 'X Cookiesの更新が必要です: ${{ matrix.account }}',
+              body: 'アカウント ${{ matrix.account }} のX Cookiesの有効期限が近づいているか、期限切れです。手動でログインして更新してください。'
             });
             console.log(`Issue created: ${issue.data.html_url}`);

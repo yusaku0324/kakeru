@@ -66,6 +66,61 @@ python generate_recruit_posts.py
 - `OPENAI_API_KEY`: OpenAI APIキー
 - `TWITTER_BEARER_TOKEN`: X（旧Twitter）のBearer Token
 
+## アカウント設定
+
+Kakeruは複数のX（旧Twitter）アカウントを管理するために、YAML形式の設定ファイルを使用します。
+
+### accounts.yaml
+
+`kakeru/config/accounts.yaml`に以下の形式でアカウントを設定します：
+
+```yaml
+# アカウント名: { cookie: パス, proxy: プロキシタグ(オプション) }
+yusaku:
+  cookie: secrets/yusaku.jar
+dev_bot:
+  cookie: secrets/dev_bot.jar
+  proxy: tokyo
+```
+
+### クッキーログインCLI
+
+手動でXアカウントにログインし、クッキーを保存するためのCLIコマンドを提供しています：
+
+```bash
+# アカウントにログインしてクッキーを保存
+python -m kakeru login <screen_name>
+```
+
+このコマンドは、ブラウザを起動して手動ログイン（2FA認証を含む）を待ち、ログイン完了後にクッキーを保存します。
+
+### IPローテーション戦略
+
+シャドウバンを回避するために、IPローテーション戦略を設定できます：
+
+`kakeru/config/shadowban.yaml`に以下の設定を行います：
+
+```yaml
+# IPローテーション戦略
+# - per_session: セッションごとに1回IPを変更（デフォルト）
+# - per_5_posts: 5投稿ごとにIPを変更
+# - per_15_minutes: 15分ごとにIPを変更
+ip_rotation_strategy: per_session
+
+# プロキシ設定
+proxies:
+  tokyo:
+    host: proxy.tokyo.example.com
+    port: 8080
+    username: user1
+    password: pass1
+  osaka:
+    host: proxy.osaka.example.com
+    port: 8080
+    username: user2
+    password: pass2
+```
+
 ## テスト
 
 ```bash
