@@ -13,10 +13,9 @@ from bot.services.twitter_client.driver_factory import setup_webdriver, release_
 @pytest.fixture
 def mock_chrome():
     """Mock for undetected_chromedriver.Chrome"""
-    with patch('undetected_chromedriver.Chrome') as mock:
-        mock_driver = MagicMock()
-        mock.return_value = mock_driver
-        yield mock
+    with patch("undetected_chromedriver.Chrome") as mock_cls:
+        mock_cls.side_effect = lambda *a, **kw: MagicMock()
+        yield mock_cls
 
 
 @pytest.fixture
