@@ -10,5 +10,6 @@ pyperclip
 tweepy
 pytest
 pytest-cov
+pytest-xdist
 black
-isort    
+isort 

@@ -31,7 +31,7 @@ jobs:
       # 4️⃣ テスト + カバレッジ 84% 以上必須
       - name: Run tests with coverage
         run: |
-          pytest bot/tests/ -v \
+          pytest bot/tests/ -v -n auto \
             --cov=bot \
             --cov-report=term-missing \
             --cov-report=xml \
