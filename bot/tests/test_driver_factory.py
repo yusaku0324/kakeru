@@ -54,9 +54,11 @@ class TestDriverFactory(unittest.TestCase):
     @patch('bot.services.twitter_client.driver_factory.uc.Chrome')
     @patch('bot.services.twitter_client.driver_factory.uc.ChromeOptions')
     @patch('bot.services.twitter_client.driver_factory.os.path.exists')
-    def test_create_driver_chrome_path_found(self, mock_exists, mock_options_class, mock_chrome):
+    @patch('bot.services.twitter_client.driver_factory.ChromeDriverManager')
+    def test_create_driver_chrome_path_found(self, mock_chromedriver_manager, mock_exists, mock_options_class, mock_chrome):
         """Test creating driver with chrome path found"""
-        mock_exists.side_effect = [True, False, False]  # First path exists
+        mock_exists.side_effect = lambda path: path == "/usr/bin/google-chrome-stable" or path == os.getenv("CHROME_PATH")
+        
         mock_options = MagicMock()
         mock_options_class.return_value = mock_options
         mock_driver = MagicMock()

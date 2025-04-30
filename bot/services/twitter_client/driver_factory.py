@@ -3,10 +3,12 @@ Factory for creating Selenium WebDriver instances with stealth capabilities
 """
 import logging
 import os
+from pathlib import Path
 import undetected_chromedriver as uc
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.remote.webdriver import WebDriver
 from typing import Optional
+from webdriver_manager.chrome import ChromeDriverManager
 
 from bot.accounts import Account
 from bot.services.proxy_manager import get_proxy_manager
@@ -14,30 +16,29 @@ from bot.services.proxy_manager import get_proxy_manager
 logger = logging.getLogger(__name__)
 
 
-def create_chrome_options(headless: bool = True, account: Optional[Account] = None) -> uc.ChromeOptions:
+def create_chrome_options(headless: bool = False, user_data_dir: Optional[str] = None) -> uc.ChromeOptions:
     """
     Create Chrome options for WebDriver
     
     Args:
         headless: Whether to run in headless mode
-        account: Account to use for User-Agent and proxy
+        user_data_dir: Path to user data directory
         
     Returns:
         ChromeOptions instance
     """
     options = uc.ChromeOptions()
     
-    if headless:
-        options.add_argument("--headless=new")
-    
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     
-    if account and account.user_agent:
-        options.add_argument(f"--user-agent={account.user_agent}")
-        logger.info(f"Using User-Agent: {account.user_agent}")
+    if headless:
+        options.add_argument("--headless=new")
+    
+    if user_data_dir:
+        options.add_argument(f"--user-data-dir={user_data_dir}")
     
     return options
 
@@ -54,7 +55,15 @@ def setup_webdriver(account: Optional[Account] = None, headless: bool = True) ->
         WebDriver instance
     """
     try:
-        options = create_chrome_options(headless, account)
+        user_data_dir = None
+        if account and hasattr(account, 'user_data_dir'):
+            user_data_dir = account.user_data_dir
+        
+        options = create_chrome_options(headless, user_data_dir)
+        
+        if account and account.user_agent:
+            options.add_argument(f"--user-agent={account.user_agent}")
+            logger.info(f"Using User-Agent: {account.user_agent}")
         
         proxy = None
         if account:
@@ -64,7 +73,7 @@ def setup_webdriver(account: Optional[Account] = None, headless: bool = True) ->
                 options.add_argument(f"--proxy-server={proxy}")
                 logger.info(f"Using proxy: {proxy}")
         
-        chrome_path = os.environ.get("CHROME_PATH")
+        chrome_path = os.getenv("CHROME_PATH")
         if chrome_path and os.path.exists(chrome_path):
             options.binary_location = chrome_path
             logger.info(f"Using Chrome binary from CHROME_PATH: {chrome_path}")
@@ -80,14 +89,20 @@ def setup_webdriver(account: Optional[Account] = None, headless: bool = True) ->
                     logger.info(f"Chrome binary path set to: {path}")
                     break
         
-        cache_dir = os.path.expanduser("~/.cache/selenium")
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        chromedriver_path = os.environ.get("CHROMEDRIVER_PATH", f"{cache_dir}/chromedriver")
-        service = Service(executable_path=chromedriver_path)
+        chrome_path = os.getenv("CHROME_PATH")
+        if chrome_path and Path(chrome_path).exists():
+            service = Service(chrome_path)
+            logger.info(f"Using Chrome service with CHROME_PATH: {chrome_path}")
+        else:
+            if os.getenv("SKIP_WDM"):  # ← export SKIP_WDM=1 なら download を飛ばす
+                service = Service()  # dummy; uc.Chrome の mock で無視される
+                logger.info("ChromeDriverManager skipped because SKIP_WDM=1")
+            else:
+                service = Service(ChromeDriverManager().install())
+                logger.info("Using Chrome service from ChromeDriverManager")
         
         logger.info("Initializing undetected-chromedriver...")
-        driver = uc.Chrome(options=options, driver_executable_path=chromedriver_path)
+        driver = uc.Chrome(options=options)
         driver.implicitly_wait(10)
         
         driver.delete_all_cookies()

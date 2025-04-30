@@ -35,7 +35,7 @@ def proxy_manager():
 @pytest.fixture
 def mock_proxy_manager(proxy_manager):
     """Mock for proxy_manager.get_proxy_manager"""
-    with patch('bot.services.proxy_manager.get_proxy_manager') as mock:
+    with patch('bot.services.twitter_client.driver_factory.get_proxy_manager') as mock:
         mock.return_value = proxy_manager
         yield proxy_manager
 
@@ -47,19 +47,20 @@ def test_proxy_rotation(mock_chrome, mock_proxy_manager):
         cookie_path="path/to/cookie.jar"
     )
     
+    proxy1 = "http://user:pass@192.168.1.1:8080"
+    proxy2 = "http://user:pass@192.168.1.2:8080"
+    
+    mock_proxy_manager.pick_proxy = MagicMock(side_effect=[proxy1, proxy2])
+    
     driver1 = setup_webdriver(account)
-    
-    proxy1 = mock_proxy_manager.pick_proxy.return_value
-    
-    available_proxies = list(mock_proxy_manager.proxies.values())
-    different_proxy = next((p for p in available_proxies if p != proxy1), available_proxies[0])
-    mock_proxy_manager.pick_proxy.return_value = different_proxy
+    first_proxy = driver1.proxy
     
     driver2 = setup_webdriver(account)
+    second_proxy = driver2.proxy
     
-    proxy2 = mock_proxy_manager.pick_proxy.return_value
+    assert mock_proxy_manager.pick_proxy.call_count == 2
     
-    assert proxy1 != proxy2
+    assert first_proxy != second_proxy
 
 
 def test_proxy_manager_pick_and_release():
