@@ -1,0 +1,16 @@
+# Proxy configuration template
+# Copy this file to shadowban.yaml and fill in your proxy details
+
+proxy_pool_size: 40
+ip_rotation_strategy: per_session
+sticky_session: true
+
+proxies:
+  proxy1:
+    host: proxy1.example.com
+    port: 8080
+    username: your_username
+    password: your_password
+  proxy2:
+    host: proxy2.example.com
+    port: 8080
