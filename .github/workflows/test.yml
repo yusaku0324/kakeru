@@ -30,6 +30,8 @@ jobs:
 
       # 4️⃣ テスト + カバレッジ 84% 以上必須
       - name: Run tests with coverage
+        env:
+          SKIP_WDM: "1"
         run: |
           pytest bot/tests/ -v -n auto \
             --cov=bot \
