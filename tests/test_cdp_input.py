@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from selenium import webdriver
 from selenium.webdriver.remote.webelement import WebElement
 
-from services.twitter_client.cdp_input import (
+from bot.services.twitter_client.cdp_input import (
     cdp_insert_text,
     clipboard_paste,
     send_keys_input,
