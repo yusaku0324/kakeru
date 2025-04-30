@@ -1,9 +1,11 @@
+import os
+os.environ["SKIP_WDM"] = "1"   # ChromeDriverManager をスキップ
+
 """
 Test module for proxy rotation functionality
 """
 import pytest
 from unittest.mock import MagicMock, patch
-import os
 
 from bot.accounts import Account
 from bot.services.proxy_manager import ProxyManager, get_proxy_manager
