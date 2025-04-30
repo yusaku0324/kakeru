@@ -67,3 +67,6 @@ profiles/test/
 # Temporary files
 tmp/
 temp/
+
+# Configuration with sensitive data
+kakeru/config/shadowban.yaml

@@ -3,9 +3,9 @@ Proxy manager for X (Twitter) automation
 """
 import os
 import yaml
-import random
 import logging
-from typing import Dict, Optional, List, Set
+from collections import deque
+from typing import Dict, Optional, List, Set, Deque
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ class ProxyManager:
         self.proxies: Dict[str, str] = {}
         self.account_proxy_map: Dict[str, str] = {}
         self.in_use_proxies: Set[str] = set()
+        self.proxy_queue: Deque[str] = deque()
         
         self._load_config()
     
@@ -91,16 +92,13 @@ class ProxyManager:
         if self.sticky_session and account_name in self.account_proxy_map:
             return self.account_proxy_map[account_name]
         
-        available_proxies = [p for p in self.proxies.values() if p not in self.in_use_proxies]
+        if not self.proxy_queue:
+            self.proxy_queue.extend(self.proxies.values())
         
-        if not available_proxies:
-            logger.warning(f"No available proxies for account {account_name}")
-            return None
-        
-        proxy = random.choice(available_proxies)
+        proxy = self.proxy_queue.popleft()
+        self.proxy_queue.append(proxy)
         
         self.in_use_proxies.add(proxy)
-        
         self.account_proxy_map[account_name] = proxy
         
         logger.info(f"Picked proxy for account {account_name}: {proxy}")
