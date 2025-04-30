@@ -4,6 +4,7 @@ Tests for driver_factory.py
 import unittest
 from unittest.mock import patch, MagicMock
 import os
+os.environ["SKIP_WDM"] = "1"   # ChromeDriverManager をスキップ
 
 from bot.services.twitter_client.driver_factory import create_driver
 
