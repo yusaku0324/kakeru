@@ -1,6 +1,8 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
 *$py.class
 *.so
 .Python
@@ -19,65 +21,81 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+.venv/
+venv/
+ENV/
+.python-version
 
-# Logs
-*.log
+# Logs & Output
 logs/
-recruit_posts.log
+*.log
+processed_video_log.csv
+video_tweeter.log
+processed_marshmallow_urls.log
+# video_question_map.csv # Keep if versioned
+# video_question_map_*.csv # Keep if versioned
 
-# Environment variables
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Screenshots - Generic first, then specific if needed but broad is safer for now
+*.png
 
-# pytest
-.pytest_cache/
-.coverage
-htmlcov/
+# Specific JSON files (temporary or sensitive)
+message_urls.json
+bot/niijima_cookies.json
+niijima_cookies.json
+daily_dm_count*.json
+storage_x.json
 
-# IDE
+# Credentials & Local Config
+.env
+.env.*
+cookies/
+marshmallow_cookies.json
+
+# Downloaded/Generated Media & Data Directories
+images/
+videos/ 
+動画/
+data/
+debug/
+media/
+out/
+queue/
+templates/
+
+# IDE / Editor
 .idea/
 .vscode/
 *.swp
 *.swo
+.cursor/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Local artifacts
-profiles/
-queue/
-debug/
-videos/
-*.png
-*.json
+# pytest
+.pytest_cache/
+.coverage/
+htmlcov/
+
+# Other
 *.yaml.bak
-*.pyc
 *.db
-*.log
-*.html
-
-# Browser profiles
-profiles/*/
-profiles/niijima/
-profiles/test/
-
-# Temporary files
 tmp/
 temp/
-
-# Local dev
-.venv/
-.python-version
-
-# Allow fixtures directories and files
-!profiles/
-!profiles/niijima_cookies.json
-!queue/
-!queue/queue_now.yaml
 kakeru-mirror/
-kakeru-filtered-new/ # 同様に、これも追加しておくと安全です
-kakeru-mirror/
-kakeru-filtered-new/ # 同様に、これも追加しておくと安全です
+kakeru-filtered-new/
+twscrape_repo/
+
+# Keep these if they are fixtures or intentionally versioned
+# !profiles/
+# !profiles/niijima_cookies.json
+# !queue/
+# !queue/queue_now.yaml
+
+# === Force ignore problematic files/dirs - ADDED AT THE END FOR DEBUGGING ===
+message_urls.json
+bot/niijima_cookies.json
+niijima_cookies.json
+templates/
+動画/
