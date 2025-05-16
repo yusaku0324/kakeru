@@ -30,22 +30,37 @@ ENV/
 logs/
 *.log
 processed_video_log.csv
-# *.png # Temporarily commented out to be more specific
-debug_*.png
-error_*.png
-*.html
-video_question_map.csv
-video_question_map_*.csv
+video_tweeter.log
+processed_marshmallow_urls.log
+# video_question_map.csv # Keep if versioned
+# video_question_map_*.csv # Keep if versioned
+
+# Screenshots - Generic first, then specific if needed but broad is safer for now
+*.png
+
+# Specific JSON files (temporary or sensitive)
+message_urls.json
+bot/niijima_cookies.json
+niijima_cookies.json
+daily_dm_count*.json
+storage_x.json
 
 # Credentials & Local Config
 .env
 .env.*
-cookies/ 
-marshmallow_cookies.json 
+cookies/
+marshmallow_cookies.json
 
-# Downloaded/Generated Media
+# Downloaded/Generated Media & Data Directories
 images/
-videos/
+videos/ 
+動画/
+data/
+debug/
+media/
+out/
+queue/
+templates/
 
 # IDE / Editor
 .idea/
@@ -60,7 +75,7 @@ Thumbs.db
 
 # pytest
 .pytest_cache/
-.coverage
+.coverage/
 htmlcov/
 
 # Other
@@ -78,78 +93,9 @@ twscrape_repo/
 # !queue/
 # !queue/queue_now.yaml
 
-# media/  # if this is temporary generated media
-# out/    # if this is temporary generated media
-# queue/  # if this is temporary generated media
-# data/   # if this is temporary generated data
-
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# Virtual environment
-.venv/
-venv/
-ENV/
-
-# Cursor editor specific
-.cursor/
-
-# Log files and generated CSVs (if not intended for version control)
-logs/
-processed_video_log.csv
-*.log
-# video_question_map.csv # Assuming this WILL be versioned based on user's git add commands
-# video_question_map_*.csv # Assuming this WILL be versioned
-message_urls.json # Explicitly ignore this file
-
-# Screenshots (specific prefixes and general)
-after_click_send1_*.png
-before_click_send1_*.png
-post_confirmation_button_error_*.png
-inbox_no_usable_images*.png
-login_page_screenshot.png
-example_test.png
-post_confirmation_error.png
-cat_page_*.png
-# Add other specific screenshot patterns if needed
-# *.png # Fallback if many untracked PNGs without clear patterns remain, use with caution
-
-# Credentials & Local Config (ensure these are not in repo)
-.env
-.env.*
-cookies/
-marshmallow_cookies.json
-bot/niijima_cookies.json # Explicitly ignore this file
-niijima_cookies.json     # Explicitly ignore this file
-daily_dm_count*.json
-storage_x.json
-
-# Downloaded/Generated Media & Data Directories
-images/ # Marshmallow source images, typically not versioned
-videos/ # Generated videos, typically not versioned
-data/
-debug/
-media/
-out/
-queue/
-templates/ # Explicitly ignore this directory
-
-# IDE / Editor specific files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# pytest cache
-.pytest_cache/
-.coverage/
-htmlcov/
-
-# Other generated or temporary files
-*.yaml.bak
-*.db
-tmp/
-temp/
-kakeru-filtered-new/
-twscrape_repo/
+# === Force ignore problematic files/dirs - ADDED AT THE END FOR DEBUGGING ===
+message_urls.json
+bot/niijima_cookies.json
+niijima_cookies.json
+templates/
+動画/
