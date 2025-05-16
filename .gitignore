@@ -19,65 +19,64 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+.venv/
+venv/
+ENV/
+.python-version
 
-# Logs
-*.log
+# Logs & Output
 logs/
-recruit_posts.log
+*.log
+processed_video_log.csv
+# *.png # Temporarily commented out to be more specific
+debug_*.png
+error_*.png
+*.html
+video_question_map.csv
+video_question_map_*.csv
 
-# Environment variables
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Credentials & Local Config
+.env
+.env.*
+cookies/ 
+marshmallow_cookies.json 
+
+# Downloaded/Generated Media
+images/
+videos/
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
 
 # pytest
 .pytest_cache/
 .coverage
 htmlcov/
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Local artifacts
-profiles/
-queue/
-debug/
-videos/
-*.png
-*.json
+# Other
 *.yaml.bak
-*.pyc
 *.db
-*.log
-*.html
-
-# Browser profiles
-profiles/*/
-profiles/niijima/
-profiles/test/
-
-# Temporary files
 tmp/
 temp/
-
-# Local dev
-.venv/
-.python-version
-
-# Allow fixtures directories and files
-!profiles/
-!profiles/niijima_cookies.json
-!queue/
-!queue/queue_now.yaml
 kakeru-mirror/
-kakeru-filtered-new/ # 同様に、これも追加しておくと安全です
-kakeru-mirror/
-kakeru-filtered-new/ # 同様に、これも追加しておくと安全です
+kakeru-filtered-new/
+twscrape_repo/
+
+# Keep these if they are fixtures or intentionally versioned
+# !profiles/
+# !profiles/niijima_cookies.json
+# !queue/
+# !queue/queue_now.yaml
+
+# media/  # if this is temporary generated media
+# out/    # if this is temporary generated media
+# queue/  # if this is temporary generated media
+# data/   # if this is temporary generated data

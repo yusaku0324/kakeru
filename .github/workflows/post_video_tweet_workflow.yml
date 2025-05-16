@@ -1,0 +1,93 @@
+name: Post Video Tweet (Unified)
+
+on:
+  workflow_dispatch:
+    inputs:
+      account_id:
+        description: 'Twitter Account ID (e.g., menesu324, cristianisraelv)'
+        required: true
+        type: string
+  # schedule:
+  #   - cron: '5 23 * * *' # For cristianisraelv
+  #   - cron: '10 23 * * *' # For menesu324
+
+jobs:
+  post_tweet:
+    name: Unified Tweet Posting
+    runs-on: ubuntu-latest
+    # if: github.event_name == 'workflow_dispatch' # スケジュール実行もテストする場合はコメントアウトまたは条件変更
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install OS dependencies & Chrome for undetected-chromedriver
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            libglib2.0-0 libnss3 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libdrm2 libgbm1 libasound2 xserver-xorg-core xserver-xorg-video-dummy xvfb \
+            google-chrome-stable
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # playwright install --with-deps chromium # Seleniumを使う場合は不要
+
+      # - name: Debug: List files in workspace  # Temporarily commented out due to persistent linter errors
+      #   run: | 
+      #     pwd
+      #     ls -Rla
+
+      - name: Create cookie file from secret
+        env:
+          ACCOUNT_ID_INPUT: ${{ github.event.inputs.account_id }}
+          # Secret名はGitHubリポジトリの設定と完全に一致させる
+          CRISTIANISRAELV_COOKIES_JSON: ${{ secrets.CRISTIANISRAELV_TWITTER_COOKIES_JSON }}
+          MENESU324_COOKIES_JSON: ${{ secrets.MENESU324_TWITTER_COOKIES_JSON }}
+        run: |
+          mkdir -p cookies
+          ACCOUNT_ID="${ACCOUNT_ID_INPUT}"
+          COOKIE_CONTENT=""
+
+          if [ "$ACCOUNT_ID" == "cristianisraelv" ]; then
+            COOKIE_CONTENT="$CRISTIANISRAELV_COOKIES_JSON"
+          elif [ "$ACCOUNT_ID" == "menesu324" ]; then
+            COOKIE_CONTENT="$MENESU324_COOKIES_JSON"
+          else
+            echo "Error: Unknown account_id: [$ACCOUNT_ID]"
+            exit 1
+          fi
+
+          if [ -z "$COOKIE_CONTENT" ]; then
+            echo "Error: Cookie secret for account $ACCOUNT_ID is empty or not set."
+            exit 1
+          fi
+
+          echo "$COOKIE_CONTENT" > "cookies/${ACCOUNT_ID}_twitter_cookies.json"
+          echo "Cookie file created for $ACCOUNT_ID at cookies/${ACCOUNT_ID}_twitter_cookies.json"
+          # echo "Cookie file content (first 50 chars): $(head -c 50 cookies/${ACCOUNT_ID}_twitter_cookies.json)" # デバッグ後コメントアウト推奨
+
+      - name: Run post_video_tweet.py script
+        env:
+          ACCOUNT_ID_INPUT: ${{ github.event.inputs.account_id }}
+          # USE_UC: "1" # スクリプトがこの環境変数を参照しないなら不要
+        run: |
+          python post_video_tweet.py --account "${ACCOUNT_ID_INPUT}"
+
+      - name: Upload execution artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: execution-artifacts-${{ github.run_id }}-${{ github.event.inputs.account_id }}
+          path: |
+            logs/
+            *.png
+            *.html # もしスクリプトがHTMLを保存する場合
+          retention-days: 7 

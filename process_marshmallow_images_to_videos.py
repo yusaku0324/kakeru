@@ -9,6 +9,14 @@ from playwright.async_api import async_playwright, TimeoutError as PlaywrightTim
 from playwright_stealth import stealth_async # Keep for consistency, though may not be strictly needed with cookies
 import requests
 import time
+import urllib.parse
+import logging
+import traceback
+
+# --- Logger Initialization --- 
+logger = logging.getLogger("marshmallow_video_processor")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+# --- End Logger Initialization ---
 
 load_dotenv()
 BASE_URL = "https://marshmallow-qa.com" # For constructing full URLs if needed
@@ -117,16 +125,23 @@ async def convert_image_to_video(image_path: Path, video_dir: Path, duration: in
 async def process_single_message_url(page, message_url: str, question_text: str, session, video_map_data: list):
     print(f"Processing message URL: {message_url} for question: \"{question_text[:50]}...\"")
     try:
-        await page.goto(message_url, wait_until="domcontentloaded", timeout=30000)
+        await page.goto(message_url, wait_until="domcontentloaded", timeout=30000) # Increased timeout
+        
+        # Check for "お詫びとして猫をご用意しました" message which indicates an error or invalid page
         if "お詫びとして猫をご用意しました" in await page.content():
             print("  Cat page detected. Skipping.")
+            # Save a screenshot for debugging
             await page.screenshot(path=f"error_cat_page_{Path(message_url).name}.png")
             return
 
+        # Locate image download links more reliably
+        # This selector targets <a> tags with a 'download' attribute and a specific href pattern
         image_link_elements = await page.locator("a[download][href*='media.marshmallow-qa.com/system/images/']").all()
-        
+
         if not image_link_elements:
             print("  No image download links found on this page.")
+            # Save a screenshot for debugging if no links are found
+            await page.screenshot(path=f"error_no_link_found_{Path(message_url).name}.png")
             return
 
         print(f"  Found {len(image_link_elements)} image download link(s).")
@@ -142,13 +157,37 @@ async def process_single_message_url(page, message_url: str, question_text: str,
 
         downloaded_image_path = await download_image(session, absolute_image_url, IMAGE_SAVE_DIR)
         if downloaded_image_path:
-            # Use VIDEO_SAVE_DIR for conversion output
             converted_video_path = await convert_image_to_video(downloaded_image_path, VIDEO_SAVE_DIR)
             if converted_video_path:
                 print(f"  Successfully processed and created video: {converted_video_path}")
+                
+                # Attempt to create a path relative to the current working directory
+                try:
+                    relative_video_path = converted_video_path.relative_to(Path.cwd())
+                except ValueError:
+                    # Fallback if CWD is not an ancestor of converted_video_path
+                    # This assumes VIDEO_SAVE_DIR.name is a root part of the desired relative path (e.g., "videos")
+                    # and converted_video_path is like /some/path/videos/account/file.mp4
+                    # or videos/account/file.mp4 if already relative but not to CWD.
+                    path_parts = list(converted_video_path.parts)
+                    try:
+                        # Find the VIDEO_SAVE_DIR.name component (e.g., "videos") in the path
+                        base_folder_index = path_parts.index(VIDEO_SAVE_DIR.name)
+                        relative_video_path = Path(*path_parts[base_folder_index:])
+                    except ValueError:
+                        # If VIDEO_SAVE_DIR.name is not in the path, or for simpler structures,
+                        # construct path like "videos/filename.mp4"
+                        relative_video_path = Path(VIDEO_SAVE_DIR.name) / converted_video_path.name
+                        logger.warning(
+                            f"Could not form structured relative path for {converted_video_path} "
+                            f"based on CWD or VIDEO_SAVE_DIR name \'{VIDEO_SAVE_DIR.name}\'. "
+                            f"Using simplified relative path: {relative_video_path}"
+                        )
+                    logger.info(f"Used fallback logic for relative_video_path: {relative_video_path}")
+
                 video_map_data.append({
-                    "question": question_text, 
-                    "video_path": str(converted_video_path.resolve()) # Store absolute path
+                    "question": question_text,
+                    "video_path": str(relative_video_path) # Store relative path
                 })
             else:
                 print("  Video conversion failed.")
@@ -156,11 +195,20 @@ async def process_single_message_url(page, message_url: str, question_text: str,
             print("  Image download failed.")
 
     except PlaywrightTimeoutError:
-        print(f"  Timeout processing URL: {message_url}")
-        await page.screenshot(path=f"error_timeout_{Path(message_url).name}.png")
+        logger.error(f"  Timeout processing URL: {message_url}")
+        # Attempt to take a screenshot, but handle potential errors if page is not in a state to do so.
+        try:
+            await page.screenshot(path=f"error_timeout_{Path(message_url).name}.png")
+        except Exception as screenshot_error:
+            logger.error(f"  Failed to take screenshot on PlaywrightTimeoutError for {message_url}: {screenshot_error}")
     except Exception as e:
-        print(f"  Error processing {message_url}: {e}")
-        await page.screenshot(path=f"error_generic_{Path(message_url).name}.png")
+        logger.error(f"  Error processing {message_url}: {type(e).__name__} - {str(e)}")
+        logger.debug(traceback.format_exc())
+        # Attempt to take a screenshot
+        try:
+            await page.screenshot(path=f"error_generic_{Path(message_url).name}.png")
+        except Exception as screenshot_error:
+            logger.error(f"  Failed to take screenshot on general error for {message_url}: {screenshot_error}")
 
 async def main():
     if not MESSAGE_URLS_CSV.exists():

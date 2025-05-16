@@ -5,11 +5,13 @@ import time
 import logging
 import urllib.parse
 from typing import Optional, Dict, Any, List
+import traceback
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException, WebDriverException
 
 from bot.services.twitter_client.composer import type_tweet_text, click_tweet_button
 from bot.services.twitter_client.media_uploader import prepare_media, upload_media, upload_multiple_media
@@ -30,16 +32,29 @@ def navigate_to_compose(driver: WebDriver, timeout: int = 15) -> bool:
         )
         logger.info("Successfully navigated to compose screen and textarea is present.")
         return True
-    except Exception as e:
-        logger.warning(f"ページの読み込み待機中にエラーが発生しました (navigate_to_compose): {type(e).__name__} - {str(e)}")
+    except TimeoutException as e:
+        logger.error(f"Timeout waiting for element in navigate_to_compose: {e.msg}")
         logger.debug(traceback.format_exc())
-        try: 
-            if driver:
-                driver.save_screenshot(f"debug_navigate_compose_fail_{int(time.time())}.png")
-                logger.info(f"Saved screenshot: debug_navigate_compose_fail_{int(time.time())}.png")
-        except Exception as se:
-            logger.error(f"Screenshot failed in navigate_to_compose error handler: {se}")
-        return False
+    except NoSuchElementException as e:
+        logger.error(f"Element not found in navigate_to_compose: {e.msg}")
+        logger.debug(traceback.format_exc())
+    except WebDriverException as e:
+        logger.error(f"WebDriverException in navigate_to_compose: {e.msg}")
+        url = getattr(e, 'url', 'N/A')
+        stacktrace = getattr(e, 'stacktrace', 'N/A')
+        logger.error(f"WebDriverException details: URL='{url}', Stacktrace:\n{stacktrace}")
+        logger.debug(traceback.format_exc())
+    except Exception as e:
+        logger.error(f"Unexpected error in navigate_to_compose: {type(e).__name__} - {str(e)}")
+        logger.debug(traceback.format_exc())
+    try:
+        if driver:
+            screenshot_path = f"debug_navigate_compose_fail_{int(time.time())}.png"
+            driver.save_screenshot(screenshot_path)
+            logger.info(f"Saved screenshot: {screenshot_path}")
+    except Exception as se:
+        logger.error(f"Screenshot failed in navigate_to_compose error handler: {se}")
+    return False
 
 def wait_for_tweet_url(driver: WebDriver, timeout: int = 20) -> Optional[str]:
     """
@@ -94,7 +109,9 @@ def post_to_twitter(driver: WebDriver, post_text: str, media_url: Optional[str] 
         Optional[str]: ツイートURL、失敗した場合はNone
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger_instance = logging.getLogger(__name__)
+    else:
+        logger_instance = logger
 
     try:
         if not navigate_to_compose(driver):
@@ -103,39 +120,60 @@ def post_to_twitter(driver: WebDriver, post_text: str, media_url: Optional[str] 
         time.sleep(5)
 
         if media_files:
-            logger.info(f"{len(media_files)}個のメディアファイルをアップロードします...")
+            logger_instance.info(f"{len(media_files)}個のメディアファイルをアップロードします...")
             if not upload_multiple_media(driver, media_files):
-                logger.warning("複数メディアのアップロードに失敗しました")
+                logger_instance.warning("複数メディアのアップロードに失敗しました")
         elif media_url:
             media_path = prepare_media(media_url)
             if media_path:
                 if not upload_media(driver, media_path):
-                    logger.warning("メディアのアップロードに失敗しました")
+                    logger_instance.warning("メディアのアップロードに失敗しました")
             else:
-                logger.warning(f"メディアの準備に失敗しました: {media_url}")
+                logger_instance.warning(f"メディアの準備に失敗しました: {media_url}")
 
-        logger.info(f"ツイートテキストを入力します: {post_text}")
+        logger_instance.info(f"ツイートテキストを入力します: {post_text[:100]}...")
         if not type_tweet_text(driver, post_text):
-            logger.error("ツイートテキストの入力に失敗しました")
+            logger_instance.error("ツイートテキストの入力に失敗しました")
             return None
 
         if not click_tweet_button(driver):
-            logger.error("ツイートボタンのクリックに失敗しました")
+            logger_instance.error("ツイートボタンのクリックに失敗しました")
             return None
 
         tweet_url = wait_for_tweet_url(driver)
         if tweet_url:
-            logger.info(f"ツイートに成功しました: {tweet_url}")
+            logger_instance.info(f"ツイートに成功しました: {tweet_url}")
             return tweet_url
         else:
-            logger.error("ツイートURLの取得に失敗しました")
+            logger_instance.error("ツイートURLの取得に失敗しました")
             return None
 
+    except TimeoutException as e:
+        logger_instance.error(f"TimeoutException during Twitter posting process: {e.msg}")
+        logger_instance.debug(traceback.format_exc())
+    except NoSuchElementException as e:
+        logger_instance.error(f"NoSuchElementException during Twitter posting process: {e.msg}")
+        logger_instance.debug(traceback.format_exc())
+    except ElementClickInterceptedException as e:
+        logger_instance.error(f"ElementClickInterceptedException during Twitter posting process: {e.msg}")
+        logger_instance.debug(traceback.format_exc())
+    except WebDriverException as e:
+        logger_instance.error(f"WebDriverException during Twitter posting process: {e.msg}")
+        url = getattr(e, 'url', 'N/A')
+        stacktrace = getattr(e, 'stacktrace', 'N/A')
+        logger_instance.error(f"WebDriverException details: URL='{url}', Stacktrace:\n{stacktrace}")
+        logger_instance.debug(traceback.format_exc())
     except Exception as e:
-        logger.error(f"ツイート投稿中にエラーが発生しました: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return None
+        logger_instance.error(f"ツイート投稿中に予期せぬエラーが発生しました: {type(e).__name__} - {str(e)}")
+        logger_instance.debug(traceback.format_exc())
+    try:
+        if driver:
+            screenshot_path_main = f"debug_post_to_twitter_fail_{int(time.time())}.png"
+            driver.save_screenshot(screenshot_path_main)
+            logger_instance.info(f"Saved screenshot on post_to_twitter failure: {screenshot_path_main}")
+    except Exception as se:
+        logger_instance.error(f"Screenshot failed in post_to_twitter error handler: {se}")
+    return None
 
 def extract_tweet_id(tweet_url: str) -> Optional[str]:
     """
