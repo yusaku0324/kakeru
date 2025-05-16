@@ -3,22 +3,12 @@ requests
 PyYAML
 python-dotenv
 selenium
-webdriver-manager~=4.0
 undetected-chromedriver
-# schedule # post_video_tweet.pyでは直接使っていないので一旦除外も可
+# schedule
 openai
 pyperclip
-# tweepy # 同上
-pytest # Added for CI tests
-pytest-cov # Added for CI code coverage
-# pytest-xdist # テスト用なので実行には不要
-# black # フォーマッタなので実行には不要
-# isort # フォーマッタなので実行には不要
-# tqdm # 進捗表示用、post_video_tweet.pyでは未使用
-# backoff # リトライ用、post_video_tweet.pyでは未使用
-# jsonschema # スキーマ検証用、post_video_tweet.pyでは未使用
+# tweepy
+pytest
+pytest-cov
 Pillow>=9.0
 pytz
-# opencv-python # 画像処理用、post_video_tweet.pyでは直接未使用
-# pytesseract # OCR用、post_video_tweet.pyでは直接未使用
-# twscrape # Twitterスクレイピング用、post_video_tweet.pyでは未使用
