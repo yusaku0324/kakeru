@@ -1,6 +1,8 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
 *$py.class
 *.so
 .Python
@@ -80,3 +82,74 @@ twscrape_repo/
 # out/    # if this is temporary generated media
 # queue/  # if this is temporary generated media
 # data/   # if this is temporary generated data
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Cursor editor specific
+.cursor/
+
+# Log files and generated CSVs (if not intended for version control)
+logs/
+processed_video_log.csv
+*.log
+# video_question_map.csv # Assuming this WILL be versioned based on user's git add commands
+# video_question_map_*.csv # Assuming this WILL be versioned
+message_urls.json # Explicitly ignore this file
+
+# Screenshots (specific prefixes and general)
+after_click_send1_*.png
+before_click_send1_*.png
+post_confirmation_button_error_*.png
+inbox_no_usable_images*.png
+login_page_screenshot.png
+example_test.png
+post_confirmation_error.png
+cat_page_*.png
+# Add other specific screenshot patterns if needed
+# *.png # Fallback if many untracked PNGs without clear patterns remain, use with caution
+
+# Credentials & Local Config (ensure these are not in repo)
+.env
+.env.*
+cookies/
+marshmallow_cookies.json
+bot/niijima_cookies.json # Explicitly ignore this file
+niijima_cookies.json     # Explicitly ignore this file
+daily_dm_count*.json
+storage_x.json
+
+# Downloaded/Generated Media & Data Directories
+images/ # Marshmallow source images, typically not versioned
+videos/ # Generated videos, typically not versioned
+data/
+debug/
+media/
+out/
+queue/
+templates/ # Explicitly ignore this directory
+
+# IDE / Editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# pytest cache
+.pytest_cache/
+.coverage/
+htmlcov/
+
+# Other generated or temporary files
+*.yaml.bak
+*.db
+tmp/
+temp/
+kakeru-filtered-new/
+twscrape_repo/
