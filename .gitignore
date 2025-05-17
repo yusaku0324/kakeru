@@ -77,3 +77,15 @@ temp/
 !profiles/niijima_cookies.json
 !queue/
 !queue/queue_now.yaml
+# ==== debug / logs ====
+debug_dm_*
+error_*
+logs/
+*.log
+*.png
+*.html
+
+# ==== env / local config ====
+.env
+*.sqlite3
+__pycache__/
