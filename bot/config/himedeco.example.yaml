@@ -1,0 +1,30 @@
+# HimeDeco configuration example
+# Copy this file to himedeco.yaml and update with your credentials
+
+# Authentication
+username: "your_himedeco_username"
+password: "your_himedeco_password"
+
+# URLs (update these with actual HimeDeco URLs)
+base_url: "https://himedeco.jp"
+login_url: "https://himedeco.jp/login"
+diary_url: "https://himedeco.jp/diary"
+
+# Posting settings
+max_photos_per_entry: 10
+max_title_length: 100
+max_content_length: 5000
+max_tags: 10
+
+# Browser settings
+headless: false  # Set to true for headless mode
+window_size: [1280, 720]
+user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+# Timeout settings (in seconds)
+page_load_timeout: 30
+element_wait_timeout: 20
+
+# Retry settings
+max_retries: 3
+retry_delay: 5

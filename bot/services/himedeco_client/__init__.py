@@ -1,0 +1,1 @@
+"""HimeDeco photo diary client module."""
