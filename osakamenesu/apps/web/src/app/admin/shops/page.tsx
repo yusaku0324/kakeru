@@ -714,12 +714,14 @@ export default function AdminShopsPage() {
                 placeholder="store@example.com"
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 disabled={inviting || isCreating || !detail.id}
+                data-testid="dashboard-invite-email"
               />
               <button
                 type="button"
                 onClick={sendDashboardInvite}
                 disabled={inviteDisabled}
                 className="inline-flex items-center justify-center rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+                data-testid="dashboard-invite-submit"
               >
                 {inviting ? '送信中...' : dashboardUser ? '再送信' : '招待メール送信'}
               </button>
@@ -728,19 +730,19 @@ export default function AdminShopsPage() {
               <dl className="grid gap-1 text-xs text-slate-500 md:grid-cols-2">
                 <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-1">
                   <dt className="font-medium text-slate-600">招待メール</dt>
-                  <dd className="text-right text-slate-700">{dashboardUser.email}</dd>
+                  <dd className="text-right text-slate-700" data-testid="dashboard-invite-email-value">{dashboardUser.email}</dd>
                 </div>
                 <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-1">
                   <dt className="font-medium text-slate-600">招待日時</dt>
-                  <dd className="text-right">{formatDateTime(dashboardUser.invited_at)}</dd>
+                  <dd className="text-right" data-testid="dashboard-invite-invited-at">{formatDateTime(dashboardUser.invited_at)}</dd>
                 </div>
                 <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-1">
                   <dt className="font-medium text-slate-600">最終ログイン</dt>
-                  <dd className="text-right">{formatDateTime(dashboardUser.last_login_at)}</dd>
+                  <dd className="text-right" data-testid="dashboard-invite-last-login">{formatDateTime(dashboardUser.last_login_at)}</dd>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <dt className="font-medium text-slate-600">有効化日時</dt>
-                  <dd className="text-right">{formatDateTime(dashboardUser.activated_at)}</dd>
+                  <dd className="text-right" data-testid="dashboard-invite-activated-at">{formatDateTime(dashboardUser.activated_at)}</dd>
                 </div>
               </dl>
             ) : (
