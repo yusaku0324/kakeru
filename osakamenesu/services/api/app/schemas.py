@@ -650,6 +650,22 @@ class DashboardNotificationSettingsTestPayload(BaseModel):
     channels: DashboardNotificationChannels
 
 
+class DashboardInviteRequest(BaseModel):
+    profile_id: UUID
+    email: EmailStr
+    invited_by: Optional[str] = None
+
+
+class DashboardInviteResponse(BaseModel):
+    id: UUID
+    profile_id: UUID
+    email: EmailStr
+    status: str
+    invited_at: datetime
+    activated_at: Optional[datetime] = None
+    last_login_at: Optional[datetime] = None
+
+
 class DashboardShopContact(BaseModel):
     phone: Optional[str] = None
     line_id: Optional[str] = None

@@ -36,14 +36,18 @@ from ..schemas import (
     BulkReviewInput,
     BulkDiaryInput,
     BulkAvailabilityInput,
+    DashboardInviteRequest,
+    DashboardInviteResponse,
 )
 from zoneinfo import ZoneInfo
 from datetime import datetime, timezone, date
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Dict
 import uuid
 from ..deps import require_admin, audit_admin
 from .shops import _fetch_availability, _normalize_menus, _normalize_staff, serialize_review
 from ..utils.slug import slugify
+from ..utils.email import send_email_async, MailNotConfiguredError
+from ..settings import settings
 
 router = APIRouter(dependencies=[Depends(require_admin), Depends(audit_admin)])
 JST = ZoneInfo("Asia/Tokyo")
@@ -90,6 +94,133 @@ async def _record_change(
     except Exception:
         # Never block on audit logging
         pass
+
+
+def _serialize_dashboard_user(user: models.DashboardUser) -> Dict[str, Any]:
+    return {
+        "id": str(user.id),
+        "profile_id": str(user.profile_id),
+        "email": user.email,
+        "status": user.status,
+        "invited_by": user.invited_by,
+        "invited_at": user.invited_at.isoformat() if user.invited_at else None,
+        "activated_at": user.activated_at.isoformat() if user.activated_at else None,
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+    }
+
+
+def _dashboard_user_response(user: models.DashboardUser) -> DashboardInviteResponse:
+    return DashboardInviteResponse(
+        id=user.id,
+        profile_id=user.profile_id,
+        email=user.email,
+        status=user.status,
+        invited_at=user.invited_at,
+        activated_at=user.activated_at,
+        last_login_at=user.last_login_at,
+    )
+
+
+def _build_dashboard_invite_email(profile: models.Profile, dashboard_user: models.DashboardUser) -> tuple[str, str, str]:
+    base_url = (settings.site_base_url or settings.api_origin or "http://localhost:3000").rstrip("/")
+    dashboard_url = f"{base_url}/dashboard/{dashboard_user.profile_id}"
+    subject = f"[オサカメンエス] {profile.name} ダッシュボードのご案内"
+    html = f"""
+        <p>{profile.name} ご担当者様</p>
+        <p>大阪メンズエステ掲載情報のセルフ管理ダッシュボードをご利用いただけるようになりました。</p>
+        <p>以下のリンクよりログインし、店舗プロフィールや予約通知先の更新を行ってください。</p>
+        <p><a href="{dashboard_url}">{dashboard_url}</a></p>
+        <p>本メールに覚えが無い場合は、このメールを破棄してください。</p>
+        <p>--<br/>オサカメンエス運営</p>
+    """
+    text = (
+        f"{profile.name} ご担当者様\n\n"
+        "大阪メンズエステ掲載情報のセルフ管理ダッシュボードをご利用いただけるようになりました。\n"
+        "以下のリンクよりログインし、店舗プロフィールや予約通知先の更新を行ってください。\n\n"
+        f"{dashboard_url}\n\n"
+        "本メールに覚えが無い場合は、このメールを破棄してください。\n\n"
+        "--\nオサカメンエス運営"
+    )
+    return subject, html, text
+
+
+@router.post(
+    "/api/admin/dashboard/users/invite",
+    response_model=DashboardInviteResponse,
+    summary="招待メールを送信し店舗ダッシュボードユーザーを作成/更新する",
+)
+async def invite_dashboard_user(
+    payload: DashboardInviteRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_session),
+):
+    email = payload.email.strip().lower()
+    profile = await db.get(models.Profile, payload.profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="profile_not_found")
+
+    existing_by_email = await db.execute(
+        select(models.DashboardUser).where(models.DashboardUser.email == email)
+    )
+    dashboard_user_by_email = existing_by_email.scalar_one_or_none()
+    if dashboard_user_by_email and dashboard_user_by_email.profile_id != profile.id:
+        raise HTTPException(status_code=409, detail="email_already_assigned")
+
+    result = await db.execute(
+        select(models.DashboardUser).where(models.DashboardUser.profile_id == profile.id)
+    )
+    dashboard_user = result.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    before_state: Dict[str, Any] | None = None
+
+    if dashboard_user:
+        before_state = _serialize_dashboard_user(dashboard_user)
+        dashboard_user.email = email
+        dashboard_user.status = "pending"
+        dashboard_user.invited_by = payload.invited_by
+        dashboard_user.invited_at = now
+        dashboard_user.updated_at = now
+    else:
+        dashboard_user = models.DashboardUser(
+            profile_id=profile.id,
+            email=email,
+            status="pending",
+            invited_by=payload.invited_by,
+            invited_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(dashboard_user)
+
+    await db.flush()
+    after_state = _serialize_dashboard_user(dashboard_user)
+
+    await _record_change(
+        request=request,
+        db=db,
+        target_type="dashboard_user",
+        target_id=dashboard_user.id,
+        action="invite",
+        before=before_state,
+        after=after_state,
+    )
+    await db.commit()
+
+    subject, html_body, text_body = _build_dashboard_invite_email(profile, dashboard_user)
+    try:
+        await send_email_async(
+            to=email,
+            subject=subject,
+            html=html_body,
+            text=text_body,
+            tags=["dashboard", "invite"],
+        )
+    except MailNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail="mail_not_configured") from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail="mail_send_failed") from exc
+
+    return _dashboard_user_response(dashboard_user)
 
 
 @router.post("/api/admin/profiles/{profile_id}/reindex", summary="Reindex single profile")
