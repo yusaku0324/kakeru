@@ -7,17 +7,21 @@
 - 店舗プロフィールとログインユーザーの関連付けは手動前提（Seed 実行時に作成したダミーアカウントのみ）。
 - 運営側が更新内容を把握する仕組み（履歴、承認フロー、サポート窓口）がない。
 
+## 最近の進捗
+- `dashboard_users` テーブルと SQLAlchemy モデルを追加し、招待メールの状態管理が可能に。
+- `/api/admin/dashboard/users/invite` を実装し、Resend 経由で招待メールを送信／再送できるようにした。
+- 管理画面 `/admin/shops` に招待フォームとステータス表示を追加し、運営 UI から招待操作を完結できるようにした。
+- CI (`ci.yml`) で `MAIL_APIKEY` などの Cloud Run 反映を自動化（DNS 認証完了後にシークレットを流し込むだけで稼働）。
+
 ## 必須タスク
 1. **アカウント発行・招待フロー**
-   - 店舗メールアドレスを登録し、ワンクリックでマジックリンクを送信する管理画面（もしくは CLI）を用意。
-   - 招待済みアドレスと店舗プロフィール ID を紐付けるテーブルを整備。  
-     例: `dashboard_users (id, profile_id, email, invited_by, invited_at, last_login_at)`
-   - 招待キャンセルや再送を行えるようにする。
+   - ✅ 店舗メールアドレス単位で招待〜再送を行える管理 API / UI を実装済み
+   - ⏳ 招待取り消し・承認／差戻しフローの整備
 
 2. **メール配送基盤**
    - 送信元ドメイン（例: `notify.osakamenesu.jp`）を決定し、SPF/DKIM/DMARC を設定。
-   - 本番で利用するメールサービス（SendGrid / AWS SES / Resend など）を選定し、API キー管理とレート制限を定義。
-   - Magic Link、通知メール、パスワードレス認証に使うテンプレート文面（日本語）を整備。
+   - ✅ Resend を選定し、CI／コード側で利用できるよう下地を作成。
+   - ⏳ DNS 認証完了後に本番ドメインの送信テスト、テンプレート文面の確定。
 
 3. **権限と API サイドの整備**
    - `dashboard_users` と `profiles` を参照する認可チェックを `/api/dashboard/*` に実装（現在は Seed ユーザー前提で簡易チェック）。
@@ -48,8 +52,7 @@
 - **モバイル最適化**: 店舗担当者がスマホから操作するシナリオを想定し、UI をモバイル対応で検証する。
 
 ## 次アクション（すぐ着手できる項目）
-1. `dashboard_users` テーブルと対応する SQLAlchemy モデルを追加。
-2. `/api/dashboard/auth/invite`（POST）と `/api/dashboard/auth/resend`（POST）を実装し、招待リンクを送信するバックエンドを整備。
-3. SendGrid などのメールサービス決定 → API キーを Secret Manager に登録 → Cloud Run への環境変数反映を CI へ追加。
-4. Playwright の管理画面テストにダッシュボードログインフローを追加し、CI でマジックリンク検証を自動化。
-
+1. Resend ドメイン認証を完了させ、`MAIL_APIKEY` / `MAIL_FROM_ADDRESS` を Secrets / Cloud Run に登録 → ステージングで招待メール送信を実地確認。
+2. 招待 API のユニットテスト・Playwright シナリオを追加し、CI で回帰できるようにする。
+3. 招待承認／差戻しフローと、`dashboard_users.status` を変更できる管理 UI / API を設計。
+4. `/api/dashboard/*` の認可を `dashboard_users` と連携させ、店舗担当者のみが該当プロフィールを編集できるようにする。
