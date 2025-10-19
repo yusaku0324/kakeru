@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     notify_email_endpoint: str | None = None
     notify_line_endpoint: str | None = None
     notify_from_email: str | None = None
+    mail_api_key: str | None = None
+    mail_from_address: str = "no-reply@osakamenesu.local"
+    mail_provider_base_url: str = "https://api.resend.com"
     escalation_pending_threshold_minutes: int = 30
     escalation_check_interval_minutes: int = 5
     auth_magic_link_expire_minutes: int = 15
