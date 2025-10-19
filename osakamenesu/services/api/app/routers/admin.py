@@ -616,6 +616,11 @@ async def admin_get_shop(shop_id: UUID, db: AsyncSession = Depends(get_session))
     menus = _normalize_menus(contact_json.get("menus"), profile.id)
     staff_members = _normalize_staff(contact_json.get("staff"), profile.id)
     availability_calendar = await _fetch_availability(db, profile.id)
+    dashboard_user_result = await db.execute(
+        select(models.DashboardUser).where(models.DashboardUser.profile_id == profile.id)
+    )
+    dashboard_user_obj = dashboard_user_result.scalar_one_or_none()
+    dashboard_user_payload = _dashboard_user_response(dashboard_user_obj) if dashboard_user_obj else None
 
     contact = _prepare_contact_output(contact_json)
     availability = availability_calendar.days if availability_calendar else []
@@ -638,6 +643,7 @@ async def admin_get_shop(shop_id: UUID, db: AsyncSession = Depends(get_session))
         menus=menus,
         staff=staff_members,
         availability=availability,
+        dashboard_user=dashboard_user_payload,
     )
 
 

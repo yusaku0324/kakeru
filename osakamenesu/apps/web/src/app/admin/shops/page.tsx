@@ -15,6 +15,16 @@ type ShopSummary = {
   service_type: string
 }
 
+type DashboardUserSummary = {
+  id: string
+  profile_id: string
+  email: string
+  status: string
+  invited_at: string
+  activated_at?: string | null
+  last_login_at?: string | null
+}
+
 type MenuItem = {
   id?: string
   name: string
@@ -70,6 +80,7 @@ type ShopDetail = {
   menus: MenuItem[]
   staff: StaffItem[]
   availability: AvailabilityDay[]
+  dashboard_user?: DashboardUserSummary | null
 }
 
 function toLocalIso(value?: string | null) {
@@ -115,6 +126,29 @@ function emptySlot(): AvailabilitySlot {
 const SERVICE_TYPES = ['store', 'dispatch'] as const
 type ServiceType = typeof SERVICE_TYPES[number]
 
+const DASHBOARD_STATUS_LABEL: Record<string, string> = {
+  pending: '承認待ち',
+  active: '利用中',
+  suspended: '停止中',
+}
+
+const DASHBOARD_STATUS_STYLE: Record<string, string> = {
+  pending: 'bg-amber-50 text-amber-700 border border-amber-200',
+  active: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  suspended: 'bg-rose-50 text-rose-700 border border-rose-200',
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '―'
+  try {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
+  } catch {
+    return value ?? '―'
+  }
+}
+
 export default function AdminShopsPage() {
   const [shops, setShops] = useState<ShopSummary[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -138,6 +172,8 @@ export default function AdminShopsPage() {
   const [serviceType, setServiceType] = useState<ServiceType>('store')
   const { toasts, push, remove } = useToast()
   const [loadingDetail, setLoadingDetail] = useState<boolean>(false)
+  const [inviteEmail, setInviteEmail] = useState<string>('')
+  const [inviting, setInviting] = useState<boolean>(false)
 
   async function refreshAvailability(id: string) {
     try {
@@ -226,6 +262,7 @@ export default function AdminShopsPage() {
       setAddress(json.address || '')
       const photos: string[] = json.photos && json.photos.length > 0 ? json.photos : ['']
       setPhotoUrls(photos)
+      setInviteEmail(json.dashboard_user?.email ?? '')
     } catch (err) {
       console.error(err)
       push('error', '店舗詳細の取得に失敗しました')
@@ -265,6 +302,7 @@ export default function AdminShopsPage() {
       menus: [],
       staff: [],
       availability: [],
+      dashboard_user: null,
     }
     setDetail(blankDetail)
     setName('')
@@ -282,6 +320,7 @@ export default function AdminShopsPage() {
     setCatchCopy('')
     setAddress('')
     setPhotoUrls([''])
+    setInviteEmail('')
   }
 
   function updateMenu(index: number, key: keyof MenuItem, value: any) {
@@ -565,12 +604,50 @@ export default function AdminShopsPage() {
     }
   }
 
+  async function sendDashboardInvite() {
+    if (!detail?.id) {
+      push('error', '店舗を選択してください')
+      return
+    }
+    const email = inviteEmail.trim()
+    if (!email) {
+      push('error', 'メールアドレスを入力してください')
+      return
+    }
+    setInviting(true)
+    try {
+      const resp = await fetch('/api/admin/dashboard/users/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile_id: detail.id,
+          email,
+          invited_by: 'admin_console',
+        }),
+      })
+      if (!resp.ok) {
+        const detailResp = await resp.json().catch(() => ({}))
+        throw new Error(detailResp?.detail || '招待の送信に失敗しました')
+      }
+      push('success', '招待メールを送信しました')
+      await fetchDetail(detail.id)
+    } catch (err) {
+      console.error(err)
+      push('error', err instanceof Error ? err.message : '招待の送信に失敗しました')
+    } finally {
+      setInviting(false)
+    }
+  }
+
   async function deleteAvailabilityDay(dayIndex: number) {
     if (!selectedId) return
     const target = availability[dayIndex]
     if (!target) return
     await saveAvailability(target.date, [])
   }
+
+  const dashboardUser = detail?.dashboard_user ?? null
+  const inviteDisabled = !inviteEmail.trim() || inviting || isCreating || !detail?.id
 
   if (!detail || (!selectedId && !isCreating)) {
     return (
@@ -612,6 +689,65 @@ export default function AdminShopsPage() {
         </aside>
 
         <section className="flex-1 space-y-6">
+          <Card className="space-y-4 border border-slate-200 p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base font-semibold text-slate-800">店舗ダッシュボード招待</h2>
+                <p className="text-xs text-slate-500">店舗担当者向けセルフ管理ダッシュボードへの案内を送信します。</p>
+              </div>
+              {dashboardUser && (
+                <span
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                    DASHBOARD_STATUS_STYLE[dashboardUser.status] ||
+                    'bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  {DASHBOARD_STATUS_LABEL[dashboardUser.status] ?? dashboardUser.status}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+                placeholder="store@example.com"
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                disabled={inviting || isCreating || !detail.id}
+              />
+              <button
+                type="button"
+                onClick={sendDashboardInvite}
+                disabled={inviteDisabled}
+                className="inline-flex items-center justify-center rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {inviting ? '送信中...' : dashboardUser ? '再送信' : '招待メール送信'}
+              </button>
+            </div>
+            {dashboardUser ? (
+              <dl className="grid gap-1 text-xs text-slate-500 md:grid-cols-2">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-1">
+                  <dt className="font-medium text-slate-600">招待メール</dt>
+                  <dd className="text-right text-slate-700">{dashboardUser.email}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-1">
+                  <dt className="font-medium text-slate-600">招待日時</dt>
+                  <dd className="text-right">{formatDateTime(dashboardUser.invited_at)}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-1">
+                  <dt className="font-medium text-slate-600">最終ログイン</dt>
+                  <dd className="text-right">{formatDateTime(dashboardUser.last_login_at)}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="font-medium text-slate-600">有効化日時</dt>
+                  <dd className="text-right">{formatDateTime(dashboardUser.activated_at)}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-xs text-slate-500">まだ招待は行われていません。メールアドレスを入力して招待を送信してください。</p>
+            )}
+          </Card>
+
           <header className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1">

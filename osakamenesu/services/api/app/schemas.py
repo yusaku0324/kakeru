@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, Field, conint, constr, EmailStr
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
@@ -607,6 +609,7 @@ class ShopAdminDetail(BaseModel):
     menus: List[MenuItem] = Field(default_factory=list)
     staff: List[StaffSummary] = Field(default_factory=list)
     availability: List[AvailabilityDay] = Field(default_factory=list)
+    dashboard_user: Optional["DashboardInviteResponse"] = None
 
 DashboardNotificationStatus = Literal['pending', 'confirmed', 'declined', 'cancelled', 'expired']
 
