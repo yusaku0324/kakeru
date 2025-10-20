@@ -5,8 +5,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision = "0010_add_dashboard_users"
-down_revision = "0009_add_users_and_sessions"
+revision = "0015_add_dashboard_users"
+down_revision = "0014_add_profile_slug"
 branch_labels = None
 depends_on = None
 
