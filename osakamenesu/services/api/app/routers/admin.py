@@ -585,6 +585,7 @@ def _prepare_contact_output(contact_json: dict[str, Any] | None) -> dict[str, An
         "line_id": contact_json.get("line_id") or contact_json.get("line"),
         "website_url": contact_json.get("website_url") or contact_json.get("web"),
         "reservation_form_url": contact_json.get("reservation_form_url"),
+        "email": contact_json.get("email"),
         "sns": contact_json.get("sns") or [],
     }
 
@@ -735,6 +736,10 @@ async def admin_update_shop_content(
         contact_json["web"] = payload.contact.website_url
         contact_json["reservation_form_url"] = payload.contact.reservation_form_url
         contact_json["sns"] = payload.contact.sns or []
+        if payload.contact.email:
+            contact_json["email"] = payload.contact.email
+        else:
+            contact_json.pop("email", None)
 
     if payload.description is not None:
         contact_json["description"] = payload.description
@@ -874,6 +879,10 @@ async def admin_bulk_ingest_shop_content(
             contact_json["web"] = entry.contact.website_url
             contact_json["reservation_form_url"] = entry.contact.reservation_form_url
             contact_json["sns"] = entry.contact.sns or []
+            if entry.contact.email:
+                contact_json["email"] = entry.contact.email
+            else:
+                contact_json.pop("email", None)
 
         if entry.description is not None:
             contact_json["description"] = entry.description

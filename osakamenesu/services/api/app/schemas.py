@@ -496,6 +496,7 @@ class ShopContactUpdate(BaseModel):
     line_id: Optional[str] = None
     website_url: Optional[str] = None
     reservation_form_url: Optional[str] = None
+    email: Optional[str] = None
     sns: Optional[List[Dict[str, Any]]] = None
 
 
@@ -674,6 +675,7 @@ class DashboardShopContact(BaseModel):
     line_id: Optional[str] = None
     website_url: Optional[str] = None
     reservation_form_url: Optional[str] = None
+    email: Optional[str] = None
 
 
 class DashboardShopMenu(BaseModel):

@@ -61,6 +61,7 @@ type ContactInfo = {
   line_id?: string
   website_url?: string
   reservation_form_url?: string
+  email?: string
 }
 
 type ShopDetail = {
@@ -244,6 +245,7 @@ export default function AdminShopsPage() {
         line_id: json.contact?.line_id || '',
         website_url: json.contact?.website_url || '',
         reservation_form_url: json.contact?.reservation_form_url || '',
+        email: json.contact?.email || '',
       })
       if (json.availability && json.availability.length > 0) {
         setAvailability((json.availability || []).map((day: AvailabilityDay) => ({
@@ -441,6 +443,7 @@ export default function AdminShopsPage() {
       line_id: contact.line_id || undefined,
       website_url: contact.website_url || undefined,
       reservation_form_url: contact.reservation_form_url || undefined,
+      email: contact.email !== undefined ? contact.email.trim() : undefined,
     }
 
     return {
@@ -475,6 +478,9 @@ export default function AdminShopsPage() {
     }
     if (updatePayload.contact?.reservation_form_url) {
       contactJson.reservation_form_url = updatePayload.contact.reservation_form_url
+    }
+    if (updatePayload.contact?.email) {
+      contactJson.email = updatePayload.contact.email
     }
     if (updatePayload.service_tags) {
       contactJson.service_tags = updatePayload.service_tags
@@ -1037,6 +1043,13 @@ export default function AdminShopsPage() {
                 onChange={e => setContact(prev => ({ ...prev, website_url: e.target.value }))}
                 className="border rounded px-3 py-2 text-sm"
                 placeholder="公式サイトURL"
+              />
+              <input
+                value={contact.email || ''}
+                onChange={e => setContact(prev => ({ ...prev, email: e.target.value }))}
+                className="border rounded px-3 py-2 text-sm"
+                placeholder="連絡先メールアドレス"
+                type="email"
               />
               <input
                 value={contact.reservation_form_url || ''}
