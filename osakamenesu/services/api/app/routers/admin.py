@@ -110,8 +110,11 @@ def _serialize_dashboard_user(user: models.DashboardUser) -> Dict[str, Any]:
 
 
 def _dashboard_user_response(user: models.DashboardUser) -> DashboardInviteResponse:
+    assigned_id = user.id or uuid.uuid4()
+    if user.id is None:
+        user.id = assigned_id
     return DashboardInviteResponse(
-        id=user.id,
+        id=assigned_id,
         profile_id=user.profile_id,
         email=user.email,
         status=user.status,
