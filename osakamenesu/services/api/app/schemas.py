@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, Field, conint, constr, EmailStr
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
@@ -494,6 +496,7 @@ class ShopContactUpdate(BaseModel):
     line_id: Optional[str] = None
     website_url: Optional[str] = None
     reservation_form_url: Optional[str] = None
+    email: Optional[str] = None
     sns: Optional[List[Dict[str, Any]]] = None
 
 
@@ -607,6 +610,7 @@ class ShopAdminDetail(BaseModel):
     menus: List[MenuItem] = Field(default_factory=list)
     staff: List[StaffSummary] = Field(default_factory=list)
     availability: List[AvailabilityDay] = Field(default_factory=list)
+    dashboard_user: Optional["DashboardInviteResponse"] = None
 
 DashboardNotificationStatus = Literal['pending', 'confirmed', 'declined', 'cancelled', 'expired']
 
@@ -650,11 +654,28 @@ class DashboardNotificationSettingsTestPayload(BaseModel):
     channels: DashboardNotificationChannels
 
 
+class DashboardInviteRequest(BaseModel):
+    profile_id: UUID
+    email: EmailStr
+    invited_by: Optional[str] = None
+
+
+class DashboardInviteResponse(BaseModel):
+    id: UUID
+    profile_id: UUID
+    email: EmailStr
+    status: str
+    invited_at: datetime
+    activated_at: Optional[datetime] = None
+    last_login_at: Optional[datetime] = None
+
+
 class DashboardShopContact(BaseModel):
     phone: Optional[str] = None
     line_id: Optional[str] = None
     website_url: Optional[str] = None
     reservation_form_url: Optional[str] = None
+    email: Optional[str] = None
 
 
 class DashboardShopMenu(BaseModel):

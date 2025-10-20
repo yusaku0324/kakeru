@@ -2,7 +2,7 @@
 
 1. Copy `scripts/deploy_api.prod.env.example` to `.env.prod` (or a secure path outside git) and populate:
    - `PROJECT`, `REGION`, `SERVICE`, `MEILI_SERVICE`
-   - public URLs (`SITE_BASE_URL`, `MEILI_HOST`) and mail settings
+   - public URLs (`SITE_BASE_URL`, `MEILI_HOST`) とメール送信設定（`MAIL_APIKEY`, `MAIL_FROM_ADDRESS` など）
    - leave `AUTH_MAGIC_LINK_DEBUG=false` unless you are temporarily troubleshooting authentication
 2. Authenticate gcloud with production credentials, e.g. `CLOUDSDK_CONFIG=/secure/config gcloud auth login` and `gcloud config set project <PROJECT>`.
 3. Rotate secrets and deploy:
@@ -25,4 +25,3 @@
      WEB_SERVICE=osakamenesu-web ./apps/web/scripts/update_api_base_env.sh
    ```
    Cloud Run のドメインから API の URL を自動取得し、`NEXT_PUBLIC_OSAKAMENESU_API_BASE` / `NEXT_PUBLIC_API_BASE` を設定します。
-

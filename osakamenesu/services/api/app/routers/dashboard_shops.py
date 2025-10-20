@@ -46,13 +46,15 @@ def _extract_contact(contact_json: Dict[str, Any] | None) -> Optional[DashboardS
     line_id = contact_json.get("line_id") or contact_json.get("line")
     website_url = contact_json.get("website_url") or contact_json.get("web")
     reservation_form_url = contact_json.get("reservation_form_url")
-    if not any([phone, line_id, website_url, reservation_form_url]):
+    email = contact_json.get("email")
+    if not any([phone, line_id, website_url, reservation_form_url, email]):
         return None
     return DashboardShopContact(
         phone=phone,
         line_id=line_id,
         website_url=website_url,
         reservation_form_url=reservation_form_url,
+        email=email,
     )
 
 
@@ -180,7 +182,7 @@ def _update_contact_json(
 ) -> None:
     if contact is None:
         # 空指定の場合は既存のキーをクリア
-        for key in ["phone", "tel", "line_id", "line", "website_url", "web", "reservation_form_url"]:
+        for key in ["phone", "tel", "line_id", "line", "website_url", "web", "reservation_form_url", "email"]:
             contact_json.pop(key, None)
         return
 
@@ -210,6 +212,11 @@ def _update_contact_json(
             contact_json["reservation_form_url"] = contact.reservation_form_url
         else:
             contact_json.pop("reservation_form_url", None)
+    if contact.email is not None:
+        if contact.email:
+            contact_json["email"] = contact.email
+        else:
+            contact_json.pop("email", None)
 
 
 def _sanitize_service_tags(raw: Optional[List[str]]) -> List[str]:

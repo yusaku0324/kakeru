@@ -20,6 +20,7 @@ ReviewStatus = Enum('pending', 'published', 'rejected', name='review_status')
 # bust_tag はマイグレーション互換性のため VARCHAR で運用
 ServiceType = Enum('store', 'dispatch', name='service_type')
 ReservationStatus = Enum('pending', 'confirmed', 'declined', 'cancelled', 'expired', name='reservation_status')
+DashboardUserStatus = Enum('pending', 'active', 'suspended', name='dashboard_user_status')
 
 
 def now_utc() -> datetime:
@@ -63,6 +64,11 @@ class Profile(Base):
         cascade="all, delete-orphan",
         uselist=False,
     )
+    dashboard_user: Mapped["DashboardUser"] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
 
 class User(Base):
@@ -84,6 +90,32 @@ class User(Base):
     notification_settings_updated: Mapped[list["DashboardNotificationSetting"]] = relationship(
         back_populates="updated_by_user"
     )
+
+
+class DashboardUser(Base):
+    __tablename__ = "dashboard_users"
+    __table_args__ = (
+        UniqueConstraint("profile_id", name="uq_dashboard_users_profile"),
+        UniqueConstraint("email", name="uq_dashboard_users_email"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    profile_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(DashboardUserStatus, default="pending", nullable=False, index=True)
+    invited_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    invited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
+
+    profile: Mapped[Profile] = relationship(back_populates="dashboard_user")
 
 
 class UserAuthToken(Base):

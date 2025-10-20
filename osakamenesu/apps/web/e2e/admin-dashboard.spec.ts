@@ -78,6 +78,27 @@ test.describe('Admin dashboard', () => {
   test.skip(!process.env.ADMIN_BASIC_USER || !process.env.ADMIN_BASIC_PASS, 'ADMIN_BASIC_USER / ADMIN_BASIC_PASS が必要です')
   test.describe.configure({ mode: 'serial' })
 
+  test('ダッシュボード招待を送信できる', async ({ page }) => {
+    await openFirstShop(page)
+
+    const inviteInput = page.getByTestId('dashboard-invite-email')
+    await expect(inviteInput).toBeVisible()
+
+    const uniqueEmail = `playwright-dashboard+${Date.now()}@example.com`
+    await inviteInput.fill(uniqueEmail)
+
+    const inviteResponsePromise = page.waitForResponse((response) =>
+      response.url().includes('/api/admin/dashboard/users/invite') && response.request().method() === 'POST',
+    )
+
+    await page.getByTestId('dashboard-invite-submit').click()
+    const inviteResponse = await inviteResponsePromise
+    expect(inviteResponse.ok()).toBeTruthy()
+
+    await expect(page.getByText('招待メールを送信しました')).toBeVisible()
+    await expect(page.getByTestId('dashboard-invite-email-value')).toHaveText(uniqueEmail)
+  })
+
   test('店舗情報を更新して元に戻せる', async ({ page }) => {
     await openFirstShop(page)
     const addressInput = page.getByTestId('shop-address')
