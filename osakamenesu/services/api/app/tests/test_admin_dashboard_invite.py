@@ -121,6 +121,8 @@ class FakeSession:
         if isinstance(obj, models.DashboardUser):
             self.dashboard_users.append(obj)
             self.added.append(obj)
+            if obj.id is None:
+                obj.id = uuid.uuid4()
 
 
 def _make_profile(**overrides: Any) -> models.Profile:

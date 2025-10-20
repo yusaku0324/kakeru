@@ -193,6 +193,7 @@ async def invite_dashboard_user(
         db.add(dashboard_user)
 
     await db.flush()
+    dashboard_user.id = dashboard_user.id or uuid.uuid4()
     after_state = _serialize_dashboard_user(dashboard_user)
 
     await _record_change(
