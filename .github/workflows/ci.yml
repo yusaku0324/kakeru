@@ -129,6 +129,15 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Export web env
+        run: |
+          echo "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${NEXT_PUBLIC_OSAKAMENESU_API_BASE:-$NEXT_PUBLIC_API_BASE}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}" >> $GITHUB_ENV
+        env:
+          NEXT_PUBLIC_OSAKAMENESU_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
+          NEXT_PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_API_BASE }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+
       - name: Install dependencies
         run: npm ci
 
@@ -148,6 +157,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Export web env
+        run: |
+          echo "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${NEXT_PUBLIC_OSAKAMENESU_API_BASE:-$NEXT_PUBLIC_API_BASE}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}" >> $GITHUB_ENV
+        env:
+          NEXT_PUBLIC_OSAKAMENESU_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
+          NEXT_PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_API_BASE }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
 
       - name: Install dependencies
         run: npm ci
@@ -234,10 +252,18 @@ jobs:
       - name: Build and push web image
         env:
           IMAGE_TAG: ${{ github.sha }}
+          NEXT_PUBLIC_OSAKAMENESU_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
+          NEXT_PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_API_BASE }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
         run: |
+          export NEXT_PUBLIC_OSAKAMENESU_API_BASE="${NEXT_PUBLIC_OSAKAMENESU_API_BASE:-$NEXT_PUBLIC_API_BASE}"
+          export NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL}"
           WEB_IMAGE="gcr.io/$GCP_PROJECT_ID/osakamenesu-web:${IMAGE_TAG}"
           echo "WEB_IMAGE=${WEB_IMAGE}" >> $GITHUB_ENV
-          docker build -t "$WEB_IMAGE" osakamenesu/apps/web
+          docker build \
+            --build-arg NEXT_PUBLIC_OSAKAMENESU_API_BASE="$NEXT_PUBLIC_OSAKAMENESU_API_BASE" \
+            --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
+            -t "$WEB_IMAGE" osakamenesu/apps/web
           docker push "$WEB_IMAGE"
 
       - name: Resolve database connection string
