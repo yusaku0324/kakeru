@@ -59,7 +59,10 @@ async def send_email_async(
     if text:
         payload["text"] = text
     if tags:
-        payload["tags"] = [{"name": tag} for tag in tags]
+        payload["tags"] = [
+            {"name": "purpose", "value": tag}
+            for tag in tags
+        ]
 
     headers = {
         "Authorization": f"Bearer {settings.mail_api_key}",
