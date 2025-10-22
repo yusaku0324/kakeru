@@ -60,7 +60,7 @@ async def send_email_async(
         payload["text"] = text
     if tags:
         payload["tags"] = [
-            {"name": "purpose", "value": tag}
+            {"name": tag, "value": tag}
             for tag in tags
         ]
 
