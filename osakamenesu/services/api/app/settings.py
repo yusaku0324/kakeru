@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
 
@@ -25,7 +26,10 @@ class Settings(BaseSettings):
     auth_session_cookie_domain: str | None = None
     auth_magic_link_redirect_path: str = "/auth/complete"
     auth_magic_link_debug: bool = True
-    site_base_url: str | None = None
+    site_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SITE_BASE_URL", "NEXT_PUBLIC_SITE_URL"),
+    )
 
     class Config:
         env_file = ".env"
