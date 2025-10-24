@@ -70,14 +70,15 @@ async def send_reservation_notification(payload: ReservationNotification) -> Non
         tasks.append(_post_json(slack_url, slack_payload))
 
     email_recipients = payload.email_recipients or []
-    if EMAIL_ENDPOINT and email_recipients:
+    if EMAIL_ENDPOINT:
         email_payload = {
             "subject": f"予約更新: {payload.shop_name} ({payload.status})",
             "message": message,
             "reservation_id": payload.reservation_id,
             "shop_id": payload.shop_id,
-            "recipients": email_recipients,
         }
+        if email_recipients:
+            email_payload["recipients"] = email_recipients
         tasks.append(_post_json(EMAIL_ENDPOINT, email_payload))
 
     line_token = payload.line_notify_token
