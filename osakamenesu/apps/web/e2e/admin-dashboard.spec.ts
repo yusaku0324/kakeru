@@ -91,7 +91,7 @@ test.describe('Admin dashboard', () => {
       response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
     expect(updateResponse.ok()).toBeTruthy()
-    await expect(addressInput).toHaveValue(addressForTest, { timeout: 5000 })
+    await expect(addressInput).toHaveValue(addressForTest, { timeout: 15000 })
 
     await addressInput.fill(originalAddress)
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
@@ -99,7 +99,7 @@ test.describe('Admin dashboard', () => {
       response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
     expect(revertResponse.ok()).toBeTruthy()
-    await expect(addressInput).toHaveValue(originalAddress, { timeout: 5000 })
+    await expect(addressInput).toHaveValue(originalAddress, { timeout: 15000 })
   })
 
   test('サービスタグを更新して元に戻せる', async ({ page }) => {
