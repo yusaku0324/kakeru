@@ -1,11 +1,16 @@
+"use client"
+
 import Image from 'next/image'
 import Link from 'next/link'
+import { useMemo } from 'react'
 
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
+import { useTherapistFavorites } from './TherapistFavoritesProvider'
 
 export type TherapistHit = {
   id: string
+  therapistId: string | null
   staffId: string
   name: string
   alias: string | null
@@ -33,12 +38,55 @@ function buildStaffHref(hit: TherapistHit) {
   return `/profiles/${base}/staff/${encodeURIComponent(hit.staffId)}`
 }
 
+function HeartIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      fill={filled ? '#ef4444' : 'none'}
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4.318 6.318a4.5 4.5 0 0 1 6.364 0L12 7.636l1.318-1.318a4.5 4.5 0 1 1 6.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 0 1 0-6.364z"
+      />
+    </svg>
+  )
+}
+
 export function TherapistCard({ hit }: { hit: TherapistHit }) {
+  const { isFavorite, toggleFavorite, isProcessing } = useTherapistFavorites()
   const staffHref = buildStaffHref(hit)
   const shopHref = buildShopHref(hit)
+  const therapistId = useMemo(() => hit.therapistId ?? null, [hit.therapistId])
+  const favorite = therapistId ? isFavorite(therapistId) : false
+  const processing = therapistId ? isProcessing(therapistId) : false
 
   return (
-    <Card className="h-full" interactive data-testid="therapist-card">
+    <Card className="relative h-full" interactive data-testid="therapist-card">
+      <button
+        type="button"
+        disabled={!therapistId || processing}
+        aria-pressed={favorite}
+        aria-label={favorite ? 'お気に入りから削除' : 'お気に入りに追加'}
+        title={favorite ? 'お気に入りから削除' : 'お気に入りに追加'}
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          if (therapistId) {
+            void toggleFavorite({ therapistId, shopId: hit.shopId })
+          }
+        }}
+        className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-neutral-borderLight bg-white/90 text-brand-primary shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary ${
+          favorite ? 'text-red-500' : ''
+        } ${processing ? 'opacity-60' : 'hover:bg-white'}`}
+      >
+        <HeartIcon filled={favorite} />
+        <span className="sr-only">{favorite ? 'お気に入りから削除' : 'お気に入りに追加'}</span>
+      </button>
       <Link href={staffHref} className="block focus:outline-none group">
         <div className="relative h-48 overflow-hidden rounded-t-card bg-neutral-surfaceAlt">
           {hit.avatarUrl ? (
