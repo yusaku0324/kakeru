@@ -140,13 +140,6 @@ def test_detect_image_type_accepts_png():
     assert extension == ".png"
 
 
-def test_detect_image_type_uses_header_when_content_type_missing():
-    payload = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
-    mime, extension = dashboard_therapists._detect_image_type("photo", None, payload)  # type: ignore[attr-defined]
-    assert mime == "image/png"
-    assert extension == ".png"
-
-
 def test_detect_image_type_rejects_unknown():
     with pytest.raises(HTTPException) as exc:
         dashboard_therapists._detect_image_type("memo.txt", "text/plain", b"hello")  # type: ignore[attr-defined]

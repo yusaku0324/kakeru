@@ -417,21 +417,19 @@ async def delete_dashboard_therapist(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-def _detect_image_type(filename: str | None, content_type: str | None, payload: bytes) -> tuple[str, str]:
-    normalized = (content_type or "").lower()
-    if normalized in ALLOWED_IMAGE_CONTENT_TYPES:
-        return normalized, ALLOWED_IMAGE_CONTENT_TYPES[normalized]
-
+def _matches_magic_signature(payload: bytes) -> tuple[str | None, str | None]:
     detected = imghdr.what(None, h=payload)
     if detected:
         mime = IMGHDR_TO_MIME.get(detected.lower())
         if mime and mime in ALLOWED_IMAGE_CONTENT_TYPES:
             return mime, ALLOWED_IMAGE_CONTENT_TYPES[mime]
+    return None, None
 
-    if filename:
-        guessed, _ = mimetypes.guess_type(filename)
-        if guessed and guessed in ALLOWED_IMAGE_CONTENT_TYPES:
-            return guessed, ALLOWED_IMAGE_CONTENT_TYPES[guessed]
+
+def _detect_image_type(filename: str | None, content_type: str | None, payload: bytes) -> tuple[str, str]:
+    mime, extension = _matches_magic_signature(payload)
+    if mime:
+        return mime, extension  # type: ignore[return-value]
 
     raise HTTPException(
         status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
