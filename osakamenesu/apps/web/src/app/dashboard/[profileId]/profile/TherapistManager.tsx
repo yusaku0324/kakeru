@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useMemo, useState } from 'react'
+import React, { ChangeEvent, FormEvent, KeyboardEvent, useMemo, useState } from 'react'
 
 import { Card } from '@/components/ui/Card'
 import {
@@ -15,6 +15,7 @@ import {
   reorderDashboardTherapists,
   summarizeTherapist,
   updateDashboardTherapist,
+  uploadDashboardTherapistPhoto,
 } from '@/lib/dashboard-therapists'
 
 type ToastFn = (type: 'success' | 'error', message: string) => void
@@ -36,7 +37,7 @@ type TherapistFormValues = {
   specialties: string
   qualifications: string
   experienceYears: string
-  photoUrls: string
+  photoUrls: string[]
   status: DashboardTherapistSummary['status']
   isBookingEnabled: boolean
 }
@@ -62,7 +63,7 @@ const DEFAULT_FORM_VALUES: TherapistFormValues = {
   specialties: '',
   qualifications: '',
   experienceYears: '',
-  photoUrls: '',
+  photoUrls: [],
   status: 'draft',
   isBookingEnabled: true,
 }
@@ -95,7 +96,7 @@ function detailToForm(detail: DashboardTherapistDetail): TherapistFormValues {
       typeof detail.experience_years === 'number' && Number.isFinite(detail.experience_years)
         ? String(detail.experience_years)
         : '',
-    photoUrls: Array.isArray(detail.photo_urls) ? detail.photo_urls.join('\n') : '',
+    photoUrls: Array.isArray(detail.photo_urls) ? [...detail.photo_urls] : [],
     status: detail.status,
     isBookingEnabled: Boolean(detail.is_booking_enabled),
   }
@@ -111,19 +112,176 @@ function toErrorMessage(
   return fallback
 }
 
+export type TherapistPhotoFieldProps = {
+  photoUrls: string[]
+  disabled: boolean
+  isUploading: boolean
+  errorMessage: string | null
+  onUpload: (files: FileList | null) => Promise<void>
+  onRemove: (index: number) => void
+  onMove: (index: number, direction: -1 | 1) => void
+  onAddUrl: (url: string) => void
+}
+
+export function TherapistPhotoField({
+  photoUrls,
+  disabled,
+  isUploading,
+  errorMessage,
+  onUpload,
+  onRemove,
+  onMove,
+  onAddUrl,
+}: TherapistPhotoFieldProps) {
+  const [manualUrl, setManualUrl] = useState('')
+  const [copyMessage, setCopyMessage] = useState<string | null>(null)
+
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files
+    await onUpload(files)
+    event.target.value = ''
+  }
+
+  async function handleCopy(url: string) {
+    try {
+      if (typeof navigator === 'undefined' || !navigator.clipboard) {
+        setCopyMessage('クリップボードにアクセスできません')
+        setTimeout(() => setCopyMessage(null), 2000)
+        return
+      }
+      await navigator.clipboard.writeText(url)
+      setCopyMessage('コピーしました')
+      setTimeout(() => setCopyMessage(null), 1500)
+    } catch {
+      setCopyMessage('コピーに失敗しました')
+      setTimeout(() => setCopyMessage(null), 2000)
+    }
+  }
+
+  function handleManualSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const trimmed = manualUrl.trim()
+    if (!trimmed) return
+    onAddUrl(trimmed)
+    setManualUrl('')
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <label className="inline-flex">
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={handleFileChange}
+            multiple
+            disabled={disabled || isUploading}
+          />
+          <span className="inline-flex cursor-pointer items-center rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60">
+            {isUploading ? 'アップロード中…' : '画像をアップロード'}
+          </span>
+        </label>
+        <p className="text-xs text-neutral-500">PNG / JPG / WEBP / GIF（最大 8MB）</p>
+      </div>
+      {errorMessage ? <p className="text-xs text-red-600">{errorMessage}</p> : null}
+      {photoUrls.length ? (
+        <ul className="space-y-3">
+          {photoUrls.map((url, index) => (
+            <li
+              key={`${url}-${index}`}
+              className="flex flex-col gap-3 rounded-md border border-neutral-200 bg-neutral-50 p-3 sm:flex-row sm:items-center"
+            >
+              <div className="flex items-start gap-3 sm:w-1/2">
+                <img
+                  src={url}
+                  alt={`セラピスト写真 ${index + 1}`}
+                  className="h-20 w-20 flex-shrink-0 rounded-md object-cover"
+                  loading="lazy"
+                />
+                <p className="flex-1 break-all text-xs text-neutral-600">{url}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => onMove(index, -1)}
+                  disabled={disabled || index === 0}
+                  className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onMove(index, 1)}
+                  disabled={disabled || index === photoUrls.length - 1}
+                  className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(url)}
+                  className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={disabled}
+                >
+                  コピー
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRemove(index)}
+                  className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={disabled}
+                >
+                  削除
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="rounded-md border border-dashed border-neutral-200 bg-neutral-50 px-3 py-4 text-xs text-neutral-500">
+          まだ写真が登録されていません。画像ファイルをアップロードするか、URL を追加してください。
+        </p>
+      )}
+      <form className="flex flex-col gap-2 sm:flex-row sm:items-center" onSubmit={handleManualSubmit}>
+        <input
+          type="url"
+          value={manualUrl}
+          onChange={(event) => setManualUrl(event.target.value)}
+          placeholder="https://example.com/photo.jpg"
+          className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+          disabled={disabled}
+        />
+        <button
+          type="submit"
+          disabled={disabled || manualUrl.trim().length === 0}
+          className="rounded-md border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          URL を追加
+        </button>
+      </form>
+      {copyMessage ? <p className="text-xs text-neutral-500">{copyMessage}</p> : null}
+    </div>
+  )
+}
+
 export function TherapistManager({ profileId, initialItems, initialError, onToast }: Props) {
   const [therapists, setTherapists] = useState<DashboardTherapistSummary[]>(sortTherapists(initialItems))
   const [error, setError] = useState<string | null>(initialError ?? null)
   const [formState, setFormState] = useState<TherapistFormState | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
+  const [photoUploadError, setPhotoUploadError] = useState<string | null>(null)
 
   const hasTherapists = therapists.length > 0
 
   function openCreateForm() {
+    setPhotoUploadError(null)
+    setIsUploadingPhoto(false)
     setFormState({
       mode: 'create',
-      values: { ...DEFAULT_FORM_VALUES },
+      values: { ...DEFAULT_FORM_VALUES, photoUrls: [] },
     })
   }
 
@@ -134,6 +292,8 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
 
     switch (result.status) {
       case 'success': {
+        setPhotoUploadError(null)
+        setIsUploadingPhoto(false)
         setFormState({
           mode: 'edit',
           therapistId,
@@ -159,6 +319,8 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
 
   function closeForm() {
     setFormState(null)
+    setPhotoUploadError(null)
+    setIsUploadingPhoto(false)
   }
 
   function handleValuesChange<T extends keyof TherapistFormValues>(key: T, value: TherapistFormValues[T]) {
@@ -174,6 +336,120 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
     })
   }
 
+  function updatePhotoUrls(updater: (urls: string[]) => string[]) {
+    setFormState((prev) => {
+      if (!prev) return prev
+      const current = Array.isArray(prev.values.photoUrls) ? prev.values.photoUrls : []
+      const next = updater(current)
+      return {
+        ...prev,
+        values: {
+          ...prev.values,
+          photoUrls: next,
+        },
+      }
+    })
+  }
+
+  function handlePhotoRemove(index: number) {
+    updatePhotoUrls((urls) => urls.filter((_, idx) => idx !== index))
+  }
+
+  function handlePhotoMove(index: number, direction: -1 | 1) {
+    updatePhotoUrls((urls) => {
+      const targetIndex = index + direction
+      if (targetIndex < 0 || targetIndex >= urls.length) {
+        return urls
+      }
+      const next = [...urls]
+      const [removed] = next.splice(index, 1)
+      next.splice(targetIndex, 0, removed)
+      return next
+    })
+  }
+
+  function handlePhotoUrlAdd(url: string) {
+    const trimmed = url.trim()
+    if (!trimmed) {
+      return
+    }
+    let added = false
+    setPhotoUploadError(null)
+    updatePhotoUrls((urls) => {
+      if (urls.includes(trimmed)) {
+        setPhotoUploadError('同じ URL が既に登録されています。')
+        return urls
+      }
+      added = true
+      return [...urls, trimmed]
+    })
+    if (added) {
+      onToast('success', '写真 URL を追加しました。')
+    }
+  }
+
+  async function handlePhotoUpload(files: FileList | null) {
+    if (!formState || !files || files.length === 0) {
+      return
+    }
+    setIsUploadingPhoto(true)
+    setPhotoUploadError(null)
+
+    for (const file of Array.from(files)) {
+      try {
+        const result = await uploadDashboardTherapistPhoto(profileId, file)
+        switch (result.status) {
+          case 'success': {
+            const url = result.data.url
+            updatePhotoUrls((urls) => (urls.includes(url) ? urls : [...urls, url]))
+            setPhotoUploadError(null)
+            onToast('success', '写真をアップロードしました。')
+            break
+          }
+          case 'too_large': {
+            const limitMb = result.limitBytes ? Math.round(result.limitBytes / (1024 * 1024)) : 8
+            const message = `ファイルサイズが大きすぎます（最大 ${limitMb}MB）`
+            setPhotoUploadError(message)
+            onToast('error', message)
+            break
+          }
+          case 'unsupported_media_type': {
+            const message = '対応していないファイル形式です。PNG / JPG / WEBP / GIF を利用してください。'
+            setPhotoUploadError(message)
+            onToast('error', message)
+            break
+          }
+          case 'validation_error': {
+            const message = result.message ?? 'アップロードに失敗しました。'
+            setPhotoUploadError(message)
+            onToast('error', message)
+            break
+          }
+          case 'unauthorized':
+          case 'forbidden': {
+            onToast('error', '写真をアップロードする権限がありません。')
+            break
+          }
+          case 'not_found': {
+            onToast('error', 'プロフィールが見つかりませんでした。再読み込みしてください。')
+            break
+          }
+          default: {
+            const message = result.message ?? 'アップロードに失敗しました。時間をおいて再試行してください。'
+            setPhotoUploadError(message)
+            onToast('error', message)
+          }
+        }
+      } catch (error) {
+        const message = 'アップロードに失敗しました。時間をおいて再試行してください。'
+        setPhotoUploadError(message)
+        onToast('error', message)
+      }
+    }
+
+    setIsUploadingPhoto(false)
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!formState) return
@@ -187,10 +463,9 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
 
     const payloadSpecialties = parseCommaSeparated(values.specialties)
     const payloadQualifications = parseCommaSeparated(values.qualifications)
-    const photoUrls = values.photoUrls
-      .split(/\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
+    const sanitizedPhotoUrls = Array.from(
+      new Set(values.photoUrls.map((url) => url.trim()).filter((url) => url.length > 0))
+    )
 
     const experienceYears = values.experienceYears.trim()
     const experienceYearsNumber = experienceYears ? Number(experienceYears) : undefined
@@ -205,7 +480,7 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
         experienceYearsNumber !== undefined && Number.isFinite(experienceYearsNumber)
           ? Math.max(0, Math.round(experienceYearsNumber))
           : undefined,
-      photo_urls: photoUrls.length ? photoUrls : undefined,
+      photo_urls: sanitizedPhotoUrls.length ? sanitizedPhotoUrls : undefined,
       is_booking_enabled: Boolean(values.isBookingEnabled),
     }
 
@@ -368,6 +643,24 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
                     得意: {therapist.specialties.join(', ')}
                   </p>
                 ) : null}
+                {therapist.photo_urls.length ? (
+                  <div className="flex items-center gap-2">
+                    {therapist.photo_urls.slice(0, 3).map((url, photoIndex) => (
+                      <img
+                        key={`${therapist.id}-photo-${photoIndex}`}
+                        src={url}
+                        alt={`${therapist.name}の写真${photoIndex + 1}`}
+                        className="h-12 w-12 rounded-md object-cover"
+                        loading="lazy"
+                      />
+                    ))}
+                    {therapist.photo_urls.length > 3 ? (
+                      <span className="text-xs text-neutral-500">+{therapist.photo_urls.length - 3}</span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="text-xs text-neutral-400">写真未登録</p>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -530,17 +823,19 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
             />
             オンライン予約を受け付ける
           </label>
-          <label className="space-y-1">
-            <span className="text-xs font-semibold text-neutral-600">
-              写真 URL (1 行につき 1 件)
-            </span>
-            <textarea
-              value={formState.values.photoUrls}
-              onChange={(event) => handleValuesChange('photoUrls', event.target.value)}
-              className="h-28 w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
-              placeholder="https://example.com/image01.jpg&#10;https://example.com/image02.jpg"
+          <div className="space-y-1">
+            <span className="text-xs font-semibold text-neutral-600">写真</span>
+            <TherapistPhotoField
+              photoUrls={formState.values.photoUrls}
+              disabled={isSubmitting}
+              isUploading={isUploadingPhoto}
+              errorMessage={photoUploadError}
+              onUpload={handlePhotoUpload}
+              onRemove={handlePhotoRemove}
+              onMove={handlePhotoMove}
+              onAddUrl={handlePhotoUrlAdd}
             />
-          </label>
+          </div>
           <div className="flex items-center justify-end gap-3">
             <button
               type="button"

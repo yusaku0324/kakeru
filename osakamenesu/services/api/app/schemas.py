@@ -751,6 +751,13 @@ class DashboardTherapistDetail(DashboardTherapistSummary):
     created_at: datetime
 
 
+class DashboardTherapistPhotoUploadResponse(BaseModel):
+    url: str
+    filename: str
+    content_type: str
+    size: int = Field(ge=0)
+
+
 class DashboardTherapistCreatePayload(BaseModel):
     name: str
     alias: Optional[str] = None

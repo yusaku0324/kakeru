@@ -1,3 +1,4 @@
+from pathlib import Path
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
@@ -40,6 +41,42 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("SITE_BASE_URL", "NEXT_PUBLIC_SITE_URL"),
     )
+    media_storage_backend: str = Field(
+        default="local",
+        validation_alias=AliasChoices("MEDIA_STORAGE_BACKEND", "MEDIA_BACKEND"),
+    )
+    media_local_directory: str = Field(
+        default="var/media",
+        validation_alias=AliasChoices("MEDIA_LOCAL_DIRECTORY", "MEDIA_LOCAL_DIR"),
+    )
+    media_url_prefix: str = Field(
+        default="/media",
+        validation_alias=AliasChoices("MEDIA_URL_PREFIX", "MEDIA_LOCAL_URL_PREFIX"),
+    )
+    media_cdn_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_CDN_BASE_URL", "MEDIA_PUBLIC_BASE_URL"),
+    )
+    media_s3_bucket: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_S3_BUCKET", "MEDIA_BUCKET"),
+    )
+    media_s3_region: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_S3_REGION", "MEDIA_REGION"),
+    )
+    media_s3_endpoint: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_S3_ENDPOINT", "MEDIA_ENDPOINT_URL"),
+    )
+    media_s3_access_key_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_S3_ACCESS_KEY_ID", "MEDIA_ACCESS_KEY"),
+    )
+    media_s3_secret_access_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_S3_SECRET_ACCESS_KEY", "MEDIA_SECRET_KEY"),
+    )
 
     class Config:
         env_file = ".env"
@@ -49,6 +86,15 @@ class Settings(BaseSettings):
     def auth_session_cookie_name(self) -> str:
         """Backward compatibility accessor for dashboard session cookie name."""
         return self.dashboard_session_cookie_name
+
+    @property
+    def media_root(self) -> Path:
+        """Resolve media storage root directory for local backend."""
+        path = Path(self.media_local_directory)
+        if not path.is_absolute():
+            base = Path(__file__).resolve().parents[2]
+            path = base / path
+        return path
 
 
 settings = Settings()
