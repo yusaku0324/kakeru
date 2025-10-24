@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from typing import Optional, Iterable, Tuple, Any, List
+from collections import defaultdict
+from typing import Optional, Iterable, Tuple, Any, List, Dict, Union, overload
+from typing import Literal
+
+from ..schemas import REVIEW_ASPECT_KEYS
 
 PRICE_BANDS: list[tuple[str, int, int | None, str]] = [
     ("under_10k", 0, 10000, "〜1万円"),
@@ -79,10 +83,44 @@ def _safe_float(v: object) -> Optional[float]:
         return None
 
 
-def _extract_review_stats(reviews: Any) -> tuple[Optional[float], Optional[int], list[dict[str, Any]]]:
+def normalize_review_aspects(raw: Any) -> dict[str, dict[str, Any]]:
+    normalized: dict[str, dict[str, Any]] = {}
+    if not isinstance(raw, dict):
+        return normalized
+    for key in REVIEW_ASPECT_KEYS:
+        entry = raw.get(key)
+        if not isinstance(entry, dict):
+            continue
+        score = _safe_int(entry.get("score") or entry.get("rating"))
+        if score is None or score < 1 or score > 5:
+            continue
+        note_raw = entry.get("note") or entry.get("comment") or entry.get("text")
+        note = None
+        if isinstance(note_raw, str):
+            note = note_raw.strip() or None
+        normalized[key] = {"score": int(score), "note": note}
+    return normalized
+
+
+def _calculate_aspect_stats(score_map: Dict[str, list[int]]) -> tuple[dict[str, float], dict[str, int]]:
+    averages: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    for key, scores in score_map.items():
+        valid = [s for s in scores if isinstance(s, (int, float))]
+        if not valid:
+            continue
+        counts[key] = len(valid)
+        averages[key] = round(sum(valid) / len(valid), 1)
+    return averages, counts
+
+
+def _extract_review_stats(
+    reviews: Any,
+) -> tuple[Optional[float], Optional[int], list[dict[str, Any]], dict[str, float], dict[str, int]]:
     average: Optional[float] = None
     count: Optional[int] = None
     items: list[dict[str, Any]] = []
+    aspect_scores: Dict[str, list[int]] = defaultdict(list)
 
     if isinstance(reviews, dict):
         average = _safe_float(reviews.get("average_score") or reviews.get("score"))
@@ -102,7 +140,16 @@ def _extract_review_stats(reviews: Any) -> tuple[Optional[float], Optional[int],
     if count is None and items:
         count = len(items)
 
-    return average, count, items
+    for item in items:
+        normalized = normalize_review_aspects(item.get("aspects"))
+        for key, entry in normalized.items():
+            score = _safe_int(entry.get("score"))
+            if score is None:
+                continue
+            aspect_scores[key].append(score)
+
+    aspect_averages, aspect_counts = _calculate_aspect_stats(aspect_scores)
+    return average, count, items, aspect_averages, aspect_counts
 
 
 def _published_reviews(profile: models.Profile) -> list[models.Review]:
@@ -129,9 +176,32 @@ def _review_highlights(reviews: list[models.Review], limit: int = 3) -> list[dic
                 "score": review.score,
                 "visited_at": review.visited_at.isoformat() if review.visited_at else None,
                 "author_alias": review.author_alias,
+                "aspects": normalize_review_aspects(getattr(review, "aspect_scores", {})),
             }
         )
     return highlights
+
+
+@overload
+def compute_review_summary(
+    profile: models.Profile,
+    fallback_reviews: Any = None,
+    *,
+    highlight_limit: int = 3,
+    include_aspects: Literal[True],
+) -> tuple[Optional[float], Optional[int], list[dict[str, Any]], dict[str, float], dict[str, int]]:
+    ...
+
+
+@overload
+def compute_review_summary(
+    profile: models.Profile,
+    fallback_reviews: Any = None,
+    *,
+    highlight_limit: int = 3,
+    include_aspects: Literal[False] = False,
+) -> tuple[Optional[float], Optional[int], list[dict[str, Any]]]:
+    ...
 
 
 def compute_review_summary(
@@ -139,16 +209,34 @@ def compute_review_summary(
     fallback_reviews: Any = None,
     *,
     highlight_limit: int = 3,
-) -> tuple[Optional[float], Optional[int], list[dict[str, Any]]]:
+    include_aspects: bool = False,
+) -> Union[
+    tuple[Optional[float], Optional[int], list[dict[str, Any]]],
+    tuple[Optional[float], Optional[int], list[dict[str, Any]], dict[str, float], dict[str, int]],
+]:
     published_reviews = _published_reviews(profile)
     if published_reviews:
         average = round(sum(r.score for r in published_reviews) / len(published_reviews), 1)
         count = len(published_reviews)
         highlights = _review_highlights(published_reviews, limit=highlight_limit)
+        aspect_scores: Dict[str, list[int]] = defaultdict(list)
+        for review in published_reviews:
+            normalized = normalize_review_aspects(getattr(review, "aspect_scores", {}))
+            for key, entry in normalized.items():
+                score = _safe_int(entry.get("score"))
+                if score is None:
+                    continue
+                aspect_scores[key].append(score)
+        aspect_averages, aspect_counts = _calculate_aspect_stats(aspect_scores)
+        if include_aspects:
+            return average, count, highlights, aspect_averages, aspect_counts
         return average, count, highlights
 
-    average, count, fallback_items = _extract_review_stats(fallback_reviews)
-    return average, count, fallback_items[:highlight_limit]
+    average, count, fallback_items, aspect_averages, aspect_counts = _extract_review_stats(fallback_reviews)
+    highlights = fallback_items[:highlight_limit]
+    if include_aspects:
+        return average, count, highlights, aspect_averages, aspect_counts
+    return average, count, highlights
 
 
 def infer_height_age(profile: models.Profile) -> Tuple[Optional[int], Optional[int]]:
@@ -262,10 +350,17 @@ def build_profile_doc(
 
     price_band_key, price_band_label = _compute_price_band(profile.price_min, profile.price_max)
 
-    review_score, review_count, review_highlights = compute_review_summary(
+    (
+        review_score,
+        review_count,
+        review_highlights,
+        review_aspect_averages,
+        review_aspect_counts,
+    ) = compute_review_summary(
         profile,
         contact_json.get("reviews"),
         highlight_limit=3,
+        include_aspects=True,
     )
     ranking_reason = contact_json.get("ranking_reason") or contact_json.get("ranking_message")
     ranking_score = _compute_ranking_score(
@@ -312,6 +407,8 @@ def build_profile_doc(
         "review_score": review_score,
         "review_count": review_count,
         "review_highlights": review_highlights,
+        "review_aspect_averages": review_aspect_averages,
+        "review_aspect_counts": review_aspect_counts,
         "ranking_reason": ranking_reason,
         "staff_preview": contact_json.get("staff"),
         "price_band": price_band_key,
