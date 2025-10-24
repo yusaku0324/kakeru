@@ -1,6 +1,7 @@
 import SearchFilters from '@/components/SearchFilters'
 import ShopCard, { type ShopHit } from '@/components/shop/ShopCard'
 import TherapistCard, { type TherapistHit } from '@/components/staff/TherapistCard'
+import { TherapistFavoritesProvider } from '@/components/staff/TherapistFavoritesProvider'
 import { Badge } from '@/components/ui/Badge'
 import { Section } from '@/components/ui/Section'
 import { Card } from '@/components/ui/Card'
@@ -376,6 +377,7 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
           : []
         return {
           id: uniqueId,
+          therapistId: staff.id ? String(staff.id) : null,
           staffId: staffIdentifier,
           name: staff.name,
           alias: staff.alias ?? null,
@@ -532,25 +534,27 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
           <SearchFilters init={searchParams} facets={facets} />
 
           {showTherapistSection ? (
-            <Section
-              id="therapist-results"
-              ariaLive="polite"
-              title={`セラピスト ${Intl.NumberFormat('ja-JP').format(therapistTotal)}名`}
-              subtitle="人気セラピストをピックアップ"
-              actions={<span className="text-xs text-neutral-textMuted">最新情報は毎日更新</span>}
-              className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
-            >
-              {usingSampleTherapists ? (
-                <div className="mb-6 rounded-card border border-brand-primary/30 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
-                  API の検索結果にセラピスト情報が含まれていなかったため、参考用のサンプルセラピストを表示しています。
+            <TherapistFavoritesProvider>
+              <Section
+                id="therapist-results"
+                ariaLive="polite"
+                title={`セラピスト ${Intl.NumberFormat('ja-JP').format(therapistTotal)}名`}
+                subtitle="人気セラピストをピックアップ"
+                actions={<span className="text-xs text-neutral-textMuted">最新情報は毎日更新</span>}
+                className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
+              >
+                {usingSampleTherapists ? (
+                  <div className="mb-6 rounded-card border border-brand-primary/30 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
+                    API の検索結果にセラピスト情報が含まれていなかったため、参考用のサンプルセラピストを表示しています。
+                  </div>
+                ) : null}
+                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  {therapistHits.map((hit) => (
+                    <TherapistCard key={hit.id} hit={hit} />
+                  ))}
                 </div>
-              ) : null}
-              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {therapistHits.map((hit) => (
-                  <TherapistCard key={hit.id} hit={hit} />
-                ))}
-              </div>
-            </Section>
+              </Section>
+            </TherapistFavoritesProvider>
           ) : null}
 
           {showShopSection ? (

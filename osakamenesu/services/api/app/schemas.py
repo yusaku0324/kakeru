@@ -1,7 +1,13 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, Field, conint, constr, EmailStr
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from datetime import datetime, date
+
+
+REVIEW_ASPECT_KEYS = ("therapist_service", "staff_response", "room_cleanliness")
+ReviewAspectKey = Literal["therapist_service", "staff_response", "room_cleanliness"]
 
 
 class AuthRequestLink(BaseModel):
@@ -28,6 +34,16 @@ class FavoriteItem(BaseModel):
 
 class FavoriteCreate(BaseModel):
     shop_id: UUID
+
+
+class TherapistFavoriteItem(BaseModel):
+    therapist_id: UUID
+    shop_id: UUID
+    created_at: datetime
+
+
+class TherapistFavoriteCreate(BaseModel):
+    therapist_id: UUID
 
 
 class ProfileCreate(BaseModel):
@@ -284,6 +300,11 @@ class AvailabilityCalendar(BaseModel):
     days: List[AvailabilityDay]
 
 
+class ReviewAspectScore(BaseModel):
+    score: conint(ge=1, le=5)
+    note: Optional[constr(max_length=240)] = None
+
+
 class HighlightedReview(BaseModel):
     review_id: Optional[UUID] = None
     title: str
@@ -291,6 +312,7 @@ class HighlightedReview(BaseModel):
     score: int
     visited_at: Optional[date] = None
     author_alias: Optional[str] = None
+    aspects: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ReviewItem(BaseModel):
@@ -304,12 +326,21 @@ class ReviewItem(BaseModel):
     visited_at: Optional[date] = None
     created_at: datetime
     updated_at: datetime
+    aspects: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ReviewAspectSummary(BaseModel):
+    key: str
+    average_score: Optional[float] = None
+    total: int = 0
 
 
 class ReviewSummary(BaseModel):
     average_score: Optional[float] = None
     review_count: Optional[int] = None
     highlighted: List[HighlightedReview] = Field(default_factory=list)
+    aspect_averages: Dict[str, float] = Field(default_factory=dict)
+    aspect_counts: Dict[str, int] = Field(default_factory=dict)
 
 
 class ReviewCreateRequest(BaseModel):
@@ -318,11 +349,14 @@ class ReviewCreateRequest(BaseModel):
     title: Optional[constr(max_length=160)] = None
     author_alias: Optional[constr(max_length=80)] = None
     visited_at: Optional[date] = None
+    aspects: Optional[Dict[str, Any]] = Field(default=None)
 
 
 class ReviewListResponse(BaseModel):
     total: int
     items: List[ReviewItem]
+    aspect_averages: Dict[str, float] = Field(default_factory=dict)
+    aspect_counts: Dict[str, int] = Field(default_factory=dict)
 
 
 class ReviewModerationRequest(BaseModel):
@@ -528,6 +562,7 @@ class BulkReviewInput(BaseModel):
     author_alias: Optional[str] = None
     visited_at: Optional[date] = None
     status: ReviewStatusLiteral = 'published'
+    aspects: Optional[Dict[str, Any]] = None
 
 
 class BulkDiaryInput(BaseModel):

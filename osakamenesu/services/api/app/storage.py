@@ -28,15 +28,20 @@ class StorageBackend(Protocol):
 
 
 class LocalMediaStorage:
-    def __init__(self, root: Path, url_prefix: str, cdn_base_url: Optional[str], api_origin: str) -> None:
+    def __init__(
+        self,
+        root: Path,
+        url_prefix: str,
+        cdn_base_url: Optional[str],
+        public_origin: Optional[str],
+    ) -> None:
         self._root = root
         normalized_prefix = (url_prefix or "").strip() or "/media"
         if not normalized_prefix.startswith("/"):
             normalized_prefix = f"/{normalized_prefix}"
         self._url_prefix = normalized_prefix.rstrip("/") or "/media"
         self._cdn_base_url = cdn_base_url.rstrip("/") if cdn_base_url else None
-        self._api_origin = api_origin.rstrip("/") if api_origin else ""
-        self._fallback_base = f"{self._api_origin}{self._url_prefix}" if self._api_origin else self._url_prefix
+        self._public_origin = public_origin.rstrip("/") if public_origin else None
 
     async def save(self, *, folder: str, filename: str, content: bytes, content_type: str) -> StoredMedia:
         parts = [segment for segment in folder.split("/") if segment and segment not in (".", "..")]
@@ -45,7 +50,12 @@ class LocalMediaStorage:
         file_path = destination / filename
         await asyncio.to_thread(file_path.write_bytes, content)
 
-        base_url = self._cdn_base_url or self._fallback_base
+        if self._cdn_base_url:
+            base_url = self._cdn_base_url
+        elif self._public_origin:
+            base_url = f"{self._public_origin}{self._url_prefix}"
+        else:
+            base_url = self._url_prefix
         plain_folder = "/".join(parts)
         quoted_folder = "/".join(quote(part) for part in parts)
         if quoted_folder:
@@ -136,7 +146,7 @@ class MediaStorage:
                 root=root,
                 url_prefix=config.media_url_prefix,
                 cdn_base_url=config.media_cdn_base_url,
-                api_origin=config.api_origin,
+                public_origin=config.api_origin,
             )
             return cls(backend)
         if backend_name == "s3":
