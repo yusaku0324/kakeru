@@ -47,6 +47,7 @@ class _DummySettings:
             "postgresql+asyncpg://app:app@localhost:5432/osaka_menesu",
         )
         self.api_origin = os.environ.get("API_ORIGIN", "http://localhost:3000")
+        self.api_public_base_url = os.environ.get("OSAKAMENESU_API_BASE", "http://localhost:8000")
         self.meili_host = os.environ.get("MEILI_HOST", "http://127.0.0.1:7700")
         self.meili_master_key = os.environ.get("MEILI_MASTER_KEY", "dev_key")
         self.admin_api_key = os.environ.get("ADMIN_API_KEY", "dev_admin_key")

@@ -6,6 +6,10 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://app:app@osakamenesu-db:5432/osaka_menesu"
     api_origin: str = "http://localhost:3000"
+    api_public_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OSAKAMENESU_API_BASE", "API_BASE", "API_PUBLIC_BASE_URL"),
+    )
     meili_host: str = "http://osakamenesu-meili:7700"
     meili_master_key: str = "dev_meili_master_key"
     admin_api_key: str = "dev_admin_key"

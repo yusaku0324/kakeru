@@ -22,6 +22,7 @@ class _DummySettings:
     def __init__(self) -> None:
         self.database_url = "postgresql+asyncpg://app:app@localhost:5432/osaka_menesu"
         self.api_origin = "http://localhost:3000"
+        self.api_public_base_url = "http://localhost:8000"
         self.meili_host = "http://127.0.0.1:7700"
         self.meili_master_key = "dev_key"
         self.admin_api_key = "dev_admin_key"
