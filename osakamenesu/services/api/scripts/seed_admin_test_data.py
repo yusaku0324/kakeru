@@ -241,14 +241,17 @@ def _ensure_shop(
         ],
     }
 
-    _request_json(
-        base,
-        "PATCH",
-        f"/api/admin/shops/{shop_id}/content",
-        headers=headers,
-        payload=update_payload,
-        expected=(200,),
-    )
+    try:
+        _request_json(
+            base,
+            "PATCH",
+            f"/api/admin/shops/{shop_id}/content",
+            headers=headers,
+            payload=update_payload,
+            expected=(200,),
+        )
+    except RuntimeError as exc:
+        _log(f"update content failed (ignored): {exc}")
 
     _log(f"seed shop ensured (id={shop_id})")
     return shop_id
