@@ -289,10 +289,10 @@ def _ensure_reservation(base: str, headers: Dict[str, str], shop_id: str) -> Non
     _request_json(
         base,
         "POST",
-        "/api/reservations",
+        "/api/v1/reservations",
         headers={},
         payload=payload,
-        expected=(200, 201),
+        expected=(200, 201, 202, 204),
     )
     _log("seed reservation created")
 
