@@ -173,6 +173,13 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
+      - name: Run web E2E (non-admin)
+        env:
+          ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER }}
+          ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: npm run test:e2e -- --grep-invert "Admin"
+
       - name: Run admin E2E tests
         env:
           ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER }}

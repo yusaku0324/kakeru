@@ -13,6 +13,7 @@ export type ReservationFormProps = {
   shopName?: string | null
   defaultDurationMinutes?: number | null
   staffId?: string | null
+  allowDemoSubmission?: boolean
 }
 
 type FormState = {
@@ -39,7 +40,7 @@ function nextHourIsoLocal(minutesAhead = 120) {
   return buildIsoLocal(now)
 }
 
-export default function ReservationForm({ shopId, defaultStart, defaultDurationMinutes, tel, lineId, shopName, staffId }: ReservationFormProps) {
+export default function ReservationForm({ shopId, defaultStart, defaultDurationMinutes, tel, lineId, shopName, staffId, allowDemoSubmission = false }: ReservationFormProps) {
   const initialStart = defaultStart || nextHourIsoLocal(180)
   const initialDuration = defaultDurationMinutes && defaultDurationMinutes > 0 ? defaultDurationMinutes : 60
   const [form, setForm] = useState<FormState>({
@@ -69,6 +70,7 @@ export default function ReservationForm({ shopId, defaultStart, defaultDurationM
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const shopUuid = uuidPattern.test(shopId) ? shopId : null
   const isDemoEnvironment = !shopUuid
+  const canSubmit = allowDemoSubmission || Boolean(shopUuid)
   const staffUuid = (() => {
     if (!staffId) return undefined
     return uuidPattern.test(staffId) ? staffId : undefined
@@ -91,7 +93,7 @@ export default function ReservationForm({ shopId, defaultStart, defaultDurationM
   }
 
   async function submit() {
-    if (isDemoEnvironment) {
+    if (!canSubmit) {
       push('error', 'デモデータのため、この環境では予約送信できません。')
       return
     }
@@ -159,7 +161,7 @@ export default function ReservationForm({ shopId, defaultStart, defaultDurationM
     })
   }
 
-  const disabled = isPending
+  const disabled = isPending || !canSubmit
 
   return (
     <div className="space-y-4">
@@ -257,7 +259,7 @@ export default function ReservationForm({ shopId, defaultStart, defaultDurationM
             lastPayload={lastPayload}
           />
         ) : null}
-        {isDemoEnvironment ? (
+        {!canSubmit ? (
           <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
             この店舗はデモデータのため、予約リクエストの送信は無効化されています。
           </div>
@@ -266,10 +268,10 @@ export default function ReservationForm({ shopId, defaultStart, defaultDurationM
       <ToastContainer toasts={toasts} onDismiss={remove} />
       <button
         onClick={submit}
-        disabled={disabled || isDemoEnvironment}
+        disabled={disabled}
         className="w-full bg-blue-600 text-white py-2 rounded shadow disabled:opacity-50"
       >
-        {disabled ? '送信中...' : isDemoEnvironment ? 'デモ環境では送信できません' : '予約リクエストを送信'}
+        {isPending ? '送信中...' : canSubmit ? '予約リクエストを送信' : 'デモ環境では送信できません'}
       </button>
     </div>
   )

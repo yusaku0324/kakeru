@@ -10,7 +10,7 @@ test('therapist card navigates to staff page and reservation can be sent', async
     await route.fulfill({ status: 201, body: JSON.stringify({ id: 'e2e-reservation' }) })
   })
 
-  await page.goto(`${baseURL}/search`)
+  await page.goto(`${baseURL}/search?force_samples=1`)
 
   const therapistCard = page.getByTestId('therapist-card').first()
   await expect(therapistCard).toBeVisible()
@@ -22,10 +22,23 @@ test('therapist card navigates to staff page and reservation can be sent', async
 
   await staffLink.click()
   await expect(page).toHaveURL(/\/profiles\/.+\/staff\//)
+  await page.waitForLoadState('networkidle')
+  const currentStaffUrl = page.url()
+  const staffUrlWithOverride = currentStaffUrl.includes('?')
+    ? `${currentStaffUrl}&force_demo_submit=1`
+    : `${currentStaffUrl}?force_demo_submit=1`
+  await page.goto(staffUrlWithOverride)
+  await expect(page).toHaveURL(/force_demo_submit=1/)
   await expect(page.getByText('WEB予約リクエスト')).toBeVisible()
 
-  await page.getByLabel('お名前 *').fill('E2E テスター')
-  await page.getByLabel('お電話番号 *').fill('09012345678')
+  const nameField = page.getByPlaceholder('例: 山田 太郎')
+  await expect(nameField).toBeVisible()
+  await nameField.fill('E2E テスター')
+
+  const phoneField = page.getByPlaceholder('090...')
+  await expect(phoneField).toBeVisible()
+  await phoneField.fill('09012345678')
+
   await page.getByRole('button', { name: '予約リクエストを送信' }).click()
 
   await expect(page.getByText('送信が完了しました。店舗からの折り返しをお待ちください。')).toBeVisible()

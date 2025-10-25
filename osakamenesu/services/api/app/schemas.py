@@ -104,6 +104,8 @@ class ProfileDoc(BaseModel):
     review_score: Optional[float] = None
     review_count: Optional[int] = None
     review_highlights: List[Dict[str, Any]] = Field(default_factory=list)
+    review_aspect_averages: Dict[str, float] = Field(default_factory=dict)
+    review_aspect_counts: Dict[str, int] = Field(default_factory=dict)
     ranking_reason: Optional[str] = None
     staff_preview: Optional[Any] = None
     price_band: Optional[str] = None

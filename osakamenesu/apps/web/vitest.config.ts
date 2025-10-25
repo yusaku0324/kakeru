@@ -10,6 +10,11 @@ export default defineConfig({
       '@': join(__dirname, 'src'),
     },
   },
+  esbuild: {
+    jsx: 'automatic',
+    jsxDev: true,
+    jsxImportSource: 'react',
+  },
   test: {
     environment: 'jsdom',
     globals: true,

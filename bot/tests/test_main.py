@@ -31,7 +31,8 @@ class TestMainFunctions(unittest.TestCase):
         
         self.assertEqual(result, 0)
         mock_create_driver.assert_called_once()
-        mock_load_cookies.assert_called_once_with(mock_driver, "niijima_cookies.json")
+        expected_cookie_path = os.getenv("COOKIE_PATH", "niijima_cookies.json")
+        mock_load_cookies.assert_called_once_with(mock_driver, expected_cookie_path)
         mock_driver.quit.assert_called_once()
     
     @patch('bot.main.create_driver')
