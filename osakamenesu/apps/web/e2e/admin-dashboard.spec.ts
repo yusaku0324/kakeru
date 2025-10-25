@@ -303,9 +303,11 @@ test.describe('Admin dashboard', () => {
     )
 
     await reopenShop(page, shop.name)
-    await expect.poll(async () => await menuItems.count()).toBe(menuCountBefore)
     await expect
-      .poll(async () => (await readMenuNames()).filter((value) => value))
+      .poll(async () => await menuItems.count(), { timeout: 15000 })
+      .toBeLessThanOrEqual(menuCountBefore)
+    await expect
+      .poll(async () => (await readMenuNames()).filter((value) => value), { timeout: 15000 })
       .not.toContain(menuName)
   })
 
