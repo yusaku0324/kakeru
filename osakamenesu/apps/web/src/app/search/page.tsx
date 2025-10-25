@@ -189,6 +189,7 @@ type Params = {
   sort?: string
   page?: string
   page_size?: string
+  force_samples?: string
 }
 
 function toQueryString(p: Record<string, string | undefined>) {
@@ -258,6 +259,37 @@ async function fetchProfiles(params: Params): Promise<SearchResponse> {
     results: [],
     facets: {},
     _error: lastErr?.message || '検索に失敗しました',
+  }
+}
+
+function parseBoolParam(value?: string): boolean {
+  if (!value) return false
+  const lowered = value.toLowerCase()
+  return lowered === '1' || lowered === 'true' || lowered === 'yes' || lowered === 'on'
+}
+
+function buildSampleFacets(hits: ShopHit[]): Record<string, FacetValue[]> {
+  const areaCounts = hits.reduce<Record<string, number>>((acc, hit) => {
+    const key = hit.area_name || hit.area
+    if (!key) return acc
+    acc[key] = (acc[key] ?? 0) + 1
+    return acc
+  }, {})
+
+  const facets: Record<string, FacetValue[]> = {}
+  if (Object.keys(areaCounts).length) {
+    facets.area = Object.entries(areaCounts).map(([value, count]) => ({ value, label: value, count }))
+  }
+  return facets
+}
+
+function buildSampleResponse(): SearchResponse {
+  return {
+    page: 1,
+    page_size: SAMPLE_RESULTS.length,
+    total: SAMPLE_RESULTS.length,
+    results: SAMPLE_RESULTS,
+    facets: buildSampleFacets(SAMPLE_RESULTS),
   }
 }
 
@@ -397,10 +429,13 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
 }
 
 export default async function SearchPage({ searchParams }: { searchParams: Params }) {
-  const data = await fetchProfiles(searchParams)
+  const forceSampleMode = parseBoolParam(
+    Array.isArray(searchParams.force_samples) ? searchParams.force_samples[0] : searchParams.force_samples,
+  )
+  const data = forceSampleMode ? buildSampleResponse() : await fetchProfiles(searchParams)
   const { page, page_size: pageSize, total, results, facets, _error } = data
   const hits = results ?? []
-  const useSampleData = hits.length === 0
+  const useSampleData = forceSampleMode || hits.length === 0
   const displayHits = useSampleData ? SAMPLE_RESULTS : hits
   const highlights = buildHighlights(facets, hits)
   const displayHighlights = useSampleData ? buildHighlights({}, SAMPLE_RESULTS) : highlights
