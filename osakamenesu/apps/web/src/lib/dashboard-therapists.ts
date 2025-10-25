@@ -147,15 +147,20 @@ async function requestJson<T>(
 
       if (successStatuses.includes(res.status)) {
         let data: T | undefined
-        if (res.status !== 204 && res.headers.get('content-type')?.includes('json')) {
+        const shouldParseJson =
+          res.status !== 204 &&
+          (res.headers.get('content-type')?.includes('json') ?? false)
+        if (shouldParseJson) {
           data = (await res.json()) as T
         }
         return { response: res, data }
       }
 
-      if ([401, 403, 404, 409, 422].includes(res.status)) {
+      if ([401, 403, 404, 409, 413, 415, 422].includes(res.status)) {
         let data: T | undefined
-        if (res.headers.get('content-type')?.includes('json')) {
+        const shouldParseJson =
+          res.headers.get('content-type')?.includes('json') || res.status === 413 || res.status === 415
+        if (shouldParseJson) {
           data = (await res.json()) as T
         }
         return { response: res, data }

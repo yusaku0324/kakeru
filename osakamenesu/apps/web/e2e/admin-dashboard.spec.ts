@@ -31,6 +31,13 @@ async function openFirstShop(page: Page) {
   return firstShop
 }
 
+async function reopenShop(page: Page, shopName: string) {
+  await page.goto('/admin/shops')
+  await expect(page.getByRole('heading', { name: '店舗管理' })).toBeVisible()
+  await page.getByRole('button', { name: shopName, exact: false }).first().click()
+  await expect(page.getByTestId('shop-address')).toBeVisible()
+}
+
 async function ensureReservation(page: Page) {
   const listResponse = await page.request.get('/api/admin/reservations?limit=1')
   if (listResponse.ok()) {
@@ -79,8 +86,8 @@ test.describe('Admin dashboard', () => {
   test.describe.configure({ mode: 'serial' })
 
   test('店舗情報を更新して元に戻せる', async ({ page }) => {
-    await openFirstShop(page)
-    const addressInput = page.getByTestId('shop-address')
+    const shop = await openFirstShop(page)
+    let addressInput = page.getByTestId('shop-address')
 
     const originalAddress = await addressInput.inputValue()
     const addressForTest = originalAddress === NEW_ADDRESS ? `${NEW_ADDRESS}2` : NEW_ADDRESS
@@ -91,6 +98,8 @@ test.describe('Admin dashboard', () => {
       response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
     expect(updateResponse.ok()).toBeTruthy()
+    await reopenShop(page, shop.name)
+    addressInput = page.getByTestId('shop-address')
     await expect(addressInput).toHaveValue(addressForTest, { timeout: 15000 })
 
     await addressInput.fill(originalAddress)
@@ -99,12 +108,14 @@ test.describe('Admin dashboard', () => {
       response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
     expect(revertResponse.ok()).toBeTruthy()
+    await reopenShop(page, shop.name)
+    addressInput = page.getByTestId('shop-address')
     await expect(addressInput).toHaveValue(originalAddress, { timeout: 15000 })
   })
 
   test('サービスタグを更新して元に戻せる', async ({ page }) => {
-    await openFirstShop(page)
-    const serviceTagsInput = page.getByTestId('shop-service-tags')
+    const shop = await openFirstShop(page)
+    let serviceTagsInput = page.getByTestId('shop-service-tags')
 
     const originalTags = await serviceTagsInput.inputValue()
     const newTags = originalTags.includes('Playwright') ? 'セクシー,清楚' : 'PlaywrightタグA,PlaywrightタグB'
@@ -115,6 +126,8 @@ test.describe('Admin dashboard', () => {
       response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
     expect(saveResponse.ok()).toBeTruthy()
+    await reopenShop(page, shop.name)
+    serviceTagsInput = page.getByTestId('shop-service-tags')
     await expect(serviceTagsInput).toHaveValue(newTags, { timeout: 5000 })
 
     await serviceTagsInput.fill(originalTags)
@@ -123,15 +136,17 @@ test.describe('Admin dashboard', () => {
       response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
     expect(revertResponse.ok()).toBeTruthy()
+    await reopenShop(page, shop.name)
+    serviceTagsInput = page.getByTestId('shop-service-tags')
     await expect(serviceTagsInput).toHaveValue(originalTags, { timeout: 5000 })
   })
 
   test('連絡先を更新して元に戻せる', async ({ page }) => {
-    await openFirstShop(page)
+    const shop = await openFirstShop(page)
 
-    const phoneInput = page.getByPlaceholder('電話番号')
-    const lineInput = page.getByPlaceholder('LINE ID / URL')
-    const webInput = page.getByPlaceholder('公式サイトURL')
+    let phoneInput = page.getByPlaceholder('電話番号')
+    let lineInput = page.getByPlaceholder('LINE ID / URL')
+    let webInput = page.getByPlaceholder('公式サイトURL')
 
     const originalPhone = await phoneInput.inputValue()
     const originalLine = await lineInput.inputValue()
@@ -146,6 +161,10 @@ test.describe('Admin dashboard', () => {
       response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
     expect(saveResponse.ok()).toBeTruthy()
+    await reopenShop(page, shop.name)
+    phoneInput = page.getByPlaceholder('電話番号')
+    lineInput = page.getByPlaceholder('LINE ID / URL')
+    webInput = page.getByPlaceholder('公式サイトURL')
     await expect(phoneInput).toHaveValue(CONTACT_PHONE, { timeout: 5000 })
     await expect(lineInput).toHaveValue(CONTACT_LINE, { timeout: 5000 })
     await expect(webInput).toHaveValue(CONTACT_WEB, { timeout: 5000 })
@@ -158,6 +177,10 @@ test.describe('Admin dashboard', () => {
       response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
     expect(revertResponse.ok()).toBeTruthy()
+    await reopenShop(page, shop.name)
+    phoneInput = page.getByPlaceholder('電話番号')
+    lineInput = page.getByPlaceholder('LINE ID / URL')
+    webInput = page.getByPlaceholder('公式サイトURL')
     await expect(phoneInput).toHaveValue(originalPhone, { timeout: 5000 })
     await expect(lineInput).toHaveValue(originalLine, { timeout: 5000 })
     await expect(webInput).toHaveValue(originalWeb, { timeout: 5000 })
