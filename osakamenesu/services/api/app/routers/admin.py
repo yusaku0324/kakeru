@@ -10,7 +10,7 @@ import hashlib
 from ..db import get_session
 from .. import models
 from ..meili import index_profile, index_bulk, purge_all
-from ..utils.profiles import build_profile_doc
+from ..utils.profiles import build_profile_doc, normalize_review_aspects
 from ..schemas import (
     ProfileMarketingUpdate,
     ReservationAdminSummary,
@@ -784,6 +784,7 @@ async def admin_bulk_ingest_shop_content(
                 target_review.author_alias = review.author_alias
                 target_review.visited_at = review.visited_at
                 target_review.status = review.status
+                target_review.aspect_scores = normalize_review_aspects(review.aspects or {})
 
         if entry.diaries:
             for diary in entry.diaries:

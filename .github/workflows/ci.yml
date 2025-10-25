@@ -141,6 +141,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run unit tests
+        run: npm run test:unit
+
       - name: Run lint (placeholder)
         run: npm run lint
 
@@ -148,30 +151,142 @@ jobs:
     needs:
       - web-lint
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: osakamenesu/apps/web
+    services:
+      osakamenesu-db:
+        image: postgres:15
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: osaka_menesu
+        options: >-
+          --health-cmd "pg_isready -U app -d osaka_menesu"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      meilisearch:
+        image: getmeili/meilisearch:v1.7
+        env:
+          MEILI_MASTER_KEY: dev_meili_master_key
+          MEILI_ENV: development
+          MEILI_NO_ANALYTICS: "true"
+        ports:
+          - 7700:7700
+    env:
+      DATABASE_URL: postgresql+asyncpg://app:app@127.0.0.1:5432/osaka_menesu
+      MEILI_HOST: http://127.0.0.1:7700
+      MEILI_MASTER_KEY: dev_meili_master_key
+      ANYIO_BACKEND: asyncio
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
+      ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+      OSAKAMENESU_ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install API dependencies
+        run: pip install -r requirements.txt
+        working-directory: osakamenesu/services/api
+
+      - name: Configure API endpoints
+        run: |
+          internal_base="${API_INTERNAL_BASE:-http://127.0.0.1:8000}"
+          public_base="${PUBLIC_API_BASE:-$internal_base}"
+          seed_base="${SEED_API_BASE:-$internal_base}"
+          {
+            echo "OSAKAMENESU_API_INTERNAL_BASE=${internal_base}"
+            echo "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${public_base}"
+            echo "E2E_SEED_API_BASE=${seed_base}"
+          } >> "$GITHUB_ENV"
+        env:
+          API_INTERNAL_BASE: ${{ secrets.OSAKAMENESU_API_INTERNAL_BASE }}
+          PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
+          SEED_API_BASE: ${{ secrets.E2E_SEED_API_BASE }}
+
+      - name: Install Postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Wait for Postgres
+        env:
+          PGPASSWORD: app
+        run: |
+          for i in {1..60}; do
+            if pg_isready -h 127.0.0.1 -p 5432 -U app -d osaka_menesu; then
+              echo "Postgres is ready"
+              exit 0
+            fi
+            echo "Waiting for Postgres..."
+            sleep 2
+          done
+          echo "Postgres did not become ready in time" >&2
+          exit 1
+
+      - name: Wait for Meilisearch
+        run: |
+          for i in {1..30}; do
+            if curl -fsS "$MEILI_HOST/health" >/dev/null; then
+              echo "Meilisearch is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Meilisearch did not become ready in time" >&2
+          exit 1
+
+      - name: Run Alembic migrations
+        run: alembic upgrade head
+        working-directory: osakamenesu/services/api
+
+      - name: Start API server
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          echo $! > /tmp/osakamenesu-api.pid
+        working-directory: osakamenesu/services/api
+
+      - name: Wait for API health
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8000/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not become ready in time" >&2
+          exit 1
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Export web env
-        run: |
-          echo "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${NEXT_PUBLIC_OSAKAMENESU_API_BASE:-$NEXT_PUBLIC_API_BASE}" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}" >> $GITHUB_ENV
-        env:
-          NEXT_PUBLIC_OSAKAMENESU_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
-          NEXT_PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_API_BASE }}
-          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
-
-      - name: Install dependencies
+      - name: Install web dependencies
         run: npm ci
+        working-directory: osakamenesu/apps/web
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
+        working-directory: osakamenesu/apps/web
+
+      - name: Seed admin data
+        env:
+          ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER }}
+          ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: npm run e2e:setup
+        working-directory: osakamenesu/apps/web
+
+      - name: Run web E2E (non-admin)
+        env:
+          ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER }}
+          ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: npm run test:e2e -- --grep-invert "Admin"
+        working-directory: osakamenesu/apps/web
 
       - name: Run admin E2E tests
         env:
@@ -179,6 +294,14 @@ jobs:
           ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
         run: npm run test:e2e -- --grep "Admin"
+        working-directory: osakamenesu/apps/web
+
+      - name: Stop API server
+        if: always()
+        run: |
+          if [ -f /tmp/osakamenesu-api.pid ]; then
+            kill "$(cat /tmp/osakamenesu-api.pid)" || true
+          fi
 
   deploy:
     needs:

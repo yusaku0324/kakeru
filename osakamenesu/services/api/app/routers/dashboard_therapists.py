@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
+import imghdr
+import mimetypes
 from typing import Any, Iterable
 from uuid import UUID
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,15 +20,31 @@ from ..schemas import (
     DashboardTherapistCreatePayload,
     DashboardTherapistDetail,
     DashboardTherapistReorderPayload,
+    DashboardTherapistPhotoUploadResponse,
     DashboardTherapistSummary,
     DashboardTherapistUpdatePayload,
 )
 from ..utils.profiles import build_profile_doc
 from zoneinfo import ZoneInfo
+from ..storage import get_media_storage, MediaStorageError
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard-therapists"])
 
 JST = ZoneInfo("Asia/Tokyo")
+
+MAX_PHOTO_BYTES = 8 * 1024 * 1024
+ALLOWED_IMAGE_CONTENT_TYPES: dict[str, str] = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
+IMGHDR_TO_MIME: dict[str, str] = {
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "gif": "image/gif",
+    "webp": "image/webp",
+}
 
 
 def _ensure_datetime(value: datetime) -> datetime:
@@ -396,6 +415,94 @@ async def delete_dashboard_therapist(
     await _reindex_profile(db, profile)
     await _record_change(request, db, therapist.id, "delete", before, None)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _matches_magic_signature(payload: bytes) -> tuple[str | None, str | None]:
+    detected = imghdr.what(None, h=payload)
+    if detected:
+        mime = IMGHDR_TO_MIME.get(detected.lower())
+        if mime and mime in ALLOWED_IMAGE_CONTENT_TYPES:
+            return mime, ALLOWED_IMAGE_CONTENT_TYPES[mime]
+    return None, None
+
+
+def _detect_image_type(filename: str | None, content_type: str | None, payload: bytes) -> tuple[str, str]:
+    mime, extension = _matches_magic_signature(payload)
+    if mime:
+        return mime, extension  # type: ignore[return-value]
+
+    raise HTTPException(
+        status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+        detail="unsupported_media_type",
+    )
+
+
+@router.post(
+    "/shops/{profile_id}/therapists/photos/upload",
+    response_model=DashboardTherapistPhotoUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_dashboard_therapist_photo(
+    request: Request,
+    profile_id: UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_session),
+    user: models.User = Depends(require_dashboard_user),
+) -> DashboardTherapistPhotoUploadResponse:
+    _ = user
+    profile = await _get_profile(db, profile_id)
+
+    max_bytes = MAX_PHOTO_BYTES
+    chunk_size = 512 * 1024
+    size = 0
+    payload_bytes = bytearray()
+
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        size += len(chunk)
+        if size > max_bytes:
+            await file.close()
+            raise HTTPException(
+                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail={"message": "file_too_large", "limit_bytes": MAX_PHOTO_BYTES},
+            )
+        payload_bytes.extend(chunk)
+
+    await file.close()
+    if not payload_bytes:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": "empty_file"},
+        )
+
+    payload = bytes(payload_bytes)
+    mime, extension = _detect_image_type(file.filename, file.content_type, payload)
+    storage = get_media_storage()
+    filename = f"{uuid.uuid4().hex}{extension}"
+    folder = f"therapists/{profile_id}"
+
+    try:
+        stored = await storage.save_photo(folder=folder, filename=filename, content=payload, content_type=mime)
+    except MediaStorageError as exc:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail="upload_failed") from exc
+
+    await _record_change(
+        request,
+        db,
+        profile.id,
+        "upload_photo",
+        before=None,
+        after={"key": stored.key, "url": stored.url, "content_type": mime},
+    )
+
+    return DashboardTherapistPhotoUploadResponse(
+        url=stored.url,
+        filename=filename,
+        content_type=mime,
+        size=len(payload),
+    )
 
 
 @router.post(

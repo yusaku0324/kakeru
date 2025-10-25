@@ -101,8 +101,8 @@ export const SAMPLE_SHOPS: SampleShop[] = [
     description: 'リゾートのような完全個室空間で、丁寧なリンパケアが人気のメンエス。21時以降のビジネス利用も多数。',
     catch_copy: 'リゾートホテルを思わせる完全個室で極上の癒し体験を。',
     photos: [
-      { url: 'https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=crop&w=1200&q=80' },
-      { url: 'https://images.unsplash.com/photo-1523419409543-0c1df022bdd7?auto=format&fit=crop&w=1200&q=80' },
+      { url: 'https://picsum.photos/seed/sample-namba-1/1200/800' },
+      { url: 'https://picsum.photos/seed/sample-namba-2/1200/800' },
     ],
     contact: {
       phone: '066-100-1234',
@@ -139,7 +139,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         headline: '丁寧なオイルトリートメントで人気のセラピスト',
         rating: 4.6,
         review_count: 87,
-        avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=640&q=80',
+        avatar_url: 'https://picsum.photos/seed/sample-namba-staff-aki/640/640',
         specialties: ['リンパ', 'ホットストーン', '指名多数'],
       },
       {
@@ -149,7 +149,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         headline: 'ストレッチと指圧を組み合わせた独自施術が評判',
         rating: 4.3,
         review_count: 52,
-        avatar_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=640&q=80',
+        avatar_url: 'https://picsum.photos/seed/sample-namba-staff-rin/640/640',
         specialties: ['ストレッチ', '指圧', 'ディープリンパ'],
       },
     ],
@@ -216,7 +216,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         id: 'diary-aki-1',
         title: '本日の空き枠',
         body: '本日は21時〜と23時〜で空きがございます。お仕事帰りにぜひお立ち寄りください。',
-        photos: ['https://images.unsplash.com/photo-1523419409543-0c1df022bdd7?auto=format&fit=crop&w=900&q=80'],
+        photos: ['https://picsum.photos/seed/sample-namba-diary-1/900/600'],
         hashtags: ['葵', '当日予約'],
         published_at: '2025-10-01T09:00:00+09:00',
       },

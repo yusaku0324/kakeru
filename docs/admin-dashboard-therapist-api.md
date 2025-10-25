@@ -78,6 +78,7 @@
 | `/api/dashboard/shops/{shop_id}/therapists/{therapist_id}` | GET | 詳細取得 |
 | `/api/dashboard/shops/{shop_id}/therapists/{therapist_id}` | PATCH | 項目更新 (名前、プロフィール、専門、写真、ステータスなど) |
 | `/api/dashboard/shops/{shop_id}/therapists/{therapist_id}` | DELETE | アーカイブ (hard delete は管理者のみ) |
+| `/api/dashboard/shops/{shop_id}/therapists/photos/upload` | POST | 画像ファイルのアップロード (FormData: `file`) |
 | `/api/dashboard/shops/{shop_id}/therapists:reorder` | POST | `[{id, display_order}]` を受け取り order 更新 |
 | `/api/dashboard/shops/{shop_id}/therapists/{therapist_id}/publish` | POST | ステータスを `published` / `draft` にトグル |
 
@@ -150,6 +151,7 @@
 ## Testing Plan
 
 - Unit tests for new schemas/validators (`app/tests/test_dashboard_therapists.py`).
+- 写真アップロード API は `image/png` / `image/jpeg` / `image/webp` / `image/gif` のみ許可、最大 8MB。レスポンスの `url` を `photo_urls` に格納する。
 - Integration tests hitting new endpoints with authenticated dashboard user, verifying DB persistence and indexing side effects.
 - Regression tests ensuring existing `/shops/{id}/profile` responses remain backward compatible for old clients.
 - Migration test scripts to verify JSON ↔ table sync and availability slot rewriting.

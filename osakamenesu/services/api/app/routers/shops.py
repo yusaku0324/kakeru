@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime, timezone, date
+from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Set
 from uuid import UUID
 import uuid
@@ -25,6 +27,8 @@ from ..schemas import (
     MenuItem,
     Promotion,
     ReviewCreateRequest,
+    REVIEW_ASPECT_KEYS,
+    ReviewAspectScore,
     ReviewItem,
     ReviewListResponse,
     ReviewSummary,
@@ -38,13 +42,21 @@ from ..schemas import (
     DiaryItem,
     DiaryListResponse,
 )
-from ..utils.profiles import build_profile_doc, infer_store_name, compute_review_summary, PRICE_BANDS
+from ..utils.profiles import (
+    build_profile_doc,
+    infer_store_name,
+    compute_review_summary,
+    PRICE_BANDS,
+    normalize_review_aspects,
+)
 
 
 logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/api/v1/shops", tags=["shops"])
+
+__all__ = ("router", "serialize_review", "_prepare_aspect_scores")
 
 PRICE_BAND_LABELS: Dict[str, str] = {key: label for key, *_rest, label in PRICE_BANDS}
 PRICE_BAND_LABELS.setdefault("unknown", "価格未設定")
@@ -72,6 +84,8 @@ SORT_ALIASES: Dict[str, List[str]] = {
 
 
 def serialize_review(review: models.Review) -> ReviewItem:
+    aspects_raw = normalize_review_aspects(getattr(review, "aspect_scores", {}))
+    aspects = {key: {k: v for k, v in value.items() if v is not None} for key, value in aspects_raw.items()}
     return ReviewItem(
         id=review.id,
         profile_id=review.profile_id,
@@ -83,7 +97,80 @@ def serialize_review(review: models.Review) -> ReviewItem:
         visited_at=review.visited_at,
         created_at=review.created_at,
         updated_at=review.updated_at,
+        aspects={key: ReviewAspectScore(**value) for key, value in aspects_raw.items()},
     )
+
+
+def _collect_review_aspect_stats(items: Iterable[ReviewItem]) -> tuple[Dict[str, float], Dict[str, int]]:
+    aspect_scores: Dict[str, List[int]] = defaultdict(list)
+    for item in items:
+        for key, data in (item.aspects or {}).items():
+            score: int | float | None = None
+            if isinstance(data, ReviewAspectScore):
+                score = data.score
+            elif isinstance(data, dict):
+                raw = data.get("score")
+                if isinstance(raw, (int, float)):
+                    score = raw
+            if isinstance(score, (int, float)):
+                aspect_scores[key].append(int(score))
+
+    aspect_averages = {
+        key: round(sum(values) / len(values), 1) for key, values in aspect_scores.items() if values
+    }
+    aspect_counts = {key: len(values) for key, values in aspect_scores.items() if values}
+    return aspect_averages, aspect_counts
+
+
+async def _collect_shop_review_aspect_stats(db: AsyncSession, profile_id: UUID) -> tuple[Dict[str, float], Dict[str, int]]:
+    stmt = (
+        select(models.Review.aspect_scores)
+        .where(models.Review.profile_id == profile_id, models.Review.status == 'published')
+    )
+    result = await db.scalars(stmt)
+    items = [
+        SimpleNamespace(aspects=normalize_review_aspects(raw or {}))
+        for raw in result
+    ]
+    return _collect_review_aspect_stats(items)
+
+
+def _prepare_aspect_scores(aspects: Any) -> dict[str, Any]:
+    if not aspects:
+        return {}
+
+    result: dict[str, Any] = {}
+    items = None
+    if isinstance(aspects, dict):
+        items = aspects.items()
+    else:
+        try:
+            items = aspects.items()
+        except AttributeError:
+            return {}
+
+    for key, raw in items:
+        if key not in REVIEW_ASPECT_KEYS:
+            continue
+        if isinstance(raw, ReviewAspectScore):
+            data = raw.model_dump(exclude_none=True)
+        else:
+            normalized = normalize_review_aspects({key: raw} if isinstance(raw, dict) else {})
+            data = normalized.get(key)
+        if not data:
+            continue
+        score = data.get("score")
+        if not isinstance(score, (int, float)):
+            continue
+        score_int = int(score)
+        if score_int < 1 or score_int > 5:
+            continue
+        prepared = {"score": score_int}
+        note = data.get("note")
+        if isinstance(note, str) and note.strip():
+            prepared["note"] = note.strip()
+        result[key] = prepared
+    return result
 
 
 async def _count_published_diaries(db: AsyncSession, profile_id: UUID) -> int:
@@ -569,7 +656,11 @@ def _normalize_staff_preview(raw: Any) -> List[schemas.ShopStaffPreview]:
     return previews
 
 
-def _normalize_reviews(raw: Any) -> ReviewSummary:
+def _normalize_reviews(
+    raw: Any,
+    aspect_averages: Dict[str, float] | None = None,
+    aspect_counts: Dict[str, int] | None = None,
+) -> ReviewSummary:
     if raw is None:
         return ReviewSummary()
 
@@ -600,6 +691,8 @@ def _normalize_reviews(raw: Any) -> ReviewSummary:
         score = _safe_int(entry.get("score") or entry.get("rating")) or 0
         visited_at = _parse_review_date(entry.get("visited_at") or entry.get("visited_on"))
         author_alias = entry.get("author_alias") or entry.get("author") or entry.get("user")
+        aspects_raw = normalize_review_aspects(entry.get("aspects"))
+        aspects = {key: ReviewAspectScore(**value) for key, value in aspects_raw.items()}
         highlighted.append(
             HighlightedReview(
                 review_id=review_id,
@@ -608,6 +701,7 @@ def _normalize_reviews(raw: Any) -> ReviewSummary:
                 score=score,
                 visited_at=visited_at,
                 author_alias=str(author_alias) if author_alias else None,
+                aspects=aspects,
             )
         )
 
@@ -619,10 +713,41 @@ def _normalize_reviews(raw: Any) -> ReviewSummary:
     if review_count is None:
         review_count = len(highlighted) if highlighted else None
 
+    # Aggregate fallback from raw payload if explicit aggregates not provided
+    normalized_aspect_averages: Dict[str, float] = {}
+    if aspect_averages:
+        for key, value in aspect_averages.items():
+            val = _safe_float(value)
+            if val is not None:
+                normalized_aspect_averages[key] = val
+    elif isinstance(raw, dict):
+        raw_avgs = raw.get("aspect_averages") or raw.get("aspectAvg")
+        if isinstance(raw_avgs, dict):
+            for key, value in raw_avgs.items():
+                val = _safe_float(value)
+                if val is not None:
+                    normalized_aspect_averages[key] = val
+
+    normalized_aspect_counts: Dict[str, int] = {}
+    if aspect_counts:
+        for key, value in aspect_counts.items():
+            val = _safe_int(value)
+            if val is not None:
+                normalized_aspect_counts[key] = val
+    elif isinstance(raw, dict):
+        raw_counts = raw.get("aspect_counts") or raw.get("aspectCounts")
+        if isinstance(raw_counts, dict):
+            for key, value in raw_counts.items():
+                val = _safe_int(value)
+                if val is not None:
+                    normalized_aspect_counts[key] = val
+
     return ReviewSummary(
         average_score=average_score,
         review_count=review_count,
         highlighted=highlighted,
+        aspect_averages=normalized_aspect_averages,
+        aspect_counts=normalized_aspect_counts,
     )
 
 async def _fetch_availability(
@@ -831,12 +956,23 @@ async def get_shop_detail(shop_id: str, db: AsyncSession = Depends(get_session))
         await db.refresh(profile, attribute_names=["reviews", "diaries"])
     except Exception:
         await db.refresh(profile, attribute_names=["reviews"])
-    review_avg, review_count, review_highlights = compute_review_summary(
+    (
+        review_avg,
+        review_count,
+        review_highlights,
+        review_aspect_averages,
+        review_aspect_counts,
+    ) = compute_review_summary(
         profile,
         contact_data.get("reviews"),
         highlight_limit=3,
+        include_aspects=True,
     )
-    review_summary = _normalize_reviews(review_highlights)
+    review_summary = _normalize_reviews(
+        review_highlights,
+        aspect_averages=review_aspect_averages,
+        aspect_counts=review_aspect_counts,
+    )
     ranking_reason = contact_data.get("ranking_reason") or doc.get("ranking_reason")
 
     diary_snippets: List[DiarySnippet] = []
@@ -877,6 +1013,22 @@ async def get_shop_detail(shop_id: str, db: AsyncSession = Depends(get_session))
         review_summary.review_count = review_count
     elif review_summary.review_count is None:
         review_summary.review_count = _safe_int(doc.get("review_count"))
+
+    if not review_summary.aspect_averages:
+        doc_aspect_averages = doc.get("review_aspect_averages")
+        if isinstance(doc_aspect_averages, dict):
+            review_summary.aspect_averages = {
+                key: _safe_float(value)
+                for key, value in doc_aspect_averages.items()
+                if _safe_float(value) is not None
+            }
+
+    if not review_summary.aspect_counts:
+        doc_aspect_counts = doc.get("review_aspect_counts")
+        if isinstance(doc_aspect_counts, dict):
+            review_summary.aspect_counts = {
+                key: _safe_int(value) or 0 for key, value in doc_aspect_counts.items() if _safe_int(value) is not None
+            }
 
     metadata = {"store_name": infer_store_name(profile)}
     if ranking_reason:
@@ -980,9 +1132,16 @@ async def list_shop_reviews(
     total = await _count_published_reviews(db, shop_id)
     offset = (page - 1) * page_size
     reviews = await _fetch_published_reviews(db, shop_id, limit=page_size, offset=offset)
+    items = [serialize_review(r) for r in reviews]
+    if total:
+        aspect_averages, aspect_counts = await _collect_shop_review_aspect_stats(db, shop_id)
+    else:
+        aspect_averages, aspect_counts = {}, {}
     return ReviewListResponse(
         total=total,
-        items=[serialize_review(r) for r in reviews],
+        items=items,
+        aspect_averages=aspect_averages,
+        aspect_counts=aspect_counts,
     )
 
 
@@ -1004,6 +1163,7 @@ async def create_shop_review(
         author_alias=payload.author_alias,
         visited_at=payload.visited_at,
         status='pending',
+        aspect_scores=_prepare_aspect_scores(payload.aspects),
     )
     db.add(review)
     await db.commit()

@@ -1,3 +1,4 @@
+from pathlib import Path
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
@@ -5,6 +6,10 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://app:app@osakamenesu-db:5432/osaka_menesu"
     api_origin: str = "http://localhost:3000"
+    api_public_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OSAKAMENESU_API_BASE", "API_BASE", "API_PUBLIC_BASE_URL"),
+    )
     meili_host: str = "http://osakamenesu-meili:7700"
     meili_master_key: str = "dev_meili_master_key"
     admin_api_key: str = "dev_admin_key"
@@ -40,6 +45,42 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("SITE_BASE_URL", "NEXT_PUBLIC_SITE_URL"),
     )
+    media_storage_backend: str = Field(
+        default="local",
+        validation_alias=AliasChoices("MEDIA_STORAGE_BACKEND", "MEDIA_BACKEND"),
+    )
+    media_local_directory: str = Field(
+        default="var/media",
+        validation_alias=AliasChoices("MEDIA_LOCAL_DIRECTORY", "MEDIA_LOCAL_DIR"),
+    )
+    media_url_prefix: str = Field(
+        default="/media",
+        validation_alias=AliasChoices("MEDIA_URL_PREFIX", "MEDIA_LOCAL_URL_PREFIX"),
+    )
+    media_cdn_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_CDN_BASE_URL", "MEDIA_PUBLIC_BASE_URL"),
+    )
+    media_s3_bucket: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_S3_BUCKET", "MEDIA_BUCKET"),
+    )
+    media_s3_region: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_S3_REGION", "MEDIA_REGION"),
+    )
+    media_s3_endpoint: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_S3_ENDPOINT", "MEDIA_ENDPOINT_URL"),
+    )
+    media_s3_access_key_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_S3_ACCESS_KEY_ID", "MEDIA_ACCESS_KEY"),
+    )
+    media_s3_secret_access_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MEDIA_S3_SECRET_ACCESS_KEY", "MEDIA_SECRET_KEY"),
+    )
 
     class Config:
         env_file = ".env"
@@ -49,6 +90,15 @@ class Settings(BaseSettings):
     def auth_session_cookie_name(self) -> str:
         """Backward compatibility accessor for dashboard session cookie name."""
         return self.dashboard_session_cookie_name
+
+    @property
+    def media_root(self) -> Path:
+        """Resolve media storage root directory for local backend."""
+        path = Path(self.media_local_directory)
+        if not path.is_absolute():
+            base = Path(__file__).resolve().parents[2]
+            path = base / path
+        return path
 
 
 settings = Settings()

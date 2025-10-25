@@ -22,6 +22,7 @@ export default defineConfig({
   fullyParallel: true,
   retries: 0,
   reporter: 'list',
+  globalSetup: './e2e/global-setup.cjs',
   use: {
     baseURL: resolvedBaseURL,
     trace: 'on-first-retry',

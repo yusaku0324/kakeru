@@ -47,6 +47,8 @@ class _DummySettings:
             "postgresql+asyncpg://app:app@localhost:5432/osaka_menesu",
         )
         self.api_origin = os.environ.get("API_ORIGIN", "http://localhost:3000")
+        self.api_public_base_url = os.environ.get("OSAKAMENESU_API_BASE", "http://localhost:8000")
+        self.api_public_base_url = os.environ.get("OSAKAMENESU_API_BASE", "http://localhost:8000")
         self.meili_host = os.environ.get("MEILI_HOST", "http://127.0.0.1:7700")
         self.meili_master_key = os.environ.get("MEILI_MASTER_KEY", "dev_key")
         self.admin_api_key = os.environ.get("ADMIN_API_KEY", "dev_admin_key")
@@ -73,7 +75,8 @@ sys.modules.setdefault("app.settings", dummy_settings_module)
 
 from app import models  # type: ignore  # noqa: E402
 from app.routers import admin as admin_router  # type: ignore  # noqa: E402
-from app.utils.profiles import build_profile_doc  # type: ignore  # noqa: E402
+from app.utils.profiles import build_profile_doc, compute_review_summary, normalize_review_aspects  # type: ignore  # noqa: E402
+from app.routers.shops import _prepare_aspect_scores, _collect_review_aspect_stats, serialize_review  # type: ignore  # noqa: E402
 
 
 class FakeScalarResult:
@@ -180,6 +183,10 @@ def _make_profile(**overrides: Any) -> models.Profile:
                         "score": 5,
                         "visited_at": date.today().isoformat(),
                         "author_alias": "匿名ユーザー",
+                        "aspects": {
+                            "therapist_service": {"score": 5},
+                            "staff_response": {"score": 4},
+                        },
                     }
                 ],
             },
@@ -209,6 +216,10 @@ def _make_profile(**overrides: Any) -> models.Profile:
         visited_at=date.today(),
         created_at=now,
         updated_at=now,
+        aspect_scores={
+            "therapist_service": {"score": 5, "note": "丁寧"},
+            "staff_response": {"score": 4},
+        },
     )
     profile.reviews = [review]
     return profile
@@ -235,7 +246,95 @@ def test_build_profile_doc_promotions_and_reviews() -> None:
     assert "朝割" in labels
     assert doc["review_score"] == pytest.approx(5.0)
     assert doc["review_count"] == 1
+    assert doc["review_aspect_averages"]["therapist_service"] == pytest.approx(5.0)
+    assert doc["review_aspect_counts"]["therapist_service"] == 1
     assert doc["ranking_reason"] == "編集部ピックアップ"
+
+def test_compute_review_summary_returns_aspects() -> None:
+    profile = _make_profile()
+    average, count, highlights, aspect_averages, aspect_counts = compute_review_summary(
+        profile,
+        include_aspects=True,
+    )
+
+    assert average == pytest.approx(5.0)
+    assert count == 1
+    assert aspect_averages["therapist_service"] == pytest.approx(5.0)
+    assert aspect_counts["therapist_service"] == 1
+    assert highlights[0]["aspects"]["therapist_service"]["score"] == 5
+
+
+def test_prepare_aspect_scores_normalizes_input() -> None:
+    raw = {
+        "therapist_service": {"score": "5", "note": " 丁寧 "},
+        "staff_response": {"score": 4, "note": ""},
+        "invalid": {"score": 3},
+    }
+
+    cleaned = _prepare_aspect_scores(raw)
+
+    assert cleaned == {
+        "therapist_service": {"score": 5, "note": "丁寧"},
+        "staff_response": {"score": 4},
+    }
+
+
+def test_serialize_review_includes_aspects() -> None:
+    profile = _make_profile()
+    item = serialize_review(profile.reviews[0])
+
+    assert item.aspects["therapist_service"].score == 5
+    assert item.aspects["therapist_service"].note == "丁寧"
+    assert item.aspects["staff_response"].score == 4
+
+
+def test_collect_review_aspect_stats_handles_models() -> None:
+    profile = _make_profile()
+    item = serialize_review(profile.reviews[0])
+    averages, counts = _collect_review_aspect_stats([item])
+
+    assert averages["therapist_service"] == pytest.approx(5.0)
+    assert counts["therapist_service"] == 1
+
+
+def test_compute_review_summary_returns_aspects() -> None:
+    profile = _make_profile()
+    average, count, highlights, aspect_averages, aspect_counts = compute_review_summary(
+        profile,
+        include_aspects=True,
+    )
+
+    assert average == pytest.approx(5.0)
+    assert count == 1
+    assert aspect_averages["therapist_service"] == pytest.approx(5.0)
+    assert aspect_counts["therapist_service"] == 1
+    assert highlights[0]["aspects"]["therapist_service"]["score"] == 5
+
+
+def test_prepare_aspect_scores_normalizes_input() -> None:
+    raw = {
+        "therapist_service": {"score": "5", "note": " 丁寧 "},
+        "staff_response": {"score": 4, "note": ""},
+        "invalid": {"score": 3},
+    }
+
+    cleaned = _prepare_aspect_scores(raw)
+
+    assert cleaned == {
+        "therapist_service": {"score": 5, "note": "丁寧"},
+        "staff_response": {"score": 4},
+    }
+
+
+def test_serialize_review_includes_aspects() -> None:
+    profile = _make_profile()
+    item = serialize_review(profile.reviews[0])
+
+    assert item.aspects["therapist_service"].score == 5
+    assert item.aspects["therapist_service"].note == "丁寧"
+    assert item.aspects["staff_response"].score == 4
+
+
 
 
 @pytest.mark.anyio
@@ -287,8 +386,12 @@ async def test_admin_reindex_uses_build_profile_doc(monkeypatch: pytest.MonkeyPa
     assert doc_a["today"] is True
     assert doc_a["promotions"], "promotions should be preserved"
     assert doc_a["ranking_reason"] == "編集部ピックアップ"
+    assert doc_a["review_aspect_averages"]["therapist_service"] == pytest.approx(5.0)
+    assert doc_a["review_aspect_counts"]["therapist_service"] == 1
 
     doc_b = doc_by_id[str(profile_b.id)]
     assert doc_b["today"] is False
     # Reviews data should still be populated from contact JSON
     assert doc_b["review_score"] is not None
+    assert doc_b["review_aspect_averages"]["therapist_service"] == pytest.approx(5.0)
+    assert doc_b["review_aspect_counts"]["therapist_service"] == 1

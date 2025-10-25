@@ -4,7 +4,7 @@ import asyncio
 import logging
 import json
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 import httpx
 
@@ -15,6 +15,13 @@ logger = logging.getLogger("app.notifications")
 SLACK_WEBHOOK = getattr(settings, "slack_webhook_url", None)
 EMAIL_ENDPOINT = getattr(settings, "notify_email_endpoint", None)
 LINE_ENDPOINT = getattr(settings, "notify_line_endpoint", None)
+
+
+__all__ = (
+    'ReservationNotification',
+    'send_reservation_notification',
+    'schedule_reservation_notification',
+)
 
 
 @dataclass
@@ -29,6 +36,12 @@ class ReservationNotification:
     status: str
     channel: Optional[str] = None
     notes: Optional[str] = None
+    customer_email: Optional[str] = None
+    shop_phone: Optional[str] = None
+    shop_line_contact: Optional[str] = None
+    email_recipients: Optional[List[str]] = None
+    slack_webhook_url: Optional[str] = None
+    line_notify_token: Optional[str] = None
 
 
 async def _post_json(url: str, payload: Dict[str, Any]) -> None:
@@ -44,10 +57,14 @@ async def send_reservation_notification(payload: ReservationNotification) -> Non
         f"ステータス: {payload.status}\n"
         f"来店希望: {payload.desired_start} 〜 {payload.desired_end}\n"
         f"顧客: {payload.customer_name} ({payload.customer_phone})\n"
+        f"メール: {payload.customer_email or '-'}\n"
+        f"店舗電話: {payload.shop_phone or '-'}\n"
+        f"店舗LINE: {payload.shop_line_contact or '-'}\n"
         f"メモ: {payload.notes or '-'}"
     )
 
-    if SLACK_WEBHOOK:
+    slack_url = payload.slack_webhook_url or SLACK_WEBHOOK
+    if slack_url:
         slack_payload = {
             "text": f"*予約更新通知*: {payload.status}",
             "attachments": [
@@ -57,8 +74,9 @@ async def send_reservation_notification(payload: ReservationNotification) -> Non
                 }
             ],
         }
-        tasks.append(_post_json(SLACK_WEBHOOK, slack_payload))
+        tasks.append(_post_json(slack_url, slack_payload))
 
+    email_recipients = payload.email_recipients or []
     if EMAIL_ENDPOINT:
         email_payload = {
             "subject": f"予約更新: {payload.shop_name} ({payload.status})",
@@ -66,13 +84,17 @@ async def send_reservation_notification(payload: ReservationNotification) -> Non
             "reservation_id": payload.reservation_id,
             "shop_id": payload.shop_id,
         }
+        if email_recipients:
+            email_payload["recipients"] = email_recipients
         tasks.append(_post_json(EMAIL_ENDPOINT, email_payload))
 
-    if LINE_ENDPOINT:
+    line_token = payload.line_notify_token
+    if LINE_ENDPOINT and line_token:
         line_payload = {
             "message": message,
             "reservation_id": payload.reservation_id,
             "shop_id": payload.shop_id,
+            "token": line_token,
         }
         tasks.append(_post_json(LINE_ENDPOINT, line_payload))
 
@@ -92,3 +114,7 @@ def fire_and_forget(coro):
         loop.create_task(coro)
     except RuntimeError:
         asyncio.run(coro)
+
+
+def schedule_reservation_notification(payload: ReservationNotification) -> None:
+    fire_and_forget(send_reservation_notification(payload))

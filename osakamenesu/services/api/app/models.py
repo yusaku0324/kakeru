@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy.orm import declarative_base, relationship, Mapped, mapped_column
-from sqlalchemy import String, Text, Integer, Enum, DateTime, ForeignKey, Date, Boolean, UniqueConstraint, Float
+from sqlalchemy import String, Text, Integer, Enum, DateTime, ForeignKey, Date, Boolean, UniqueConstraint, Float, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 import uuid
 from datetime import datetime, date, UTC
@@ -91,6 +91,10 @@ class Therapist(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
 
     profile: Mapped[Profile] = relationship(back_populates='therapists')
+    favorited_by: Mapped[list["UserTherapistFavorite"]] = relationship(
+        back_populates="therapist",
+        cascade="all, delete-orphan",
+    )
 
 
 class User(Base):
@@ -108,6 +112,10 @@ class User(Base):
     auth_tokens: Mapped[list[UserAuthToken]] = relationship(back_populates='user', cascade='all, delete-orphan')
     sessions: Mapped[list[UserSession]] = relationship(back_populates='user', cascade='all, delete-orphan')
     favorites: Mapped[list[UserFavorite]] = relationship(back_populates='user', cascade='all, delete-orphan')
+    therapist_favorites: Mapped[list["UserTherapistFavorite"]] = relationship(
+        back_populates='user',
+        cascade='all, delete-orphan',
+    )
     reservations: Mapped[list[Reservation]] = relationship(back_populates='user')
     notification_settings_updated: Mapped[list["DashboardNotificationSetting"]] = relationship(
         back_populates="updated_by_user"
@@ -157,6 +165,29 @@ class UserFavorite(Base):
 
     user: Mapped[User] = relationship(back_populates='favorites')
     profile: Mapped[Profile] = relationship(back_populates='favorites')
+
+
+class UserTherapistFavorite(Base):
+    __tablename__ = 'user_therapist_favorites'
+    __table_args__ = (
+        UniqueConstraint('user_id', 'therapist_id', name='uq_user_therapist_favorites_user_therapist'),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey('users.id', ondelete='CASCADE'),
+        index=True,
+    )
+    therapist_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey('therapists.id', ondelete='CASCADE'),
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+
+    user: Mapped[User] = relationship(back_populates='therapist_favorites')
+    therapist: Mapped[Therapist] = relationship(back_populates='favorited_by')
 
 
 class Diary(Base):
@@ -245,6 +276,12 @@ class Review(Base):
     visited_at: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
+    aspect_scores: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+        nullable=False,
+    )
 
     profile: Mapped["Profile"] = relationship(back_populates='reviews')
 
