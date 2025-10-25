@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timezone, date
+from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Set
 from uuid import UUID
 import uuid
@@ -119,6 +120,19 @@ def _collect_review_aspect_stats(items: Iterable[ReviewItem]) -> tuple[Dict[str,
     }
     aspect_counts = {key: len(values) for key, values in aspect_scores.items() if values}
     return aspect_averages, aspect_counts
+
+
+async def _collect_shop_review_aspect_stats(db: AsyncSession, profile_id: UUID) -> tuple[Dict[str, float], Dict[str, int]]:
+    stmt = (
+        select(models.Review.aspect_scores)
+        .where(models.Review.profile_id == profile_id, models.Review.status == 'published')
+    )
+    result = await db.scalars(stmt)
+    items = [
+        SimpleNamespace(aspects=normalize_review_aspects(raw or {}))
+        for raw in result
+    ]
+    return _collect_review_aspect_stats(items)
 
 
 def _prepare_aspect_scores(aspects: Any) -> dict[str, Any]:
@@ -1119,7 +1133,10 @@ async def list_shop_reviews(
     offset = (page - 1) * page_size
     reviews = await _fetch_published_reviews(db, shop_id, limit=page_size, offset=offset)
     items = [serialize_review(r) for r in reviews]
-    aspect_averages, aspect_counts = _collect_review_aspect_stats(items)
+    if total:
+        aspect_averages, aspect_counts = await _collect_shop_review_aspect_stats(db, shop_id)
+    else:
+        aspect_averages, aspect_counts = {}, {}
     return ReviewListResponse(
         total=total,
         items=items,
