@@ -115,7 +115,8 @@ test.describe('Admin dashboard', () => {
     const shop = await openFirstShop(page)
     let serviceTagsInput = page.getByTestId('shop-service-tags')
 
-    const originalTags = await serviceTagsInput.inputValue()
+    await expect(serviceTagsInput).toBeVisible({ timeout: 15000 })
+    const originalTags = (await serviceTagsInput.inputValue().catch(() => '')) || ''
     const newTags = originalTags.includes('Playwright') ? 'セクシー,清楚' : 'PlaywrightタグA,PlaywrightタグB'
 
     await serviceTagsInput.fill(newTags)
