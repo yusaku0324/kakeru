@@ -48,6 +48,7 @@ class _DummySettings:
         )
         self.api_origin = os.environ.get("API_ORIGIN", "http://localhost:3000")
         self.api_public_base_url = os.environ.get("OSAKAMENESU_API_BASE", "http://localhost:8000")
+        self.api_public_base_url = os.environ.get("OSAKAMENESU_API_BASE", "http://localhost:8000")
         self.meili_host = os.environ.get("MEILI_HOST", "http://127.0.0.1:7700")
         self.meili_master_key = os.environ.get("MEILI_MASTER_KEY", "dev_key")
         self.admin_api_key = os.environ.get("ADMIN_API_KEY", "dev_admin_key")
@@ -75,7 +76,7 @@ sys.modules.setdefault("app.settings", dummy_settings_module)
 from app import models  # type: ignore  # noqa: E402
 from app.routers import admin as admin_router  # type: ignore  # noqa: E402
 from app.utils.profiles import build_profile_doc, compute_review_summary, normalize_review_aspects  # type: ignore  # noqa: E402
-from app.routers.shops import _prepare_aspect_scores, serialize_review  # type: ignore  # noqa: E402
+from app.routers.shops import _prepare_aspect_scores, _collect_review_aspect_stats, serialize_review  # type: ignore  # noqa: E402
 
 
 class FakeScalarResult:
@@ -285,6 +286,15 @@ def test_serialize_review_includes_aspects() -> None:
     assert item.aspects["therapist_service"].score == 5
     assert item.aspects["therapist_service"].note == "丁寧"
     assert item.aspects["staff_response"].score == 4
+
+
+def test_collect_review_aspect_stats_handles_models() -> None:
+    profile = _make_profile()
+    item = serialize_review(profile.reviews[0])
+    averages, counts = _collect_review_aspect_stats([item])
+
+    assert averages["therapist_service"] == pytest.approx(5.0)
+    assert counts["therapist_service"] == 1
 
 
 def test_compute_review_summary_returns_aspects() -> None:
