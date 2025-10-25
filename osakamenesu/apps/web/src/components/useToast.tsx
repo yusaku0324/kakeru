@@ -1,5 +1,5 @@
 "use client"
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 
 export type ToastMessage = {
   id: number
@@ -9,6 +9,7 @@ export type ToastMessage = {
 
 export function useToast() {
   const [toasts, setToasts] = useState<ToastMessage[]>([])
+  const nextIdRef = useRef(1)
 
   const remove = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id))
@@ -16,7 +17,7 @@ export function useToast() {
 
   const push = useCallback((type: ToastMessage['type'], message: string, ttl = 4000) => {
     setToasts((prev) => {
-      const id = prev.length ? prev[prev.length - 1].id + 1 : 1
+      const id = nextIdRef.current++
       const next = [...prev, { id, type, message }]
       if (ttl > 0) {
         setTimeout(() => remove(id), ttl)
