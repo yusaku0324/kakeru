@@ -11,6 +11,7 @@ export function useToast() {
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const nextIdRef = useRef(1)
 
+
   const remove = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
