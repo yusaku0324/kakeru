@@ -267,14 +267,19 @@ test.describe('Admin dashboard', () => {
   })
 
   test('メニューを追加して削除できる', async ({ page }) => {
-    await openFirstShop(page)
+    const shop = await openFirstShop(page)
+    const menuItems = page.getByTestId('menu-item')
+    const readMenuNames = async () =>
+      page
+        .locator('input[placeholder="メニュー名"]')
+        .evaluateAll((elements) => elements.map((el) => (el as HTMLInputElement).value.trim()))
 
     const menuName = `Playwrightメニュー${Date.now()}`
-    const menuCountBefore = await page.getByTestId('menu-item').count()
+    const menuCountBefore = await menuItems.count()
 
     await page.getByRole('button', { name: 'メニューを追加' }).click()
-    await expect(page.getByTestId('menu-item')).toHaveCount(menuCountBefore + 1)
-    const createdMenu = page.getByTestId('menu-item').nth(menuCountBefore)
+    await expect(menuItems).toHaveCount(menuCountBefore + 1)
+    const createdMenu = menuItems.nth(menuCountBefore)
     await createdMenu.getByPlaceholder('メニュー名').fill(menuName)
     await createdMenu.getByPlaceholder('価格').fill('12345')
     await createdMenu.getByPlaceholder('時間(分)').fill('90')
@@ -284,14 +289,24 @@ test.describe('Admin dashboard', () => {
     await page.waitForResponse(
       (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
-    await expect(page.getByPlaceholder('メニュー名').nth(menuCountBefore)).toHaveValue(menuName, { timeout: 5000 })
 
-    await createdMenu.getByRole('button', { name: '削除' }).click()
+    await reopenShop(page, shop.name)
+    const menuNamesAfterAdd = await readMenuNames()
+    const createdIndex = menuNamesAfterAdd.findIndex((value) => value === menuName)
+    expect(createdIndex).toBeGreaterThanOrEqual(0)
+
+    const menuRow = menuItems.nth(createdIndex)
+    await menuRow.getByRole('button', { name: '削除' }).click()
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
       (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
-    await expect(page.getByTestId('menu-item')).toHaveCount(menuCountBefore, { timeout: 5000 })
+
+    await reopenShop(page, shop.name)
+    await expect.poll(async () => await menuItems.count()).toBe(menuCountBefore)
+    await expect
+      .poll(async () => (await readMenuNames()).filter((value) => value))
+      .not.toContain(menuName)
   })
 
   test('スタッフを追加して削除できる', async ({ page }) => {
