@@ -178,8 +178,6 @@ jobs:
       MEILI_HOST: http://127.0.0.1:7700
       MEILI_MASTER_KEY: dev_meili_master_key
       ANYIO_BACKEND: asyncio
-      OSAKAMENESU_API_INTERNAL_BASE: http://127.0.0.1:8000
-      NEXT_PUBLIC_OSAKAMENESU_API_BASE: http://127.0.0.1:8000
       NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
       ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
       OSAKAMENESU_ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
@@ -193,6 +191,21 @@ jobs:
       - name: Install API dependencies
         run: pip install -r requirements.txt
         working-directory: osakamenesu/services/api
+
+      - name: Configure API endpoints
+        run: |
+          internal_base="${API_INTERNAL_BASE:-http://127.0.0.1:8000}"
+          public_base="${PUBLIC_API_BASE:-$internal_base}"
+          seed_base="${SEED_API_BASE:-$internal_base}"
+          {
+            echo "OSAKAMENESU_API_INTERNAL_BASE=${internal_base}"
+            echo "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${public_base}"
+            echo "E2E_SEED_API_BASE=${seed_base}"
+          } >> "$GITHUB_ENV"
+        env:
+          API_INTERNAL_BASE: ${{ secrets.OSAKAMENESU_API_INTERNAL_BASE }}
+          PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
+          SEED_API_BASE: ${{ secrets.E2E_SEED_API_BASE }}
 
       - name: Install Postgres client
         run: |
