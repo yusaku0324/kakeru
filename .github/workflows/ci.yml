@@ -144,6 +144,9 @@ jobs:
       - name: Run lint (placeholder)
         run: npm run lint
 
+      - name: Run unit tests
+        run: npm run test:unit
+
   admin-e2e:
     needs:
       - web-lint
