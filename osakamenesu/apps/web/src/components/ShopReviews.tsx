@@ -213,8 +213,12 @@ export default function ShopReviews({ shopId, summary, forceRemoteFetch = false 
           setTotal(data.total)
           setPage(1)
           setHasMore(data.total > mapped.length)
-          setAspectAverages(data.aspect_averages ?? {})
-          setAspectCounts(data.aspect_counts ?? {})
+          if (data.aspect_averages !== undefined) {
+            setAspectAverages(data.aspect_averages)
+          }
+          if (data.aspect_counts !== undefined) {
+            setAspectCounts(data.aspect_counts)
+          }
         }
       } catch (error) {
         if (!cancelled) {
