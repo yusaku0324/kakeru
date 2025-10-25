@@ -113,29 +113,72 @@ test.describe('Admin dashboard', () => {
 
   test('サービスタグを更新して元に戻せる', async ({ page }) => {
     const shop = await openFirstShop(page)
-    let serviceTagsInput = page.getByTestId('shop-service-tags')
+    const serviceTagsContainer = page.getByTestId('shop-service-tags')
+    const serviceTagInput = page.getByPlaceholder('例: 指圧, アロマ')
+    const addTagButton = page.getByRole('button', { name: '追加' })
 
-    await expect(serviceTagsInput).toBeVisible({ timeout: 15000 })
-    const originalTags = (await serviceTagsInput.inputValue().catch(() => '')) || ''
-    const newTags = originalTags.includes('Playwright') ? 'セクシー,清楚' : 'PlaywrightタグA,PlaywrightタグB'
+    await expect(serviceTagsContainer).toBeVisible({ timeout: 15000 })
 
-    await serviceTagsInput.fill(newTags)
+    const readTags = async () =>
+      serviceTagsContainer.locator('span').evaluateAll((nodes) =>
+        nodes
+          .map((node) => node.textContent?.replace('×', '').trim())
+          .filter((text): text is string => Boolean(text)),
+      )
+
+    const clearTags = async () => {
+      const removeButtons = serviceTagsContainer.getByRole('button', { name: /を削除$/ })
+      while (await removeButtons.count()) {
+        await removeButtons.first().click()
+      }
+    }
+
+    const setTags = async (tags: string[]) => {
+      await clearTags()
+      for (const tag of tags) {
+        await serviceTagInput.fill(tag)
+        await addTagButton.click()
+      }
+    }
+
+    const originalTags = await readTags()
+    const newTags = originalTags.some((tag) => tag.includes('Playwright'))
+      ? ['セクシー', '清楚']
+      : ['PlaywrightタグA', 'PlaywrightタグB']
+
+    await setTags(newTags)
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
       (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
     await reopenShop(page, shop.name)
-    serviceTagsInput = page.getByTestId('shop-service-tags')
-    await expect(serviceTagsInput).toHaveValue(newTags, { timeout: 5000 })
+    const serviceTagsAfterSave = page.getByTestId('shop-service-tags')
+    await expect
+      .poll(async () =>
+        serviceTagsAfterSave.locator('span').evaluateAll((nodes) =>
+          nodes
+            .map((node) => node.textContent?.replace('×', '').trim())
+            .filter((text): text is string => Boolean(text)),
+        ),
+      )
+      .toEqual(newTags)
 
-    await serviceTagsInput.fill(originalTags)
+    await setTags(originalTags)
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
       (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
     await reopenShop(page, shop.name)
-    serviceTagsInput = page.getByTestId('shop-service-tags')
-    await expect(serviceTagsInput).toHaveValue(originalTags, { timeout: 5000 })
+    const serviceTagsAfterRevert = page.getByTestId('shop-service-tags')
+    await expect
+      .poll(async () =>
+        serviceTagsAfterRevert.locator('span').evaluateAll((nodes) =>
+          nodes
+            .map((node) => node.textContent?.replace('×', '').trim())
+            .filter((text): text is string => Boolean(text)),
+        ),
+      )
+      .toEqual(originalTags)
   })
 
   test('連絡先を更新して元に戻せる', async ({ page }) => {
