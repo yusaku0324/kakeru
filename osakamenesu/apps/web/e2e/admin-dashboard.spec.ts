@@ -118,19 +118,23 @@ test.describe('Admin dashboard', () => {
     const addTagButton = page.getByRole('button', { name: '追加' })
 
     await expect(serviceTagsContainer).toBeVisible({ timeout: 15000 })
+    await expect(serviceTagInput).toBeVisible({ timeout: 15000 })
 
     const readTags = async () =>
       serviceTagsContainer.locator('span').evaluateAll((nodes) =>
         nodes
           .map((node) => node.textContent?.replace('×', '').trim())
-          .filter((text): text is string => Boolean(text)),
+          .filter((text): text is string => Boolean(text && text !== 'タグ未設定')),
       )
 
     const clearTags = async () => {
       const removeButtons = serviceTagsContainer.getByRole('button', { name: /を削除$/ })
-      while (await removeButtons.count()) {
+      while ((await removeButtons.count()) > 0) {
+        const before = await removeButtons.count()
         await removeButtons.first().click()
+        await expect(removeButtons).toHaveCount(Math.max(before - 1, 0), { timeout: 5000 })
       }
+      await expect(removeButtons).toHaveCount(0, { timeout: 5000 })
     }
 
     const setTags = async (tags: string[]) => {
@@ -138,6 +142,7 @@ test.describe('Admin dashboard', () => {
       for (const tag of tags) {
         await serviceTagInput.fill(tag)
         await addTagButton.click()
+        await expect(serviceTagsContainer.locator('span').filter({ hasText: tag }).first()).toBeVisible({ timeout: 5000 })
       }
     }
 
