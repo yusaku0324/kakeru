@@ -115,7 +115,7 @@ test.describe('Admin dashboard', () => {
     const shop = await openFirstShop(page)
     const serviceTagsContainer = page.getByTestId('shop-service-tags')
     const serviceTagInput = page.getByPlaceholder('例: 指圧, アロマ')
-    const addTagButton = page.getByRole('button', { name: '追加' })
+    const addTagButton = page.getByRole('button', { name: /^追加$/ })
 
     await expect(serviceTagsContainer).toBeVisible({ timeout: 15000 })
     await expect(serviceTagInput).toBeVisible({ timeout: 15000 })
