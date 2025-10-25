@@ -90,25 +90,27 @@ test.describe('Admin dashboard', () => {
     let addressInput = page.getByTestId('shop-address')
 
     const originalAddress = await addressInput.inputValue()
-    const addressForTest = originalAddress === NEW_ADDRESS ? `${NEW_ADDRESS}2` : NEW_ADDRESS
+    const addressForTest = `${NEW_ADDRESS}-${Date.now()}`
 
     await addressInput.fill(addressForTest)
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
-    await page.waitForResponse(
+    const saveResponse = await page.waitForResponse(
       (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
+    expect(saveResponse.ok()).toBeTruthy()
     await reopenShop(page, shop.name)
     addressInput = page.getByTestId('shop-address')
-    await expect(addressInput).toHaveValue(addressForTest, { timeout: 15000 })
+    await expect.poll(async () => await addressInput.inputValue(), { timeout: 20000 }).toBe(addressForTest)
 
     await addressInput.fill(originalAddress)
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
-    await page.waitForResponse(
+    const revertResponse = await page.waitForResponse(
       (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
+    expect(revertResponse.ok()).toBeTruthy()
     await reopenShop(page, shop.name)
     addressInput = page.getByTestId('shop-address')
-    await expect(addressInput).toHaveValue(originalAddress, { timeout: 15000 })
+    await expect.poll(async () => await addressInput.inputValue(), { timeout: 20000 }).toBe(originalAddress)
   })
 
   test('サービスタグを更新して元に戻せる', async ({ page }) => {
