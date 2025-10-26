@@ -480,7 +480,7 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
         experienceYearsNumber !== undefined && Number.isFinite(experienceYearsNumber)
           ? Math.max(0, Math.round(experienceYearsNumber))
           : undefined,
-      photo_urls: sanitizedPhotoUrls.length ? sanitizedPhotoUrls : undefined,
+      photo_urls: sanitizedPhotoUrls,
       is_booking_enabled: Boolean(values.isBookingEnabled),
     }
 
