@@ -115,13 +115,14 @@ test('therapist favorites can be toggled when API responds successfully', async 
   const therapistCard = page.getByTestId('therapist-card').first()
   await expect(therapistCard).toBeVisible()
 
-  const favoriteButton = therapistCard.getByRole('button', { name: /お気に入りに追加/ })
-  await favoriteButton.click()
+  const addButton = therapistCard.getByRole('button', { name: /お気に入りに追加/ })
+  await expect(addButton).toHaveAttribute('aria-pressed', 'false')
+  await addButton.click()
   await expect(page.getByText('お気に入りに追加しました。')).toBeVisible()
-  await expect(favoriteButton).toHaveAttribute('aria-pressed', 'true')
 
   const removeButton = therapistCard.getByRole('button', { name: /お気に入りから削除/ })
+  await expect(removeButton).toHaveAttribute('aria-pressed', 'true')
   await removeButton.click()
   await expect(page.getByText('お気に入りから削除しました。')).toBeVisible()
-  await expect(removeButton).toHaveAttribute('aria-pressed', 'false')
+  await expect(therapistCard.getByRole('button', { name: /お気に入りに追加/ })).toHaveAttribute('aria-pressed', 'false')
 })
