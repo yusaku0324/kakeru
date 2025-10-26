@@ -390,10 +390,16 @@ test.describe('Admin dashboard', () => {
 
   test('予約一覧をフィルタリングできる', async ({ page }) => {
     await page.goto('/admin/reservations')
+    const waitForReservations = async () =>
+      page.waitForResponse(
+        (response) =>
+          response.url().includes('/api/admin/reservations') &&
+          response.request().method() === 'GET' &&
+          response.status() === 200,
+        { timeout: 20000 },
+      )
     await expect(page.getByRole('heading', { name: '予約管理' })).toBeVisible()
-    await page.waitForResponse((response) =>
-      response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
-    )
+    await waitForReservations()
 
     const cards = page.getByTestId('reservation-card')
     if ((await cards.count()) === 0) {
@@ -418,18 +424,14 @@ test.describe('Admin dashboard', () => {
         test.skip(true, `予約作成に失敗しました status=${create.status()}`)
       }
       await page.reload()
-      await page.waitForResponse((response) =>
-        response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
-      )
+      await waitForReservations()
     }
 
     const initialCount = await cards.count()
     expect(initialCount).toBeGreaterThan(0)
 
     await page.getByTestId('status-filter').selectOption('pending')
-    await page.waitForResponse((response) =>
-      response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
-    )
+    await waitForReservations()
     const filteredCount = await cards.count()
     expect(filteredCount).toBeGreaterThan(0)
     for (let i = 0; i < filteredCount; i += 1) {
@@ -437,23 +439,25 @@ test.describe('Admin dashboard', () => {
     }
 
     await page.getByTestId('status-filter').selectOption('')
-    await page.waitForResponse((response) =>
-      response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
-    )
+    await waitForReservations()
     expect(await cards.count()).toBeGreaterThan(0)
   })
 
   test('ステータスフィルタで0件の場合に件数が0になる', async ({ page }) => {
     await page.goto('/admin/reservations')
+    const waitForReservations = async () =>
+      page.waitForResponse(
+        (response) =>
+          response.url().includes('/api/admin/reservations') &&
+          response.request().method() === 'GET' &&
+          response.status() === 200,
+        { timeout: 20000 },
+      )
     await expect(page.getByRole('heading', { name: '予約管理' })).toBeVisible()
-    await page.waitForResponse((response) =>
-      response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
-    )
+    await waitForReservations()
 
     await page.getByTestId('status-filter').selectOption('declined')
-    await page.waitForResponse((response) =>
-      response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
-    )
+    await waitForReservations()
     const counterText = await page.locator('text=/件中/').first().textContent()
     expect(counterText).toContain('0件中 0件を表示')
     await expect(page.getByTestId('reservation-card')).toHaveCount(0)
