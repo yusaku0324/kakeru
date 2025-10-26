@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import Script from 'next/script'
 import localFont from 'next/font/local'
 
+import SiteHeaderNav from '@/components/SiteHeaderNav'
+
 export const metadata = {
   title: '大阪メンエス.com',
   description: '探しやすい・誤解しない・速い',
@@ -45,8 +47,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className={`${brandFont.variable} min-h-screen bg-neutral-surfaceAlt text-neutral-text font-sans`}>
         <header className="sticky top-0 z-30 border-b border-neutral-borderLight bg-neutral-surface/90 backdrop-blur supports-[backdrop-filter]:bg-neutral-surface/70">
-          <div className="max-w-6xl mx-auto h-12 px-4 flex items-center">
+          <div className="mx-auto flex h-12 max-w-6xl items-center justify-between gap-4 px-4">
             <a href="/" className="font-bold text-lg tracking-tight text-neutral-text">大阪メンエス.com</a>
+            <SiteHeaderNav />
           </div>
         </header>
         {children}
