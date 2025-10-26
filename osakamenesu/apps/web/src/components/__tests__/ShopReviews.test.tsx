@@ -67,7 +67,7 @@ describe('ShopReviews', () => {
   it('loads reviews from API and supports load more', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.url
-      if (url === '/api/auth/me') {
+      if (url === '/api/auth/me/site') {
         return new Response('', { status: 401 })
       }
       if (url === '/api/v1/shops/11111111-1111-1111-1111-111111111111/reviews?page=1') {
@@ -135,7 +135,7 @@ describe('ShopReviews', () => {
     render(<ShopReviews shopId="11111111-1111-1111-1111-111111111111" summary={null} />)
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', expect.objectContaining({ credentials: 'include' }))
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/me/site', expect.objectContaining({ credentials: 'include' }))
     })
 
     expect(await screen.findByText('初訪問')).toBeInTheDocument()
@@ -158,7 +158,7 @@ describe('ShopReviews', () => {
   it('submits a new review and prepends it to the list', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.url
-      if (url === '/api/auth/me') {
+      if (url === '/api/auth/me/site') {
         return jsonResponse({ display_name: 'Tester' })
       }
       if (url === '/api/v1/shops/22222222-2222-2222-2222-222222222222/reviews?page=1') {
@@ -197,7 +197,7 @@ describe('ShopReviews', () => {
 
     render(<ShopReviews shopId="22222222-2222-2222-2222-222222222222" summary={null} />)
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', expect.anything()))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/auth/me/site', expect.anything()))
 
     const bodyField = await screen.findByPlaceholderText('利用したコースや接客の印象などを教えてください。')
     await user.type(bodyField, 'テスト本文')
@@ -235,7 +235,7 @@ describe('ShopReviews', () => {
   it('shows an error toast when submission fails', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.url
-      if (url === '/api/auth/me') {
+      if (url === '/api/auth/me/site') {
         return jsonResponse({ display_name: 'Tester' })
       }
       if (url === '/api/v1/shops/33333333-3333-3333-3333-333333333333/reviews?page=1') {
@@ -257,7 +257,7 @@ describe('ShopReviews', () => {
 
     render(<ShopReviews shopId="33333333-3333-3333-3333-333333333333" summary={null} />)
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', expect.anything()))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/auth/me/site', expect.anything()))
 
     const bodyField = await screen.findByPlaceholderText('利用したコースや接客の印象などを教えてください。')
     await user.type(bodyField, '失敗テスト本文')

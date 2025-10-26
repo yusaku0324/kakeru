@@ -19,7 +19,7 @@ export default function SiteHeaderNav() {
 
     async function loadAuthState() {
       try {
-        const res = await fetch('/api/auth/me', {
+        const res = await fetch('/api/auth/me/site', {
           credentials: 'include',
           cache: 'no-store',
         })

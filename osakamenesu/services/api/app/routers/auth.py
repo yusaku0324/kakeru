@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import models
 from ..db import get_session
-from ..deps import require_dashboard_user
+from ..deps import require_dashboard_user, require_site_user
 from ..schemas import AuthRequestLink, AuthVerifyRequest, UserPublic
 from ..settings import settings
 from ..utils.auth import generate_token, hash_token, magic_link_expiry, session_expiry
@@ -290,6 +290,17 @@ async def logout(request: Request, db: AsyncSession = Depends(get_session)):
 
 @router.get("/me", response_model=UserPublic)
 async def get_me(user: models.User = Depends(require_dashboard_user)):
+    return UserPublic(
+        id=user.id,
+        email=user.email,
+        display_name=user.display_name,
+        created_at=user.created_at,
+        last_login_at=user.last_login_at,
+    )
+
+
+@router.get("/me/site", response_model=UserPublic)
+async def get_me_site(user: models.User = Depends(require_site_user)):
     return UserPublic(
         id=user.id,
         email=user.email,
