@@ -64,3 +64,64 @@ test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
   // プロフィール画面のヘッダーが表示されている
   await expect(page.locator('h1')).toBeVisible()
 })
+
+test('therapist favorites can be toggled when API responds successfully', async ({ page, baseURL }) => {
+  const favorites = new Map<string, { createdAt: string }>()
+
+  await page.route('**/api/favorites/therapists**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+
+    if (request.method() === 'GET') {
+      const items = Array.from(favorites.entries()).map(([therapistId, record]) => ({
+        therapist_id: therapistId,
+        shop_id: 'sample-namba-resort',
+        created_at: record.createdAt,
+      }))
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(items),
+      })
+      return
+    }
+
+    if (request.method() === 'POST') {
+      const body = request.postDataJSON?.() ?? {}
+      const therapistId = typeof body.therapist_id === 'string' ? body.therapist_id : ''
+      const createdAt = new Date().toISOString()
+      favorites.set(therapistId, { createdAt })
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ therapist_id: therapistId, created_at: createdAt }),
+      })
+      return
+    }
+
+    if (request.method() === 'DELETE') {
+      const segments = url.pathname.split('/')
+      const therapistId = segments[segments.length - 1] || ''
+      favorites.delete(therapistId)
+      await route.fulfill({ status: 204 })
+      return
+    }
+
+    await route.fallback()
+  })
+
+  await page.goto(`${baseURL}/search?force_samples=1`)
+
+  const therapistCard = page.getByTestId('therapist-card').first()
+  await expect(therapistCard).toBeVisible()
+
+  const favoriteButton = therapistCard.getByRole('button', { name: /お気に入りに追加/ })
+  await favoriteButton.click()
+  await expect(page.getByText('お気に入りに追加しました。')).toBeVisible()
+  await expect(favoriteButton).toHaveAttribute('aria-pressed', 'true')
+
+  const removeButton = therapistCard.getByRole('button', { name: /お気に入りから削除/ })
+  await removeButton.click()
+  await expect(page.getByText('お気に入りから削除しました。')).toBeVisible()
+  await expect(removeButton).toHaveAttribute('aria-pressed', 'false')
+})

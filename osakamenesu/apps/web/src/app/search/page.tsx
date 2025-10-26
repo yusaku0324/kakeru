@@ -39,7 +39,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     updated_at: '2025-10-01T09:00:00+09:00',
     staff_preview: [
       {
-        id: 'therapist-aki',
+        id: '11111111-1111-1111-1111-111111111111',
         name: '葵',
         alias: 'Aoi',
         headline: '丁寧なオイルトリートメントで人気のセラピスト',
@@ -49,7 +49,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=640&q=80',
       },
       {
-        id: 'therapist-rin',
+        id: '22222222-2222-2222-2222-222222222222',
         name: '凛',
         alias: 'Rin',
         headline: 'ストレッチと指圧を組み合わせた独自施術',
@@ -87,7 +87,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     updated_at: '2025-09-29T12:00:00+09:00',
     staff_preview: [
       {
-        id: 'therapist-misaki',
+        id: '33333333-3333-3333-3333-333333333333',
         name: '美咲',
         headline: 'アロマ×ヒーリングで極上のリラックス体験を提供',
         rating: 4.9,
@@ -125,7 +125,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     updated_at: '2025-09-30T22:00:00+09:00',
     staff_preview: [
       {
-        id: 'therapist-hinata',
+        id: '44444444-4444-4444-4444-444444444444',
         name: '陽菜',
         alias: 'Hinata',
         headline: '笑顔と包み込むタッチでリピーター多数',
@@ -135,7 +135,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         avatar_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=640&q=80',
       },
       {
-        id: 'therapist-yuki',
+        id: '55555555-5555-5555-5555-555555555555',
         name: '優希',
         headline: 'アロマとリンパを組み合わせたしっかり圧で疲れを解消',
         rating: 4.5,
