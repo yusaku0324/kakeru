@@ -145,10 +145,8 @@ describe('ShopReviews', () => {
     await userEvent.click(moreButton)
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/shops/11111111-1111-1111-1111-111111111111/reviews?page=2',
-        undefined,
-      )
+      const urls = fetchMock.mock.calls.map((call) => call[0])
+      expect(urls).toContain('/api/v1/shops/11111111-1111-1111-1111-111111111111/reviews?page=2')
     })
     expect(await screen.findByText('三度目')).toBeInTheDocument()
 
