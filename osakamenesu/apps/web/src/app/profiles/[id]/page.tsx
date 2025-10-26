@@ -11,6 +11,7 @@ import { Section } from '@/components/ui/Section'
 import ShopReviews from '@/components/ShopReviews'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
+import RecentlyViewedRecorder from '@/components/RecentlyViewedRecorder'
 
 type Props = { params: { id: string }; searchParams?: Record<string, string | string[] | undefined> }
 
@@ -348,6 +349,13 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 pb-24">
+      <RecentlyViewedRecorder
+        shopId={shop.id}
+        slug={shop.slug ?? null}
+        name={shop.name}
+        area={shop.area_name ?? shop.area ?? null}
+        imageUrl={photos[0] ?? null}
+      />
       <section className="grid items-start gap-6 lg:grid-cols-[3fr_2fr]">
         <Card className="overflow-hidden p-0">
           {photos.length > 0 ? (
