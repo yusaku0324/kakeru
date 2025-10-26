@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from .settings import settings
 import logging
 from .meili import ensure_indexes
@@ -84,6 +85,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if settings.media_storage_backend.lower() == "local":
+    media_root = settings.media_root
+    media_root.mkdir(parents=True, exist_ok=True)
+    mount_path = settings.media_url_prefix
+    if not mount_path.startswith("/"):
+        mount_path = f"/{mount_path}"
+    app.mount(mount_path, StaticFiles(directory=str(media_root)), name="media")
 
 
 @app.get("/healthz")

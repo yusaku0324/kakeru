@@ -79,6 +79,14 @@ function computeSlotDurationMinutes(startIso?: string | null, endIso?: string | 
   return diff || undefined
 }
 
+function parseBooleanParam(value?: string | string[] | null): boolean {
+  if (!value) return false
+  const raw = Array.isArray(value) ? value[0] : value
+  if (!raw) return false
+  const normalized = raw.toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on'
+}
+
 export async function generateMetadata({ params }: StaffPageProps): Promise<Metadata> {
   const shop = await fetchShop(params.id)
   const staff = findStaff(shop, params.staffId)
@@ -94,6 +102,8 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
   if (!staff) {
     notFound()
   }
+
+  const allowDemoSubmission = parseBooleanParam(searchParams?.force_demo_submit ?? null)
 
   const shopHref = buildShopHref(params)
   const staffId = staff.id
@@ -437,6 +447,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
             tel={contact.phone || null}
             lineId={contact.line_id || null}
             shopName={shop.name}
+            allowDemoSubmission={allowDemoSubmission}
           />
         </Card>
 

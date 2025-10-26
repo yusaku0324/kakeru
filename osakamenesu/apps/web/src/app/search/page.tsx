@@ -1,6 +1,7 @@
 import SearchFilters from '@/components/SearchFilters'
 import ShopCard, { type ShopHit } from '@/components/shop/ShopCard'
 import TherapistCard, { type TherapistHit } from '@/components/staff/TherapistCard'
+import { TherapistFavoritesProvider } from '@/components/staff/TherapistFavoritesProvider'
 import { Badge } from '@/components/ui/Badge'
 import { Section } from '@/components/ui/Section'
 import { Card } from '@/components/ui/Card'
@@ -22,7 +23,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     max_price: 18000,
     rating: 4.7,
     review_count: 128,
-    lead_image_url: 'https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=crop&w=900&q=80',
+    lead_image_url: 'https://picsum.photos/seed/namba-resort/900/600',
     badges: ['人気店', '駅チカ'],
     today_available: true,
     online_reservation: true,
@@ -45,7 +46,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.6,
         review_count: 87,
         specialties: ['リンパ', 'ホットストーン'],
-        avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=640&q=80',
+        avatar_url: 'https://picsum.photos/seed/therapist-aki/640/640',
       },
       {
         id: 'therapist-rin',
@@ -55,7 +56,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.3,
         review_count: 52,
         specialties: ['ストレッチ', '指圧'],
-        avatar_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=640&q=80',
+        avatar_url: 'https://picsum.photos/seed/therapist-rin/640/640',
       },
     ],
   },
@@ -73,7 +74,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     max_price: 22000,
     rating: 4.9,
     review_count: 86,
-    lead_image_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
+    lead_image_url: 'https://picsum.photos/seed/umeda-suite/900/600',
     badges: ['上質空間'],
     today_available: false,
     next_available_at: '2025-10-05T18:00:00+09:00',
@@ -92,7 +93,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.9,
         review_count: 64,
         specialties: ['ホットストーン', 'ディープリンパ'],
-        avatar_url: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=640&q=80',
+        avatar_url: 'https://picsum.photos/seed/therapist-misaki/640/640',
       },
     ],
   },
@@ -110,7 +111,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     max_price: 16000,
     rating: 4.5,
     review_count: 54,
-    lead_image_url: 'https://images.unsplash.com/photo-1500043202863-753a880aa0f0?auto=format&fit=crop&w=900&q=80',
+    lead_image_url: 'https://picsum.photos/seed/shinsaibashi-lounge/900/600',
     today_available: true,
     online_reservation: true,
     has_promotions: true,
@@ -131,7 +132,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.4,
         review_count: 38,
         specialties: ['ドライヘッドスパ', 'ストレッチ'],
-        avatar_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=640&q=80',
+        avatar_url: 'https://picsum.photos/seed/therapist-hinata/640/640',
       },
       {
         id: 'therapist-yuki',
@@ -140,7 +141,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.5,
         review_count: 44,
         specialties: ['肩こりケア', 'アロマトリートメント'],
-        avatar_url: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=640&q=80',
+        avatar_url: 'https://picsum.photos/seed/therapist-yuki/640/640',
       },
     ],
   },
@@ -188,6 +189,7 @@ type Params = {
   sort?: string
   page?: string
   page_size?: string
+  force_samples?: string
 }
 
 function toQueryString(p: Record<string, string | undefined>) {
@@ -257,6 +259,37 @@ async function fetchProfiles(params: Params): Promise<SearchResponse> {
     results: [],
     facets: {},
     _error: lastErr?.message || '検索に失敗しました',
+  }
+}
+
+function parseBoolParam(value?: string): boolean {
+  if (!value) return false
+  const lowered = value.toLowerCase()
+  return lowered === '1' || lowered === 'true' || lowered === 'yes' || lowered === 'on'
+}
+
+function buildSampleFacets(hits: ShopHit[]): Record<string, FacetValue[]> {
+  const areaCounts = hits.reduce<Record<string, number>>((acc, hit) => {
+    const key = hit.area_name || hit.area
+    if (!key) return acc
+    acc[key] = (acc[key] ?? 0) + 1
+    return acc
+  }, {})
+
+  const facets: Record<string, FacetValue[]> = {}
+  if (Object.keys(areaCounts).length) {
+    facets.area = Object.entries(areaCounts).map(([value, count]) => ({ value, label: value, count }))
+  }
+  return facets
+}
+
+function buildSampleResponse(): SearchResponse {
+  return {
+    page: 1,
+    page_size: SAMPLE_RESULTS.length,
+    total: SAMPLE_RESULTS.length,
+    results: SAMPLE_RESULTS,
+    facets: buildSampleFacets(SAMPLE_RESULTS),
   }
 }
 
@@ -376,6 +409,7 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
           : []
         return {
           id: uniqueId,
+          therapistId: staff.id ? String(staff.id) : null,
           staffId: staffIdentifier,
           name: staff.name,
           alias: staff.alias ?? null,
@@ -395,10 +429,13 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
 }
 
 export default async function SearchPage({ searchParams }: { searchParams: Params }) {
-  const data = await fetchProfiles(searchParams)
+  const forceSampleMode = parseBoolParam(
+    Array.isArray(searchParams.force_samples) ? searchParams.force_samples[0] : searchParams.force_samples,
+  )
+  const data = forceSampleMode ? buildSampleResponse() : await fetchProfiles(searchParams)
   const { page, page_size: pageSize, total, results, facets, _error } = data
   const hits = results ?? []
-  const useSampleData = hits.length === 0
+  const useSampleData = forceSampleMode || hits.length === 0
   const displayHits = useSampleData ? SAMPLE_RESULTS : hits
   const highlights = buildHighlights(facets, hits)
   const displayHighlights = useSampleData ? buildHighlights({}, SAMPLE_RESULTS) : highlights
@@ -532,25 +569,27 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
           <SearchFilters init={searchParams} facets={facets} />
 
           {showTherapistSection ? (
-            <Section
-              id="therapist-results"
-              ariaLive="polite"
-              title={`セラピスト ${Intl.NumberFormat('ja-JP').format(therapistTotal)}名`}
-              subtitle="人気セラピストをピックアップ"
-              actions={<span className="text-xs text-neutral-textMuted">最新情報は毎日更新</span>}
-              className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
-            >
-              {usingSampleTherapists ? (
-                <div className="mb-6 rounded-card border border-brand-primary/30 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
-                  API の検索結果にセラピスト情報が含まれていなかったため、参考用のサンプルセラピストを表示しています。
+            <TherapistFavoritesProvider>
+              <Section
+                id="therapist-results"
+                ariaLive="polite"
+                title={`セラピスト ${Intl.NumberFormat('ja-JP').format(therapistTotal)}名`}
+                subtitle="人気セラピストをピックアップ"
+                actions={<span className="text-xs text-neutral-textMuted">最新情報は毎日更新</span>}
+                className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
+              >
+                {usingSampleTherapists ? (
+                  <div className="mb-6 rounded-card border border-brand-primary/30 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
+                    API の検索結果にセラピスト情報が含まれていなかったため、参考用のサンプルセラピストを表示しています。
+                  </div>
+                ) : null}
+                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  {therapistHits.map((hit) => (
+                    <TherapistCard key={hit.id} hit={hit} />
+                  ))}
                 </div>
-              ) : null}
-              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {therapistHits.map((hit) => (
-                  <TherapistCard key={hit.id} hit={hit} />
-                ))}
-              </div>
-            </Section>
+              </Section>
+            </TherapistFavoritesProvider>
           ) : null}
 
           {showShopSection ? (

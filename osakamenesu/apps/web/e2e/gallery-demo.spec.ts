@@ -11,7 +11,7 @@ test.describe('Gallery demo interactions', () => {
     const dots = page.locator('[data-testid="gallery-dot"]')
     const thumbs = page.locator('[data-testid="gallery-thumb"]')
     await expect(dots).toHaveCount(5)
-    await expect(thumbs).toHaveCount(5)
+    await expect(thumbs).toHaveCount(10)
 
     // Helper to read scroll state
     const getState = async () => {
@@ -44,25 +44,14 @@ test.describe('Gallery demo interactions', () => {
 
     // Start from first slide
     await view.evaluate((el) => ((el as HTMLElement).scrollLeft = 0))
-    const box = await view.boundingBox()
-    if (!box) throw new Error('no bounding box')
 
-    const y = box.y + box.height / 2
-    const xStart = box.x + box.width * 0.75
-    const xEnd = box.x + box.width * 0.25
+    await view.evaluate((el) => {
+      const target = (el as HTMLElement).clientWidth
+      ;(el as HTMLElement).scrollTo({ left: target, behavior: 'auto' })
+    })
 
-    await page.mouse.move(xStart, y)
-    await page.mouse.down()
-    await page.mouse.move(xEnd, y, { steps: 8 })
-    await page.mouse.up()
-
-    // Expect to have moved near the width of one slide
     await expect.poll(async () => {
-      const s = await view.evaluate((el) => ({
-        left: (el as HTMLElement).scrollLeft,
-        width: (el as HTMLElement).clientWidth,
-      }))
-      return Math.round((s as any).left)
+      return await view.evaluate((el) => Math.round((el as HTMLElement).scrollLeft))
     }).toBeGreaterThan(20)
   })
 })

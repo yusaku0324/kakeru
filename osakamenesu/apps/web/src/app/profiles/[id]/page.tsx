@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
+import ShopReviews from '@/components/ShopReviews'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
 
@@ -50,6 +51,9 @@ export type StaffSummary = {
 type AvailabilitySlot = { start_at: string; end_at: string; status: 'open' | 'tentative' | 'blocked'; staff_id?: string | null; menu_id?: string | null }
 type AvailabilityDay = { date: string; is_today?: boolean | null; slots: AvailabilitySlot[] }
 type AvailabilityCalendar = { shop_id: string; generated_at: string; days: AvailabilityDay[] }
+type ReviewAspectKey = 'therapist_service' | 'staff_response' | 'room_cleanliness'
+type ReviewAspect = { score: number; note?: string | null }
+type ReviewAspects = Partial<Record<ReviewAspectKey, ReviewAspect>>
 type HighlightedReview = {
   review_id?: string | null
   title: string
@@ -57,11 +61,14 @@ type HighlightedReview = {
   score: number
   visited_at?: string | null
   author_alias?: string | null
+  aspects?: ReviewAspects | null
 }
 type ReviewSummary = {
   average_score?: number | null
   review_count?: number | null
   highlighted?: HighlightedReview[] | null
+  aspect_averages?: Partial<Record<ReviewAspectKey, number>> | null
+  aspect_counts?: Partial<Record<ReviewAspectKey, number>> | null
 }
 type DiaryEntry = {
   id?: string | null
@@ -223,6 +230,14 @@ function shorten(text?: string | null, max = 160): string | undefined {
   return text.length > max ? `${text.slice(0, max)}…` : text
 }
 
+function parseBooleanParam(value?: string | string[] | null): boolean {
+  if (!value) return false
+  const raw = Array.isArray(value) ? value[0] : value
+  if (!raw) return false
+  const normalized = raw.toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on'
+}
+
 const ReservationForm = dynamic(() => import('@/components/ReservationForm'), { ssr: false })
 
 function toDateTimeLocal(iso?: string | null) {
@@ -283,6 +298,9 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     }
     return null
   })()
+
+  const forceReviewsFetch = parseBooleanParam(searchParams?.force_reviews ?? null)
+  const allowDemoSubmission = parseBooleanParam(searchParams?.force_demo_submit ?? null)
 
   const firstOpenSlot = (() => {
     for (const day of availability) {
@@ -519,6 +537,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
               tel={phone}
               lineId={lineId}
               shopName={shop.name}
+              allowDemoSubmission={allowDemoSubmission}
             />
           </Card>
         </div>
@@ -538,31 +557,14 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         </Section>
       ) : null}
 
-      {shop.reviews && (shop.reviews.average_score || (shop.reviews.highlighted?.length ?? 0) > 0) ? (
+      {shop.reviews ? (
         <Section
           title="口コミ"
-          subtitle={shop.reviews?.review_count ? `公開件数 ${shop.reviews.review_count}件` : undefined}
+          subtitle={shop.reviews.review_count ? `公開件数 ${shop.reviews.review_count}件` : undefined}
           className="shadow-none border border-neutral-borderLight bg-neutral-surface"
-          actions={shop.reviews?.average_score ? <Badge variant="brand">平均 {shop.reviews.average_score.toFixed(1)}★</Badge> : undefined}
+          actions={shop.reviews.average_score ? <Badge variant="brand">平均 {shop.reviews.average_score.toFixed(1)}★</Badge> : undefined}
         >
-          <div className="grid gap-3 md:grid-cols-2">
-            {(shop.reviews?.highlighted ?? []).slice(0, 4).map((review, idx) => (
-              <Card key={review.review_id ?? idx} className="space-y-2 p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-semibold text-neutral-text">{review.title}</div>
-                  <Badge variant="success">{review.score}★</Badge>
-                </div>
-                <p className="text-sm leading-relaxed text-neutral-textMuted">{review.body}</p>
-                <div className="flex items-center justify-between text-[11px] text-neutral-textMuted">
-                  <span>{review.author_alias || '匿名ユーザー'}</span>
-                  {review.visited_at ? <span>{formatDayLabel(review.visited_at)}</span> : null}
-                </div>
-              </Card>
-            ))}
-            {shop.reviews && (shop.reviews.highlighted?.length ?? 0) === 0 ? (
-              <Card className="text-sm text-neutral-textMuted">口コミの準備中です。</Card>
-            ) : null}
-          </div>
+          <ShopReviews shopId={shop.id} summary={shop.reviews} forceRemoteFetch={forceReviewsFetch} />
         </Section>
       ) : null}
 

@@ -80,6 +80,23 @@ export type DashboardTherapistDeleteResult =
   | { status: 'not_found' }
   | { status: 'error'; message: string }
 
+export type DashboardTherapistPhotoUploadResponse = {
+  url: string
+  filename: string
+  content_type: string
+  size: number
+}
+
+export type DashboardTherapistPhotoUploadResult =
+  | { status: 'success'; data: DashboardTherapistPhotoUploadResponse }
+  | { status: 'too_large'; limitBytes?: number }
+  | { status: 'unsupported_media_type'; message?: string }
+  | { status: 'validation_error'; message?: string }
+  | { status: 'unauthorized' }
+  | { status: 'forbidden'; detail?: string }
+  | { status: 'not_found' }
+  | { status: 'error'; message: string }
+
 function createRequestInit(
   method: string,
   options?: DashboardShopRequestOptions,
@@ -89,7 +106,9 @@ function createRequestInit(
   if (options?.cookieHeader) {
     headers.cookie = options.cookieHeader
   }
-  if (body !== undefined) {
+
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+  if (body !== undefined && !isFormData) {
     headers['Content-Type'] = 'application/json'
   }
 
@@ -105,7 +124,11 @@ function createRequestInit(
   }
 
   if (body !== undefined) {
-    init.body = JSON.stringify(body)
+    if (isFormData) {
+      init.body = body as FormData
+    } else {
+      init.body = JSON.stringify(body)
+    }
   }
 
   return init
@@ -124,15 +147,20 @@ async function requestJson<T>(
 
       if (successStatuses.includes(res.status)) {
         let data: T | undefined
-        if (res.status !== 204 && res.headers.get('content-type')?.includes('json')) {
+        const shouldParseJson =
+          res.status !== 204 &&
+          (res.headers.get('content-type')?.includes('json') ?? false)
+        if (shouldParseJson) {
           data = (await res.json()) as T
         }
         return { response: res, data }
       }
 
-      if ([401, 403, 404, 409, 422].includes(res.status)) {
+      if ([401, 403, 404, 409, 413, 415, 422].includes(res.status)) {
         let data: T | undefined
-        if (res.headers.get('content-type')?.includes('json')) {
+        const shouldParseJson =
+          res.headers.get('content-type')?.includes('json') || res.status === 413 || res.status === 415
+        if (shouldParseJson) {
           data = (await res.json()) as T
         }
         return { response: res, data }
@@ -377,6 +405,58 @@ export async function deleteDashboardTherapist(
     return {
       status: 'error',
       message: error instanceof Error ? error.message : 'セラピストの削除に失敗しました',
+    }
+  }
+}
+
+export async function uploadDashboardTherapistPhoto(
+  profileId: string,
+  file: File,
+  options?: DashboardShopRequestOptions
+): Promise<DashboardTherapistPhotoUploadResult> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const { response, data } = await requestJson<DashboardTherapistPhotoUploadResponse>(
+      `api/dashboard/shops/${profileId}/therapists/photos/upload`,
+      createRequestInit('POST', options, formData),
+      [201]
+    )
+
+    switch (response.status) {
+      case 201:
+        return { status: 'success', data: data as DashboardTherapistPhotoUploadResponse }
+      case 401:
+        return { status: 'unauthorized' }
+      case 403:
+        return { status: 'forbidden', detail: (data as { detail?: string } | undefined)?.detail }
+      case 404:
+        return { status: 'not_found' }
+      case 413: {
+        const json = data as { limit_bytes?: number } | undefined
+        return { status: 'too_large', limitBytes: json?.limit_bytes }
+      }
+      case 415:
+        return {
+          status: 'unsupported_media_type',
+          message: (data as { detail?: string } | undefined)?.detail,
+        }
+      case 422:
+        return {
+          status: 'validation_error',
+          message: (data as { message?: string } | undefined)?.message,
+        }
+      default:
+        return {
+          status: 'error',
+          message: `写真のアップロードに失敗しました (status=${response.status})`,
+        }
+    }
+  } catch (error) {
+    return {
+      status: 'error',
+      message: error instanceof Error ? error.message : '写真のアップロードに失敗しました',
     }
   }
 }
