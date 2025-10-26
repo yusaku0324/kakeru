@@ -65,73 +65,78 @@ describe('ShopReviews', () => {
   })
 
   it('loads reviews from API and supports load more', async () => {
-    const fetchMock = vi.fn()
-
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        total: 3,
-        items: [
-          {
-            id: 'rev-1',
-            profile_id: 'profile-1',
-            status: 'published',
-            score: 5,
-            title: '初訪問',
-            body: 'とても良かったです。',
-            author_alias: '訪問者1',
-            visited_at: '2024-09-01',
-            created_at: '2024-09-02T00:00:00Z',
-            updated_at: '2024-09-02T00:00:00Z',
-            aspects: {
-              therapist_service: { score: 5 },
+    const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url === '/api/auth/me') {
+        return new Response('', { status: 401 })
+      }
+      if (url === '/api/v1/shops/11111111-1111-1111-1111-111111111111/reviews?page=1') {
+        return jsonResponse({
+          total: 3,
+          items: [
+            {
+              id: 'rev-1',
+              profile_id: 'profile-1',
+              status: 'published',
+              score: 5,
+              title: '初訪問',
+              body: 'とても良かったです。',
+              author_alias: '訪問者1',
+              visited_at: '2024-09-01',
+              created_at: '2024-09-02T00:00:00Z',
+              updated_at: '2024-09-02T00:00:00Z',
+              aspects: {
+                therapist_service: { score: 5 },
+              },
             },
-          },
-          {
-            id: 'rev-2',
-            profile_id: 'profile-1',
-            status: 'published',
-            score: 4,
-            title: '再訪問',
-            body: '雰囲気が気に入りました。',
-            author_alias: '訪問者2',
-            visited_at: '2024-09-10',
-            created_at: '2024-09-11T00:00:00Z',
-            updated_at: '2024-09-11T00:00:00Z',
-          },
-        ],
-        aspect_averages: { therapist_service: 4.5 },
-        aspect_counts: { therapist_service: 2 },
-      }),
-    )
-
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        total: 3,
-        items: [
-          {
-            id: 'rev-3',
-            profile_id: 'profile-1',
-            status: 'published',
-            score: 5,
-            title: '三度目',
-            body: 'リピート確定です！',
-            author_alias: '訪問者3',
-            visited_at: '2024-09-15',
-            created_at: '2024-09-16T00:00:00Z',
-            updated_at: '2024-09-16T00:00:00Z',
-          },
-        ],
-        aspect_averages: { therapist_service: 4.7 },
-        aspect_counts: { therapist_service: 3 },
-      }),
-    )
+            {
+              id: 'rev-2',
+              profile_id: 'profile-1',
+              status: 'published',
+              score: 4,
+              title: '再訪問',
+              body: '雰囲気が気に入りました。',
+              author_alias: '訪問者2',
+              visited_at: '2024-09-10',
+              created_at: '2024-09-11T00:00:00Z',
+              updated_at: '2024-09-11T00:00:00Z',
+            },
+          ],
+          aspect_averages: { therapist_service: 4.5 },
+          aspect_counts: { therapist_service: 2 },
+        })
+      }
+      if (url === '/api/v1/shops/11111111-1111-1111-1111-111111111111/reviews?page=2') {
+        return jsonResponse({
+          total: 3,
+          items: [
+            {
+              id: 'rev-3',
+              profile_id: 'profile-1',
+              status: 'published',
+              score: 5,
+              title: '三度目',
+              body: 'リピート確定です！',
+              author_alias: '訪問者3',
+              visited_at: '2024-09-15',
+              created_at: '2024-09-16T00:00:00Z',
+              updated_at: '2024-09-16T00:00:00Z',
+            },
+          ],
+          aspect_averages: { therapist_service: 4.7 },
+          aspect_counts: { therapist_service: 3 },
+        })
+      }
+      return new Response('not found', { status: 404 })
+    })
 
     global.fetch = fetchMock as unknown as typeof global.fetch
 
     render(<ShopReviews shopId="11111111-1111-1111-1111-111111111111" summary={null} />)
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchMock).toHaveBeenCalledWith('/api/v1/shops/11111111-1111-1111-1111-111111111111/reviews?page=1')
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', expect.objectContaining({ credentials: 'include' }))
+    })
 
     expect(await screen.findByText('初訪問')).toBeInTheDocument()
     expect(screen.getByText('再訪問')).toBeInTheDocument()
@@ -140,9 +145,11 @@ describe('ShopReviews', () => {
     await userEvent.click(moreButton)
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/shops/11111111-1111-1111-1111-111111111111/reviews?page=2',
+        undefined,
+      )
     })
-    expect(fetchMock).toHaveBeenLastCalledWith('/api/v1/shops/11111111-1111-1111-1111-111111111111/reviews?page=2')
     expect(await screen.findByText('三度目')).toBeInTheDocument()
 
     await waitFor(() => {
@@ -151,44 +158,48 @@ describe('ShopReviews', () => {
   })
 
   it('submits a new review and prepends it to the list', async () => {
-    const fetchMock = vi.fn()
-
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        total: 0,
-        items: [],
-        aspect_averages: {},
-        aspect_counts: {},
-      }),
-    )
-
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse(
-        {
-          id: 'new-review',
-          profile_id: 'profile-1',
-          status: 'pending',
-          score: 5,
-          title: '投稿テスト',
-          body: 'テスト本文',
-          author_alias: 'tester',
-          visited_at: '2024-10-01',
-          created_at: '2024-10-02T00:00:00Z',
-          updated_at: '2024-10-02T00:00:00Z',
-          aspects: {
-            therapist_service: { score: 5, note: '最高でした' },
+    const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url === '/api/auth/me') {
+        return jsonResponse({ display_name: 'Tester' })
+      }
+      if (url === '/api/v1/shops/22222222-2222-2222-2222-222222222222/reviews?page=1') {
+        return jsonResponse({
+          total: 0,
+          items: [],
+          aspect_averages: {},
+          aspect_counts: {},
+        })
+      }
+      if (url === '/api/v1/shops/22222222-2222-2222-2222-222222222222/reviews' && init?.method === 'POST') {
+        return jsonResponse(
+          {
+            id: 'new-review',
+            profile_id: 'profile-1',
+            status: 'pending',
+            score: 5,
+            title: '投稿テスト',
+            body: 'テスト本文',
+            author_alias: 'tester',
+            visited_at: '2024-10-01',
+            created_at: '2024-10-02T00:00:00Z',
+            updated_at: '2024-10-02T00:00:00Z',
+            aspects: {
+              therapist_service: { score: 5, note: '最高でした' },
+            },
           },
-        },
-        { status: 201 },
-      ),
-    )
+          { status: 201 },
+        )
+      }
+      return new Response('not found', { status: 404 })
+    })
 
     global.fetch = fetchMock as unknown as typeof global.fetch
     const user = userEvent.setup()
 
     render(<ShopReviews shopId="22222222-2222-2222-2222-222222222222" summary={null} />)
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', expect.anything()))
 
     const bodyField = await screen.findByPlaceholderText('利用したコースや接客の印象などを教えてください。')
     await user.type(bodyField, 'テスト本文')
@@ -209,17 +220,13 @@ describe('ShopReviews', () => {
     await user.type(aspectNote, '最高でした')
 
     const submitButton = screen.getByRole('button', { name: '口コミを投稿する' })
-    await user.click(submitButton)
+   await user.click(submitButton)
 
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2)
-    })
-
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      '/api/v1/shops/22222222-2222-2222-2222-222222222222/reviews',
-      expect.objectContaining({
-        method: 'POST',
-      }),
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/shops/22222222-2222-2222-2222-222222222222/reviews',
+        expect.objectContaining({ method: 'POST', credentials: 'include' }),
+      ),
     )
 
     expect(await screen.findByText('投稿テスト')).toBeInTheDocument()
@@ -228,27 +235,31 @@ describe('ShopReviews', () => {
   })
 
   it('shows an error toast when submission fails', async () => {
-    const fetchMock = vi.fn()
-
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        total: 0,
-        items: [],
-        aspect_averages: {},
-        aspect_counts: {},
-      }),
-    )
-
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ detail: '入力内容を確認してください。' }, { status: 422 }),
-    )
+    const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url === '/api/auth/me') {
+        return jsonResponse({ display_name: 'Tester' })
+      }
+      if (url === '/api/v1/shops/33333333-3333-3333-3333-333333333333/reviews?page=1') {
+        return jsonResponse({
+          total: 0,
+          items: [],
+          aspect_averages: {},
+          aspect_counts: {},
+        })
+      }
+      if (url === '/api/v1/shops/33333333-3333-3333-3333-333333333333/reviews' && init?.method === 'POST') {
+        return jsonResponse({ detail: '入力内容を確認してください。' }, { status: 422 })
+      }
+      return new Response('not found', { status: 404 })
+    })
 
     global.fetch = fetchMock as unknown as typeof global.fetch
     const user = userEvent.setup()
 
     render(<ShopReviews shopId="33333333-3333-3333-3333-333333333333" summary={null} />)
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', expect.anything()))
 
     const bodyField = await screen.findByPlaceholderText('利用したコースや接客の印象などを教えてください。')
     await user.type(bodyField, '失敗テスト本文')
@@ -256,7 +267,12 @@ describe('ShopReviews', () => {
     const submitButton = screen.getByRole('button', { name: '口コミを投稿する' })
     await user.click(submitButton)
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/shops/33333333-3333-3333-3333-333333333333/reviews',
+        expect.objectContaining({ method: 'POST', credentials: 'include' }),
+      ),
+    )
 
     expect(await screen.findByText('入力内容を確認してください。')).toBeInTheDocument()
   })
