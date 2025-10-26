@@ -34,6 +34,7 @@ class LocalMediaStorage:
         url_prefix: str,
         cdn_base_url: Optional[str],
         public_base_url: Optional[str],
+        fallback_base_url: Optional[str],
     ) -> None:
         self._root = root
         normalized_prefix = (url_prefix or "").strip() or "/media"
@@ -42,6 +43,7 @@ class LocalMediaStorage:
         self._url_prefix = normalized_prefix.rstrip("/") or "/media"
         self._cdn_base_url = cdn_base_url.rstrip("/") if cdn_base_url else None
         self._public_base_url = public_base_url.rstrip("/") if public_base_url else None
+        self._fallback_base_url = fallback_base_url.rstrip("/") if fallback_base_url else None
 
     async def save(self, *, folder: str, filename: str, content: bytes, content_type: str) -> StoredMedia:
         parts = [segment for segment in folder.split("/") if segment and segment not in (".", "..")]
@@ -54,6 +56,8 @@ class LocalMediaStorage:
             base_url = self._cdn_base_url
         elif self._public_base_url:
             base_url = f"{self._public_base_url}{self._url_prefix}"
+        elif self._fallback_base_url:
+            base_url = f"{self._fallback_base_url}{self._url_prefix}"
         else:
             base_url = self._url_prefix
         plain_folder = "/".join(parts)
@@ -147,6 +151,7 @@ class MediaStorage:
                 url_prefix=config.media_url_prefix,
                 cdn_base_url=config.media_cdn_base_url,
                 public_base_url=config.api_public_base_url,
+                fallback_base_url=config.api_origin,
             )
             return cls(backend)
         if backend_name == "s3":
