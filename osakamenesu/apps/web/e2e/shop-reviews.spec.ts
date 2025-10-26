@@ -4,7 +4,7 @@ const SHOP_ID = 'sample-namba-resort'
 const REVIEWS_ENDPOINT = new RegExp(`/api/v1/shops/${SHOP_ID}/reviews`)
 
 test.describe('Shop reviews', () => {
-  test('fetches remote reviews and allows posting with mock API', async ({ page, baseURL }) => {
+  test('fetches remote reviews and allows posting with mock API', async ({ page, baseURL, context }) => {
     const createdAt = new Date().toISOString()
     const reviewItems = [
       {
@@ -41,6 +41,20 @@ test.describe('Shop reviews', () => {
       },
     ]
 
+    let isLoggedIn = false
+
+    await page.route('**/api/auth/me', async (route) => {
+      if (isLoggedIn) {
+        await route.fulfill({
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ display_name: 'Playwright User' }),
+        })
+        return
+      }
+      await route.fulfill({ status: 401 })
+    })
+
     await page.route(REVIEWS_ENDPOINT, async (route) => {
       const request = route.request()
       if (request.method() === 'GET') {
@@ -66,6 +80,11 @@ test.describe('Shop reviews', () => {
       }
 
       if (request.method() === 'POST') {
+        const cookies = await context.cookies()
+        if (!cookies.some((cookie) => cookie.name.startsWith('osakamenesu_session'))) {
+          await route.fulfill({ status: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ detail: 'unauthenticated' }) })
+          return
+        }
         const payload = JSON.parse(request.postData() ?? '{}')
         const response = {
           id: 'rev-new',
@@ -97,7 +116,37 @@ test.describe('Shop reviews', () => {
     await expect(page.getByText('モックレビューテキスト')).toBeVisible()
     await expect(page.locator('[data-testid="review-aspect-card"]').first().getByText('セラピストの接客')).toBeVisible()
 
-    await page.getByLabel('口コミ本文 *').fill('E2E Playwright 投稿本文')
+    // 投稿にはログインが必要なため、案内リンクからログインページへ遷移
+    await page.getByRole('link', { name: 'ログインページへ' }).click()
+    await page.waitForURL('**/auth/login')
+
+    const email = `guest-${Date.now()}@example.com`
+    await page.getByLabel('メールアドレス').fill(email)
+    await page.getByRole('button', { name: 'ログインリンクを送信' }).click()
+    await expect(page.getByText(/ログインリンクを送信しました/)).toBeVisible({ timeout: 10000 })
+
+    // クッキーを直接設定してログイン状態を再現
+    await context.addCookies([
+      {
+        name: 'osakamenesu_session',
+        value: 'playwright-test-session',
+        domain: '127.0.0.1',
+        path: '/',
+        httpOnly: true,
+      },
+    ])
+    isLoggedIn = true
+
+    await page.goto(`${baseURL}/profiles/${SHOP_ID}?force_reviews=1`)
+
+    await page.waitForFunction(() => {
+      const fieldset = document.querySelector('form fieldset') as HTMLFieldSetElement | null
+      return fieldset ? !fieldset.disabled : false
+    }, {}, { timeout: 15000 })
+
+    await page.waitForSelector('text=口コミ本文 *', { state: 'visible' })
+    const bodyField = page.getByLabel('口コミ本文 *')
+    await bodyField.fill('E2E Playwright 投稿本文')
     await page.getByRole('button', { name: '口コミを投稿する' }).click()
 
     await expect(page.getByText('口コミを送信しました。掲載までしばらくお待ちください。')).toBeVisible()
