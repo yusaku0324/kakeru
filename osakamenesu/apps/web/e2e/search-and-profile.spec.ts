@@ -7,6 +7,14 @@ test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
   // 簡単なメタ情報が表示される（件数表示）
   await expect(page.getByText('店舗検索結果')).toBeVisible()
 
+  // 空き状況のバッジ表示が想定どおりになっているかチェック
+  const nambaCard = page.getByRole('link', { name: /アロマリゾート 難波本店プレミアム/ })
+  await expect(nambaCard).toContainText('本日空きあり')
+
+  const umedaCard = page.getByRole('link', { name: /リラクゼーションSUITE 梅田/ })
+  await expect(umedaCard).toContainText('10月5日')
+  await expect(umedaCard).toContainText('18:00')
+
   // 通常カード（PRではない）を1件クリック
   const firstProfileCard = page.locator('a[href^="/profiles/"]').first()
   await expect(firstProfileCard).toBeVisible()
