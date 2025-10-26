@@ -47,7 +47,7 @@ function serializeCookies(): string | undefined {
 async function fetchSiteUser(cookieHeader?: string): Promise<SiteUserResult> {
   for (const base of resolveApiBases()) {
     try {
-      const res = await fetch(buildApiUrl(base, 'api/auth/me'), {
+      const res = await fetch(buildApiUrl(base, 'api/auth/me/site'), {
         headers: cookieHeader ? { cookie: cookieHeader } : undefined,
         credentials: cookieHeader ? 'omit' : 'include',
         cache: 'no-store',

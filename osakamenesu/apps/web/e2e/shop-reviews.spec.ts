@@ -43,7 +43,7 @@ test.describe('Shop reviews', () => {
 
     let isLoggedIn = false
 
-    await page.route('**/api/auth/me', async (route) => {
+    await page.route('**/api/auth/me/site', async (route) => {
       if (isLoggedIn) {
         await route.fulfill({
           status: 200,
