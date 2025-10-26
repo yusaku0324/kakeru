@@ -64,6 +64,7 @@ videos/
 *.db
 *.log
 *.html
+!apps/web/tests/fixtures/*.html
 node_modules/
 **/.next/
 **/.turbo/

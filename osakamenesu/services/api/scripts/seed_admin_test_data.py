@@ -289,15 +289,22 @@ def _ensure_reservation(base: str, headers: Dict[str, str], shop_id: str) -> Non
         },
         "marketing_opt_in": False,
     }
-    _request_json(
-        base,
-        "POST",
-        "/api/v1/reservations",
-        headers={},
-        payload=payload,
-        expected=(200, 201, 202, 204),
-    )
-    _log("seed reservation created")
+    try:
+        _request_json(
+            base,
+            "POST",
+            "/api/v1/reservations",
+            headers={},
+            payload=payload,
+            expected=(200, 201, 202, 204),
+        )
+        _log("seed reservation created")
+    except RuntimeError as exc:
+        message = str(exc)
+        if 'conflicting reservation slot' in message or '409' in message:
+            _log("reservation conflict detected; assuming seed data already present")
+        else:
+            raise
 
 
 def main(argv: Sequence[str]) -> int:
