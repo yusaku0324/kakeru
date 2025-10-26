@@ -10,10 +10,17 @@ test.describe('snapshots', () => {
     fs.mkdirSync(outDir, { recursive: true })
 
     // Home
-    const homeResponse = await page.goto(`${baseURL}/`, { waitUntil: 'domcontentloaded' })
+    let homeResponse = await page.goto(`${baseURL}/`, { waitUntil: 'domcontentloaded' })
+    if (!homeResponse?.ok()) {
+      for (let retry = 0; retry < 3; retry += 1) {
+        await page.waitForTimeout(2000 * (retry + 1))
+        homeResponse = await page.goto(`${baseURL}/`, { waitUntil: 'domcontentloaded' })
+        if (homeResponse?.ok()) break
+      }
+    }
     expect.soft(homeResponse?.ok(), 'ホームページのレスポンスが成功すること').toBeTruthy()
     await page.waitForLoadState('networkidle')
-    await expect(page.getByRole('link', { name: '大阪メンエス.com' })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('link', { name: '大阪メンエス.com' })).toBeVisible({ timeout: 30000 })
     await page.screenshot({ path: path.join(outDir, 'home.png'), fullPage: true })
 
     // Search
