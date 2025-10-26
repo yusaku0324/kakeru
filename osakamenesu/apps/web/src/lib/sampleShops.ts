@@ -133,7 +133,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
     ],
     staff: [
       {
-        id: 'therapist-aki',
+        id: '11111111-1111-1111-8888-111111111111',
         name: '葵',
         alias: 'Aoi',
         headline: '丁寧なオイルトリートメントで人気のセラピスト',
@@ -143,7 +143,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         specialties: ['リンパ', 'ホットストーン', '指名多数'],
       },
       {
-        id: 'therapist-rin',
+        id: '22222222-2222-2222-8888-222222222222',
         name: '凛',
         alias: 'Rin',
         headline: 'ストレッチと指圧を組み合わせた独自施術が評判',
@@ -165,13 +165,13 @@ export const SAMPLE_SHOPS: SampleShop[] = [
               start_at: '2025-10-07T21:00:00+09:00',
               end_at: '2025-10-07T23:00:00+09:00',
               status: 'open',
-              staff_id: 'therapist-aki',
+              staff_id: '11111111-1111-1111-8888-111111111111',
             },
             {
               start_at: '2025-10-07T19:00:00+09:00',
               end_at: '2025-10-07T21:00:00+09:00',
               status: 'tentative',
-              staff_id: 'therapist-rin',
+              staff_id: '22222222-2222-2222-8888-222222222222',
             },
           ],
         },
@@ -182,7 +182,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
               start_at: '2025-10-08T18:00:00+09:00',
               end_at: '2025-10-08T20:00:00+09:00',
               status: 'open',
-              staff_id: 'therapist-rin',
+              staff_id: '22222222-2222-2222-8888-222222222222',
             },
           ],
         },
