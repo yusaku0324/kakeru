@@ -430,16 +430,20 @@ test.describe('Admin dashboard', () => {
     const initialCount = await cards.count()
     expect(initialCount).toBeGreaterThan(0)
 
-    await page.getByTestId('status-filter').selectOption('pending')
-    await waitForReservations()
+    await Promise.all([
+      waitForReservations(),
+      page.getByTestId('status-filter').selectOption('pending'),
+    ])
     const filteredCount = await cards.count()
     expect(filteredCount).toBeGreaterThan(0)
     for (let i = 0; i < filteredCount; i += 1) {
       await expect(cards.nth(i).getByTestId('reservation-status')).toHaveValue('pending')
     }
 
-    await page.getByTestId('status-filter').selectOption('')
-    await waitForReservations()
+    await Promise.all([
+      waitForReservations(),
+      page.getByTestId('status-filter').selectOption(''),
+    ])
     expect(await cards.count()).toBeGreaterThan(0)
   })
 
@@ -456,8 +460,10 @@ test.describe('Admin dashboard', () => {
     await expect(page.getByRole('heading', { name: '予約管理' })).toBeVisible()
     await waitForReservations()
 
-    await page.getByTestId('status-filter').selectOption('declined')
-    await waitForReservations()
+    await Promise.all([
+      waitForReservations(),
+      page.getByTestId('status-filter').selectOption('declined'),
+    ])
     const counterText = await page.locator('text=/件中/').first().textContent()
     expect(counterText).toContain('0件中 0件を表示')
     await expect(page.getByTestId('reservation-card')).toHaveCount(0)
