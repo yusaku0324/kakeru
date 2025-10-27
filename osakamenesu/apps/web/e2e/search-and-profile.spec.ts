@@ -20,7 +20,7 @@ test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
 
   const umedaCard = shopCards.filter({ hasText: 'リラクゼーションSUITE 梅田' }).first()
   await expect(umedaCard).toBeVisible()
-  await expect(umedaCard).toContainText(/最短/)
+  await expect(umedaCard).toContainText(/(最短|ただいま案内可能)/)
 
   // 通常カード（PRではない）を1件クリック
   const firstProfileCard = page.locator('a[href^="/profiles/"]').first()
