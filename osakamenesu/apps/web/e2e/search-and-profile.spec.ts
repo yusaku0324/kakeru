@@ -7,6 +7,21 @@ test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
   // 簡単なメタ情報が表示される（件数表示）
   await expect(page.getByText('店舗検索結果')).toBeVisible()
 
+  // 空き状況のバッジ表示が想定どおりになっているかチェック
+  const shopCards = page.getByTestId('shop-card')
+
+  const nambaCard = shopCards.filter({ hasText: 'アロマリゾート 難波本店プレミアム' }).first()
+  await expect(nambaCard).toBeVisible()
+  await expect(nambaCard).toContainText('本日空きあり')
+
+  const loungeCard = shopCards.filter({ hasText: 'メンズアロマ Lounge 心斎橋' }).first()
+  await expect(loungeCard).toBeVisible()
+  await expect(loungeCard).toContainText('本日空きあり')
+
+  const umedaCard = shopCards.filter({ hasText: 'リラクゼーションSUITE 梅田' }).first()
+  await expect(umedaCard).toBeVisible()
+  await expect(umedaCard).toContainText(/(最短|ただいま案内可能)/)
+
   // 通常カード（PRではない）を1件クリック
   const firstProfileCard = page.locator('a[href^="/profiles/"]').first()
   await expect(firstProfileCard).toBeVisible()
@@ -55,4 +70,69 @@ test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
 
   // プロフィール画面のヘッダーが表示されている
   await expect(page.locator('h1')).toBeVisible()
+})
+
+test('therapist favorites can be toggled when API responds successfully', async ({ page, baseURL }) => {
+  const favorites = new Map<string, { createdAt: string }>()
+
+  await page.route('**/api/favorites/therapists**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+
+    if (request.method() === 'GET') {
+      const items = Array.from(favorites.entries()).map(([therapistId, record]) => ({
+        therapist_id: therapistId,
+        shop_id: 'sample-namba-resort',
+        created_at: record.createdAt,
+      }))
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(items),
+      })
+      return
+    }
+
+    if (request.method() === 'POST') {
+      const body = request.postDataJSON?.() ?? {}
+      const therapistId = typeof body.therapist_id === 'string' ? body.therapist_id : ''
+      const createdAt = new Date().toISOString()
+      favorites.set(therapistId, { createdAt })
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ therapist_id: therapistId, created_at: createdAt }),
+      })
+      return
+    }
+
+    if (request.method() === 'DELETE') {
+      const segments = url.pathname.split('/')
+      const therapistId = segments[segments.length - 1] || ''
+      favorites.delete(therapistId)
+      await route.fulfill({ status: 204 })
+      return
+    }
+
+    await route.fallback()
+  })
+
+  await page.goto(`${baseURL}/search?force_samples=1`)
+
+  const therapistCard = page.getByTestId('therapist-card').first()
+  await expect(therapistCard).toBeVisible()
+
+  const addButton = therapistCard.getByRole('button', { name: /お気に入りに追加/ })
+  await expect(addButton).toBeEnabled()
+  await expect(addButton).toHaveAttribute('aria-pressed', 'false')
+  await addButton.click()
+  await expect(page.getByText('お気に入りに追加しました。')).toBeVisible()
+
+  const removeButton = therapistCard.getByRole('button', { name: /お気に入りから削除/ })
+  await expect(removeButton).toBeEnabled()
+  await expect(removeButton).toHaveAttribute('aria-pressed', 'true')
+  await removeButton.click()
+  const reAddButton = therapistCard.getByRole('button', { name: /お気に入りに追加/ })
+  await expect(reAddButton).toBeEnabled()
+  await expect(reAddButton).toHaveAttribute('aria-pressed', 'false')
 })

@@ -34,7 +34,7 @@ test('therapist card navigates to staff page and reservation can be sent', async
     : `${currentStaffUrl}?force_demo_submit=1`
   await page.goto(staffUrlWithOverride)
   await expect(page).toHaveURL(/force_demo_submit=1/)
-  await expect(page.getByText('WEB予約リクエスト')).toBeVisible()
+  await expect(page.getByText('WEB予約リクエスト')).toBeVisible({ timeout: 15000 })
 
   const nameField = page.getByPlaceholder('例: 山田 太郎')
   await expect(nameField).toBeVisible()

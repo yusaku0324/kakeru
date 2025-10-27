@@ -56,7 +56,15 @@ export type ShopHit = {
 }
 
 const formatter = new Intl.NumberFormat('ja-JP')
-const dateFormatter = new Intl.DateTimeFormat('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })
+const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
+  month: 'short',
+  day: 'numeric',
+  weekday: 'short',
+})
+const timeFormatter = new Intl.DateTimeFormat('ja-JP', {
+  hour: '2-digit',
+  minute: '2-digit',
+})
 
 function formatPriceRange(min: number, max: number) {
   if (!min && !max) return '料金情報なし'
@@ -65,14 +73,29 @@ function formatPriceRange(min: number, max: number) {
 }
 
 function getAvailability(hit: ShopHit): { label: string; tone: 'success' | 'danger' | 'neutral' } | null {
-  if (hit.today_available) {
-    return { label: '本日予約可能', tone: 'success' }
-  }
+  const now = new Date()
+
   if (hit.next_available_at) {
     const at = new Date(hit.next_available_at)
     if (!Number.isNaN(at.getTime())) {
-      return { label: `${dateFormatter.format(at)} 受付〇`, tone: 'neutral' }
+      if (at.getTime() <= now.getTime()) {
+        return { label: 'ただいま案内可能', tone: 'success' }
+      }
+
+      const sameDay =
+        at.getFullYear() === now.getFullYear() &&
+        at.getMonth() === now.getMonth() &&
+        at.getDate() === now.getDate()
+      const timeLabel = timeFormatter.format(at)
+      if (sameDay) {
+        return { label: `最短 ${timeLabel}〜`, tone: 'success' }
+      }
+      return { label: `${dateFormatter.format(at)} ${timeLabel}〜`, tone: 'neutral' }
     }
+  }
+
+  if (hit.today_available) {
+    return { label: '本日空きあり', tone: 'success' }
   }
   return null
 }
@@ -105,7 +128,7 @@ export function ShopCard({ hit }: { hit: ShopHit }) {
 
   return (
     <Link href={getProfileHref(hit)} className="block focus:outline-none" prefetch>
-      <Card interactive className="h-full">
+      <Card interactive className="h-full" data-testid="shop-card">
         <div className="relative aspect-[4/3] bg-neutral-surfaceAlt">
           {hit.lead_image_url ? (
             <Image

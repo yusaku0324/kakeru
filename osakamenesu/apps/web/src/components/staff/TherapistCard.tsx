@@ -8,9 +8,6 @@ import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { useTherapistFavorites } from './TherapistFavoritesProvider'
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
 export type TherapistHit = {
   id: string
   therapistId: string | null
@@ -65,9 +62,9 @@ export function TherapistCard({ hit }: { hit: TherapistHit }) {
   const staffHref = buildStaffHref(hit)
   const shopHref = buildShopHref(hit)
   const therapistId = useMemo(() => {
-    const candidate = hit.therapistId
+    const candidate = hit.therapistId?.trim()
     if (!candidate) return null
-    return UUID_PATTERN.test(candidate) ? candidate : null
+    return candidate
   }, [hit.therapistId])
   const favorite = therapistId ? isFavorite(therapistId) : false
   const processing = therapistId ? isProcessing(therapistId) : false
