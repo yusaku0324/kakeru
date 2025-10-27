@@ -128,7 +128,7 @@ export function ShopCard({ hit }: { hit: ShopHit }) {
 
   return (
     <Link href={getProfileHref(hit)} className="block focus:outline-none" prefetch>
-      <Card interactive className="h-full">
+      <Card interactive className="h-full" data-testid="shop-card">
         <div className="relative aspect-[4/3] bg-neutral-surfaceAlt">
           {hit.lead_image_url ? (
             <Image

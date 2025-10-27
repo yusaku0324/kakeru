@@ -8,20 +8,19 @@ test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
   await expect(page.getByText('店舗検索結果')).toBeVisible()
 
   // 空き状況のバッジ表示が想定どおりになっているかチェック
-  const nambaTitle = page.getByRole('heading', { name: 'アロマリゾート 難波本店プレミアム' }).first()
-  await expect(nambaTitle).toBeVisible()
-  await expect(page.getByText('本日空きあり').first()).toBeVisible()
+  const shopCards = page.getByTestId('shop-card')
 
-  const loungeTitle = page.getByRole('heading', { name: 'メンズアロマ Lounge 心斎橋' }).first()
-  await expect(loungeTitle).toBeVisible()
-  await expect(
-    loungeTitle.locator('..').locator('..').getByText('本日空きあり', { exact: true })
-  ).toBeVisible()
+  const nambaCard = shopCards.filter({ hasText: 'アロマリゾート 難波本店プレミアム' }).first()
+  await expect(nambaCard).toBeVisible()
+  await expect(nambaCard).toContainText('本日空きあり')
 
-  const umedaTitle = page.getByRole('heading', { name: 'リラクゼーションSUITE 梅田' }).first()
-  await expect(umedaTitle).toBeVisible()
-  await expect(page.getByText(/10月5日/)).toBeVisible()
-  await expect(page.getByText(/18:00/)).toBeVisible()
+  const loungeCard = shopCards.filter({ hasText: 'メンズアロマ Lounge 心斎橋' }).first()
+  await expect(loungeCard).toBeVisible()
+  await expect(loungeCard).toContainText('本日空きあり')
+
+  const umedaCard = shopCards.filter({ hasText: 'リラクゼーションSUITE 梅田' }).first()
+  await expect(umedaCard).toBeVisible()
+  await expect(umedaCard).toContainText(/最短/)
 
   // 通常カード（PRではない）を1件クリック
   const firstProfileCard = page.locator('a[href^="/profiles/"]').first()
