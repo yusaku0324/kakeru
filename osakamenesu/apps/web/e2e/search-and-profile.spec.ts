@@ -12,9 +12,11 @@ test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
   await expect(nambaTitle).toBeVisible()
   await expect(page.getByText('本日空きあり').first()).toBeVisible()
 
-  const loungeTitle = page.getByText('メンズアロマ Lounge 心斎橋', { exact: true })
+  const loungeTitle = page.getByRole('heading', { name: 'メンズアロマ Lounge 心斎橋' })
   await expect(loungeTitle).toBeVisible()
-  await expect(page.getByText('本日空きあり').nth(1)).toBeVisible()
+  await expect(
+    loungeTitle.locator('..').locator('..').getByText('本日空きあり', { exact: true })
+  ).toBeVisible()
 
   const umedaTitle = page.getByText('リラクゼーションSUITE 梅田', { exact: true })
   await expect(umedaTitle).toBeVisible()
