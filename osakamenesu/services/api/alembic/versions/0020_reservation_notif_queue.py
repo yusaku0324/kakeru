@@ -1,6 +1,6 @@
 """add reservation notification queue tables
 
-Revision ID: 0020_reservation_notification_queue
+Revision ID: 0020_reservation_notif_queue
 Revises: 0019_add_review_aspects
 Create Date: 2025-11-01 00:00:00.000000
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
-revision = "0020_reservation_notification_queue"
+revision = "0020_reservation_notif_queue"
 down_revision = "0019_add_review_aspects"
 branch_labels = None
 depends_on = None
