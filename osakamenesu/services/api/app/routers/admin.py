@@ -10,7 +10,11 @@ import hashlib
 from ..db import get_session
 from .. import models
 from ..meili import index_profile, index_bulk, purge_all
-from ..utils.profiles import build_profile_doc, normalize_review_aspects
+from ..utils.profiles import (
+    build_profile_doc,
+    ensure_profile_staff_loaded,
+    normalize_review_aspects,
+)
 from ..schemas import (
     ProfileMarketingUpdate,
     ReservationAdminSummary,
@@ -99,7 +103,8 @@ async def reindex_one(profile_id: str, db: AsyncSession = Depends(get_session)):
     p = res.scalar_one_or_none()
     if not p:
         raise HTTPException(404, "profile not found")
-    await db.refresh(p, attribute_names=["reviews"])
+    await db.refresh(p, attribute_names=["reviews", "therapists"])
+    await ensure_profile_staff_loaded(db, p)
     today = datetime.now(JST).date()
     res = await db.execute(
         select(func.count())
@@ -130,7 +135,8 @@ async def reindex_all(purge: bool = False, db: AsyncSession = Depends(get_sessio
     today = datetime.now(JST).date()
     docs = []
     for p in profiles:
-        await db.refresh(p, attribute_names=["reviews"])
+        await db.refresh(p, attribute_names=["reviews", "therapists"])
+        await ensure_profile_staff_loaded(db, p)
         res2 = await db.execute(
             select(func.count())
             .select_from(models.Availability)
@@ -171,6 +177,7 @@ async def create_availability(profile_id: str, date: str, slots_json: Optional[d
     has_today = (res2.scalar_one() or 0) > 0
     res3 = await db.execute(select(models.Outlink).where(models.Outlink.profile_id == p.id))
     outlinks = list(res3.scalars().all())
+    await ensure_profile_staff_loaded(db, p)
     try:
         index_profile(
             build_profile_doc(
@@ -299,6 +306,7 @@ async def update_marketing(profile_id: str, payload: ProfileMarketingUpdate, db:
 
     await db.commit()
     await db.refresh(profile)
+    await ensure_profile_staff_loaded(db, profile)
 
     today = datetime.now(JST).date()
     res_today = await db.execute(
@@ -643,6 +651,7 @@ async def admin_update_shop_content(
 
     await db.commit()
     await db.refresh(profile)
+    await ensure_profile_staff_loaded(db, profile)
 
     # reindex
     today = datetime.now(JST).date()
@@ -846,9 +855,14 @@ async def admin_bulk_ingest_shop_content(
             continue
 
         try:
-            await db.refresh(profile, attribute_names=["reviews", "diaries"])
+            await db.refresh(
+                profile, attribute_names=["reviews", "diaries", "therapists"]
+            )
         except Exception:
             await db.refresh(profile)
+            await ensure_profile_staff_loaded(db, profile)
+        else:
+            await ensure_profile_staff_loaded(db, profile)
 
         today = datetime.now(JST).date()
         res_today = await db.execute(

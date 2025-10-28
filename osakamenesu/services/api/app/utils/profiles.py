@@ -4,6 +4,8 @@ from collections import defaultdict
 from typing import Optional, Iterable, Tuple, Any, List, Dict, Union, overload
 from typing import Literal
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..schemas import REVIEW_ASPECT_KEYS
 
 PRICE_BANDS: list[tuple[str, int, int | None, str]] = [
@@ -170,6 +172,25 @@ def _build_staff_preview(profile: models.Profile, contact_json: dict[str, Any]) 
         )
 
     return preview
+
+
+async def ensure_profile_staff_loaded(
+    db: AsyncSession | None, profile: models.Profile
+) -> None:
+    """Ensure the therapists relationship is present before serializing staff."""
+
+    if db is None:
+        return
+
+    cached = getattr(profile, "__dict__", {}).get("therapists", None)
+    if cached is not None:
+        return
+
+    try:
+        await db.refresh(profile, attribute_names=["therapists"])
+    except Exception:
+        # Best-effort: avoid repeated refresh attempts even if loading fails.
+        profile.__dict__.setdefault("therapists", [])
 
 
 def _safe_int(v: object) -> Optional[int]:

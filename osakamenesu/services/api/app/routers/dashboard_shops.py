@@ -25,7 +25,7 @@ from ..schemas import (
     DashboardShopProfileUpdatePayload,
     DashboardShopStaff,
 )
-from ..utils.profiles import build_profile_doc
+from ..utils.profiles import build_profile_doc, ensure_profile_staff_loaded
 from ..utils.slug import slugify
 
 JST = ZoneInfo("Asia/Tokyo")
@@ -178,6 +178,7 @@ async def _reindex_profile(db: AsyncSession, profile: models.Profile) -> None:
         select(models.Outlink).where(models.Outlink.profile_id == profile.id)
     )
     outlinks = list(outlinks_result.scalars().all())
+    await ensure_profile_staff_loaded(db, profile)
     doc = build_profile_doc(
         profile, today=has_today, tag_score=0.0, ctr7d=0.0, outlinks=outlinks
     )

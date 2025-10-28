@@ -148,6 +148,10 @@ class FakeSession:
         # already carry eager data so the method becomes a no-op for compatibility.
         if attribute_names and "reviews" in attribute_names and not hasattr(instance, "reviews"):
             instance.reviews = []
+        if attribute_names and "therapists" in attribute_names and not hasattr(
+            instance, "therapists"
+        ):
+            instance.therapists = []
 
 
 def _make_profile(**overrides: Any) -> models.Profile:

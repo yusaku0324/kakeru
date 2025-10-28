@@ -24,7 +24,7 @@ from ..schemas import (
     DashboardTherapistSummary,
     DashboardTherapistUpdatePayload,
 )
-from ..utils.profiles import build_profile_doc
+from ..utils.profiles import build_profile_doc, ensure_profile_staff_loaded
 from zoneinfo import ZoneInfo
 from ..storage import get_media_storage, MediaStorageError
 
@@ -123,6 +123,7 @@ async def _reindex_profile(db: AsyncSession, profile: models.Profile) -> None:
     )
     has_today = (availability_count.scalar_one() or 0) > 0
     outlinks = await db.execute(select(models.Outlink).where(models.Outlink.profile_id == profile.id))
+    await ensure_profile_staff_loaded(db, profile)
     doc = build_profile_doc(
         profile,
         today=has_today,

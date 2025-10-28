@@ -43,10 +43,11 @@ from ..schemas import (
     DiaryListResponse,
 )
 from ..utils.profiles import (
-    build_profile_doc,
-    infer_store_name,
-    compute_review_summary,
     PRICE_BANDS,
+    build_profile_doc,
+    compute_review_summary,
+    ensure_profile_staff_loaded,
+    infer_store_name,
     normalize_review_aspects,
 )
 
@@ -941,6 +942,8 @@ async def get_shop_detail(shop_id: str, db: AsyncSession = Depends(get_session))
 
     if not profile:
         raise HTTPException(status_code=404, detail="shop not found")
+
+    await ensure_profile_staff_loaded(db, profile)
 
     contact_data = profile.contact_json if isinstance(profile.contact_json, dict) else {}
     contact = _hydrate_contact(contact_data)
