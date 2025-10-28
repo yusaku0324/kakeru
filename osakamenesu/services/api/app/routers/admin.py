@@ -350,6 +350,41 @@ async def list_reservations(
     items: list[ReservationAdminSummary] = []
     for r in reservations:
         normalized_status = r.status if r.status in _RESERVATION_ADMIN_STATUSES else "pending"
+        if r.channel is None:
+            channel_value = None
+        elif isinstance(r.channel, str):
+            channel_value = r.channel.strip() or None
+        else:
+            channel_value = str(r.channel).strip() or None
+
+        if r.notes is None:
+            notes_value = None
+        elif isinstance(r.notes, str):
+            notes_value = r.notes.strip() or None
+        else:
+            notes_value = str(r.notes).strip() or None
+
+        if r.customer_name is None:
+            customer_name = ""
+        elif isinstance(r.customer_name, str):
+            customer_name = r.customer_name.strip()
+        else:
+            customer_name = str(r.customer_name).strip()
+
+        if r.customer_phone is None:
+            customer_phone = ""
+        elif isinstance(r.customer_phone, str):
+            customer_phone = r.customer_phone.strip()
+        else:
+            customer_phone = str(r.customer_phone).strip()
+
+        if r.customer_email is None:
+            customer_email = None
+        elif isinstance(r.customer_email, str):
+            customer_email = r.customer_email.strip() or None
+        else:
+            customer_email = str(r.customer_email).strip() or None
+
         items.append(
             ReservationAdminSummary(
                 id=r.id,
@@ -358,11 +393,11 @@ async def list_reservations(
                 status=normalized_status,  # type: ignore[arg-type]
                 desired_start=r.desired_start,
                 desired_end=r.desired_end,
-                channel=r.channel or None,
-                notes=r.notes or None,
-                customer_name=r.customer_name or "",
-                customer_phone=r.customer_phone or "",
-                customer_email=r.customer_email or None,
+                channel=channel_value,
+                notes=notes_value,
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                customer_email=customer_email,
                 created_at=r.created_at,
                 updated_at=r.updated_at,
             )

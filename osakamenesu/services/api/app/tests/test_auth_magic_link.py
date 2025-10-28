@@ -61,6 +61,7 @@ class _DummySettings:
         self.site_session_cookie_name = "osakamenesu_session"
         self.auth_session_cookie_secure = False
         self.auth_session_cookie_domain = None
+        self.auth_session_cookie_same_site = "lax"
         self.auth_magic_link_redirect_path = "/auth/complete"
         self.auth_magic_link_debug = True
         self.site_base_url = "https://example.com"

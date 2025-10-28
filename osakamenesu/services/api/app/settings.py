@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     )
     auth_session_cookie_secure: bool = False
     auth_session_cookie_domain: str | None = None
+    auth_session_cookie_same_site: str = Field(
+        default="lax",
+        validation_alias=AliasChoices("AUTH_SESSION_COOKIE_SAMESITE", "SESSION_COOKIE_SAMESITE"),
+    )
     auth_magic_link_redirect_path: str = "/auth/complete"
     auth_magic_link_debug: bool = True
     site_base_url: str | None = Field(

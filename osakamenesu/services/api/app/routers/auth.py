@@ -91,14 +91,18 @@ def _set_session_cookie(response: Response, token: str, *, scope: str | None = N
     names = _session_cookie_names(scope)
     if not names:
         names = _session_cookie_names()
+    same_site_raw = (settings.auth_session_cookie_same_site or "lax").strip().lower()
+    same_site = same_site_raw if same_site_raw in {"lax", "strict", "none"} else "lax"
+    secure = settings.auth_session_cookie_secure or same_site == "none"
+
     for name in names:
         response.set_cookie(
             key=name,
             value=token,
             max_age=max_age,
             httponly=True,
-            secure=settings.auth_session_cookie_secure,
-            samesite="lax",
+            secure=secure,
+            samesite=same_site,
             domain=settings.auth_session_cookie_domain,
             path="/",
         )
