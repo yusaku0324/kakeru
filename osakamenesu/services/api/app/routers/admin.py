@@ -347,24 +347,26 @@ async def list_reservations(
         )
         shop_names = dict(res.all())
 
-    items = [
-        ReservationAdminSummary(
-            id=r.id,
-            shop_id=r.shop_id,
-            shop_name=shop_names.get(r.shop_id, ""),
-            status=r.status,  # type: ignore[arg-type]
-            desired_start=r.desired_start,
-            desired_end=r.desired_end,
-            channel=r.channel,
-            notes=r.notes,
-            customer_name=r.customer_name,
-            customer_phone=r.customer_phone,
-            customer_email=r.customer_email,
-            created_at=r.created_at,
-            updated_at=r.updated_at,
+    items: list[ReservationAdminSummary] = []
+    for r in reservations:
+        normalized_status = r.status if r.status in _RESERVATION_ADMIN_STATUSES else "pending"
+        items.append(
+            ReservationAdminSummary(
+                id=r.id,
+                shop_id=r.shop_id,
+                shop_name=shop_names.get(r.shop_id, "") or "",
+                status=normalized_status,  # type: ignore[arg-type]
+                desired_start=r.desired_start,
+                desired_end=r.desired_end,
+                channel=r.channel or None,
+                notes=r.notes or None,
+                customer_name=r.customer_name or "",
+                customer_phone=r.customer_phone or "",
+                customer_email=r.customer_email or None,
+                created_at=r.created_at,
+                updated_at=r.updated_at,
+            )
         )
-        for r in reservations
-    ]
 
     return ReservationAdminList(total=total, items=items)
 
