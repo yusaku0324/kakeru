@@ -4,6 +4,9 @@ from collections import defaultdict
 from typing import Optional, Iterable, Tuple, Any, List, Dict, Union, overload
 from typing import Literal
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .. import models
 from ..schemas import REVIEW_ASPECT_KEYS
 
 PRICE_BANDS: list[tuple[str, int, int | None, str]] = [
@@ -61,10 +64,6 @@ def _count_published_diaries(profile: models.Profile, contact_json: dict) -> int
     if isinstance(raw, list):
         return len([entry for entry in raw if isinstance(entry, dict)])
     return 0
-
-from .. import models
-
-
 
 def _normalize_text(value: Any) -> Optional[str]:
     if isinstance(value, str):

@@ -61,6 +61,11 @@ class _DummySettings:
         self.escalation_pending_threshold_minutes = 30
         self.escalation_check_interval_minutes = 5
         self.site_base_url = None
+        self.reservation_notification_max_attempts = 3
+        self.reservation_notification_retry_base_seconds = 1
+        self.reservation_notification_retry_backoff_multiplier = 2.0
+        self.reservation_notification_worker_interval_seconds = 1.0
+        self.reservation_notification_batch_size = 10
 
 
 dummy_settings_module.Settings = _DummySettings  # type: ignore[attr-defined]
