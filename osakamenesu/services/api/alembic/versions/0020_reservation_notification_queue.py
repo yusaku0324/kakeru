@@ -7,6 +7,7 @@ Create Date: 2025-11-01 00:00:00.000000
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import table, column
 from sqlalchemy.dialects import postgresql
 
 
@@ -17,38 +18,53 @@ branch_labels = None
 depends_on = None
 
 
-CHANNEL_ENUM_NAME = "reservation_notification_channel"
-STATUS_ENUM_NAME = "reservation_notification_status"
-ATTEMPT_ENUM_NAME = "reservation_notification_attempt_status"
-
-
-CHANNEL_ENUM_VALUES = ("email", "slack", "line", "log")
-STATUS_ENUM_VALUES = ("pending", "in_progress", "succeeded", "failed", "cancelled")
-ATTEMPT_ENUM_VALUES = ("success", "failure")
-
-
-def _ensure_enum(name: str, *values: str) -> sa.Enum:
-    values_sql = ", ".join(f"'{value}'" for value in values)
-    op.execute(
-        sa.text(
-            f"""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{name}') THEN
-                    CREATE TYPE {name} AS ENUM ({values_sql});
-                END IF;
-            END
-            $$;
-            """
-        )
-    )
-    return postgresql.ENUM(*values, name=name, create_type=False, _create_events=False)
+CHANNEL_KEYS = ("email", "slack", "line", "log")
+STATUS_KEYS = ("pending", "in_progress", "succeeded", "failed", "cancelled")
+ATTEMPT_STATUS_KEYS = ("success", "failure")
 
 
 def upgrade() -> None:
-    channel_enum = _ensure_enum(CHANNEL_ENUM_NAME, *CHANNEL_ENUM_VALUES)
-    status_enum = _ensure_enum(STATUS_ENUM_NAME, *STATUS_ENUM_VALUES)
-    attempt_enum = _ensure_enum(ATTEMPT_ENUM_NAME, *ATTEMPT_ENUM_VALUES)
+    op.create_table(
+        "reservation_notification_channels",
+        sa.Column("key", sa.String(length=32), primary_key=True, nullable=False),
+        sa.Column("label", sa.String(length=64), nullable=False),
+    )
+    op.bulk_insert(
+        table(
+            "reservation_notification_channels",
+            column("key", sa.String),
+            column("label", sa.String),
+        ),
+        [{"key": key, "label": key.capitalize()} for key in CHANNEL_KEYS],
+    )
+
+    op.create_table(
+        "reservation_notification_statuses",
+        sa.Column("key", sa.String(length=32), primary_key=True, nullable=False),
+        sa.Column("label", sa.String(length=64), nullable=False),
+    )
+    op.bulk_insert(
+        table(
+            "reservation_notification_statuses",
+            column("key", sa.String),
+            column("label", sa.String),
+        ),
+        [{"key": key, "label": key.replace("_", " ").capitalize()} for key in STATUS_KEYS],
+    )
+
+    op.create_table(
+        "reservation_notification_attempt_statuses",
+        sa.Column("key", sa.String(length=16), primary_key=True, nullable=False),
+        sa.Column("label", sa.String(length=64), nullable=False),
+    )
+    op.bulk_insert(
+        table(
+            "reservation_notification_attempt_statuses",
+            column("key", sa.String),
+            column("label", sa.String),
+        ),
+        [{"key": key, "label": key.capitalize()} for key in ATTEMPT_STATUS_KEYS],
+    )
 
     op.create_table(
         "reservation_notification_deliveries",
@@ -59,8 +75,19 @@ def upgrade() -> None:
             sa.ForeignKey("reservations.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("channel", channel_enum, nullable=False),
-        sa.Column("status", status_enum, nullable=False, server_default="pending"),
+        sa.Column(
+            "channel",
+            sa.String(length=32),
+            sa.ForeignKey("reservation_notification_channels.key", ondelete="RESTRICT"),
+            nullable=False,
+        ),
+        sa.Column(
+            "status",
+            sa.String(length=32),
+            sa.ForeignKey("reservation_notification_statuses.key", ondelete="RESTRICT"),
+            nullable=False,
+            server_default="pending",
+        ),
         sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("attempt_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("next_attempt_at", sa.DateTime(timezone=True), nullable=True, server_default=sa.text("NOW()")),
@@ -109,7 +136,12 @@ def upgrade() -> None:
             sa.ForeignKey("reservation_notification_deliveries.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("status", attempt_enum, nullable=False),
+        sa.Column(
+            "status",
+            sa.String(length=16),
+            sa.ForeignKey("reservation_notification_attempt_statuses.key", ondelete="RESTRICT"),
+            nullable=False,
+        ),
         sa.Column("response_status", sa.Integer(), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("attempted_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("NOW()")),
@@ -168,6 +200,6 @@ def downgrade() -> None:
     )
     op.drop_table("reservation_notification_deliveries")
 
-    op.execute(sa.text(f"DROP TYPE IF EXISTS {ATTEMPT_ENUM_NAME};"))
-    op.execute(sa.text(f"DROP TYPE IF EXISTS {STATUS_ENUM_NAME};"))
-    op.execute(sa.text(f"DROP TYPE IF EXISTS {CHANNEL_ENUM_NAME};"))
+    op.drop_table("reservation_notification_attempt_statuses")
+    op.drop_table("reservation_notification_statuses")
+    op.drop_table("reservation_notification_channels")
