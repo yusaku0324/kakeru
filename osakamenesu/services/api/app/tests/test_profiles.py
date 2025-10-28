@@ -250,6 +250,7 @@ def test_build_profile_doc_promotions_and_reviews() -> None:
     assert doc["review_aspect_counts"]["therapist_service"] == 1
     assert doc["ranking_reason"] == "編集部ピックアップ"
 
+
 def test_compute_review_summary_returns_aspects() -> None:
     profile = _make_profile()
     average, count, highlights, aspect_averages, aspect_counts = compute_review_summary(
@@ -296,6 +297,52 @@ def test_collect_review_aspect_stats_handles_models() -> None:
     assert averages["therapist_service"] == pytest.approx(5.0)
     assert counts["therapist_service"] == 1
 
+
+
+
+def test_build_profile_doc_staff_preview_includes_therapist_id() -> None:
+    profile = _make_profile()
+    now = datetime.now(UTC)
+    therapist = models.Therapist(
+        id=uuid.uuid4(),
+        profile_id=profile.id,
+        name="花咲 ゆめ",
+        alias="Yume",
+        headline="極上の癒しを届けます",
+        biography=None,
+        specialties=["オイル", "リンパ"],
+        qualifications=None,
+        experience_years=None,
+        photo_urls=["https://example.com/photo.jpg"],
+        display_order=1,
+        status="published",
+        is_booking_enabled=True,
+        created_at=now,
+        updated_at=now,
+    )
+    profile.therapists = [therapist]
+    contact = dict(profile.contact_json or {})
+    contact["staff"] = [
+        {
+            "name": "花咲 ゆめ",
+            "alias": "Yume",
+            "headline": "極上の癒しを届けます",
+            "avatar_url": "https://example.com/photo.jpg",
+            "specialties": ["オイル", "リンパ"],
+            "rating": 4.6,
+            "review_count": 28,
+        }
+    ]
+    profile.contact_json = contact
+
+    doc = build_profile_doc(profile)
+
+    assert doc["staff_preview"]
+    entry = doc["staff_preview"][0]
+    assert entry["id"] == str(therapist.id)
+    assert entry["name"] == "花咲 ゆめ"
+    assert entry["rating"] == pytest.approx(4.6)
+    assert entry["review_count"] == 28
 
 def test_compute_review_summary_returns_aspects() -> None:
     profile = _make_profile()
