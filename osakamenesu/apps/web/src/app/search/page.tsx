@@ -1,5 +1,6 @@
 import SearchFilters from '@/components/SearchFilters'
 import ShopCard, { type ShopHit } from '@/components/shop/ShopCard'
+import { ShopFavoritesProvider } from '@/components/shop/ShopFavoritesProvider'
 import TherapistCard, { type TherapistHit } from '@/components/staff/TherapistCard'
 import { TherapistFavoritesProvider } from '@/components/staff/TherapistFavoritesProvider'
 import { Badge } from '@/components/ui/Badge'
@@ -594,7 +595,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
           ) : null}
 
           {showShopSection ? (
-            <Section
+            <ShopFavoritesProvider>
+              <Section
               id="search-results"
               ariaLive="polite"
               title={`店舗検索結果 ${Intl.NumberFormat('ja-JP').format(shopTotal)}件`}
@@ -676,7 +678,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
                   )}
                 </div>
               </nav>
-            </Section>
+              </Section>
+            </ShopFavoritesProvider>
           ) : null}
 
           {!showTherapistSection && !showShopSection ? (
