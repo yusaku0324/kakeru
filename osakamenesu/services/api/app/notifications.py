@@ -316,29 +316,29 @@ async def process_pending_notifications(
     now = _now()
 
     async with SessionLocal() as session:
-        stmt = (
-            select(models.ReservationNotificationDelivery)
-            .where(
-                models.ReservationNotificationDelivery.status == "pending",
-                or_(
-                    models.ReservationNotificationDelivery.next_attempt_at.is_(None),
-                    models.ReservationNotificationDelivery.next_attempt_at <= now,
-                ),
+        async with session.begin():
+            stmt = (
+                select(models.ReservationNotificationDelivery)
+                .where(
+                    models.ReservationNotificationDelivery.status == "pending",
+                    or_(
+                        models.ReservationNotificationDelivery.next_attempt_at.is_(None),
+                        models.ReservationNotificationDelivery.next_attempt_at <= now,
+                    ),
+                )
+                .order_by(models.ReservationNotificationDelivery.next_attempt_at)
+                .limit(batch_limit)
+                .with_for_update(skip_locked=True)
             )
-            .order_by(models.ReservationNotificationDelivery.next_attempt_at)
-            .limit(batch_limit)
-        )
-        result = await session.execute(stmt)
-        deliveries = list(result.scalars())
-        if not deliveries:
-            return 0
+            result = await session.execute(stmt)
+            deliveries = list(result.scalars())
+            if not deliveries:
+                return 0
 
-        for delivery in deliveries:
-            handled = await _dispatch_delivery(session, delivery, senders=senders, now=now)
-            if handled:
-                processed += 1
-
-        await session.commit()
+            for delivery in deliveries:
+                handled = await _dispatch_delivery(session, delivery, senders=senders, now=now)
+                if handled:
+                    processed += 1
 
     return processed
 
