@@ -54,6 +54,11 @@ class _DummySettings:
         self.mail_provider_base_url = "https://api.resend.com"
         self.dashboard_session_cookie_name = "osakamenesu_session"
         self.site_session_cookie_name = "osakamenesu_session"
+        self.reservation_notification_max_attempts = 3
+        self.reservation_notification_retry_base_seconds = 1
+        self.reservation_notification_retry_backoff_multiplier = 2.0
+        self.reservation_notification_worker_interval_seconds = 1.0
+        self.reservation_notification_batch_size = 10
 
 
 dummy_settings_module.Settings = _DummySettings  # type: ignore[attr-defined]

@@ -17,7 +17,7 @@ from ..schemas import (
     ReservationUpdateRequest,
 )
 from ..deps import require_admin, audit_admin, get_optional_user
-from ..notifications import ReservationNotification, schedule_reservation_notification
+from ..notifications import ReservationNotification, enqueue_reservation_notification
 
 
 router = APIRouter(prefix="/api/v1/reservations", tags=["reservations"])
@@ -195,26 +195,26 @@ async def create_reservation(
     else:
         shop_line_contact = None
 
-    schedule_reservation_notification(
-        ReservationNotification(
-            reservation_id=str(reservation.id),
-            shop_id=str(reservation.shop_id),
-            shop_name=getattr(shop, "name", None) or str(reservation.shop_id),
-            customer_name=reservation.customer_name,
-            customer_phone=reservation.customer_phone,
-            desired_start=reservation.desired_start.isoformat(),
-            desired_end=reservation.desired_end.isoformat(),
-            status=reservation.status,
-            channel=reservation.channel or "web",
-            notes=reservation.notes,
-            customer_email=reservation.customer_email,
-            shop_phone=shop_phone,
-            shop_line_contact=shop_line_contact,
-            email_recipients=[addr for addr in channels_config.get("emails", []) if isinstance(addr, str)],
-            slack_webhook_url=channels_config.get("slack"),
-            line_notify_token=channels_config.get("line"),
-        )
+    notification = ReservationNotification(
+        reservation_id=str(reservation.id),
+        shop_id=str(reservation.shop_id),
+        shop_name=getattr(shop, "name", None) or str(reservation.shop_id),
+        customer_name=reservation.customer_name,
+        customer_phone=reservation.customer_phone,
+        desired_start=reservation.desired_start.isoformat(),
+        desired_end=reservation.desired_end.isoformat(),
+        status=reservation.status,
+        channel=reservation.channel or "web",
+        notes=reservation.notes,
+        customer_email=reservation.customer_email,
+        shop_phone=shop_phone,
+        shop_line_contact=shop_line_contact,
+        email_recipients=[addr for addr in channels_config.get("emails", []) if isinstance(addr, str)],
+        slack_webhook_url=channels_config.get("slack"),
+        line_notify_token=channels_config.get("line"),
     )
+    await enqueue_reservation_notification(db, notification)
+    await db.commit()
 
     return _reservation_to_schema(reservation).model_dump()
 
@@ -278,5 +278,45 @@ async def update_reservation(
     await db.commit()
     await db.refresh(reservation)
     await db.refresh(reservation, attribute_names=["status_events"])
+
+    if status_changed:
+        shop = await _ensure_shop(db, reservation.shop_id)
+        channels_config = await _resolve_notification_channels(db, reservation.shop_id, reservation.status)
+
+        contact = getattr(shop, "contact_json", None) or {}
+        shop_phone = contact.get("phone") or contact.get("tel")
+        if isinstance(shop_phone, (int, float)):
+            shop_phone = str(shop_phone)
+        if isinstance(shop_phone, str):
+            shop_phone = shop_phone.strip() or None
+        else:
+            shop_phone = None
+
+        shop_line_contact = contact.get("line") or contact.get("line_url") or contact.get("line_id")
+        if isinstance(shop_line_contact, str):
+            shop_line_contact = shop_line_contact.strip() or None
+        else:
+            shop_line_contact = None
+
+        notification = ReservationNotification(
+            reservation_id=str(reservation.id),
+            shop_id=str(reservation.shop_id),
+            shop_name=getattr(shop, "name", None) or str(reservation.shop_id),
+            customer_name=reservation.customer_name,
+            customer_phone=reservation.customer_phone,
+            desired_start=reservation.desired_start.isoformat(),
+            desired_end=reservation.desired_end.isoformat(),
+            status=reservation.status,
+            channel=reservation.channel or "web",
+            notes=note or reservation.notes,
+            customer_email=reservation.customer_email,
+            shop_phone=shop_phone,
+            shop_line_contact=shop_line_contact,
+            email_recipients=[addr for addr in channels_config.get("emails", []) if isinstance(addr, str)],
+            slack_webhook_url=channels_config.get("slack"),
+            line_notify_token=channels_config.get("line"),
+        )
+        await enqueue_reservation_notification(db, notification)
+        await db.commit()
 
     return _reservation_to_schema(reservation).model_dump()

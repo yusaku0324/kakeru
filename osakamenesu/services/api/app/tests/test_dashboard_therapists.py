@@ -39,6 +39,11 @@ class _DummySettings:
         self.mail_api_key = "test-mail-key"
         self.mail_from_address = "no-reply@example.com"
         self.mail_provider_base_url = "https://api.resend.com"
+        self.reservation_notification_max_attempts = 3
+        self.reservation_notification_retry_base_seconds = 1
+        self.reservation_notification_retry_backoff_multiplier = 2.0
+        self.reservation_notification_worker_interval_seconds = 1.0
+        self.reservation_notification_batch_size = 10
         self.dashboard_session_cookie_name = "osakamenesu_session"
         self.site_session_cookie_name = "osakamenesu_session"
         self.site_base_url = None

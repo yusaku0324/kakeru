@@ -21,6 +21,9 @@ TherapistStatus = Enum('draft', 'published', 'archived', name='therapist_status'
 # bust_tag はマイグレーション互換性のため VARCHAR で運用
 ServiceType = Enum('store', 'dispatch', name='service_type')
 ReservationStatus = Enum('pending', 'confirmed', 'declined', 'cancelled', 'expired', name='reservation_status')
+RESERVATION_NOTIFICATION_CHANNEL_KEYS = ('email', 'slack', 'line', 'log')
+RESERVATION_NOTIFICATION_STATUS_KEYS = ('pending', 'in_progress', 'succeeded', 'failed', 'cancelled')
+RESERVATION_NOTIFICATION_ATTEMPT_STATUS_KEYS = ('success', 'failure')
 
 
 def now_utc() -> datetime:
@@ -353,6 +356,11 @@ class Reservation(Base):
     status_events: Mapped[list['ReservationStatusEvent']] = relationship(
         back_populates='reservation', cascade='all, delete-orphan', order_by='ReservationStatusEvent.changed_at'
     )
+    notification_deliveries: Mapped[list['ReservationNotificationDelivery']] = relationship(
+        back_populates='reservation',
+        cascade='all, delete-orphan',
+        order_by='ReservationNotificationDelivery.created_at',
+    )
     user: Mapped[User | None] = relationship(back_populates='reservations')
 
 
@@ -369,3 +377,97 @@ class ReservationStatusEvent(Base):
     note: Mapped[str | None] = mapped_column(Text)
 
     reservation: Mapped['Reservation'] = relationship(back_populates='status_events')
+
+
+class ReservationNotificationChannelOption(Base):
+    __tablename__ = 'reservation_notification_channels'
+
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    deliveries: Mapped[list["ReservationNotificationDelivery"]] = relationship(
+        back_populates='channel_option'
+    )
+
+
+class ReservationNotificationStatusOption(Base):
+    __tablename__ = 'reservation_notification_statuses'
+
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    deliveries: Mapped[list["ReservationNotificationDelivery"]] = relationship(
+        back_populates='status_option'
+    )
+
+
+class ReservationNotificationAttemptStatusOption(Base):
+    __tablename__ = 'reservation_notification_attempt_statuses'
+
+    key: Mapped[str] = mapped_column(String(16), primary_key=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    attempts: Mapped[list["ReservationNotificationAttempt"]] = relationship(
+        back_populates='status_option'
+    )
+
+
+class ReservationNotificationDelivery(Base):
+    __tablename__ = 'reservation_notification_deliveries'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    reservation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey('reservations.id', ondelete='CASCADE'),
+        index=True,
+    )
+    channel: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey('reservation_notification_channels.key', ondelete='RESTRICT'),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey('reservation_notification_statuses.key', ondelete='RESTRICT'),
+        default='pending',
+        nullable=False,
+        index=True,
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
+    channel_option: Mapped['ReservationNotificationChannelOption'] = relationship(back_populates='deliveries')
+    status_option: Mapped['ReservationNotificationStatusOption'] = relationship(back_populates='deliveries')
+
+    reservation: Mapped['Reservation'] = relationship(back_populates='notification_deliveries')
+    attempts: Mapped[list['ReservationNotificationAttempt']] = relationship(
+        back_populates='delivery', cascade='all, delete-orphan', order_by='ReservationNotificationAttempt.attempted_at'
+    )
+
+
+class ReservationNotificationAttempt(Base):
+    __tablename__ = 'reservation_notification_attempts'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    delivery_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey('reservation_notification_deliveries.id', ondelete='CASCADE'),
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(16),
+        ForeignKey('reservation_notification_attempt_statuses.key', ondelete='RESTRICT'),
+        nullable=False,
+        index=True,
+    )
+    response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
+    status_option: Mapped['ReservationNotificationAttemptStatusOption'] = relationship(back_populates='attempts')
+
+    delivery: Mapped['ReservationNotificationDelivery'] = relationship(back_populates='attempts')

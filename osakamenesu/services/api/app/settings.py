@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     auth_magic_link_expire_minutes: int = 15
     auth_magic_link_rate_limit: int = 5
     auth_session_ttl_days: int = 30
+    reservation_notification_max_attempts: int = 5
+    reservation_notification_retry_base_seconds: int = 30
+    reservation_notification_retry_backoff_multiplier: float = 2.0
+    reservation_notification_worker_interval_seconds: float = 1.5
+    reservation_notification_batch_size: int = 20
     dashboard_session_cookie_name: str = Field(
         default="osakamenesu_session",
         validation_alias=AliasChoices("AUTH_SESSION_COOKIE_NAME", "DASHBOARD_SESSION_COOKIE_NAME"),

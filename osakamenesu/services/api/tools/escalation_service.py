@@ -12,7 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.settings import settings
 from app.db import engine
 from app import models
-from app.notifications import ReservationNotification, send_reservation_notification
+from app.notifications import (
+    ReservationNotification,
+    enqueue_reservation_notification,
+    process_pending_notifications,
+)
 
 logger = logging.getLogger("escalation")
 
@@ -36,6 +40,7 @@ async def escalate(session: AsyncSession) -> None:
 
     logger.warning("found %d pending reservations exceeding threshold", len(pending))
 
+    created_jobs = False
     for reservation in pending:
         shop_res = await session.execute(select(models.Profile).where(models.Profile.id == reservation.shop_id))
         shop = shop_res.scalar_one_or_none()
@@ -49,25 +54,34 @@ async def escalate(session: AsyncSession) -> None:
             desired_end=reservation.desired_end.isoformat(),
             status=reservation.status,
             notes=reservation.notes,
+            channel=reservation.channel or "web",
         )
-        await send_reservation_notification(payload)
+        await enqueue_reservation_notification(session, payload)
+        created_jobs = True
 
         if SLACK_WEBHOOK:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                await client.post(SLACK_WEBHOOK, json={
-                    "text": f":rotating_light: 未処理予約アラート ({reservation.id})",
-                    "attachments": [
-                        {
-                            "color": "#ff0033",
-                            "fields": [
-                                {"title": "店舗", "value": payload.shop_name, "short": True},
-                                {"title": "顧客", "value": payload.customer_name, "short": True},
-                                {"title": "希望日時", "value": f"{payload.desired_start}〜", "short": False},
-                                {"title": "登録日時", "value": reservation.created_at.isoformat(), "short": False},
-                            ],
-                        }
-                    ],
-                })
+                await client.post(
+                    SLACK_WEBHOOK,
+                    json={
+                        "text": f":rotating_light: 未処理予約アラート ({reservation.id})",
+                        "attachments": [
+                            {
+                                "color": "#ff0033",
+                                "fields": [
+                                    {"title": "店舗", "value": payload.shop_name, "short": True},
+                                    {"title": "顧客", "value": payload.customer_name, "short": True},
+                                    {"title": "希望日時", "value": f"{payload.desired_start}〜", "short": False},
+                                    {"title": "登録日時", "value": reservation.created_at.isoformat(), "short": False},
+                                ],
+                            }
+                        ],
+                    },
+                )
+
+    if created_jobs:
+        await session.commit()
+        await process_pending_notifications()
 
 
 async def run_loop() -> None:
@@ -75,7 +89,7 @@ async def run_loop() -> None:
         try:
             async with AsyncSession(engine) as session:
                 await escalate(session)
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover - production diagnostic
             logger.exception("escalation loop error: %s", exc)
         await asyncio.sleep(POLL_INTERVAL)
 

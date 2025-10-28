@@ -7,6 +7,7 @@ from .settings import settings
 import logging
 from .meili import ensure_indexes
 from .utils.ratelimit import create_rate_limiter, shutdown_rate_limiter
+from .notifications import start_notification_worker, stop_notification_worker
 from .routers.profiles import router as profiles_router
 from .routers.admin import router as admin_router
 from .routers.shops import router as shops_router
@@ -49,7 +50,11 @@ async def lifespan(app: FastAPI):
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.warning("Meili init error: %s", exc)
 
+    await start_notification_worker()
+
     yield
+
+    await stop_notification_worker()
 
     await shutdown_rate_limiter(_outlink_rate)
 

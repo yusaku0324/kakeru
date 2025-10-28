@@ -64,6 +64,11 @@ class _DummySettings:
         self.auth_magic_link_redirect_path = "/auth/complete"
         self.auth_magic_link_debug = True
         self.site_base_url = "https://example.com"
+        self.reservation_notification_max_attempts = 3
+        self.reservation_notification_retry_base_seconds = 1
+        self.reservation_notification_retry_backoff_multiplier = 2.0
+        self.reservation_notification_worker_interval_seconds = 1.0
+        self.reservation_notification_batch_size = 10
 
     @property
     def auth_session_cookie_name(self) -> str:
