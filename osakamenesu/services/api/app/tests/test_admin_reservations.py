@@ -77,7 +77,7 @@ settings_module.Settings = _DummySettings  # type: ignore[attr-defined]
 settings_module.settings = _DummySettings()
 sys.modules["app.settings"] = settings_module
 
-from app.routers import admin  # type: ignore  # noqa: E402
+from app.services.reservations_admin import build_reservation_summary  # type: ignore  # noqa: E402
 
 
 def _make_reservation(**overrides):
@@ -109,7 +109,7 @@ def test_build_reservation_summary_normalizes_non_string_fields():
         customer_email="  ",
     )
 
-    summary = admin._build_reservation_summary(reservation, {})  # type: ignore[attr-defined]
+    summary = build_reservation_summary(reservation, {})
 
     assert summary.channel == "['form']"
     assert summary.notes == "{'key': 'value'}"
@@ -121,7 +121,7 @@ def test_build_reservation_summary_normalizes_non_string_fields():
 def test_build_reservation_summary_falls_back_for_unknown_status():
     reservation = _make_reservation(status="unexpected", channel=None, notes=None)
 
-    summary = admin._build_reservation_summary(reservation, {reservation.shop_id: "Shop"})  # type: ignore[attr-defined]
+    summary = build_reservation_summary(reservation, {reservation.shop_id: "Shop"})
 
     assert summary.status == "pending"
     assert summary.shop_name == "Shop"

@@ -1,5 +1,4 @@
 import inspect
-import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.encoders import jsonable_encoder
@@ -40,115 +39,16 @@ from ..schemas import (
 )
 from zoneinfo import ZoneInfo
 from datetime import datetime, timezone, date
-from typing import Optional, Any, List, Mapping
+from typing import Optional, Any, List
 import uuid
 from ..deps import require_admin, audit_admin
 from .shops import _fetch_availability, _normalize_menus, _normalize_staff, serialize_review
 from ..utils.slug import slugify
+from ..constants import RESERVATION_STATUS_SET
+from ..services.reservations_admin import build_reservation_summary
 
 router = APIRouter(dependencies=[Depends(require_admin), Depends(audit_admin)])
 JST = ZoneInfo("Asia/Tokyo")
-_RESERVATION_ADMIN_STATUSES = {"pending", "confirmed", "declined", "cancelled", "expired"}
-logger = logging.getLogger(__name__)
-
-
-def _stringify_optional(value: Any) -> Optional[str]:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        trimmed = value.strip()
-        return trimmed or None
-    try:
-        trimmed = str(value).strip()
-    except Exception:
-        return None
-    return trimmed or None
-
-
-def _stringify_required(value: Any) -> str:
-    return _stringify_optional(value) or ""
-
-
-def _normalize_status(value: Any) -> str:
-    if isinstance(value, str):
-        candidate = value.strip().lower()
-        if candidate in _RESERVATION_ADMIN_STATUSES:
-            return candidate
-    else:
-        try:
-            candidate = str(value).strip().lower()
-            if candidate in _RESERVATION_ADMIN_STATUSES:
-                return candidate
-        except Exception:
-            pass
-    return "pending"
-
-
-def _build_reservation_summary(
-    reservation: Any,
-    shop_names: Mapping[UUID, str],
-) -> ReservationAdminSummary:
-    try:
-        shop_id = getattr(reservation, "shop_id")
-        reservation_id = getattr(reservation, "id")
-        shop_name = shop_names.get(shop_id, "") or ""
-
-        status = _normalize_status(getattr(reservation, "status", None))
-        channel = _stringify_optional(getattr(reservation, "channel", None))
-        notes = _stringify_optional(getattr(reservation, "notes", None))
-        customer_name = _stringify_required(getattr(reservation, "customer_name", ""))
-        customer_phone = _stringify_required(getattr(reservation, "customer_phone", ""))
-        customer_email = _stringify_optional(getattr(reservation, "customer_email", None))
-
-        return ReservationAdminSummary(
-            id=reservation_id,
-            shop_id=shop_id,
-            shop_name=shop_name,
-            status=status,  # type: ignore[arg-type]
-            desired_start=getattr(reservation, "desired_start"),
-            desired_end=getattr(reservation, "desired_end"),
-            channel=channel,
-            notes=notes,
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            customer_email=customer_email,
-            created_at=getattr(reservation, "created_at"),
-            updated_at=getattr(reservation, "updated_at"),
-        )
-    except Exception:
-        logger.exception(
-            "admin/reservations serialization failed",
-            extra={"reservation_id": getattr(reservation, "id", None)},
-        )
-        now = datetime.now(timezone.utc)
-        fallback_id = getattr(reservation, "id", uuid.uuid4())
-        if not isinstance(fallback_id, UUID):
-            try:
-                fallback_id = UUID(str(fallback_id))
-            except Exception:
-                fallback_id = uuid.uuid4()
-        fallback_shop_id = getattr(reservation, "shop_id", uuid.uuid4())
-        if not isinstance(fallback_shop_id, UUID):
-            try:
-                fallback_shop_id = UUID(str(fallback_shop_id))
-            except Exception:
-                fallback_shop_id = uuid.uuid4()
-
-        return ReservationAdminSummary(
-            id=fallback_id,
-            shop_id=fallback_shop_id,
-            shop_name=shop_names.get(fallback_shop_id, "") or "",
-            status="pending",
-            desired_start=getattr(reservation, "desired_start", now),
-            desired_end=getattr(reservation, "desired_end", now),
-            channel=None,
-            notes=None,
-            customer_name="",
-            customer_phone="",
-            customer_email=None,
-            created_at=getattr(reservation, "created_at", now),
-            updated_at=getattr(reservation, "updated_at", now),
-        )
 
 def _build_doc(
     p: models.Profile,
@@ -479,7 +379,7 @@ async def update_reservation_admin(
 
     status_changed = False
     if payload.status is not None and payload.status != reservation.status:
-        if payload.status not in {"pending", "confirmed", "declined", "cancelled", "expired"}:
+        if payload.status not in RESERVATION_STATUS_SET:
             raise HTTPException(status_code=400, detail="invalid status")
         reservation.status = payload.status
         status_changed = True

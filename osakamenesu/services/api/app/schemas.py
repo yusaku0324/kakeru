@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, conint, constr, EmailStr
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from datetime import datetime, date
+from .constants import ReservationStatusLiteral
 
 
 REVIEW_ASPECT_KEYS = ("therapist_service", "staff_response", "room_cleanliness")
@@ -416,7 +417,7 @@ class ReservationCustomer(ReservationCustomerInput):
 
 
 class ReservationStatusEvent(BaseModel):
-    status: Literal['pending', 'confirmed', 'declined', 'cancelled', 'expired']
+    status: ReservationStatusLiteral
     changed_at: datetime
     changed_by: Optional[str] = None
     note: Optional[str] = None
@@ -424,7 +425,7 @@ class ReservationStatusEvent(BaseModel):
 
 class Reservation(BaseModel):
     id: UUID
-    status: Literal['pending', 'confirmed', 'declined', 'cancelled', 'expired']
+    status: ReservationStatusLiteral
     shop_id: UUID
     staff_id: Optional[UUID] = None
     menu_id: Optional[UUID] = None
@@ -452,7 +453,7 @@ class ReservationCreateRequest(BaseModel):
 
 
 class ReservationUpdateRequest(BaseModel):
-    status: Optional[Literal['pending', 'confirmed', 'declined', 'cancelled', 'expired']] = None
+    status: Optional[ReservationStatusLiteral] = None
     staff_id: Optional[UUID] = None
     notes: Optional[str] = None
     response_message: Optional[str] = None
@@ -463,7 +464,7 @@ class ReservationAdminSummary(BaseModel):
     id: UUID
     shop_id: UUID
     shop_name: str
-    status: Literal['pending', 'confirmed', 'declined', 'cancelled', 'expired']
+    status: ReservationStatusLiteral
     desired_start: datetime
     desired_end: datetime
     channel: Optional[str] = None
@@ -481,7 +482,7 @@ class ReservationAdminList(BaseModel):
 
 
 class ReservationAdminUpdate(BaseModel):
-    status: Optional[Literal['pending', 'confirmed', 'declined', 'cancelled', 'expired']] = None
+    status: Optional[ReservationStatusLiteral] = None
     notes: Optional[str] = None
 
 
@@ -647,7 +648,7 @@ class ShopAdminDetail(BaseModel):
     staff: List[StaffSummary] = Field(default_factory=list)
     availability: List[AvailabilityDay] = Field(default_factory=list)
 
-DashboardNotificationStatus = Literal['pending', 'confirmed', 'declined', 'cancelled', 'expired']
+DashboardNotificationStatus = ReservationStatusLiteral
 
 
 class DashboardNotificationChannelEmail(BaseModel):
