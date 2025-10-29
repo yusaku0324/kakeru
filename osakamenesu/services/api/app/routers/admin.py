@@ -47,6 +47,7 @@ from ..utils.slug import slugify
 
 router = APIRouter(dependencies=[Depends(require_admin), Depends(audit_admin)])
 JST = ZoneInfo("Asia/Tokyo")
+_RESERVATION_ADMIN_STATUSES = {"pending", "confirmed", "declined", "cancelled", "expired"}
 
 def _build_doc(
     p: models.Profile,
