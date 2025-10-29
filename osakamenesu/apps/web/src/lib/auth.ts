@@ -21,7 +21,7 @@ async function requestMagicLink(email: string, scope: 'dashboard' | 'site'): Pro
         body: payload,
       })
 
-      if (response.status === 202) {
+      if (response.ok) {
         return { status: 'success' }
       }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-const ADMIN_KEY = process.env.ADMIN_API_KEY
+const ADMIN_KEY = process.env.ADMIN_API_KEY || process.env.OSAKAMENESU_ADMIN_API_KEY
 const PUBLIC_BASE = process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE || process.env.NEXT_PUBLIC_API_BASE || '/api'
 const INTERNAL_BASE = process.env.OSAKAMENESU_API_INTERNAL_BASE || process.env.API_INTERNAL_BASE || 'http://osakamenesu-api:8000'
 
@@ -26,33 +26,36 @@ async function proxy(method: 'GET' | 'PATCH', request: Request, params: { id: st
   }
 
   let lastError: any = null
-  const targetPath = method === 'PATCH'
-    ? `/api/admin/shops/${params.id}/content`
-    : `/api/admin/shops/${params.id}`
+  const targetPaths =
+    method === 'PATCH'
+      ? [`/api/admin/shops/${params.id}`, `/api/admin/shops/${params.id}/content`]
+      : [`/api/admin/shops/${params.id}`]
 
-  for (const base of bases()) {
-    try {
-      const resp = await fetch(`${base}${targetPath}`, {
-        method,
-        headers,
-        body,
-        cache: 'no-store',
-      })
-      const text = await resp.text()
-      let json: any = null
-      if (text) {
-        try {
-          json = JSON.parse(text)
-        } catch {
-          json = { detail: text }
+  for (const targetPath of targetPaths) {
+    for (const base of bases()) {
+      try {
+        const resp = await fetch(`${base}${targetPath}`, {
+          method,
+          headers,
+          body,
+          cache: 'no-store',
+        })
+        const text = await resp.text()
+        let json: any = null
+        if (text) {
+          try {
+            json = JSON.parse(text)
+          } catch {
+            json = { detail: text }
+          }
         }
+        if (resp.ok) {
+          return NextResponse.json(json)
+        }
+        lastError = { status: resp.status, body: json }
+      } catch (err) {
+        lastError = err
       }
-      if (resp.ok) {
-        return NextResponse.json(json)
-      }
-      lastError = { status: resp.status, body: json }
-    } catch (err) {
-      lastError = err
     }
   }
   if (lastError?.status && lastError.body) {

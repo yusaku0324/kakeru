@@ -1,4 +1,5 @@
 import inspect
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.encoders import jsonable_encoder
@@ -44,9 +45,20 @@ import uuid
 from ..deps import require_admin, audit_admin
 from .shops import _fetch_availability, _normalize_menus, _normalize_staff, serialize_review
 from ..utils.slug import slugify
+from ..constants import RESERVATION_STATUS_SET
+from ..services import list_reservations as list_admin_reservations
 
 router = APIRouter(dependencies=[Depends(require_admin), Depends(audit_admin)])
 JST = ZoneInfo("Asia/Tokyo")
+logger = logging.getLogger(__name__)
+
+
+def _index_profile_best_effort(document: dict[str, Any]) -> None:
+    try:
+        index_profile(document)
+    except Exception as exc:
+        logger.warning("[admin] index_profile failed: %s", exc)
+
 
 def _build_doc(
     p: models.Profile,
@@ -310,10 +322,7 @@ async def update_marketing(profile_id: str, payload: ProfileMarketingUpdate, db:
     res_out = await db.execute(select(models.Outlink).where(models.Outlink.profile_id == profile.id))
     outlinks = list(res_out.scalars().all())
 
-    try:
-        index_profile(_build_doc(profile, has_today, outlinks))
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"meili_unavailable: {e}")
+    _index_profile_best_effort(_build_doc(profile, has_today, outlinks))
 
     return {"ok": True}
 
@@ -328,47 +337,12 @@ async def list_reservations(
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
 
-    stmt = select(models.Reservation).order_by(models.Reservation.created_at.desc())
-    count_stmt = select(func.count()).select_from(models.Reservation)
-    if status:
-        stmt = stmt.where(models.Reservation.status == status)
-        count_stmt = count_stmt.where(models.Reservation.status == status)
-
-    result = await db.execute(stmt.offset(offset).limit(limit))
-    reservations = result.scalars().all()
-
-    total = (await db.execute(count_stmt)).scalar_one()
-
-    shop_ids = [r.shop_id for r in reservations]
-    shop_names: dict[UUID, str] = {}
-    if shop_ids:
-        res = await db.execute(
-            select(models.Profile.id, models.Profile.name).where(models.Profile.id.in_(shop_ids))
-        )
-        shop_names = dict(res.all())
-
-    items: list[ReservationAdminSummary] = []
-    for r in reservations:
-        normalized_status = r.status if r.status in _RESERVATION_ADMIN_STATUSES else "pending"
-        items.append(
-            ReservationAdminSummary(
-                id=r.id,
-                shop_id=r.shop_id,
-                shop_name=shop_names.get(r.shop_id, "") or "",
-                status=normalized_status,  # type: ignore[arg-type]
-                desired_start=r.desired_start,
-                desired_end=r.desired_end,
-                channel=r.channel or None,
-                notes=r.notes or None,
-                customer_name=r.customer_name or "",
-                customer_phone=r.customer_phone or "",
-                customer_email=r.customer_email or None,
-                created_at=r.created_at,
-                updated_at=r.updated_at,
-            )
-        )
-
-    return ReservationAdminList(total=total, items=items)
+    return await list_admin_reservations(
+        db,
+        status=status,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.patch("/api/admin/reservations/{reservation_id}", summary="Update reservation status")
@@ -394,7 +368,7 @@ async def update_reservation_admin(
 
     status_changed = False
     if payload.status is not None and payload.status != reservation.status:
-        if payload.status not in {"pending", "confirmed", "declined", "cancelled", "expired"}:
+        if payload.status not in RESERVATION_STATUS_SET:
             raise HTTPException(status_code=400, detail="invalid status")
         reservation.status = payload.status
         status_changed = True
@@ -656,7 +630,7 @@ async def admin_update_shop_content(
     has_today = (res_today.scalar_one() or 0) > 0
     res_out = await db.execute(select(models.Outlink).where(models.Outlink.profile_id == profile.id))
     outlinks = list(res_out.scalars().all())
-    index_profile(_build_doc(profile, has_today, outlinks))
+    _index_profile_best_effort(_build_doc(profile, has_today, outlinks))
 
     detail = await admin_get_shop(profile.id, db)
     await _record_change(
@@ -861,7 +835,7 @@ async def admin_bulk_ingest_shop_content(
         has_today = (res_today.scalar_one() or 0) > 0
         res_out = await db.execute(select(models.Outlink).where(models.Outlink.profile_id == profile.id))
         outlinks = list(res_out.scalars().all())
-        index_profile(_build_doc(profile, has_today, outlinks))
+        _index_profile_best_effort(_build_doc(profile, has_today, outlinks))
 
         after_detail = await admin_get_shop(profile.id, db)
         await _record_change(
