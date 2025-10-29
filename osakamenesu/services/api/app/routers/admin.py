@@ -1,4 +1,5 @@
 import inspect
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.encoders import jsonable_encoder
@@ -49,6 +50,15 @@ from ..services import list_reservations as list_admin_reservations
 
 router = APIRouter(dependencies=[Depends(require_admin), Depends(audit_admin)])
 JST = ZoneInfo("Asia/Tokyo")
+logger = logging.getLogger(__name__)
+
+
+def _index_profile_best_effort(document: dict[str, Any]) -> None:
+    try:
+        index_profile(document)
+    except Exception as exc:
+        logger.warning("[admin] index_profile failed: %s", exc)
+
 
 def _build_doc(
     p: models.Profile,
@@ -312,10 +322,7 @@ async def update_marketing(profile_id: str, payload: ProfileMarketingUpdate, db:
     res_out = await db.execute(select(models.Outlink).where(models.Outlink.profile_id == profile.id))
     outlinks = list(res_out.scalars().all())
 
-    try:
-        index_profile(_build_doc(profile, has_today, outlinks))
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"meili_unavailable: {e}")
+    _index_profile_best_effort(_build_doc(profile, has_today, outlinks))
 
     return {"ok": True}
 
@@ -623,7 +630,7 @@ async def admin_update_shop_content(
     has_today = (res_today.scalar_one() or 0) > 0
     res_out = await db.execute(select(models.Outlink).where(models.Outlink.profile_id == profile.id))
     outlinks = list(res_out.scalars().all())
-    index_profile(_build_doc(profile, has_today, outlinks))
+    _index_profile_best_effort(_build_doc(profile, has_today, outlinks))
 
     detail = await admin_get_shop(profile.id, db)
     await _record_change(
@@ -828,7 +835,7 @@ async def admin_bulk_ingest_shop_content(
         has_today = (res_today.scalar_one() or 0) > 0
         res_out = await db.execute(select(models.Outlink).where(models.Outlink.profile_id == profile.id))
         outlinks = list(res_out.scalars().all())
-        index_profile(_build_doc(profile, has_today, outlinks))
+        _index_profile_best_effort(_build_doc(profile, has_today, outlinks))
 
         after_detail = await admin_get_shop(profile.id, db)
         await _record_change(
