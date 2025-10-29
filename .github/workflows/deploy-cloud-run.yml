@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  deploy-api:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,9 +18,38 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Deploy to Cloud Run
+      - name: Deploy API service
         run: |
           gcloud run deploy osakamenesu-api \
             --region=asia-northeast1 \
             --source=. \
             --allow-unauthenticated
+
+  deploy-web:
+    runs-on: ubuntu-latest
+    needs: deploy-api
+    env:
+      NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+      NEXT_PUBLIC_OSAKAMENESU_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
+      ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+      ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER }}
+      ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate gcloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Install gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Deploy web
+        working-directory: osakamenesu/apps/web
+        run: ./scripts/deploy_web.sh
+        env:
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+          REGION: asia-northeast1
