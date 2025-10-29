@@ -47,11 +47,31 @@ def _normalize_status(value: Any) -> ReservationStatusLiteral:
     return DEFAULT_RESERVATION_STATUS
 
 
+def _coerce_datetime(value: Any, *, fallback: datetime | None = None) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        except ValueError:
+            pass
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(value, tz=timezone.utc)
+        except Exception:
+            pass
+    return fallback or datetime.now(timezone.utc)
+
+
 def build_reservation_summary(
     reservation: Any,
     shop_names: Mapping[UUID, str],
 ) -> ReservationAdminSummary:
     """Normalize a reservation record for admin API responses."""
+    fallback_now = datetime.now(timezone.utc)
     try:
         shop_id = getattr(reservation, "shop_id")
         reservation_id = getattr(reservation, "id")
@@ -62,28 +82,32 @@ def build_reservation_summary(
         customer_name = _stringify_required(getattr(reservation, "customer_name", ""))
         customer_phone = _stringify_required(getattr(reservation, "customer_phone", ""))
         customer_email = _stringify_optional(getattr(reservation, "customer_email", None))
+        desired_start = _coerce_datetime(getattr(reservation, "desired_start", None), fallback=fallback_now)
+        desired_end = _coerce_datetime(getattr(reservation, "desired_end", None), fallback=fallback_now)
+        created_at = _coerce_datetime(getattr(reservation, "created_at", None), fallback=fallback_now)
+        updated_at = _coerce_datetime(getattr(reservation, "updated_at", None), fallback=created_at)
 
         return ReservationAdminSummary(
             id=reservation_id,
             shop_id=shop_id,
             shop_name=shop_names.get(shop_id, "") or "",
             status=status,  # type: ignore[arg-type]
-            desired_start=getattr(reservation, "desired_start"),
-            desired_end=getattr(reservation, "desired_end"),
+            desired_start=desired_start,
+            desired_end=desired_end,
             channel=channel,
             notes=notes,
             customer_name=customer_name,
             customer_phone=customer_phone,
             customer_email=customer_email,
-            created_at=getattr(reservation, "created_at"),
-            updated_at=getattr(reservation, "updated_at"),
+            created_at=created_at,
+            updated_at=updated_at,
         )
     except Exception:
         logger.exception(
             "admin/reservations serialization failed",
             extra={"reservation_id": getattr(reservation, "id", None)},
         )
-        now = datetime.now(timezone.utc)
+        now = fallback_now
         fallback_id = getattr(reservation, "id", uuid.uuid4())
         if not isinstance(fallback_id, UUID):
             try:
@@ -102,15 +126,15 @@ def build_reservation_summary(
             shop_id=fallback_shop_id,
             shop_name=shop_names.get(fallback_shop_id, "") or "",
             status=DEFAULT_RESERVATION_STATUS,
-            desired_start=getattr(reservation, "desired_start", now),
-            desired_end=getattr(reservation, "desired_end", now),
+            desired_start=_coerce_datetime(getattr(reservation, "desired_start", None), fallback=now),
+            desired_end=_coerce_datetime(getattr(reservation, "desired_end", None), fallback=now),
             channel=None,
             notes=None,
             customer_name="",
             customer_phone="",
             customer_email=None,
-            created_at=getattr(reservation, "created_at", now),
-            updated_at=getattr(reservation, "updated_at", now),
+            created_at=_coerce_datetime(getattr(reservation, "created_at", None), fallback=now),
+            updated_at=_coerce_datetime(getattr(reservation, "updated_at", None), fallback=now),
         )
 
 
