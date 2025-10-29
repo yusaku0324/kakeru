@@ -6,8 +6,12 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 from uuid import UUID
 
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .. import models
 from ..constants import DEFAULT_RESERVATION_STATUS, RESERVATION_STATUS_SET, ReservationStatusLiteral
-from ..schemas import ReservationAdminSummary
+from ..schemas import ReservationAdminList, ReservationAdminSummary
 
 logger = logging.getLogger(__name__)
 
@@ -108,3 +112,37 @@ def build_reservation_summary(
             created_at=getattr(reservation, "created_at", now),
             updated_at=getattr(reservation, "updated_at", now),
         )
+
+
+async def list_reservations(
+    db: AsyncSession,
+    *,
+    status: str | None,
+    limit: int,
+    offset: int,
+) -> ReservationAdminList:
+    """Fetch reservations for the admin dashboard with shop metadata."""
+
+    stmt = select(models.Reservation).order_by(models.Reservation.created_at.desc())
+    count_stmt = select(func.count()).select_from(models.Reservation)
+
+    if status:
+        stmt = stmt.where(models.Reservation.status == status)
+        count_stmt = count_stmt.where(models.Reservation.status == status)
+
+    reservations_result = await db.execute(stmt.offset(offset).limit(limit))
+    reservations = reservations_result.scalars().all()
+
+    total = (await db.execute(count_stmt)).scalar_one()
+
+    shop_names: dict[UUID, str] = {}
+    shop_ids = [r.shop_id for r in reservations]
+    if shop_ids:
+        profiles_result = await db.execute(
+            select(models.Profile.id, models.Profile.name).where(models.Profile.id.in_(shop_ids))
+        )
+        shop_names = dict(profiles_result.all())
+
+    items = [build_reservation_summary(reservation, shop_names) for reservation in reservations]
+
+    return ReservationAdminList(total=total, items=items)

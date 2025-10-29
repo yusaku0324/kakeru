@@ -45,7 +45,7 @@ from ..deps import require_admin, audit_admin
 from .shops import _fetch_availability, _normalize_menus, _normalize_staff, serialize_review
 from ..utils.slug import slugify
 from ..constants import RESERVATION_STATUS_SET
-from ..services.reservations_admin import build_reservation_summary
+from ..services import list_reservations as list_admin_reservations
 
 router = APIRouter(dependencies=[Depends(require_admin), Depends(audit_admin)])
 JST = ZoneInfo("Asia/Tokyo")
@@ -330,30 +330,12 @@ async def list_reservations(
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
 
-    stmt = select(models.Reservation).order_by(models.Reservation.created_at.desc())
-    count_stmt = select(func.count()).select_from(models.Reservation)
-    if status:
-        stmt = stmt.where(models.Reservation.status == status)
-        count_stmt = count_stmt.where(models.Reservation.status == status)
-
-    result = await db.execute(stmt.offset(offset).limit(limit))
-    reservations = result.scalars().all()
-
-    total = (await db.execute(count_stmt)).scalar_one()
-
-    shop_ids = [r.shop_id for r in reservations]
-    shop_names: dict[UUID, str] = {}
-    if shop_ids:
-        res = await db.execute(
-            select(models.Profile.id, models.Profile.name).where(models.Profile.id.in_(shop_ids))
-        )
-        shop_names = dict(res.all())
-
-    items: list[ReservationAdminSummary] = []
-    for reservation in reservations:
-        items.append(_build_reservation_summary(reservation, shop_names))
-
-    return ReservationAdminList(total=total, items=items)
+    return await list_admin_reservations(
+        db,
+        status=status,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.patch("/api/admin/reservations/{reservation_id}", summary="Update reservation status")
