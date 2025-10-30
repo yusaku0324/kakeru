@@ -37,11 +37,14 @@ jobs:
       - name: Deploy API service
         run: |
           set -euo pipefail
+          export DATABASE_URL="${{ env.DATABASE_URL }}"
+          export SITE_BASE_URL="${{ env.SITE_BASE_URL }}"
+          export MEILI_HOST="${{ env.MEILI_HOST }}"
           gcloud run deploy osakamenesu-api \
-            --image=gcr.io/${{ env.PROJECT_ID }}/osakamenesu-api \
-            --region=${{ env.REGION }} \
-            --set-env-vars=DATABASE_URL=${{ env.DATABASE_URL }},SITE_BASE_URL=${{ env.SITE_BASE_URL }},MEILI_HOST=${{ env.MEILI_HOST }} \
-            --set-secrets=MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest,OSAKAMENESU_ADMIN_API_KEY=OSAKAMENESU_ADMIN_API_KEY:latest
+            --image="gcr.io/${{ env.PROJECT_ID }}/osakamenesu-api" \
+            --region="${{ env.REGION }}" \
+            --set-env-vars "DATABASE_URL=${DATABASE_URL},SITE_BASE_URL=${SITE_BASE_URL},MEILI_HOST=${MEILI_HOST}" \
+            --set-secrets "MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest,OSAKAMENESU_ADMIN_API_KEY=OSAKAMENESU_ADMIN_API_KEY:latest"
 
   deploy-web:
     runs-on: ubuntu-latest
