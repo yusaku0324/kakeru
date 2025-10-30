@@ -76,13 +76,21 @@ def _session_cookie_names(scope: str | None = None) -> list[str]:
     names: list[str] = []
     cfg = _settings()
     if scope == "dashboard":
-        candidates = [getattr(cfg, "dashboard_session_cookie_name", None)]
+        candidates = [
+            getattr(cfg, "dashboard_session_cookie_name", None),
+            getattr(settings, "dashboard_session_cookie_name", None),
+        ]
     elif scope == "site":
-        candidates = [getattr(cfg, "site_session_cookie_name", None)]
+        candidates = [
+            getattr(cfg, "site_session_cookie_name", None),
+            getattr(settings, "site_session_cookie_name", None),
+        ]
     else:
         candidates = [
             getattr(cfg, "dashboard_session_cookie_name", None),
             getattr(cfg, "site_session_cookie_name", None),
+            getattr(settings, "dashboard_session_cookie_name", None),
+            getattr(settings, "site_session_cookie_name", None),
         ]
 
     for name in candidates:
