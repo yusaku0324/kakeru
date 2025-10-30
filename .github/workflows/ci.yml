@@ -446,7 +446,6 @@ jobs:
           MEILI_HOST_FALLBACK: ${{ secrets.MEILI_HOST }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
-          MAIL_APIKEY: ${{ secrets.MAIL_APIKEY }}
           MAIL_FROM_ADDRESS: ${{ secrets.MAIL_FROM_ADDRESS }}
           MAIL_PROVIDER_BASE_URL: ${{ secrets.MAIL_PROVIDER_BASE_URL }}
         run: |
@@ -459,22 +458,30 @@ jobs:
             echo "::error::Meilisearch host is not configured. Set CLOUD_RUN_MEILI_SERVICE or secrets.MEILI_HOST." >&2
             exit 1
           fi
+          if ! gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "MAIL_APIKEY" >/dev/null 2>&1; then
+            echo "::error::Secret Manager entry 'MAIL_APIKEY' is not accessible." >&2
+            exit 1
+          fi
           echo "::add-mask::${MEILI_HOST_EFFECTIVE}"
-          declare -a ENV_VARS=(
-            "DATABASE_URL=${DATABASE_URL}"
-            "MEILI_HOST=${MEILI_HOST_EFFECTIVE}"
-            "SITE_BASE_URL=${SITE_BASE_URL}"
-            "MAIL_APIKEY=${MAIL_APIKEY}"
-            "MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}"
-            "MAIL_PROVIDER_BASE_URL=${MAIL_PROVIDER_BASE_URL}"
-          )
-          ENV_STRING=$(IFS=,; printf '%s' "${ENV_VARS[*]}")
+          env_file=$(mktemp)
+          trap 'rm -f "$env_file"' EXIT
+          printf "DATABASE_URL=%s\\n" "${DATABASE_URL}" >> "$env_file"
+          printf "MEILI_HOST=%s\\n" "${MEILI_HOST_EFFECTIVE}" >> "$env_file"
+          printf "SITE_BASE_URL=%s\\n" "${SITE_BASE_URL}" >> "$env_file"
+          printf "MAIL_FROM_ADDRESS=%s\\n" "${MAIL_FROM_ADDRESS}" >> "$env_file"
+          printf "MAIL_PROVIDER_BASE_URL=%s\\n" "${MAIL_PROVIDER_BASE_URL}" >> "$env_file"
+          gcloud run services update "$CLOUD_RUN_API_SERVICE" \
+            --region "$CLOUD_RUN_REGION" \
+            --remove-env-vars "MAIL_APIKEY" \
+            --remove-secrets "MAIL_APIKEY" \
+            --quiet
           gcloud run services update "$CLOUD_RUN_API_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --add-cloudsql-instances "${GCP_PROJECT_ID}:${CLOUD_RUN_REGION}:osakamenesu-pg" \
             --image "$IMAGE" \
-            --update-env-vars "$ENV_STRING" \
-            --set-secrets "MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest,OSAKAMENESU_ADMIN_API_KEY=OSAKAMENESU_ADMIN_API_KEY:latest"
+            --env-vars-file "$env_file" \
+            --set-secrets "MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest,OSAKAMENESU_ADMIN_API_KEY=OSAKAMENESU_ADMIN_API_KEY:latest,MAIL_APIKEY=MAIL_APIKEY:latest" \
+            --quiet
 
       - name: Deploy osakamenesu-web to Cloud Run
         env:
