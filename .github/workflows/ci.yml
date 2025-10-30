@@ -351,7 +351,7 @@ jobs:
             echo "::error::CLOUD_RUN_MEILI_SERVICE secret is not set." >&2
             exit 1
           fi
-          if ! gcloud secrets describe "MEILI_MASTER_KEY" >/dev/null 2>&1; then
+          if ! gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "MEILI_MASTER_KEY" >/dev/null 2>&1; then
             echo "::error::Secret Manager entry 'MEILI_MASTER_KEY' is not accessible." >&2
             exit 1
           fi
