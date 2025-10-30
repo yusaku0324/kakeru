@@ -65,8 +65,11 @@ dummy_settings_module.Settings = _DummySettings  # type: ignore[attr-defined]
 dummy_settings_module.settings = _DummySettings()
 sys.modules.setdefault("app.settings", dummy_settings_module)
 
+import importlib
+
 from app import models  # type: ignore  # noqa: E402
-from app.domains.site import favorites_router as favorites  # type: ignore  # noqa: E402
+favorites = importlib.import_module("app.domains.site.favorites")  # type: ignore  # noqa: E402
+from fastapi import HTTPException, status
 from app.schemas import TherapistFavoriteCreate  # type: ignore  # noqa: E402
 
 
@@ -326,10 +329,10 @@ async def test_add_therapist_favorite_missing_therapist_raises():
     session = FakeSession()
     payload = TherapistFavoriteCreate(therapist_id=uuid.uuid4())
 
-    with pytest.raises(favorites.HTTPException) as exc:
+    with pytest.raises(HTTPException) as exc:
         await favorites.add_therapist_favorite(payload=payload, user=user, db=session)
 
-    assert exc.value.status_code == favorites.status.HTTP_404_NOT_FOUND
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
     assert exc.value.detail == "therapist_not_found"
 
 

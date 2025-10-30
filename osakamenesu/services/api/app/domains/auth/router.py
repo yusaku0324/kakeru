@@ -14,6 +14,8 @@ from ... import models
 from ...db import get_session
 from ...deps import require_dashboard_user, require_site_user
 from ...schemas import AuthRequestLink, AuthVerifyRequest, UserPublic
+from importlib import import_module
+
 from ...settings import settings
 from ...utils.auth import generate_token, hash_token, magic_link_expiry, session_expiry
 from ...utils.email import MailNotConfiguredError, send_email_async
@@ -26,6 +28,10 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 def _ip_from_request(request: Request) -> Optional[str]:
     return request.headers.get("x-forwarded-for") or (request.client.host if request.client else None)
 
+def _settings():
+    module = import_module("app.settings")
+    return getattr(module, "settings")
+
 
 def _hash_ip(ip: Optional[str]) -> Optional[str]:
     if not ip:
@@ -34,8 +40,9 @@ def _hash_ip(ip: Optional[str]) -> Optional[str]:
 
 
 def _build_magic_link(token: str) -> str:
-    base_url = settings.site_base_url or settings.api_origin or "http://localhost:3000"
-    path = settings.auth_magic_link_redirect_path or "/auth/complete"
+    cfg = _settings()
+    base_url = getattr(cfg, "site_base_url", None) or getattr(cfg, "api_origin", None) or "http://localhost:3000"
+    path = getattr(cfg, "auth_magic_link_redirect_path", None) or "/auth/complete"
     if base_url.endswith('/') and path.startswith('/'):
         link = f"{base_url[:-1]}{path}"
     elif not base_url.endswith('/') and not path.startswith('/'):
@@ -59,20 +66,23 @@ async def _enforce_rate_limit(user_id: Optional[UUID], ip_hash: Optional[str], d
     stmt = select(func.count(models.UserAuthToken.id)).where(models.UserAuthToken.created_at >= window_start)
     stmt = stmt.where(or_(*conditions)) if len(conditions) > 1 else stmt.where(conditions[0])
     issued_recently = (await db.execute(stmt)).scalar() or 0
-    if issued_recently >= max(1, settings.auth_magic_link_rate_limit):
+    cfg = _settings()
+    rate_limit = getattr(cfg, "auth_magic_link_rate_limit", 5)
+    if issued_recently >= max(1, rate_limit):
         raise HTTPException(status_code=429, detail="too_many_requests")
 
 
 def _session_cookie_names(scope: str | None = None) -> list[str]:
     names: list[str] = []
+    cfg = _settings()
     if scope == "dashboard":
-        candidates = [getattr(settings, "dashboard_session_cookie_name", None)]
+        candidates = [getattr(cfg, "dashboard_session_cookie_name", None)]
     elif scope == "site":
-        candidates = [getattr(settings, "site_session_cookie_name", None)]
+        candidates = [getattr(cfg, "site_session_cookie_name", None)]
     else:
         candidates = [
-            getattr(settings, "dashboard_session_cookie_name", None),
-            getattr(settings, "site_session_cookie_name", None),
+            getattr(cfg, "dashboard_session_cookie_name", None),
+            getattr(cfg, "site_session_cookie_name", None),
         ]
 
     for name in candidates:
@@ -87,13 +97,15 @@ def _session_cookie_names(scope: str | None = None) -> list[str]:
 
 
 def _set_session_cookie(response: Response, token: str, *, scope: str | None = None) -> None:
-    max_age = settings.auth_session_ttl_days * 24 * 60 * 60
+    cfg = _settings()
+    ttl_days = getattr(cfg, "auth_session_ttl_days", 30)
+    max_age = max(1, ttl_days) * 24 * 60 * 60
     names = _session_cookie_names(scope)
     if not names:
         names = _session_cookie_names()
-    same_site_raw = (settings.auth_session_cookie_same_site or "lax").strip().lower()
+    same_site_raw = (getattr(cfg, "auth_session_cookie_same_site", "lax") or "lax").strip().lower()
     same_site = same_site_raw if same_site_raw in {"lax", "strict", "none"} else "lax"
-    secure = settings.auth_session_cookie_secure or same_site == "none"
+    secure = bool(getattr(cfg, "auth_session_cookie_secure", False)) or same_site == "none"
 
     for name in names:
         response.set_cookie(
@@ -103,7 +115,7 @@ def _set_session_cookie(response: Response, token: str, *, scope: str | None = N
             httponly=True,
             secure=secure,
             samesite=same_site,
-            domain=settings.auth_session_cookie_domain,
+            domain=getattr(cfg, "auth_session_cookie_domain", None),
             path="/",
         )
 
@@ -133,6 +145,7 @@ async def request_link(
     request: Request,
     db: AsyncSession = Depends(get_session),
 ):
+    cfg = _settings()
     scope = payload.scope or "dashboard"
     email = payload.email.strip().lower()
     stmt = select(models.User).where(models.User.email == email)
@@ -163,7 +176,7 @@ async def request_link(
     await db.commit()
 
     link = _build_magic_link(token_raw)
-    if settings.auth_magic_link_debug:
+    if getattr(cfg, "auth_magic_link_debug", False):
         _log_magic_link(email, link)
 
     mail_sent = False
@@ -172,14 +185,14 @@ async def request_link(
         subject = "[大阪メンズエステ] ログインリンクのお知らせ"
         html_body = f"""
             <p>大阪メンズエステサイトへのログインリクエストを受け付けました。</p>
-            <p>下記のリンクを開くとログインが完了します。リンクの有効期限は約 {settings.auth_magic_link_expire_minutes} 分です。</p>
+            <p>下記のリンクを開くとログインが完了します。リンクの有効期限は約 {cfg.auth_magic_link_expire_minutes} 分です。</p>
             <p><a href="{link}">{link}</a></p>
             <p>このメールに心当たりがない場合は破棄してください。</p>
             <p>--<br/>大阪メンズエステ運営</p>
         """
         text_body = (
             "大阪メンズエステサイトへのログインリクエストを受け付けました。\n\n"
-            f"下記のリンクを開くとログインが完了します（有効期限: 約 {settings.auth_magic_link_expire_minutes} 分）。\n"
+            f"下記のリンクを開くとログインが完了します（有効期限: 約 {cfg.auth_magic_link_expire_minutes} 分）。\n"
             f"{link}\n\n"
             "このメールに心当たりがない場合は破棄してください。\n\n"
             "--\n大阪メンズエステ運営"
@@ -188,14 +201,14 @@ async def request_link(
         subject = "[大阪メンズエステ] ログインリンクのお知らせ"
         html_body = f"""
             <p>大阪メンズエステ ダッシュボードへのログインリクエストを受け付けました。</p>
-            <p>下記のリンクを開くとログインが完了します。リンクの有効期限は約 {settings.auth_magic_link_expire_minutes} 分です。</p>
+            <p>下記のリンクを開くとログインが完了します。リンクの有効期限は約 {cfg.auth_magic_link_expire_minutes} 分です。</p>
             <p><a href="{link}">{link}</a></p>
             <p>このメールに心当たりがない場合は破棄してください。</p>
             <p>--<br/>大阪メンズエステ運営</p>
         """
         text_body = (
             "大阪メンズエステ ダッシュボードへのログインリクエストを受け付けました。\n\n"
-            f"下記のリンクを開くとログインが完了します（有効期限: 約 {settings.auth_magic_link_expire_minutes} 分）。\n"
+            f"下記のリンクを開くとログインが完了します（有効期限: 約 {cfg.auth_magic_link_expire_minutes} 分）。\n"
             f"{link}\n\n"
             "このメールに心当たりがない場合は破棄してください。\n\n"
             "--\n大阪メンズエステ運営"
@@ -286,7 +299,7 @@ async def logout(request: Request, db: AsyncSession = Depends(get_session)):
     for name in _session_cookie_names():
         response.delete_cookie(
             key=name,
-            domain=settings.auth_session_cookie_domain,
+            domain=getattr(settings, "auth_session_cookie_domain", None),
             path="/",
         )
     return response
