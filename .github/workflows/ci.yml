@@ -465,18 +465,12 @@ jobs:
           echo "::add-mask::${MEILI_HOST_EFFECTIVE}"
           env_file=$(mktemp)
           trap 'rm -f "$env_file"' EXIT
-          MEILI_HOST_EFFECTIVE="$MEILI_HOST_EFFECTIVE" ENV_FILE="$env_file" python3 - <<'PY'
+          MEILI_HOST_EFFECTIVE="$MEILI_HOST_EFFECTIVE" ENV_FILE="$env_file" python3 -c '
 import json
 import os
 from pathlib import Path
 
-
-def to_yaml_line(key: str, value: str) -> str:
-    return f"{key}: {json.dumps(value, ensure_ascii=False)}\n"
-
-
 env_file = Path(os.environ["ENV_FILE"])
-
 pairs = {
     "DATABASE_URL": os.environ["DATABASE_URL"],
     "MEILI_HOST": os.environ["MEILI_HOST_EFFECTIVE"],
@@ -485,8 +479,11 @@ pairs = {
     "MAIL_PROVIDER_BASE_URL": os.environ["MAIL_PROVIDER_BASE_URL"],
 }
 
-env_file.write_text("".join(to_yaml_line(k, v) for k, v in pairs.items()), encoding="utf-8")
-PY
+env_file.write_text(
+    "".join(f"{key}: {json.dumps(value, ensure_ascii=False)}\n" for key, value in pairs.items()),
+    encoding="utf-8",
+)
+'
           gcloud run services update "$CLOUD_RUN_API_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --remove-env-vars "MAIL_APIKEY" \
@@ -532,18 +529,12 @@ PY
 
           env_file=$(mktemp)
           trap 'rm -f "$env_file"' EXIT
-          PUBLIC_BASE="$PUBLIC_BASE" INTERNAL_BASE="$INTERNAL_BASE" API_INTERNAL_BASE_EFFECTIVE="$API_INTERNAL_BASE_EFFECTIVE" ENV_FILE="$env_file" python3 - <<'PY'
+          PUBLIC_BASE="$PUBLIC_BASE" INTERNAL_BASE="$INTERNAL_BASE" API_INTERNAL_BASE_EFFECTIVE="$API_INTERNAL_BASE_EFFECTIVE" ENV_FILE="$env_file" python3 -c '
 import json
 import os
 from pathlib import Path
 
-
-def to_yaml_line(key: str, value: str) -> str:
-    return f"{key}: {json.dumps(value, ensure_ascii=False)}\n"
-
-
 env_file = Path(os.environ["ENV_FILE"])
-
 pairs = {
     "ADMIN_API_KEY": os.environ["ADMIN_API_KEY"],
     "NEXT_PUBLIC_SITE_URL": os.environ["NEXT_PUBLIC_SITE_URL"],
@@ -553,16 +544,19 @@ pairs = {
     "ADMIN_BASIC_PASS": os.environ["ADMIN_BASIC_PASS"],
 }
 
-internal_base = os.environ.get("INTERNAL_BASE", "")
+internal_base = os.environ.get("INTERNAL_BASE")
 if internal_base:
     pairs["OSAKAMENESU_API_INTERNAL_BASE"] = internal_base
 
-api_internal_base = os.environ.get("API_INTERNAL_BASE_EFFECTIVE", "")
+api_internal_base = os.environ.get("API_INTERNAL_BASE_EFFECTIVE")
 if api_internal_base:
     pairs["API_INTERNAL_BASE"] = api_internal_base
 
-env_file.write_text("".join(to_yaml_line(k, v) for k, v in pairs.items()), encoding="utf-8")
-PY
+env_file.write_text(
+    "".join(f"{key}: {json.dumps(value, ensure_ascii=False)}\n" for key, value in pairs.items()),
+    encoding="utf-8",
+)
+'
           gcloud run services update "$CLOUD_RUN_WEB_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --image "$WEB_IMAGE" \
