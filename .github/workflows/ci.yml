@@ -527,28 +527,45 @@ PY
           PUBLIC_BASE="${NEXT_PUBLIC_API_BASE:-${NEXT_PUBLIC_OSAKAMENESU_API_BASE}}"
           INTERNAL_BASE="${OSAKAMENESU_API_INTERNAL_BASE_SECRET:-${NEXT_PUBLIC_OSAKAMENESU_API_BASE}}"
           API_INTERNAL_BASE_EFFECTIVE="${API_INTERNAL_BASE_SECRET:-${INTERNAL_BASE}}"
+          export PUBLIC_BASE INTERNAL_BASE API_INTERNAL_BASE_EFFECTIVE
 
-          declare -a ENV_VARS=(
-            "ADMIN_API_KEY=${ADMIN_API_KEY}"
-            "NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}"
-            "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${NEXT_PUBLIC_OSAKAMENESU_API_BASE}"
-            "NEXT_PUBLIC_API_BASE=${PUBLIC_BASE}"
-            "ADMIN_BASIC_USER=${ADMIN_BASIC_USER}"
-            "ADMIN_BASIC_PASS=${ADMIN_BASIC_PASS}"
-          )
+          env_file=$(mktemp)
+          trap 'rm -f "$env_file"' EXIT
+          PUBLIC_BASE="$PUBLIC_BASE" INTERNAL_BASE="$INTERNAL_BASE" API_INTERNAL_BASE_EFFECTIVE="$API_INTERNAL_BASE_EFFECTIVE" ENV_FILE="$env_file" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
-          if [ -n "${INTERNAL_BASE}" ]; then
-            ENV_VARS+=("OSAKAMENESU_API_INTERNAL_BASE=${INTERNAL_BASE}")
-          fi
-          if [ -n "${API_INTERNAL_BASE_EFFECTIVE}" ]; then
-            ENV_VARS+=("API_INTERNAL_BASE=${API_INTERNAL_BASE_EFFECTIVE}")
-          fi
 
-          ENV_STRING=$(IFS=,; printf '%s' "${ENV_VARS[*]}")
+          def to_yaml_line(key: str, value: str) -> str:
+              return f"{key}: {json.dumps(value, ensure_ascii=False)}\n"
+
+
+          env_file = Path(os.environ["ENV_FILE"])
+
+          pairs = {
+              "ADMIN_API_KEY": os.environ["ADMIN_API_KEY"],
+              "NEXT_PUBLIC_SITE_URL": os.environ["NEXT_PUBLIC_SITE_URL"],
+              "NEXT_PUBLIC_OSAKAMENESU_API_BASE": os.environ["NEXT_PUBLIC_OSAKAMENESU_API_BASE"],
+              "NEXT_PUBLIC_API_BASE": os.environ["PUBLIC_BASE"],
+              "ADMIN_BASIC_USER": os.environ["ADMIN_BASIC_USER"],
+              "ADMIN_BASIC_PASS": os.environ["ADMIN_BASIC_PASS"],
+          }
+
+          internal_base = os.environ.get("INTERNAL_BASE", "")
+          if internal_base:
+              pairs["OSAKAMENESU_API_INTERNAL_BASE"] = internal_base
+
+          api_internal_base = os.environ.get("API_INTERNAL_BASE_EFFECTIVE", "")
+          if api_internal_base:
+              pairs["API_INTERNAL_BASE"] = api_internal_base
+
+          env_file.write_text("".join(to_yaml_line(k, v) for k, v in pairs.items()), encoding="utf-8")
+          PY
           gcloud run services update "$CLOUD_RUN_WEB_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --image "$WEB_IMAGE" \
-            --update-env-vars "$ENV_STRING"
+            --env-vars-file "$env_file"
 
       - name: Seed staging data with sample profiles
         env:
