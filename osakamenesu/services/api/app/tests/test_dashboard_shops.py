@@ -72,8 +72,10 @@ dummy_settings_module.Settings = _DummySettings  # type: ignore[attr-defined]
 dummy_settings_module.settings = _DummySettings()
 sys.modules.setdefault("app.settings", dummy_settings_module)
 
+import importlib
+
 from app import models  # type: ignore  # noqa: E402
-from app.routers import dashboard_shops  # type: ignore  # noqa: E402
+dashboard_shops = importlib.import_module("app.domains.dashboard.shops.router")  # type: ignore  # noqa: E402
 
 
 class FakeSession:

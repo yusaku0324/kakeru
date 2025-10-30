@@ -8,9 +8,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import models, schemas
-from ..db import get_session
-from ..deps import require_dashboard_user
+from .... import models, schemas
+from ....db import get_session
+from ....deps import require_dashboard_user
 
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])

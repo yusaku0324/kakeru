@@ -78,10 +78,12 @@ dummy_settings_module.Settings = _DummySettings  # type: ignore[attr-defined]
 dummy_settings_module.settings = _DummySettings()
 sys.modules.setdefault("app.settings", dummy_settings_module)
 
+import importlib
+
 from app import models  # type: ignore  # noqa: E402
-from app.routers import admin as admin_router  # type: ignore  # noqa: E402
+admin_router = importlib.import_module("app.domains.admin.router")  # type: ignore  # noqa: E402
+site_shops = importlib.import_module("app.domains.site.shops")  # type: ignore  # noqa: E402
 from app.utils.profiles import build_profile_doc, compute_review_summary, normalize_review_aspects  # type: ignore  # noqa: E402
-from app.routers.shops import _prepare_aspect_scores, _collect_review_aspect_stats, serialize_review  # type: ignore  # noqa: E402
 
 
 class FakeScalarResult:
@@ -277,7 +279,7 @@ def test_prepare_aspect_scores_normalizes_input() -> None:
         "invalid": {"score": 3},
     }
 
-    cleaned = _prepare_aspect_scores(raw)
+    cleaned = site_shops._prepare_aspect_scores(raw)
 
     assert cleaned == {
         "therapist_service": {"score": 5, "note": "丁寧"},
@@ -287,7 +289,7 @@ def test_prepare_aspect_scores_normalizes_input() -> None:
 
 def test_serialize_review_includes_aspects() -> None:
     profile = _make_profile()
-    item = serialize_review(profile.reviews[0])
+    item = site_shops.serialize_review(profile.reviews[0])
 
     assert item.aspects["therapist_service"].score == 5
     assert item.aspects["therapist_service"].note == "丁寧"
@@ -296,8 +298,8 @@ def test_serialize_review_includes_aspects() -> None:
 
 def test_collect_review_aspect_stats_handles_models() -> None:
     profile = _make_profile()
-    item = serialize_review(profile.reviews[0])
-    averages, counts = _collect_review_aspect_stats([item])
+    item = site_shops.serialize_review(profile.reviews[0])
+    averages, counts = site_shops._collect_review_aspect_stats([item])
 
     assert averages["therapist_service"] == pytest.approx(5.0)
     assert counts["therapist_service"] == 1
@@ -370,7 +372,7 @@ def test_prepare_aspect_scores_normalizes_input() -> None:
         "invalid": {"score": 3},
     }
 
-    cleaned = _prepare_aspect_scores(raw)
+    cleaned = site_shops._prepare_aspect_scores(raw)
 
     assert cleaned == {
         "therapist_service": {"score": 5, "note": "丁寧"},
@@ -380,7 +382,7 @@ def test_prepare_aspect_scores_normalizes_input() -> None:
 
 def test_serialize_review_includes_aspects() -> None:
     profile = _make_profile()
-    item = serialize_review(profile.reviews[0])
+    item = site_shops.serialize_review(profile.reviews[0])
 
     assert item.aspects["therapist_service"].score == 5
     assert item.aspects["therapist_service"].note == "丁寧"

@@ -12,10 +12,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import models
-from ..db import get_session
-from ..meili import search as meili_search, build_filter
-from ..schemas import (
+from ... import models
+from ...db import get_session
+from ...meili import search as meili_search, build_filter
+from ...schemas import (
     AvailabilityCalendar,
     AvailabilityDay,
     AvailabilitySlot,
@@ -42,7 +42,7 @@ from ..schemas import (
     DiaryItem,
     DiaryListResponse,
 )
-from ..utils.profiles import (
+from ...utils.profiles import (
     build_profile_doc,
     infer_store_name,
     compute_review_summary,

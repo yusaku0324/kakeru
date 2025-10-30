@@ -8,15 +8,18 @@ import logging
 from .meili import ensure_indexes
 from .utils.ratelimit import create_rate_limiter, shutdown_rate_limiter
 from .notifications import start_notification_worker, stop_notification_worker
-from .routers.profiles import router as profiles_router
-from .routers.admin import router as admin_router
-from .routers.shops import router as shops_router
-from .routers.reservations import router as reservations_router
-from .routers.auth import router as auth_router
-from .routers.favorites import router as favorites_router
-from .routers.dashboard_notifications import router as dashboard_notifications_router
-from .routers.dashboard_shops import router as dashboard_shops_router
-from .routers.dashboard_therapists import router as dashboard_therapists_router
+from .domains.admin import (
+    admin_router,
+    admin_profiles_router,
+    admin_reservations_router,
+)
+from .domains.auth import router as auth_router
+from .domains.dashboard import (
+    notifications_router as dashboard_notifications_router,
+    shops_router as dashboard_shops_router,
+    therapists_router as dashboard_therapists_router,
+)
+from .domains.site import favorites_router, shops_router
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from .db import get_session
@@ -135,10 +138,10 @@ async def out_redirect(token: str, request: Request, db: AsyncSession = Depends(
         pass
 
     return RedirectResponse(ol.target_url, status_code=302)
-app.include_router(profiles_router)
+app.include_router(admin_profiles_router)
 app.include_router(admin_router)
 app.include_router(shops_router)
-app.include_router(reservations_router)
+app.include_router(admin_reservations_router)
 app.include_router(auth_router)
 app.include_router(favorites_router)
 app.include_router(dashboard_notifications_router)

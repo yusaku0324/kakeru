@@ -13,10 +13,10 @@ import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import models
-from ..db import get_session
-from ..deps import require_dashboard_user
-from ..schemas import (
+from .... import models
+from ....db import get_session
+from ....deps import require_dashboard_user
+from ....schemas import (
     DashboardTherapistCreatePayload,
     DashboardTherapistDetail,
     DashboardTherapistReorderPayload,
@@ -24,9 +24,9 @@ from ..schemas import (
     DashboardTherapistSummary,
     DashboardTherapistUpdatePayload,
 )
-from ..utils.profiles import build_profile_doc
+from ....utils.profiles import build_profile_doc
 from zoneinfo import ZoneInfo
-from ..storage import get_media_storage, MediaStorageError
+from ....storage import get_media_storage, MediaStorageError
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard-therapists"])
 
@@ -131,7 +131,7 @@ async def _reindex_profile(db: AsyncSession, profile: models.Profile) -> None:
         outlinks=list(outlinks.scalars().all()),
     )
     try:
-        from ..meili import index_profile
+        from ....meili import index_profile
 
         index_profile(doc)
     except Exception:
