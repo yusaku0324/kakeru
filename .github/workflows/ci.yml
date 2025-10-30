@@ -466,32 +466,33 @@ jobs:
           env_file=$(mktemp)
           trap 'rm -f "$env_file"' EXIT
           MEILI_HOST_EFFECTIVE="$MEILI_HOST_EFFECTIVE" ENV_FILE="$env_file" python3 - <<'PY'
-import json
-import os
-from pathlib import Path
-
-
-def to_yaml_line(key: str, value: str) -> str:
-    return f"{key}: {json.dumps(value, ensure_ascii=False)}\n"
-
-
-env_file = Path(os.environ["ENV_FILE"])
-
-pairs = {
-    "DATABASE_URL": os.environ["DATABASE_URL"],
-    "MEILI_HOST": os.environ["MEILI_HOST_EFFECTIVE"],
-    "SITE_BASE_URL": os.environ["SITE_BASE_URL"],
-    "MAIL_FROM_ADDRESS": os.environ["MAIL_FROM_ADDRESS"],
-    "MAIL_PROVIDER_BASE_URL": os.environ["MAIL_PROVIDER_BASE_URL"],
-}
-
-env_file.write_text("".join(to_yaml_line(k, v) for k, v in pairs.items()), encoding="utf-8")
-PY
+          import json
+          import os
+          from pathlib import Path
+          
+          
+          def to_yaml_line(key: str, value: str) -> str:
+              return f"{key}: {json.dumps(value, ensure_ascii=False)}\n"
+          
+          
+          env_file = Path(os.environ["ENV_FILE"])
+          
+          pairs = {
+              "DATABASE_URL": os.environ["DATABASE_URL"],
+              "MEILI_HOST": os.environ["MEILI_HOST_EFFECTIVE"],
+              "SITE_BASE_URL": os.environ["SITE_BASE_URL"],
+              "MAIL_FROM_ADDRESS": os.environ["MAIL_FROM_ADDRESS"],
+              "MAIL_PROVIDER_BASE_URL": os.environ["MAIL_PROVIDER_BASE_URL"],
+          }
+          
+          env_file.write_text("".join(to_yaml_line(k, v) for k, v in pairs.items()), encoding="utf-8")
+          PY
+            --quiet
           gcloud run services update "$CLOUD_RUN_API_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --remove-env-vars "MAIL_APIKEY" \
-            --remove-secrets "MAIL_APIKEY" \
-            --quiet
+            --remove-secrets "MAIL_APIKEY"
+
           gcloud run services update "$CLOUD_RUN_API_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --add-cloudsql-instances "${GCP_PROJECT_ID}:${CLOUD_RUN_REGION}:osakamenesu-pg" \
