@@ -1,29 +1,26 @@
-# .github/workflows/ci.yml  （既存ワークフローを *1 本* に統合）
-#
-# ✔️ 目的
-#   1. main / PR-ブランチ上でテスト・静的解析を実行し
-#   2. カバレッジ 85% 未満なら fail
-#   3. テストが通ったら Docker イメージを GHCR に publish
-#      （main ブランチ／タグ付き push 時のみ）
-#
-# 👇 このファイルを保存後、古い mac-studio.yml / nightly*.yml など
-#    重複ワークフローは削除 or rename してください。
+
 name: CI
 
 on:
   push:
     branches:
       - main
-      - feat/admin-dashboard-editor
   pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
-  test:
+  api-unit:
     runs-on: ubuntu-latest
     services:
-      osakamenesu-db:
+      postgres:
         image: postgres:15
         env:
           POSTGRES_USER: app
@@ -44,36 +41,35 @@ jobs:
           MEILI_NO_ANALYTICS: "true"
         ports:
           - 7700:7700
-    defaults:
-      run:
-        working-directory: osakamenesu/services/api
     env:
       DATABASE_URL: postgresql+asyncpg://app:app@127.0.0.1:5432/osaka_menesu
       MEILI_HOST: http://127.0.0.1:7700
       MEILI_MASTER_KEY: dev_meili_master_key
       ANYIO_BACKEND: asyncio
+    defaults:
+      run:
+        working-directory: osakamenesu/services/api
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: osakamenesu/services/api/requirements-test.txt
 
-      - name: Install deps
-        run: pip install -q -r requirements-test.txt
+      - name: Install dependencies
+        run: pip install -r requirements-test.txt
 
       - name: Wait for Postgres
         env:
           PGPASSWORD: app
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
           for i in {1..60}; do
             if pg_isready -h 127.0.0.1 -p 5432 -U app -d osaka_menesu; then
-              echo "Postgres is ready"
               exit 0
             fi
-            echo "Waiting for Postgres..."
             sleep 2
           done
           echo "Postgres did not become ready in time" >&2
@@ -83,7 +79,6 @@ jobs:
         run: |
           for i in {1..30}; do
             if curl -fsS "$MEILI_HOST/health" >/dev/null; then
-              echo "Meilisearch is ready"
               exit 0
             fi
             sleep 2
@@ -94,42 +89,13 @@ jobs:
       - name: Run Alembic migrations
         run: alembic upgrade head
 
-      - name: Run pytest
-        run: pytest app/tests -q
+      - name: Run API unit tests (fail under 85% coverage)
+        run: |
+          export COVERAGE_RCFILE=../../../.coveragerc
+          pytest app/tests --cov=app --cov-config="${COVERAGE_RCFILE}" --cov-report=xml
+          coverage report --fail-under=85
 
-  integration-test:
-    needs:
-      - test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: osakamenesu
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Fetch Meilisearch master key
-        id: meili-secret
-        uses: google-github-actions/get-secretmanager-secrets@v2
-        with:
-          secrets: |
-            MEILI_MASTER_KEY:projects/${{ secrets.GCP_PROJECT_ID }}/secrets/MEILI_MASTER_KEY/versions/latest
-
-      - name: Run docker-compose integration tests
-        env:
-          DOCKER_BUILDKIT: 1
-          MEILI_MASTER_KEY: ${{ steps.meili-secret.outputs.MEILI_MASTER_KEY }}
-        run: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from osakamenesu-api-test osakamenesu-api-test
-
-      - name: Teardown integration stack
-        if: always()
-        run: docker compose -f docker-compose.test.yml down -v
-
-  web-lint:
+  web-unit:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -137,18 +103,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      - name: Export web env
-        run: |
-          echo "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${NEXT_PUBLIC_OSAKAMENESU_API_BASE:-$NEXT_PUBLIC_API_BASE}" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}" >> $GITHUB_ENV
-        env:
-          NEXT_PUBLIC_OSAKAMENESU_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
-          NEXT_PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_API_BASE }}
-          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: osakamenesu/apps/web/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -156,15 +116,16 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
-      - name: Run lint (placeholder)
+      - name: Run lint
         run: npm run lint
 
   admin-e2e:
-    needs:
-      - web-lint
     runs-on: ubuntu-latest
+    needs:
+      - api-unit
+      - web-unit
     services:
-      osakamenesu-db:
+      postgres:
         image: postgres:15
         env:
           POSTGRES_USER: app
@@ -196,67 +157,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: osakamenesu/services/api/requirements.txt
 
       - name: Install API dependencies
         run: pip install -r requirements.txt
         working-directory: osakamenesu/services/api
 
-      - name: Configure API endpoints
-        run: |
-          internal_base="${API_INTERNAL_BASE:-http://127.0.0.1:8000}"
-          public_base="${PUBLIC_API_BASE:-$internal_base}"
-          seed_base="${SEED_API_BASE:-$internal_base}"
-          {
-            echo "OSAKAMENESU_API_INTERNAL_BASE=${internal_base}"
-            echo "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${public_base}"
-            echo "E2E_SEED_API_BASE=${seed_base}"
-          } >> "$GITHUB_ENV"
-        env:
-          API_INTERNAL_BASE: ${{ secrets.OSAKAMENESU_API_INTERNAL_BASE }}
-          PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
-          SEED_API_BASE: ${{ secrets.E2E_SEED_API_BASE }}
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: osakamenesu/apps/web/package-lock.json
 
-      - name: Install Postgres client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: osakamenesu/apps/web
 
-      - name: Wait for Postgres
-        env:
-          PGPASSWORD: app
+      - name: Prepare API server
         run: |
-          for i in {1..60}; do
-            if pg_isready -h 127.0.0.1 -p 5432 -U app -d osaka_menesu; then
-              echo "Postgres is ready"
-              exit 0
-            fi
-            echo "Waiting for Postgres..."
-            sleep 2
-          done
-          echo "Postgres did not become ready in time" >&2
-          exit 1
-
-      - name: Wait for Meilisearch
-        run: |
-          for i in {1..30}; do
-            if curl -fsS "$MEILI_HOST/health" >/dev/null; then
-              echo "Meilisearch is ready"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Meilisearch did not become ready in time" >&2
-          exit 1
-
-      - name: Run Alembic migrations
-        run: alembic upgrade head
-        working-directory: osakamenesu/services/api
-
-      - name: Start API server
-        run: |
+          alembic upgrade head
           uvicorn app.main:app --host 0.0.0.0 --port 8000 &
           echo $! > /tmp/osakamenesu-api.pid
         working-directory: osakamenesu/services/api
@@ -271,18 +196,6 @@ jobs:
           done
           echo "API did not become ready in time" >&2
           exit 1
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install web dependencies
-        run: npm ci
-        working-directory: osakamenesu/apps/web
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-        working-directory: osakamenesu/apps/web
 
       - name: Seed admin data
         env:
@@ -312,12 +225,47 @@ jobs:
         if: always()
         run: |
           if [ -f /tmp/osakamenesu-api.pid ]; then
-            kill "$(cat /tmp/osakamenesu-api.pid)" || true
+            kill $(cat /tmp/osakamenesu-api.pid) || true
           fi
+
+  api-integration:
+    needs:
+      - api-unit
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    defaults:
+      run:
+        working-directory: osakamenesu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Fetch Meilisearch master key
+        id: meili-secret
+        uses: google-github-actions/get-secretmanager-secrets@v2
+        with:
+          secrets: |
+            MEILI_MASTER_KEY:projects/${{ secrets.GCP_PROJECT_ID }}/secrets/MEILI_MASTER_KEY/versions/latest
+
+      - name: Run docker-compose integration tests
+        env:
+          DOCKER_BUILDKIT: 1
+          MEILI_MASTER_KEY: ${{ steps.meili-secret.outputs.MEILI_MASTER_KEY }}
+        run: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from osakamenesu-api-test osakamenesu-api-test
+
+      - name: Teardown integration stack
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v
 
   deploy:
     needs:
-      - integration-test
+      - api-unit
+      - api-integration
+      - web-unit
       - admin-e2e
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -344,47 +292,20 @@ jobs:
       - name: Configure Docker auth
         run: gcloud auth configure-docker --quiet
 
-      - name: Deploy Meilisearch to Cloud Run
-        run: |
-          set -euo pipefail
-          if [ -z "${CLOUD_RUN_MEILI_SERVICE}" ]; then
-            echo "::error::CLOUD_RUN_MEILI_SERVICE secret is not set." >&2
-            exit 1
-          fi
-          if ! gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "MEILI_MASTER_KEY" >/dev/null 2>&1; then
-            echo "::error::Secret Manager entry 'MEILI_MASTER_KEY' is not accessible." >&2
-            exit 1
-          fi
-          gcloud run deploy "$CLOUD_RUN_MEILI_SERVICE" \
-            --region "$CLOUD_RUN_REGION" \
-            --image "docker.io/getmeili/meilisearch:v1.7" \
-            --set-env-vars "MEILI_HTTP_ADDR=0.0.0.0:8080,MEILI_ENV=production,MEILI_NO_ANALYTICS=true" \
-            --set-secrets "MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest" \
-            --memory "1Gi" \
-            --cpu "1" \
-            --platform managed \
-            --allow-unauthenticated \
-            --quiet
-          MEILI_URL=$(gcloud run services describe "$CLOUD_RUN_MEILI_SERVICE" \
-            --region "$CLOUD_RUN_REGION" \
-            --format='value(status.url)')
-          if [ -z "$MEILI_URL" ]; then
-            echo "::error::Unable to resolve Meilisearch service URL." >&2
-            exit 1
-          fi
-          echo "::add-mask::${MEILI_URL}"
-          echo "MEILI_URL=${MEILI_URL}" >> "$GITHUB_ENV"
-
-      - name: Build and push API image
+      - name: Build API image
         env:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           IMAGE="gcr.io/$GCP_PROJECT_ID/osakamenesu-api:${IMAGE_TAG}"
           echo "IMAGE=${IMAGE}" >> $GITHUB_ENV
           docker build -t "$IMAGE" osakamenesu/services/api
-          docker push "$IMAGE"
 
-      - name: Build and push web image
+      - name: Push API image
+        env:
+          IMAGE: ${{ env.IMAGE }}
+        run: docker push "$IMAGE"
+
+      - name: Build web image
         env:
           IMAGE_TAG: ${{ github.sha }}
           NEXT_PUBLIC_OSAKAMENESU_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
@@ -399,7 +320,11 @@ jobs:
             --build-arg NEXT_PUBLIC_OSAKAMENESU_API_BASE="$NEXT_PUBLIC_OSAKAMENESU_API_BASE" \
             --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
             -t "$WEB_IMAGE" osakamenesu/apps/web
-          docker push "$WEB_IMAGE"
+
+      - name: Push web image
+        env:
+          WEB_IMAGE: ${{ env.WEB_IMAGE }}
+        run: docker push "$WEB_IMAGE"
 
       - name: Resolve database connection string
         id: resolve-db-url
@@ -451,52 +376,48 @@ jobs:
         run: |
           set -euo pipefail
           MEILI_HOST_EFFECTIVE="${MEILI_URL:-}"
-          if [ -z "$MEILI_HOST_EFFECTIVE" ]; then
+          if [ -z "${MEILI_HOST_EFFECTIVE}" ]; then
             MEILI_HOST_EFFECTIVE="${MEILI_HOST_FALLBACK}"
           fi
-          if [ -z "$MEILI_HOST_EFFECTIVE" ]; then
+          if [ -z "${MEILI_HOST_EFFECTIVE}" ]; then
             echo "::error::Meilisearch host is not configured. Set CLOUD_RUN_MEILI_SERVICE or secrets.MEILI_HOST." >&2
             exit 1
           fi
-          if ! gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "MAIL_APIKEY" >/dev/null 2>&1; then
+          if ! gcloud secrets versions access latest --project "${GCP_PROJECT_ID}" --secret "MAIL_APIKEY" >/dev/null 2>&1; then
             echo "::error::Secret Manager entry 'MAIL_APIKEY' is not accessible." >&2
             exit 1
           fi
           echo "::add-mask::${MEILI_HOST_EFFECTIVE}"
-          env_file=$(mktemp)
-          trap 'rm -f "$env_file"' EXIT
-          MEILI_HOST_EFFECTIVE="$MEILI_HOST_EFFECTIVE" ENV_FILE="$env_file" python3 - <<'PY'
-import json
-import os
-from pathlib import Path
+          ENV_FILE=$(mktemp)
+          trap 'rm -f "${ENV_FILE}"' EXIT
+          MEILI_HOST_EFFECTIVE="${MEILI_HOST_EFFECTIVE}" ENV_FILE="${ENV_FILE}" python3 <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
+          pairs = {
+              "DATABASE_URL": os.environ["DATABASE_URL"],
+              "MEILI_HOST": os.environ["MEILI_HOST_EFFECTIVE"],
+              "SITE_BASE_URL": os.environ["SITE_BASE_URL"],
+              "MAIL_FROM_ADDRESS": os.environ["MAIL_FROM_ADDRESS"],
+              "MAIL_PROVIDER_BASE_URL": os.environ["MAIL_PROVIDER_BASE_URL"],
+          }
 
-def to_yaml_line(key: str, value: str) -> str:
-    return f"{key}: {json.dumps(value, ensure_ascii=False)}\n"
-
-
-env_file = Path(os.environ["ENV_FILE"])
-
-pairs = {
-    "DATABASE_URL": os.environ["DATABASE_URL"],
-    "MEILI_HOST": os.environ["MEILI_HOST_EFFECTIVE"],
-    "SITE_BASE_URL": os.environ["SITE_BASE_URL"],
-    "MAIL_FROM_ADDRESS": os.environ["MAIL_FROM_ADDRESS"],
-    "MAIL_PROVIDER_BASE_URL": os.environ["MAIL_PROVIDER_BASE_URL"],
-}
-
-env_file.write_text("".join(to_yaml_line(k, v) for k, v in pairs.items()), encoding="utf-8")
-PY
-          gcloud run services update "$CLOUD_RUN_API_SERVICE" \
-            --region "$CLOUD_RUN_REGION" \
+          env_file = Path(os.environ["ENV_FILE"])
+          with env_file.open("w", encoding="utf-8") as fh:
+              for key, value in pairs.items():
+                  fh.write(f"{key}: {json.dumps(value, ensure_ascii=False)}\n")
+          PY
+          gcloud run services update "${CLOUD_RUN_API_SERVICE}" \
+            --region "${CLOUD_RUN_REGION}" \
             --remove-env-vars "MAIL_APIKEY" \
             --remove-secrets "MAIL_APIKEY" \
             --quiet
-          gcloud run services update "$CLOUD_RUN_API_SERVICE" \
-            --region "$CLOUD_RUN_REGION" \
+          gcloud run services update "${CLOUD_RUN_API_SERVICE}" \
+            --region "${CLOUD_RUN_REGION}" \
             --add-cloudsql-instances "${GCP_PROJECT_ID}:${CLOUD_RUN_REGION}:osakamenesu-pg" \
-            --image "$IMAGE" \
-            --env-vars-file "$env_file" \
+            --image "${IMAGE}" \
+            --env-vars-file "${ENV_FILE}" \
             --set-secrets "MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest,OSAKAMENESU_ADMIN_API_KEY=OSAKAMENESU_ADMIN_API_KEY:latest,MAIL_APIKEY=MAIL_APIKEY:latest" \
             --quiet
 
@@ -528,27 +449,39 @@ PY
           INTERNAL_BASE="${OSAKAMENESU_API_INTERNAL_BASE_SECRET:-${NEXT_PUBLIC_OSAKAMENESU_API_BASE}}"
           API_INTERNAL_BASE_EFFECTIVE="${API_INTERNAL_BASE_SECRET:-${INTERNAL_BASE}}"
 
-          declare -a ENV_VARS=(
-            "ADMIN_API_KEY=${ADMIN_API_KEY}"
-            "NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}"
-            "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${NEXT_PUBLIC_OSAKAMENESU_API_BASE}"
-            "NEXT_PUBLIC_API_BASE=${PUBLIC_BASE}"
-            "ADMIN_BASIC_USER=${ADMIN_BASIC_USER}"
-            "ADMIN_BASIC_PASS=${ADMIN_BASIC_PASS}"
-          )
+          ENV_FILE=$(mktemp)
+          trap 'rm -f "${ENV_FILE}"' EXIT
+          PUBLIC_BASE="${PUBLIC_BASE}" INTERNAL_BASE="${INTERNAL_BASE}" API_INTERNAL_BASE_EFFECTIVE="${API_INTERNAL_BASE_EFFECTIVE}" ENV_FILE="${ENV_FILE}" python3 <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
-          if [ -n "${INTERNAL_BASE}" ]; then
-            ENV_VARS+=("OSAKAMENESU_API_INTERNAL_BASE=${INTERNAL_BASE}")
-          fi
-          if [ -n "${API_INTERNAL_BASE_EFFECTIVE}" ]; then
-            ENV_VARS+=("API_INTERNAL_BASE=${API_INTERNAL_BASE_EFFECTIVE}")
-          fi
+          pairs = {
+              "ADMIN_API_KEY": os.environ["ADMIN_API_KEY"],
+              "NEXT_PUBLIC_SITE_URL": os.environ["NEXT_PUBLIC_SITE_URL"],
+              "NEXT_PUBLIC_OSAKAMENESU_API_BASE": os.environ["NEXT_PUBLIC_OSAKAMENESU_API_BASE"],
+              "NEXT_PUBLIC_API_BASE": os.environ["PUBLIC_BASE"],
+              "ADMIN_BASIC_USER": os.environ["ADMIN_BASIC_USER"],
+              "ADMIN_BASIC_PASS": os.environ["ADMIN_BASIC_PASS"],
+          }
 
-          ENV_STRING=$(IFS=,; printf '%s' "${ENV_VARS[*]}")
-          gcloud run services update "$CLOUD_RUN_WEB_SERVICE" \
-            --region "$CLOUD_RUN_REGION" \
-            --image "$WEB_IMAGE" \
-            --update-env-vars "$ENV_STRING"
+          internal_base = os.environ.get("INTERNAL_BASE", "")
+          if internal_base:
+              pairs["OSAKAMENESU_API_INTERNAL_BASE"] = internal_base
+
+          api_internal_base = os.environ.get("API_INTERNAL_BASE_EFFECTIVE", "")
+          if api_internal_base:
+              pairs["API_INTERNAL_BASE"] = api_internal_base
+
+          env_file = Path(os.environ["ENV_FILE"])
+          with env_file.open("w", encoding="utf-8") as fh:
+              for key, value in pairs.items():
+                  fh.write(f"{key}: {json.dumps(value, ensure_ascii=False)}\n")
+          PY
+          gcloud run services update "${CLOUD_RUN_WEB_SERVICE}" \
+            --region "${CLOUD_RUN_REGION}" \
+            --image "${WEB_IMAGE}" \
+            --env-vars-file "${ENV_FILE}"
 
       - name: Seed staging data with sample profiles
         env:
@@ -557,19 +490,19 @@ PY
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
         run: |
           set -euo pipefail
-          SERVICE_URL=$(gcloud run services describe "$CLOUD_RUN_API_SERVICE" \
-            --region "$CLOUD_RUN_REGION" \
+          SERVICE_URL=$(gcloud run services describe "${CLOUD_RUN_API_SERVICE}" \
+            --region "${CLOUD_RUN_REGION}" \
             --format='value(status.url)')
-          if [ -z "$SERVICE_URL" ]; then
+          if [ -z "${SERVICE_URL}" ]; then
             echo "Failed to resolve Cloud Run service URL" >&2
             exit 1
           fi
           echo "::notice::Seeding staging data via ${SERVICE_URL}"
-          ID_TOKEN=$(gcloud auth print-identity-token --audiences="$SERVICE_URL")
+          ID_TOKEN=$(gcloud auth print-identity-token --audiences="${SERVICE_URL}")
           echo "::add-mask::${ID_TOKEN}"
           python3 osakamenesu/services/api/seed_dev.py \
-            --api-base "$SERVICE_URL" \
-            --admin-key "$ADMIN_API_KEY" \
-            --id-token "$ID_TOKEN" \
+            --api-base "${SERVICE_URL}" \
+            --admin-key "${ADMIN_API_KEY}" \
+            --id-token "${ID_TOKEN}" \
             --count 10 \
             --today-rate 0.6
