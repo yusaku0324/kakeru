@@ -446,7 +446,6 @@ jobs:
           MEILI_HOST_FALLBACK: ${{ secrets.MEILI_HOST }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
-          MAIL_APIKEY: ${{ secrets.MAIL_APIKEY }}
           MAIL_FROM_ADDRESS: ${{ secrets.MAIL_FROM_ADDRESS }}
           MAIL_PROVIDER_BASE_URL: ${{ secrets.MAIL_PROVIDER_BASE_URL }}
         run: |
@@ -464,17 +463,21 @@ jobs:
             "DATABASE_URL=${DATABASE_URL}"
             "MEILI_HOST=${MEILI_HOST_EFFECTIVE}"
             "SITE_BASE_URL=${SITE_BASE_URL}"
-            "MAIL_APIKEY=${MAIL_APIKEY}"
             "MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}"
             "MAIL_PROVIDER_BASE_URL=${MAIL_PROVIDER_BASE_URL}"
           )
           ENV_STRING=$(IFS=,; printf '%s' "${ENV_VARS[*]}")
           gcloud run services update "$CLOUD_RUN_API_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
+            --remove-env-vars "MAIL_APIKEY" \
+            --remove-secrets "MAIL_APIKEY"
+
+          gcloud run services update "$CLOUD_RUN_API_SERVICE" \
+            --region "$CLOUD_RUN_REGION" \
             --add-cloudsql-instances "${GCP_PROJECT_ID}:${CLOUD_RUN_REGION}:osakamenesu-pg" \
             --image "$IMAGE" \
             --update-env-vars "$ENV_STRING" \
-            --set-secrets "MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest,OSAKAMENESU_ADMIN_API_KEY=OSAKAMENESU_ADMIN_API_KEY:latest"
+            --set-secrets "MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest,OSAKAMENESU_ADMIN_API_KEY=OSAKAMENESU_ADMIN_API_KEY:latest,MAIL_APIKEY=MAIL_APIKEY:latest"
 
       - name: Deploy osakamenesu-web to Cloud Run
         env:
