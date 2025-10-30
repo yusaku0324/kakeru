@@ -357,13 +357,13 @@ class DashboardTherapistService:
             therapist.name = name
 
         if payload.alias is not None:
-            therapist.alias = payload.alias.strip() or None
+            therapist.alias = strip_or_none(payload.alias)
 
         if payload.headline is not None:
-            therapist.headline = payload.headline.strip() or None
+            therapist.headline = strip_or_none(payload.headline)
 
         if payload.biography is not None:
-            therapist.biography = payload.biography.strip() or None
+            therapist.biography = strip_or_none(payload.biography)
 
         if payload.specialties is not None:
             therapist.specialties = sanitize_strings(payload.specialties) or None

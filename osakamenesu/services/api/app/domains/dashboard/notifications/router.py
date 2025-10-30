@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .... import models, schemas
 from ....db import get_session
 from ....deps import require_dashboard_user
+from ....utils.datetime import ensure_aware_datetime
+from ....utils.text import strip_or_none
 
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -46,7 +48,7 @@ def _sanitize_email_recipients(recipients: List[str]) -> List[str]:
     cleaned: List[str] = []
     lowered = set()
     for item in recipients:
-        candidate = item.strip()
+        candidate = strip_or_none(item)
         if not candidate:
             continue
         lowered_key = candidate.lower()
@@ -72,7 +74,7 @@ def _normalize_channels(channels: schemas.DashboardNotificationChannels) -> Dict
         normalized["email"]["recipients"] = []
 
     if channels.line.enabled:
-        token = (channels.line.token or "").strip()
+        token = strip_or_none(channels.line.token)
         if not token:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"field": "line", "message": "LINE Notify トークンを入力してください。"})
         if len(token) < 40 or len(token) > 60 or not all(c.isalnum() or c in "-_" for c in token):
@@ -82,7 +84,7 @@ def _normalize_channels(channels: schemas.DashboardNotificationChannels) -> Dict
         normalized["line"] = {"enabled": False, "token": None}
 
     if channels.slack.enabled:
-        url = (channels.slack.webhook_url or "").strip()
+        url = strip_or_none(channels.slack.webhook_url)
         if not url:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"field": "slack", "message": "Slack Webhook URL を入力してください。"})
         if not url.startswith("https://hooks.slack.com/"):
@@ -147,12 +149,6 @@ async def _get_or_create_setting(
     return setting
 
 
-def _ensure_datetime(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
-
-
 @router.get("/shops/{profile_id}/notifications", response_model=schemas.DashboardNotificationSettingsResponse)
 async def get_dashboard_notifications(
     profile_id: UUID,
@@ -175,8 +171,8 @@ async def update_dashboard_notifications(
     profile = await _ensure_profile(db, profile_id)
     setting = await _get_or_create_setting(db, profile)
 
-    current_updated_at = _ensure_datetime(setting.updated_at)
-    incoming_updated_at = _ensure_datetime(payload.updated_at)
+    current_updated_at = ensure_aware_datetime(setting.updated_at)
+    incoming_updated_at = ensure_aware_datetime(payload.updated_at)
     if incoming_updated_at != current_updated_at:
         current = _serialize(setting)
         raise HTTPException(
