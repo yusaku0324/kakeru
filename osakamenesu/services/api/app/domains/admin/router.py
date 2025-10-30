@@ -8,11 +8,11 @@ from sqlalchemy import select, func
 from uuid import UUID
 import uuid
 import hashlib
-from ..db import get_session
-from .. import models
-from ..meili import index_profile, index_bulk, purge_all
-from ..utils.profiles import build_profile_doc, normalize_review_aspects
-from ..schemas import (
+from ...db import get_session
+from ... import models
+from ...meili import index_profile, index_bulk, purge_all
+from ...utils.profiles import build_profile_doc, normalize_review_aspects
+from ...schemas import (
     ProfileMarketingUpdate,
     ReservationAdminSummary,
     ReservationAdminList,
@@ -42,11 +42,11 @@ from zoneinfo import ZoneInfo
 from datetime import datetime, timezone, date
 from typing import Optional, Any, List
 import uuid
-from ..deps import require_admin, audit_admin
-from .shops import _fetch_availability, _normalize_menus, _normalize_staff, serialize_review
-from ..utils.slug import slugify
-from ..constants import RESERVATION_STATUS_SET
-from ..services import list_reservations as list_admin_reservations
+from ...deps import require_admin, audit_admin
+from ...domains.site.shops import _fetch_availability, _normalize_menus, _normalize_staff, serialize_review
+from ...utils.slug import slugify
+from ...constants import RESERVATION_STATUS_SET
+from ...services import list_reservations as list_admin_reservations
 
 router = APIRouter(dependencies=[Depends(require_admin), Depends(audit_admin)])
 JST = ZoneInfo("Asia/Tokyo")

@@ -10,13 +10,13 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import models
-from ..db import get_session
-from ..deps import require_dashboard_user, require_site_user
-from ..schemas import AuthRequestLink, AuthVerifyRequest, UserPublic
-from ..settings import settings
-from ..utils.auth import generate_token, hash_token, magic_link_expiry, session_expiry
-from ..utils.email import MailNotConfiguredError, send_email_async
+from ... import models
+from ...db import get_session
+from ...deps import require_dashboard_user, require_site_user
+from ...schemas import AuthRequestLink, AuthVerifyRequest, UserPublic
+from ...settings import settings
+from ...utils.auth import generate_token, hash_token, magic_link_expiry, session_expiry
+from ...utils.email import MailNotConfiguredError, send_email_async
 
 logger = logging.getLogger("app.auth")
 

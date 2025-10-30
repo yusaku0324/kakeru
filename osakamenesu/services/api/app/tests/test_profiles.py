@@ -79,9 +79,13 @@ dummy_settings_module.settings = _DummySettings()
 sys.modules.setdefault("app.settings", dummy_settings_module)
 
 from app import models  # type: ignore  # noqa: E402
-from app.routers import admin as admin_router  # type: ignore  # noqa: E402
+from app.domains.admin import router as admin_router  # type: ignore  # noqa: E402
 from app.utils.profiles import build_profile_doc, compute_review_summary, normalize_review_aspects  # type: ignore  # noqa: E402
-from app.routers.shops import _prepare_aspect_scores, _collect_review_aspect_stats, serialize_review  # type: ignore  # noqa: E402
+from app.domains.site.shops import (
+    _prepare_aspect_scores,
+    _collect_review_aspect_stats,
+    serialize_review,
+)  # type: ignore  # noqa: E402
 
 
 class FakeScalarResult:

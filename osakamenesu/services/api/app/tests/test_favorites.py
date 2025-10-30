@@ -66,7 +66,7 @@ dummy_settings_module.settings = _DummySettings()
 sys.modules.setdefault("app.settings", dummy_settings_module)
 
 from app import models  # type: ignore  # noqa: E402
-from app.routers import favorites  # type: ignore  # noqa: E402
+from app.domains.site import favorites_router as favorites  # type: ignore  # noqa: E402
 from app.schemas import TherapistFavoriteCreate  # type: ignore  # noqa: E402
 
 

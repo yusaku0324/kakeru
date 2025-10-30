@@ -6,10 +6,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
-from .. import models
-from ..db import get_session
-from ..deps import require_site_user
-from ..schemas import FavoriteCreate, FavoriteItem, TherapistFavoriteCreate, TherapistFavoriteItem
+from ... import models
+from ...db import get_session
+from ...deps import require_site_user
+from ...schemas import FavoriteCreate, FavoriteItem, TherapistFavoriteCreate, TherapistFavoriteItem
 
 router = APIRouter(prefix="/api/favorites", tags=["favorites"])
 

@@ -81,7 +81,7 @@ dummy_settings_module.settings = _DummySettings()
 sys.modules["app.settings"] = dummy_settings_module
 
 from app import models  # type: ignore  # noqa: E402
-from app.routers import auth  # type: ignore  # noqa: E402
+from app.domains.auth import router as auth  # type: ignore  # noqa: E402
 from app.schemas import AuthRequestLink, AuthVerifyRequest  # type: ignore  # noqa: E402
 from app.settings import settings  # type: ignore  # noqa: E402
 import app.utils.auth as auth_utils  # type: ignore  # noqa: E402

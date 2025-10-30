@@ -67,7 +67,7 @@ dummy_settings_module.settings = _DummySettings()
 sys.modules.setdefault("app.settings", dummy_settings_module)
 
 from app import models  # type: ignore  # noqa: E402
-from app.routers import dashboard_therapists  # type: ignore  # noqa: E402
+from app.domains.dashboard.therapists import router as dashboard_therapists  # type: ignore  # noqa: E402
 from app.storage import StoredMedia  # type: ignore  # noqa: E402
 
 

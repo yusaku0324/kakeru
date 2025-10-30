@@ -4,18 +4,18 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from ..db import get_session
-from .. import models
-from ..schemas import (
+from ...db import get_session
+from ... import models
+from ...schemas import (
     ProfileCreate,
     ProfileDoc,
     ProfileDetail,
     AvailabilityOut,
 )
-from ..meili import index_profile, search as meili_search, build_filter
-from ..utils.profiles import build_profile_doc, infer_height_age, infer_store_name
-from ..utils.slug import slugify
-from ..deps import require_admin, audit_admin
+from ...meili import index_profile, search as meili_search, build_filter
+from ...utils.profiles import build_profile_doc, infer_height_age, infer_store_name
+from ...utils.slug import slugify
+from ...deps import require_admin, audit_admin
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
