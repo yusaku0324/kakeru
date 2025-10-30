@@ -107,10 +107,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Fetch Meilisearch master key
+        id: meili-secret
+        uses: google-github-actions/get-secretmanager-secrets@v2
+        with:
+          secrets: |
+            MEILI_MASTER_KEY:projects/${{ secrets.GCP_PROJECT_ID }}/secrets/MEILI_MASTER_KEY/versions/latest
+
       - name: Run docker-compose integration tests
         env:
           DOCKER_BUILDKIT: 1
-          MEILI_MASTER_KEY: ${{ secrets.MEILI_MASTER_KEY }}
+          MEILI_MASTER_KEY: ${{ steps.meili-secret.outputs.MEILI_MASTER_KEY }}
         run: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from osakamenesu-api-test osakamenesu-api-test
 
       - name: Teardown integration stack
@@ -314,7 +326,6 @@ jobs:
       CLOUD_RUN_API_SERVICE: ${{ secrets.CLOUD_RUN_API_SERVICE }}
       CLOUD_RUN_REGION: ${{ secrets.CLOUD_RUN_REGION }}
       CLOUD_RUN_MEILI_SERVICE: ${{ secrets.CLOUD_RUN_MEILI_SERVICE }}
-      MEILI_MASTER_KEY: ${{ secrets.MEILI_MASTER_KEY }}
     permissions:
       contents: read
       id-token: write
@@ -340,14 +351,15 @@ jobs:
             echo "::error::CLOUD_RUN_MEILI_SERVICE secret is not set." >&2
             exit 1
           fi
-          if [ -z "${MEILI_MASTER_KEY}" ]; then
-            echo "::error::MEILI_MASTER_KEY secret is not set." >&2
+          if ! gcloud secrets describe "MEILI_MASTER_KEY" >/dev/null 2>&1; then
+            echo "::error::Secret Manager entry 'MEILI_MASTER_KEY' is not accessible." >&2
             exit 1
           fi
           gcloud run deploy "$CLOUD_RUN_MEILI_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --image "docker.io/getmeili/meilisearch:v1.7" \
-            --set-env-vars "MEILI_MASTER_KEY=${MEILI_MASTER_KEY},MEILI_HTTP_ADDR=0.0.0.0:8080,MEILI_ENV=production,MEILI_NO_ANALYTICS=true" \
+            --set-env-vars "MEILI_HTTP_ADDR=0.0.0.0:8080,MEILI_ENV=production,MEILI_NO_ANALYTICS=true" \
+            --set-secrets "MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest" \
             --memory "1Gi" \
             --cpu "1" \
             --platform managed \

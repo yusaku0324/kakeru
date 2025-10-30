@@ -9,21 +9,42 @@ on:
 jobs:
   deploy-api:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      REGION: asia-northeast1
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SITE_BASE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+      MEILI_HOST: ${{ secrets.MEILI_HOST }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Authenticate gcloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Build API image
+        run: |
+          set -euo pipefail
+          gcloud builds submit osakamenesu/services/api \
+            --tag gcr.io/${{ env.PROJECT_ID }}/osakamenesu-api
 
       - name: Deploy API service
         run: |
+          set -euo pipefail
+          export DATABASE_URL="${{ env.DATABASE_URL }}"
+          export SITE_BASE_URL="${{ env.SITE_BASE_URL }}"
+          export MEILI_HOST="${{ env.MEILI_HOST }}"
           gcloud run deploy osakamenesu-api \
-            --region=asia-northeast1 \
-            --source=. \
-            --allow-unauthenticated
+            --image="gcr.io/${{ env.PROJECT_ID }}/osakamenesu-api" \
+            --region="${{ env.REGION }}" \
+            --set-env-vars "DATABASE_URL=${DATABASE_URL},SITE_BASE_URL=${SITE_BASE_URL},MEILI_HOST=${MEILI_HOST}" \
+            --set-secrets "MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest,OSAKAMENESU_ADMIN_API_KEY=OSAKAMENESU_ADMIN_API_KEY:latest"
 
   deploy-web:
     runs-on: ubuntu-latest
