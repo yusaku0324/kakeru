@@ -519,7 +519,6 @@ jobs:
           trap 'rm -f "$env_file"' EXIT
           python3 scripts/write_env_file.py \
             --output "$env_file" \
-            --key ADMIN_API_KEY \
             --key NEXT_PUBLIC_SITE_URL \
             --key NEXT_PUBLIC_OSAKAMENESU_API_BASE \
             --key NEXT_PUBLIC_API_BASE=PUBLIC_BASE \
@@ -530,7 +529,8 @@ jobs:
           gcloud run services update "$CLOUD_RUN_WEB_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --image "$WEB_IMAGE" \
-            --env-vars-file "$env_file"
+            --env-vars-file "$env_file" \
+            --set-secrets "ADMIN_API_KEY=ADMIN_API_KEY:latest"
 
       - name: Seed staging data with sample profiles
         env:
