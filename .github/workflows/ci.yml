@@ -465,25 +465,13 @@ jobs:
           echo "::add-mask::${MEILI_HOST_EFFECTIVE}"
           env_file=$(mktemp)
           trap 'rm -f "$env_file"' EXIT
-          MEILI_HOST_EFFECTIVE="$MEILI_HOST_EFFECTIVE" ENV_FILE="$env_file" python3 -c '
-import json
-import os
-from pathlib import Path
-
-env_file = Path(os.environ["ENV_FILE"])
-pairs = {
-    "DATABASE_URL": os.environ["DATABASE_URL"],
-    "MEILI_HOST": os.environ["MEILI_HOST_EFFECTIVE"],
-    "SITE_BASE_URL": os.environ["SITE_BASE_URL"],
-    "MAIL_FROM_ADDRESS": os.environ["MAIL_FROM_ADDRESS"],
-    "MAIL_PROVIDER_BASE_URL": os.environ["MAIL_PROVIDER_BASE_URL"],
-}
-
-env_file.write_text(
-    "".join(f"{key}: {json.dumps(value, ensure_ascii=False)}\n" for key, value in pairs.items()),
-    encoding="utf-8",
-)
-'
+          MEILI_HOST_EFFECTIVE="$MEILI_HOST_EFFECTIVE" python3 scripts/write_env_file.py \
+            --output "$env_file" \
+            --key DATABASE_URL \
+            --key MEILI_HOST=MEILI_HOST_EFFECTIVE \
+            --key SITE_BASE_URL \
+            --key MAIL_FROM_ADDRESS \
+            --key MAIL_PROVIDER_BASE_URL
           gcloud run services update "$CLOUD_RUN_API_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --remove-env-vars "MAIL_APIKEY" \
@@ -529,34 +517,16 @@ env_file.write_text(
 
           env_file=$(mktemp)
           trap 'rm -f "$env_file"' EXIT
-          PUBLIC_BASE="$PUBLIC_BASE" INTERNAL_BASE="$INTERNAL_BASE" API_INTERNAL_BASE_EFFECTIVE="$API_INTERNAL_BASE_EFFECTIVE" ENV_FILE="$env_file" python3 -c '
-import json
-import os
-from pathlib import Path
-
-env_file = Path(os.environ["ENV_FILE"])
-pairs = {
-    "ADMIN_API_KEY": os.environ["ADMIN_API_KEY"],
-    "NEXT_PUBLIC_SITE_URL": os.environ["NEXT_PUBLIC_SITE_URL"],
-    "NEXT_PUBLIC_OSAKAMENESU_API_BASE": os.environ["NEXT_PUBLIC_OSAKAMENESU_API_BASE"],
-    "NEXT_PUBLIC_API_BASE": os.environ["PUBLIC_BASE"],
-    "ADMIN_BASIC_USER": os.environ["ADMIN_BASIC_USER"],
-    "ADMIN_BASIC_PASS": os.environ["ADMIN_BASIC_PASS"],
-}
-
-internal_base = os.environ.get("INTERNAL_BASE")
-if internal_base:
-    pairs["OSAKAMENESU_API_INTERNAL_BASE"] = internal_base
-
-api_internal_base = os.environ.get("API_INTERNAL_BASE_EFFECTIVE")
-if api_internal_base:
-    pairs["API_INTERNAL_BASE"] = api_internal_base
-
-env_file.write_text(
-    "".join(f"{key}: {json.dumps(value, ensure_ascii=False)}\n" for key, value in pairs.items()),
-    encoding="utf-8",
-)
-'
+          python3 scripts/write_env_file.py \
+            --output "$env_file" \
+            --key ADMIN_API_KEY \
+            --key NEXT_PUBLIC_SITE_URL \
+            --key NEXT_PUBLIC_OSAKAMENESU_API_BASE \
+            --key NEXT_PUBLIC_API_BASE=PUBLIC_BASE \
+            --key ADMIN_BASIC_USER \
+            --key ADMIN_BASIC_PASS \
+            --optional-key OSAKAMENESU_API_INTERNAL_BASE=INTERNAL_BASE \
+            --optional-key API_INTERNAL_BASE=API_INTERNAL_BASE_EFFECTIVE
           gcloud run services update "$CLOUD_RUN_WEB_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --image "$WEB_IMAGE" \
