@@ -11,11 +11,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import models
-from ..db import get_session
-from ..deps import require_dashboard_user
-from ..meili import index_profile
-from ..schemas import (
+from .... import models
+from ....db import get_session
+from ....deps import require_dashboard_user
+from ....meili import index_profile
+from ....schemas import (
     DashboardShopListResponse,
     DashboardShopSummaryItem,
     DashboardShopContact,
@@ -25,8 +25,8 @@ from ..schemas import (
     DashboardShopProfileUpdatePayload,
     DashboardShopStaff,
 )
-from ..utils.profiles import build_profile_doc
-from ..utils.slug import slugify
+from ....utils.profiles import build_profile_doc
+from ....utils.slug import slugify
 
 JST = ZoneInfo("Asia/Tokyo")
 
