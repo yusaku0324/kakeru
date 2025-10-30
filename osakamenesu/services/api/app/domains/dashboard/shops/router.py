@@ -25,8 +25,10 @@ from ....schemas import (
     DashboardShopProfileUpdatePayload,
     DashboardShopStaff,
 )
+from ....utils.datetime import ensure_aware_datetime
 from ....utils.profiles import build_profile_doc
 from ....utils.slug import slugify
+from ....utils.text import strip_or_none
 
 JST = ZoneInfo("Asia/Tokyo")
 
@@ -34,12 +36,6 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 DEFAULT_BUST_TAG = "UNSPECIFIED"
 ALLOWED_PROFILE_STATUSES = {"draft", "published", "hidden"}
-
-
-def _ensure_datetime(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
 
 
 def _extract_contact(
@@ -68,7 +64,7 @@ def _extract_menus(raw: Any) -> List[DashboardShopMenu]:
     for entry in raw:
         if not isinstance(entry, dict):
             continue
-        name = str(entry.get("name") or "").strip()
+        name = strip_or_none(entry.get("name"))
         if not name:
             continue
         try:
@@ -90,7 +86,7 @@ def _extract_menus(raw: Any) -> List[DashboardShopMenu]:
                 name=name,
                 price=max(0, price),
                 duration_minutes=duration_value,
-                description=str(entry.get("description") or "").strip() or None,
+                description=strip_or_none(entry.get("description")),
                 tags=tags,
                 is_reservable_online=entry.get("is_reservable_online", True),
             )
@@ -105,19 +101,23 @@ def _extract_staff(raw: Any) -> List[DashboardShopStaff]:
     for entry in raw:
         if not isinstance(entry, dict):
             continue
-        name = str(entry.get("name") or "").strip()
+        name = strip_or_none(entry.get("name"))
         if not name:
             continue
         specialties = []
         raw_specialties = entry.get("specialties") or []
         if isinstance(raw_specialties, list):
-            specialties = [str(item) for item in raw_specialties if str(item).strip()]
+            specialties = []
+            for item in raw_specialties:
+                cleaned = strip_or_none(str(item))
+                if cleaned:
+                    specialties.append(cleaned)
         members.append(
             DashboardShopStaff(
                 id=str(entry.get("id")) if entry.get("id") else None,
                 name=name,
-                alias=str(entry.get("alias") or "").strip() or None,
-                headline=str(entry.get("headline") or "").strip() or None,
+                alias=strip_or_none(entry.get("alias")),
+                headline=strip_or_none(entry.get("headline")),
                 specialties=specialties,
             )
         )
@@ -484,8 +484,8 @@ async def update_dashboard_shop_profile(
     _ = user
     profile = await _get_profile(db, profile_id)
 
-    current_updated_at = _ensure_datetime(profile.updated_at)
-    incoming_updated_at = _ensure_datetime(payload.updated_at)
+    current_updated_at = ensure_aware_datetime(profile.updated_at)
+    incoming_updated_at = ensure_aware_datetime(payload.updated_at)
     if incoming_updated_at != current_updated_at:
         current = _serialize_profile(profile)
         raise HTTPException(
