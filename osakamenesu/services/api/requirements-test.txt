@@ -3,3 +3,4 @@ pytest
 pytest-anyio
 httpx
 trio
+pytest-cov
