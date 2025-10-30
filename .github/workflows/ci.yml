@@ -458,26 +458,48 @@ jobs:
             echo "::error::Meilisearch host is not configured. Set CLOUD_RUN_MEILI_SERVICE or secrets.MEILI_HOST." >&2
             exit 1
           fi
+          if ! gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "MAIL_APIKEY" >/dev/null 2>&1; then
+            echo "::error::Secret Manager entry 'MAIL_APIKEY' is not accessible." >&2
+            exit 1
+          fi
           echo "::add-mask::${MEILI_HOST_EFFECTIVE}"
-          declare -a ENV_VARS=(
-            "DATABASE_URL=${DATABASE_URL}"
-            "MEILI_HOST=${MEILI_HOST_EFFECTIVE}"
-            "SITE_BASE_URL=${SITE_BASE_URL}"
-            "MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}"
-            "MAIL_PROVIDER_BASE_URL=${MAIL_PROVIDER_BASE_URL}"
-          )
-          ENV_STRING=$(IFS=,; printf '%s' "${ENV_VARS[*]}")
+          env_file=$(mktemp)
+          trap 'rm -f "$env_file"' EXIT
+          MEILI_HOST_EFFECTIVE="$MEILI_HOST_EFFECTIVE" ENV_FILE="$env_file" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+
+def to_yaml_line(key: str, value: str) -> str:
+    return f"{key}: {json.dumps(value, ensure_ascii=False)}\n"
+
+
+env_file = Path(os.environ["ENV_FILE"])
+
+pairs = {
+    "DATABASE_URL": os.environ["DATABASE_URL"],
+    "MEILI_HOST": os.environ["MEILI_HOST_EFFECTIVE"],
+    "SITE_BASE_URL": os.environ["SITE_BASE_URL"],
+    "MAIL_FROM_ADDRESS": os.environ["MAIL_FROM_ADDRESS"],
+    "MAIL_PROVIDER_BASE_URL": os.environ["MAIL_PROVIDER_BASE_URL"],
+}
+
+env_file.write_text("".join(to_yaml_line(k, v) for k, v in pairs.items()), encoding="utf-8")
+PY
           gcloud run services update "$CLOUD_RUN_API_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --remove-env-vars "MAIL_APIKEY" \
-            --remove-secrets "MAIL_APIKEY"
+            --remove-secrets "MAIL_APIKEY" \
+            --quiet
 
           gcloud run services update "$CLOUD_RUN_API_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --add-cloudsql-instances "${GCP_PROJECT_ID}:${CLOUD_RUN_REGION}:osakamenesu-pg" \
             --image "$IMAGE" \
-            --update-env-vars "$ENV_STRING" \
-            --set-secrets "MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest,OSAKAMENESU_ADMIN_API_KEY=OSAKAMENESU_ADMIN_API_KEY:latest,MAIL_APIKEY=MAIL_APIKEY:latest"
+            --env-vars-file "$env_file" \
+            --set-secrets "MEILI_MASTER_KEY=MEILI_MASTER_KEY:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest,OSAKAMENESU_ADMIN_API_KEY=OSAKAMENESU_ADMIN_API_KEY:latest,MAIL_APIKEY=MAIL_APIKEY:latest" \
+            --quiet
 
       - name: Deploy osakamenesu-web to Cloud Run
         env:
@@ -506,28 +528,45 @@ jobs:
           PUBLIC_BASE="${NEXT_PUBLIC_API_BASE:-${NEXT_PUBLIC_OSAKAMENESU_API_BASE}}"
           INTERNAL_BASE="${OSAKAMENESU_API_INTERNAL_BASE_SECRET:-${NEXT_PUBLIC_OSAKAMENESU_API_BASE}}"
           API_INTERNAL_BASE_EFFECTIVE="${API_INTERNAL_BASE_SECRET:-${INTERNAL_BASE}}"
+          export PUBLIC_BASE INTERNAL_BASE API_INTERNAL_BASE_EFFECTIVE
 
-          declare -a ENV_VARS=(
-            "ADMIN_API_KEY=${ADMIN_API_KEY}"
-            "NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}"
-            "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${NEXT_PUBLIC_OSAKAMENESU_API_BASE}"
-            "NEXT_PUBLIC_API_BASE=${PUBLIC_BASE}"
-            "ADMIN_BASIC_USER=${ADMIN_BASIC_USER}"
-            "ADMIN_BASIC_PASS=${ADMIN_BASIC_PASS}"
-          )
+          env_file=$(mktemp)
+          trap 'rm -f "$env_file"' EXIT
+          PUBLIC_BASE="$PUBLIC_BASE" INTERNAL_BASE="$INTERNAL_BASE" API_INTERNAL_BASE_EFFECTIVE="$API_INTERNAL_BASE_EFFECTIVE" ENV_FILE="$env_file" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
 
-          if [ -n "${INTERNAL_BASE}" ]; then
-            ENV_VARS+=("OSAKAMENESU_API_INTERNAL_BASE=${INTERNAL_BASE}")
-          fi
-          if [ -n "${API_INTERNAL_BASE_EFFECTIVE}" ]; then
-            ENV_VARS+=("API_INTERNAL_BASE=${API_INTERNAL_BASE_EFFECTIVE}")
-          fi
 
-          ENV_STRING=$(IFS=,; printf '%s' "${ENV_VARS[*]}")
+def to_yaml_line(key: str, value: str) -> str:
+    return f"{key}: {json.dumps(value, ensure_ascii=False)}\n"
+
+
+env_file = Path(os.environ["ENV_FILE"])
+
+pairs = {
+    "ADMIN_API_KEY": os.environ["ADMIN_API_KEY"],
+    "NEXT_PUBLIC_SITE_URL": os.environ["NEXT_PUBLIC_SITE_URL"],
+    "NEXT_PUBLIC_OSAKAMENESU_API_BASE": os.environ["NEXT_PUBLIC_OSAKAMENESU_API_BASE"],
+    "NEXT_PUBLIC_API_BASE": os.environ["PUBLIC_BASE"],
+    "ADMIN_BASIC_USER": os.environ["ADMIN_BASIC_USER"],
+    "ADMIN_BASIC_PASS": os.environ["ADMIN_BASIC_PASS"],
+}
+
+internal_base = os.environ.get("INTERNAL_BASE", "")
+if internal_base:
+    pairs["OSAKAMENESU_API_INTERNAL_BASE"] = internal_base
+
+api_internal_base = os.environ.get("API_INTERNAL_BASE_EFFECTIVE", "")
+if api_internal_base:
+    pairs["API_INTERNAL_BASE"] = api_internal_base
+
+env_file.write_text("".join(to_yaml_line(k, v) for k, v in pairs.items()), encoding="utf-8")
+PY
           gcloud run services update "$CLOUD_RUN_WEB_SERVICE" \
             --region "$CLOUD_RUN_REGION" \
             --image "$WEB_IMAGE" \
-            --update-env-vars "$ENV_STRING"
+            --env-vars-file "$env_file"
 
       - name: Seed staging data with sample profiles
         env:
