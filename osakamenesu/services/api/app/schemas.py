@@ -28,6 +28,14 @@ class UserPublic(BaseModel):
     last_login_at: Optional[datetime] = None
 
 
+class AuthSessionStatus(BaseModel):
+    authenticated: bool
+    site_authenticated: bool = False
+    dashboard_authenticated: bool = False
+    scopes: List[str] = Field(default_factory=list)
+    user: Optional[UserPublic] = None
+
+
 class FavoriteItem(BaseModel):
     shop_id: UUID
     created_at: datetime

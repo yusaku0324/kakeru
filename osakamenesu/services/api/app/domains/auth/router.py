@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ... import models
 from ...db import get_session
-from ...deps import require_dashboard_user, require_site_user
-from ...schemas import AuthRequestLink, AuthVerifyRequest, UserPublic
+from ...deps import require_dashboard_user, require_site_user, get_optional_dashboard_user, get_optional_site_user
+from ...schemas import AuthRequestLink, AuthVerifyRequest, AuthSessionStatus, UserPublic
 from ...utils.email import send_email_async as _send_email_async
 from .service import AuthMagicLinkService
 
@@ -45,6 +45,49 @@ async def logout(request: Request, db: AsyncSession = Depends(get_session)) -> R
     return await _service.logout(request, db)
 
 
+def _to_user_public(user: models.User) -> UserPublic:
+    return UserPublic(
+        id=user.id,
+        email=user.email,
+        display_name=user.display_name,
+        created_at=user.created_at,
+        last_login_at=user.last_login_at,
+    )
+
+
+@router.get("/session", response_model=AuthSessionStatus)
+async def session_status(
+    site_user: models.User | None = Depends(get_optional_site_user),
+    dashboard_user: models.User | None = Depends(get_optional_dashboard_user),
+) -> AuthSessionStatus:
+    site_authenticated = site_user is not None
+    dashboard_authenticated = dashboard_user is not None
+    scopes: list[str] = []
+    if site_authenticated:
+        scopes.append("site")
+    if dashboard_authenticated:
+        scopes.append("dashboard")
+
+    if scopes:
+        primary_user = site_user or dashboard_user
+        assert primary_user is not None
+        return AuthSessionStatus(
+            authenticated=True,
+            site_authenticated=site_authenticated,
+            dashboard_authenticated=dashboard_authenticated,
+            scopes=scopes,
+            user=_to_user_public(primary_user),
+        )
+
+    return AuthSessionStatus(
+        authenticated=False,
+        site_authenticated=False,
+        dashboard_authenticated=False,
+        scopes=[],
+        user=None,
+    )
+
+
 @router.get("/me", response_model=UserPublic)
 async def get_me(user: models.User = Depends(require_dashboard_user)):
     return UserPublic(
@@ -72,6 +115,7 @@ __all__ = [
     "request_link",
     "verify_token",
     "logout",
+    "session_status",
     "get_me",
     "get_me_site",
     "send_email_async",
