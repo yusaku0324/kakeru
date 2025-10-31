@@ -9,7 +9,7 @@ const CONTACT_LINE = 'playwright_line'
 const CONTACT_WEB = 'https://playwright.example.com'
 
 async function fetchFirstShop(page: Page) {
-  const shopsResponse = await page.request.get('/api/admin/shops')
+  const shopsResponse = await page.request.get('/api/dashboard/shops?limit=20')
   if (!shopsResponse.ok()) {
     test.info().skip(`管理画面APIが利用できないためスキップ: /api/admin/shops -> ${shopsResponse.status()}`)
   }
@@ -47,7 +47,7 @@ async function ensureReservation(page: Page) {
     }
   }
 
-  const shopsResponse = await page.request.get('/api/admin/shops')
+  const shopsResponse = await page.request.get('/api/dashboard/shops?limit=20')
   if (!shopsResponse.ok()) {
     throw new Error(`failed to load shops: ${shopsResponse.status()}`)
   }
@@ -156,7 +156,10 @@ test.describe('Admin dashboard', () => {
     await setTags(newTags)
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
-      (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
+      (response) =>
+        response.url().includes('/api/dashboard/shops/') &&
+        response.url().includes('/profile') &&
+        response.request().method() === 'PUT',
     )
     await reopenShop(page, shop.name)
     const serviceTagsAfterSave = page.getByTestId('shop-service-tags')
@@ -173,7 +176,10 @@ test.describe('Admin dashboard', () => {
     await setTags(originalTags)
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
-      (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
+      (response) =>
+        response.url().includes('/api/dashboard/shops/') &&
+        response.url().includes('/profile') &&
+        response.request().method() === 'PUT',
     )
     await reopenShop(page, shop.name)
     const serviceTagsAfterRevert = page.getByTestId('shop-service-tags')
@@ -236,7 +242,7 @@ test.describe('Admin dashboard', () => {
     const addressInput = page.getByTestId('shop-address')
     const originalAddress = await addressInput.inputValue()
 
-    const errorRoute = `**/api/admin/shops/${shop.id}`
+  const errorRoute = `**/api/dashboard/shops/${shop.id}/profile`
     const handler = async (route: any) => {
       if (route.request().method() === 'PATCH') {
         await route.fulfill({
@@ -253,8 +259,11 @@ test.describe('Admin dashboard', () => {
 
     await addressInput.fill(`${originalAddress} PlaywrightError`)
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
-    const errorResponse = await page.waitForResponse((response) =>
-      response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
+    const errorResponse = await page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/dashboard/shops/') &&
+        response.url().includes('/profile') &&
+        response.request().method() === 'PUT',
     )
     expect(errorResponse.status()).toBe(500)
     const errorToast = page.locator('text=/保存に失敗しました|simulated error/').first()
@@ -263,7 +272,10 @@ test.describe('Admin dashboard', () => {
     await addressInput.fill(originalAddress)
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
-      (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
+      (response) =>
+        response.url().includes('/api/dashboard/shops/') &&
+        response.url().includes('/profile') &&
+        response.request().method() === 'PUT',
     )
     await expect(addressInput).toHaveValue(originalAddress, { timeout: 5000 })
   })
@@ -289,7 +301,10 @@ test.describe('Admin dashboard', () => {
 
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
-      (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
+      (response) =>
+        response.url().includes('/api/dashboard/shops/') &&
+        response.url().includes('/profile') &&
+        response.request().method() === 'PUT',
     )
 
     await reopenShop(page, shop.name)
@@ -301,7 +316,10 @@ test.describe('Admin dashboard', () => {
     await menuRow.getByRole('button', { name: '削除' }).click()
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
-      (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
+      (response) =>
+        response.url().includes('/api/dashboard/shops/') &&
+        response.url().includes('/profile') &&
+        response.request().method() === 'PUT',
     )
 
     await reopenShop(page, shop.name)
@@ -334,7 +352,10 @@ test.describe('Admin dashboard', () => {
 
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
-      (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
+      (response) =>
+        response.url().includes('/api/dashboard/shops/') &&
+        response.url().includes('/profile') &&
+        response.request().method() === 'PUT',
     )
 
     await reopenShop(page, shop.name)
@@ -346,7 +367,10 @@ test.describe('Admin dashboard', () => {
     await staffRow.getByRole('button', { name: '削除' }).click()
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
-      (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
+      (response) =>
+        response.url().includes('/api/dashboard/shops/') &&
+        response.url().includes('/profile') &&
+        response.request().method() === 'PUT',
     )
 
     await reopenShop(page, shop.name)
