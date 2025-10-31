@@ -15,10 +15,22 @@ export function resolveApiBases(): string[] {
     '/api'
 
   const bases: string[] = []
-  if (internal) {
-    bases.push(internal)
+  const isBrowser = typeof window !== 'undefined'
+
+  if (isBrowser) {
+    bases.push(publicBase)
+    if (internal && internal !== publicBase) {
+      bases.push(internal)
+    }
+  } else {
+    if (internal) {
+      bases.push(internal)
+    }
+    if (publicBase && internal !== publicBase) {
+      bases.push(publicBase)
+    }
   }
-  bases.push(publicBase)
+
   return bases
 }
 
