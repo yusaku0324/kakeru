@@ -12,23 +12,28 @@ export function resolveApiBases(): string[] {
   const publicBase =
     process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
     process.env.NEXT_PUBLIC_API_BASE ||
-    '/api'
+    ''
 
   const bases: string[] = []
   const isBrowser = typeof window !== 'undefined'
 
+  const addBase = (base: string | null | undefined) => {
+    if (!base) return
+    if (bases.includes(base)) return
+    bases.push(base)
+  }
+
   if (isBrowser) {
-    bases.push(publicBase)
-    if (internal && internal !== publicBase) {
-      bases.push(internal)
-    }
+    addBase('/api')
+    addBase(publicBase || '/api')
+    addBase(internal)
   } else {
-    if (internal) {
-      bases.push(internal)
-    }
-    if (publicBase && internal !== publicBase) {
-      bases.push(publicBase)
-    }
+    addBase(internal)
+    addBase(publicBase || '/api')
+  }
+
+  if (!bases.length) {
+    bases.push('/api')
   }
 
   return bases
