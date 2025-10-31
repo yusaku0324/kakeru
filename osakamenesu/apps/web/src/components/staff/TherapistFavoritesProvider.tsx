@@ -3,6 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ToastContainer, useToast } from '@/components/useToast'
+import { buildApiUrl, resolveApiBases } from '@/lib/api'
 
 type TherapistFavoriteRecord = {
   therapistId: string
@@ -40,6 +41,39 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
   const { toasts, push, remove } = useToast()
   const mutationVersionRef = useRef(0)
   const keyVersionRef = useRef(new Map<string, number>())
+  const apiTargetsRef = useRef(resolveApiBases())
+
+  const fetchWithFallback = useCallback(
+    async (path: string, init: RequestInit) => {
+      const targets = apiTargetsRef.current
+      let lastResponse: Response | null = null
+      let lastError: unknown = null
+
+      for (const base of targets) {
+        const url = buildApiUrl(base, path)
+        try {
+          const response = await fetch(url, init)
+          if (
+            response.status === 404 &&
+            !(base?.startsWith('http://') || base?.startsWith('https://') || base?.startsWith('//'))
+          ) {
+            // 404 from relative base (same origin) — try next candidate such as the public API host
+            lastResponse = response
+            continue
+          }
+          return response
+        } catch (error) {
+          lastError = error
+        }
+      }
+
+      if (lastResponse) {
+        return lastResponse
+      }
+      throw lastError ?? new Error('All API targets failed')
+    },
+    []
+  )
 
   useEffect(() => {
     let active = true
@@ -48,7 +82,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
     async function loadFavorites() {
       setLoading(true)
       try {
-        const res = await fetch('/api/favorites/therapists', {
+        const res = await fetchWithFallback('/api/favorites/therapists', {
           credentials: 'include',
         })
 
@@ -179,7 +213,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
 
       try {
         if (currentlyFavorite) {
-          const res = await fetch(`/api/favorites/therapists/${encodeURIComponent(normalizedTherapistId)}`, {
+          const res = await fetchWithFallback(`/api/favorites/therapists/${encodeURIComponent(normalizedTherapistId)}`, {
             method: 'DELETE',
             credentials: 'include',
           })
@@ -205,7 +239,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
           })
           push('success', 'お気に入りから削除しました。')
         } else {
-          const res = await fetch('/api/favorites/therapists', {
+          const res = await fetchWithFallback('/api/favorites/therapists', {
             method: 'POST',
             credentials: 'include',
             headers: {
