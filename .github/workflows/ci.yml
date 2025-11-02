@@ -318,7 +318,7 @@ jobs:
             exit 1
           fi
 
-          cookie_value=$(
+          cookie_value=$( 
             python osakamenesu/services/api/scripts/extract_cookie.py \
               --headers "$headers_file"
           ) || {
