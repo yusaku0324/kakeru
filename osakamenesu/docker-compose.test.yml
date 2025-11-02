@@ -18,8 +18,8 @@ services:
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
     command: ["meilisearch", "--http-addr", "0.0.0.0:7700"]
-    ports:
-      - "7700:7700"
+    expose:
+      - "7700"
 
   osakamenesu-api-test:
     build:
