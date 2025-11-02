@@ -1,3 +1,4 @@
+# yamllint disable rule:line-length rule:truthy
 # .github/workflows/ci.yml  （既存ワークフローを *1 本* に統合）
 #
 # ✔️ 目的
@@ -8,6 +9,7 @@
 #
 # 👇 このファイルを保存後、古い mac-studio.yml / nightly*.yml など
 #    重複ワークフローは削除 or rename してください。
+---
 name: CI
 
 on:
