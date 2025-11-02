@@ -428,6 +428,9 @@ PY
       - name: Configure Docker auth
         run: gcloud auth configure-docker --quiet
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Deploy Meilisearch to Cloud Run
         run: |
           set -euo pipefail
@@ -465,8 +468,11 @@ PY
         run: |
           IMAGE="gcr.io/$GCP_PROJECT_ID/osakamenesu-api:${IMAGE_TAG}"
           echo "IMAGE=${IMAGE}" >> $GITHUB_ENV
-          docker build -t "$IMAGE" osakamenesu/services/api
-          docker push "$IMAGE"
+          docker buildx build \
+            --platform linux/amd64 \
+            -t "$IMAGE" \
+            osakamenesu/services/api \
+            --push
 
       - name: Build and push web image
         env:
@@ -479,11 +485,12 @@ PY
           export NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL}"
           WEB_IMAGE="gcr.io/$GCP_PROJECT_ID/osakamenesu-web:${IMAGE_TAG}"
           echo "WEB_IMAGE=${WEB_IMAGE}" >> $GITHUB_ENV
-          docker build \
+          docker buildx build \
+            --platform linux/amd64 \
             --build-arg NEXT_PUBLIC_OSAKAMENESU_API_BASE="$NEXT_PUBLIC_OSAKAMENESU_API_BASE" \
             --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
-            -t "$WEB_IMAGE" osakamenesu/apps/web
-          docker push "$WEB_IMAGE"
+            -t "$WEB_IMAGE" osakamenesu/apps/web \
+            --push
 
       - name: Resolve database connection string
         id: resolve-db-url

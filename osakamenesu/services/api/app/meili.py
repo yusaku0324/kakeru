@@ -1,9 +1,13 @@
 from typing import Any
+import logging
 
 from meilisearch import Client
+from meilisearch.errors import MeilisearchApiError
 from .settings import settings
 
 INDEX = "profiles"
+
+logger = logging.getLogger("app.meili")
 
 def get_client() -> Client:
     return Client(settings.meili_host, settings.meili_master_key)
@@ -183,5 +187,20 @@ def search(
     if facets:
         options["facets"] = facets
     # meilisearch-python >=0.30 expects the query as the first positional arg
-    res = idx.search(q or "", options)
-    return res
+    try:
+        return idx.search(q or "", options)
+    except MeilisearchApiError as exc:
+        message = str(exc).lower()
+        if exc.error_code == "invalid_search_filter" or "not filterable" in message:
+            logger.warning("meilisearch invalid filter detected; reapplying index settings and retrying")
+            try:
+                ensure_indexes()
+            except Exception as ensure_exc:  # pragma: no cover - defensive logging
+                logger.error("failed to reapply meilisearch settings: %s", ensure_exc)
+            idx = get_client().index(INDEX)
+            try:
+                return idx.search(q or "", options)
+            except MeilisearchApiError as retry_exc:
+                logger.error("meilisearch retry failed after settings reapplied: %s", retry_exc)
+                raise
+        raise
