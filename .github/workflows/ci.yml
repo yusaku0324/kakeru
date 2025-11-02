@@ -131,6 +131,13 @@ jobs:
       - name: Run pytest
         run: pytest -n auto app/tests -q
 
+      - name: Run favorites E2E (real API)
+        if: ${{ steps.test_login_cookie.outputs.cookie }}
+        env:
+          E2E_SITE_COOKIE: ${{ steps.test_login_cookie.outputs.cookie }}
+        working-directory: osakamenesu/apps/web
+        run: npm run test:e2e -- favorites.spec.ts
+
   integration-test:
     needs:
       - test
