@@ -21,7 +21,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     services:
       osakamenesu-db:
         image: postgres:15
@@ -106,7 +106,7 @@ jobs:
   integration-test:
     needs:
       - test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     defaults:
       run:
         working-directory: osakamenesu
@@ -168,7 +168,7 @@ jobs:
   admin-e2e:
     needs:
       - web-lint
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     services:
       osakamenesu-db:
         image: postgres:15
@@ -199,6 +199,9 @@ jobs:
       NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
       ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
       OSAKAMENESU_ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+      TEST_AUTH_ENABLED: "1"
+      TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
+      E2E_TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
     steps:
       - uses: actions/checkout@v4
 
@@ -277,6 +280,81 @@ jobs:
           done
           echo "API did not become ready in time" >&2
           exit 1
+
+      - name: Generate site login cookie
+        id: generate-site-cookie
+        env:
+          TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TEST_AUTH_SECRET:-}" ]; then
+            echo "::error::TEST_AUTH_SECRET secret is not configured. Configure it in the repository secrets to enable site login automation." >&2
+            exit 1
+          fi
+
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+          headers_file="$tmpdir/headers"
+          body_file="$tmpdir/body.json"
+
+          curl -sS -D "$headers_file" -o "$body_file" \
+            -H "Content-Type: application/json" \
+            -H "X-Test-Auth-Secret: ${TEST_AUTH_SECRET}" \
+            --data '{"email":"ci-favorites@example.com","display_name":"CI Favorites User","scope":"site"}' \
+            http://127.0.0.1:8000/api/auth/test-login
+
+          if ! status_code=$(awk 'NR==1 {print $2}' "$headers_file"); then
+            echo "::error::Failed to read response status from /api/auth/test-login" >&2
+            cat "$body_file" >&2 || true
+            exit 1
+          fi
+
+          if [ "$status_code" != "200" ]; then
+            echo "::error::/api/auth/test-login responded with status $status_code" >&2
+            cat "$body_file" >&2 || true
+            exit 1
+          fi
+
+          cookie_value=$(
+            HEADERS_FILE="$headers_file" python - <<'PY'
+import os
+import sys
+
+headers_path = os.environ["HEADERS_FILE"]
+cookie_pairs = []
+
+with open(headers_path, "r", encoding="utf-8") as fh:
+    for line in fh:
+        if line.lower().startswith("set-cookie:"):
+            value = line.split(":", 1)[1].strip()
+            if not value:
+                continue
+            pair = value.split(";", 1)[0].strip()
+            if pair:
+                cookie_pairs.append(pair)
+
+if not cookie_pairs:
+    sys.exit(1)
+
+print("; ".join(cookie_pairs))
+PY
+          ) || {
+            echo "::error::Failed to parse Set-Cookie header from /api/auth/test-login response." >&2
+            cat "$body_file" >&2 || true
+            exit 1
+          }
+
+          cookie_value="$(printf '%s' "$cookie_value" | tr -d '\r')"
+
+          if [ -z "$cookie_value" ]; then
+            echo "::error::Cookie value could not be derived from /api/auth/test-login response." >&2
+            cat "$body_file" >&2 || true
+            exit 1
+          fi
+
+          echo "::add-mask::${cookie_value}"
+          echo "E2E_SITE_COOKIE=${cookie_value}" >> "$GITHUB_ENV"
+
 
       - uses: actions/setup-node@v4
         with:
