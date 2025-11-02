@@ -218,7 +218,14 @@ async def _send_via_log(
     message: str,
     config: Dict[str, Any],
 ) -> None:
-    logger.info("reservation_notification_log", extra={"reservation_id": payload.reservation_id, "message": message})
+    logger.info(
+        "reservation_notification_log: %s",
+        message,
+        extra={
+            "reservation_id": payload.reservation_id,
+            "shop_id": payload.shop_id,
+        },
+    )
     return None
 
 

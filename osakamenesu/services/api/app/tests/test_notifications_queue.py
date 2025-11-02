@@ -230,6 +230,50 @@ async def test_dispatch_delivery_failure_schedules_retry() -> None:
 
 
 @pytest.mark.anyio
+async def test_dispatch_delivery_log_channel_success() -> None:
+    session = FakeSession()
+    reservation_id = uuid.uuid4()
+    payload = notifications.ReservationNotification(
+        reservation_id=str(reservation_id),
+        shop_id=str(uuid.uuid4()),
+        shop_name="ログ店",
+        customer_name="内田ログ",
+        customer_phone="09099999999",
+        desired_start="2025-06-06T10:00:00+00:00",
+        desired_end="2025-06-06T11:00:00+00:00",
+        status="pending",
+    )
+    job_payload: Dict[str, Any] = {
+        "notification": payload.to_dict(),
+        "message": "log message",
+        "config": {},
+    }
+    delivery = models.ReservationNotificationDelivery(
+        reservation_id=reservation_id,
+        channel="log",
+        status="pending",
+        payload=job_payload,
+        attempt_count=0,
+    )
+
+    fixed_now = datetime(2025, 6, 6, 12, 0, tzinfo=UTC)
+    handled = await notifications._dispatch_delivery(  # type: ignore[attr-defined]
+        session,
+        delivery,
+        now=fixed_now,
+    )
+
+    assert handled is True
+    assert delivery.status == "succeeded"
+    assert delivery.next_attempt_at is None
+    assert delivery.last_error is None
+    assert delivery.attempt_count == 1
+    assert session.added[0].status == "success"
+    assert session.added[0].response_status is None
+    assert session.added[0].attempted_at == fixed_now
+
+
+@pytest.mark.anyio
 async def test_dispatch_delivery_failure_reaches_max_marks_failed(monkeypatch: pytest.MonkeyPatch) -> None:
     session = FakeSession()
     reservation_id = uuid.uuid4()
