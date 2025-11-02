@@ -52,6 +52,8 @@ jobs:
       MEILI_HOST: http://127.0.0.1:7700
       MEILI_MASTER_KEY: dev_meili_master_key
       ANYIO_BACKEND: asyncio
+      TEST_AUTH_ENABLED: "1"
+      TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
     steps:
       - uses: actions/checkout@v4
 
