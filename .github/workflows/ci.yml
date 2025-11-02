@@ -317,28 +317,8 @@ jobs:
           fi
 
           cookie_value=$(
-            HEADERS_FILE="$headers_file" python - <<'PY'
-import os
-import sys
-
-headers_path = os.environ["HEADERS_FILE"]
-cookie_pairs = []
-
-with open(headers_path, "r", encoding="utf-8") as fh:
-    for line in fh:
-        if line.lower().startswith("set-cookie:"):
-            value = line.split(":", 1)[1].strip()
-            if not value:
-                continue
-            pair = value.split(";", 1)[0].strip()
-            if pair:
-                cookie_pairs.append(pair)
-
-if not cookie_pairs:
-    sys.exit(1)
-
-print("; ".join(cookie_pairs))
-PY
+            python osakamenesu/services/api/scripts/extract_cookie.py \
+              --headers "$headers_file"
           ) || {
             echo "::error::Failed to parse Set-Cookie header from /api/auth/test-login response." >&2
             cat "$body_file" >&2 || true
