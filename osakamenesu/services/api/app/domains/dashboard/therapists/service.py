@@ -26,6 +26,7 @@ from ....schemas import (
 )
 from ....storage import MediaStorageError, get_media_storage
 from ....utils.profiles import build_profile_doc
+from ....utils.text import strip_or_none
 
 JST = ZoneInfo("Asia/Tokyo")
 

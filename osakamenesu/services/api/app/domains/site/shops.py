@@ -623,7 +623,7 @@ def _normalize_promotions(*sources: Any) -> List[Promotion]:
     return promotions
 
 
-def _normalize_staff_preview(raw: Any) -> List[schemas.ShopStaffPreview]:
+def _normalize_staff_preview(raw: Any) -> List[ShopStaffPreview]:
     previews: List[ShopStaffPreview] = []
     if not isinstance(raw, list):
         return previews

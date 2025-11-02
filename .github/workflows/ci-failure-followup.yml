@@ -1,0 +1,54 @@
+name: CI Failure Follow-up
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  notify:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: self-hosted
+    steps:
+      - name: Post failure comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const summaryUrl = run.html_url;
+            const logsUrl = `${summaryUrl}/logs`;
+            const prs = run.pull_requests || [];
+
+            const body = [
+              `:warning: CI workflow failed on self-hosted runner.`,
+              ``,
+              `- Workflow run: ${summaryUrl}`,
+              `- Logs: ${logsUrl}`,
+              ``,
+              `Codex を自動で呼び出したい場合は、リポジトリルートで Codex CLI を起動し、失敗内容（例: 「ci.yml が落ちたので修正して」）を伝えてください。`,
+              `失敗ログの要約や再現手順など、追加情報があればメッセージに含めるとスムーズです。`
+            ].join("\n");
+
+            if (prs.length > 0) {
+              const prNumber = prs[0].number;
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[CI] Failure detected on ${run.head_branch || 'unknown branch'}`,
+                body,
+              });
+            }
