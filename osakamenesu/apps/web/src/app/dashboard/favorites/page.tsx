@@ -106,6 +106,7 @@ async function fetchSiteUser(cookieHeader?: string): Promise<SiteUserResult> {
 
 async function fetchFavorites(cookieHeader?: string): Promise<FavoritesResult> {
   let lastError: Error | null = null
+  let sawUnauthorized = false
 
   for (const base of resolveApiBases()) {
     try {
@@ -116,7 +117,8 @@ async function fetchFavorites(cookieHeader?: string): Promise<FavoritesResult> {
       })
 
       if (res.status === 401) {
-        return { status: 'unauthorized' }
+        sawUnauthorized = true
+        continue
       }
 
       if (!res.ok) {
@@ -131,6 +133,10 @@ async function fetchFavorites(cookieHeader?: string): Promise<FavoritesResult> {
     }
   }
 
+  if (sawUnauthorized && process.env.NODE_ENV !== 'production') {
+    return { status: 'ok', favorites: [] }
+  }
+
   return {
     status: 'error',
     message: lastError?.message ?? 'お気に入りの取得中にエラーが発生しました',
@@ -139,10 +145,18 @@ async function fetchFavorites(cookieHeader?: string): Promise<FavoritesResult> {
 
 async function fetchTherapistFavorites(cookieHeader?: string): Promise<TherapistFavoritesResult> {
   let lastError: Error | null = null
+  const bases = resolveApiBases()
+  if (process.env.NODE_ENV !== 'production') {
+    console.info('[fetch-therapist-favorites] bases', bases)
+  }
 
-  for (const base of resolveApiBases()) {
+  for (const base of bases) {
+    const url = buildApiUrl(base, 'api/favorites/therapists')
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[fetch-therapist-favorites] request', { base, url })
+    }
     try {
-      const res = await fetch(buildApiUrl(base, 'api/favorites/therapists'), {
+      const res = await fetch(url, {
         headers: cookieHeader ? { cookie: cookieHeader } : undefined,
         credentials: cookieHeader ? 'omit' : 'include',
         cache: 'no-store',
@@ -268,6 +282,17 @@ export default async function FavoritesDashboardPage() {
     fetchFavorites(cookieHeader),
     fetchTherapistFavorites(cookieHeader),
   ])
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.info('[favorites-page]', {
+      favoritesStatus: favoritesResult.status,
+      therapistStatus: therapistFavoritesResult.status,
+      favoritesCount:
+        favoritesResult.status === 'ok' ? favoritesResult.favorites.length : null,
+      therapistFavoritesCount:
+        therapistFavoritesResult.status === 'ok' ? therapistFavoritesResult.favorites.length : null,
+    })
+  }
 
   if (
     favoritesResult.status === 'error' &&

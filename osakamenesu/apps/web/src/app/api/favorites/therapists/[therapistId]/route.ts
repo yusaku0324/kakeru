@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readMockFavorites, removeMockFavorite, isMockFavoritesMode, writeMockFavorites } from '../../mockStore'
 
 const API_BASE =
   process.env.OSAKAMENESU_API_INTERNAL_BASE ||
@@ -38,13 +39,20 @@ async function forwardDelete(
   })
 
   const responseHeaders = new Headers(response.headers)
-  const body =
-    response.status === 204 ? new Uint8Array() : await response.arrayBuffer()
-
-  const nextResponse = new NextResponse(body, {
-    status: response.status,
-    headers: responseHeaders,
-  })
+  const status = response.status
+  let nextResponse: NextResponse
+  if (status === 204) {
+    nextResponse = new NextResponse(null, {
+      status,
+      headers: responseHeaders,
+    })
+  } else {
+    const body = await response.arrayBuffer()
+    nextResponse = new NextResponse(body, {
+      status,
+      headers: responseHeaders,
+    })
+  }
 
   const setCookie = responseHeaders.get('set-cookie')
   if (setCookie) {
@@ -58,5 +66,25 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { therapistId: string } },
 ): Promise<NextResponse> {
-  return forwardDelete(req, params.therapistId)
+  if (isMockFavoritesMode()) {
+    const favorites = readMockFavorites(req)
+    removeMockFavorite(favorites, params.therapistId)
+    const response = new NextResponse(null, { status: 204 })
+    writeMockFavorites(response, favorites)
+    return response
+  }
+
+  const shouldFallbackForStatus = (status: number): boolean => {
+    return status >= 500 || status === 401 || status === 403 || status === 404
+  }
+
+  try {
+    const response = await forwardDelete(req, params.therapistId)
+    if (shouldFallbackForStatus(response.status)) {
+      return response
+    }
+    return response
+  } catch (error) {
+    throw error
+  }
 }

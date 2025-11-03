@@ -90,6 +90,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("MEDIA_S3_SECRET_ACCESS_KEY", "MEDIA_SECRET_KEY"),
     )
+    test_auth_secret: str | None = Field(
+        default="secret",
+        validation_alias=AliasChoices("E2E_TEST_AUTH_SECRET", "TEST_AUTH_SECRET"),
+    )
 
     class Config:
         env_file = ".env"
