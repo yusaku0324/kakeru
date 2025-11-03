@@ -60,6 +60,8 @@ export function TherapistCard({ hit }: { hit: TherapistHit }) {
         aria-pressed={favorite}
         aria-label={favorite ? 'お気に入りから削除' : 'お気に入りに追加'}
         title={favorite ? 'お気に入りから削除' : 'お気に入りに追加'}
+        data-therapist-id={therapistId ?? undefined}
+        data-shop-id={hit.shopId}
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()

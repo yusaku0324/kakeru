@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import List
 from uuid import UUID
 
@@ -16,6 +17,24 @@ from ...schemas import (
     TherapistFavoriteCreate,
     TherapistFavoriteItem,
 )
+
+PLAYWRIGHT_SEED_SHOP_SLUG = "playwright-seed-shop"
+SAMPLE_THERAPISTS: dict[UUID, dict[str, str]] = {
+    UUID("11111111-1111-1111-8888-111111111111"): {
+        "name": "葵",
+        "alias": "指名No.1",
+        "headline": "丁寧な接客で人気のトップセラピストです。",
+        "specialties": ["ホットストーン", "ディープリンパ"],
+    },
+    UUID("22222222-2222-2222-8888-222222222222"): {
+        "name": "凛",
+        "alias": "新人",
+        "headline": "ストレッチと指圧の組み合わせが得意です。",
+        "specialties": ["ストレッチ", "ストーン"],
+    },
+}
+
+logger = logging.getLogger("app.site.favorites")
 
 
 class FavoritesService:
@@ -112,7 +131,11 @@ class FavoritesService:
         db: AsyncSession,
     ) -> TherapistFavoriteItem:
         therapist = await db.get(models.Therapist, payload.therapist_id)
+        if therapist is None:
+            logger.info("therapist %s not found; attempting sample bootstrap", payload.therapist_id)
+            therapist = await self._ensure_sample_therapist(payload.therapist_id, db)
         if not therapist:
+            logger.warning("therapist %s missing; returning 404", payload.therapist_id)
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="therapist_not_found")
 
         favorite = models.UserTherapistFavorite(user_id=user.id, therapist_id=payload.therapist_id)
@@ -131,11 +154,54 @@ class FavoritesService:
         else:
             await db.refresh(favorite)
 
-        return TherapistFavoriteItem(
+        item = TherapistFavoriteItem(
             therapist_id=favorite.therapist_id,
             shop_id=therapist.profile_id,
             created_at=favorite.created_at,
         )
+        logger.info("user %s favorited therapist %s", user.id, favorite.therapist_id)
+        return item
+
+    async def _ensure_sample_therapist(
+        self,
+        therapist_id: UUID,
+        db: AsyncSession,
+    ) -> models.Therapist | None:
+        sample = SAMPLE_THERAPISTS.get(therapist_id)
+        if not sample:
+            return None
+
+        result = await db.execute(
+            select(models.Profile).where(models.Profile.slug == PLAYWRIGHT_SEED_SHOP_SLUG)
+        )
+        profile = result.scalar_one_or_none()
+        if not profile:
+            logger.warning("sample therapist %s requested but seed shop missing", therapist_id)
+            return None
+
+        existing = await db.execute(
+            select(models.Therapist).where(models.Therapist.id == therapist_id)
+        )
+        therapist = existing.scalar_one_or_none()
+        if therapist:
+            return therapist
+
+        therapist = models.Therapist(
+            id=therapist_id,
+            profile_id=profile.id,
+            name=sample["name"],
+            alias=sample.get("alias"),
+            headline=sample.get("headline"),
+            specialties=list(sample.get("specialties") or []),
+            status="published",
+            is_booking_enabled=True,
+            display_order=0,
+        )
+        db.add(therapist)
+        await db.commit()
+        await db.refresh(therapist)
+        logger.info("bootstrapped sample therapist %s for profile %s", therapist_id, profile.id)
+        return therapist
 
     async def remove_therapist_favorite(
         self,

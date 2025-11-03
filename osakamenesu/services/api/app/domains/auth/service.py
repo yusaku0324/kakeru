@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
 from ... import models
-from ...schemas import AuthRequestLink, AuthVerifyRequest
+from ...schemas import AuthRequestLink, AuthVerifyRequest, AuthTestLoginRequest
 from ...settings import settings
 from ...utils.auth import generate_token, hash_token, magic_link_expiry, session_expiry
 from ...utils.email import MailNotConfiguredError, send_email_async
@@ -302,6 +302,46 @@ class AuthMagicLinkService:
             )
         return response
 
+    async def test_login(
+        self,
+        payload: AuthTestLoginRequest,
+        request: Request,
+        db: AsyncSession,
+    ) -> tuple[str, str, models.User]:
+        email = payload.email.strip().lower()
+        stmt = select(models.User).where(models.User.email == email)
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+        display_name = (payload.display_name or email.split("@", 1)[0]).strip()
+
+        if not user:
+            user = models.User(email=email, display_name=display_name)
+            db.add(user)
+            await db.flush()
+        elif display_name and user.display_name != display_name:
+            user.display_name = display_name
+
+        now = datetime.now(UTC)
+        session_token = generate_token()
+        session_hash = hash_token(session_token)
+        scope = payload.scope or "site"
+        session = models.UserSession(
+            user_id=user.id,
+            token_hash=session_hash,
+            issued_at=now,
+            expires_at=session_expiry(now),
+            scope=scope,
+            ip_hash=_hash_ip(_ip_from_request(request)),
+            user_agent=request.headers.get("user-agent"),
+        )
+        db.add(session)
+        user.last_login_at = now
+        if not user.email_verified_at:
+            user.email_verified_at = now
+
+        await db.commit()
+        return session_token, scope, user
+
 
 __all__ = [
     "AuthMagicLinkService",
@@ -309,4 +349,3 @@ __all__ = [
     "_session_cookie_names",
     "_set_session_cookie",
 ]
-

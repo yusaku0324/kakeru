@@ -24,7 +24,7 @@ on:
 
 jobs:
   test:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     services:
       osakamenesu-db:
         image: postgres:15
@@ -109,7 +109,7 @@ jobs:
   integration-test:
     needs:
       - test
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: osakamenesu
@@ -139,7 +139,7 @@ jobs:
         run: docker compose -f docker-compose.test.yml down -v
 
   web-lint:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: osakamenesu/apps/web
@@ -171,7 +171,7 @@ jobs:
   admin-e2e:
     needs:
       - web-lint
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     services:
       osakamenesu-db:
         image: postgres:15

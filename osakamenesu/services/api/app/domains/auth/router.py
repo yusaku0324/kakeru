@@ -1,16 +1,20 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, Response, status
+import os
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ... import models
 from ...db import get_session
+from ...settings import settings
 from ...deps import require_dashboard_user, require_site_user, get_optional_dashboard_user, get_optional_site_user
-from ...schemas import AuthRequestLink, AuthVerifyRequest, AuthSessionStatus, UserPublic
+from ...schemas import AuthRequestLink, AuthVerifyRequest, AuthSessionStatus, AuthTestLoginRequest, UserPublic
 from ...utils.email import send_email_async as _send_email_async
-from .service import AuthMagicLinkService
+from .service import AuthMagicLinkService, _set_session_cookie
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -110,6 +114,33 @@ async def get_me_site(user: models.User = Depends(require_site_user)):
     )
 
 
+@router.post("/test-login")
+async def test_login(
+    payload: AuthTestLoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_session),
+    x_test_auth_secret: str | None = Header(default=None, alias="X-Test-Auth-Secret"),
+):
+    expected_secret = getattr(settings, "test_auth_secret", None) or os.getenv("E2E_TEST_AUTH_SECRET")
+    if not expected_secret:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="test_auth_not_configured")
+    if x_test_auth_secret != expected_secret:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_test_auth_secret")
+
+    session_token, scope, user = await _service.test_login(payload, request, db)
+    response = JSONResponse(
+        jsonable_encoder(
+            {
+                "ok": True,
+                "scope": scope,
+                "user": _to_user_public(user),
+            }
+        )
+    )
+    _set_session_cookie(response, session_token, scope=scope)
+    return response
+
+
 __all__ = [
     "router",
     "request_link",
@@ -118,6 +149,7 @@ __all__ = [
     "session_status",
     "get_me",
     "get_me_site",
+    "test_login",
     "send_email_async",
     "AuthMagicLinkService",
 ]

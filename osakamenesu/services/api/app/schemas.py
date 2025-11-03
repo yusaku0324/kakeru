@@ -20,6 +20,12 @@ class AuthVerifyRequest(BaseModel):
     token: str
 
 
+class AuthTestLoginRequest(BaseModel):
+    email: EmailStr
+    display_name: Optional[str] = None
+    scope: Literal["dashboard", "site"] = "site"
+
+
 class UserPublic(BaseModel):
     id: UUID
     email: EmailStr

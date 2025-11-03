@@ -1,6 +1,13 @@
 import 'dotenv/config'
 import { defineConfig } from '@playwright/test'
 
+if (!process.env.FAVORITES_API_MODE) {
+  process.env.FAVORITES_API_MODE = 'mock'
+}
+if (!process.env.NEXT_PUBLIC_FAVORITES_API_MODE) {
+  process.env.NEXT_PUBLIC_FAVORITES_API_MODE = 'mock'
+}
+
 const adminUser = process.env.ADMIN_BASIC_USER
 const adminPass = process.env.ADMIN_BASIC_PASS
 const adminKey = process.env.ADMIN_API_KEY
@@ -49,5 +56,10 @@ export default defineConfig({
         port,
         reuseExistingServer: !isCI,
         timeout: isCI ? 240_000 : 120_000,
+        env: {
+          ...process.env,
+          FAVORITES_API_MODE: 'mock',
+          NEXT_PUBLIC_FAVORITES_API_MODE: 'mock',
+        },
       },
 })

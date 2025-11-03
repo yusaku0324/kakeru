@@ -33,9 +33,54 @@ function normalizeId(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null
 }
 
+const mockMode =
+  ((process.env.NEXT_PUBLIC_FAVORITES_API_MODE || process.env.FAVORITES_API_MODE || '') as string)
+    .toLowerCase()
+    .includes('mock')
+
 export function TherapistFavoritesProvider({ children }: { children: React.ReactNode }) {
-  const [favorites, setFavorites] = useState<Map<string, TherapistFavoriteRecord>>(new Map())
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const initialFavorites = useMemo(() => {
+    if (!mockMode || typeof document === 'undefined') {
+      return new Map<string, TherapistFavoriteRecord>()
+    }
+    const cookieName = 'osakamenesu_favorites_mock'
+    const rawCookie = document.cookie
+      ?.split(';')
+      .map((part) => part.trim())
+      .find((item) => item.startsWith(`${cookieName}=`))
+    if (!rawCookie) {
+      return new Map<string, TherapistFavoriteRecord>()
+    }
+    const payload = rawCookie.slice(cookieName.length + 1)
+    try {
+      const parsed = JSON.parse(decodeURIComponent(payload))
+      if (!Array.isArray(parsed)) {
+        return new Map<string, TherapistFavoriteRecord>()
+      }
+      const map = new Map<string, TherapistFavoriteRecord>()
+      for (const record of parsed) {
+        const entry = record as Record<string, unknown>
+        const therapistId = normalizeId(entry['therapistId'] as string | null | undefined)
+        const shopId = normalizeId(entry['shopId'] as string | null | undefined)
+        const createdAt =
+          typeof entry['createdAt'] === 'string'
+            ? String(entry['createdAt'])
+            : new Date().toISOString()
+        if (therapistId && shopId) {
+          map.set(therapistId, {
+            therapistId,
+            shopId,
+            createdAt,
+          })
+        }
+      }
+      return map
+    } catch {
+      return new Map<string, TherapistFavoriteRecord>()
+    }
+  }, [])
+  const [favorites, setFavorites] = useState<Map<string, TherapistFavoriteRecord>>(initialFavorites)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(mockMode ? true : null)
   const [loading, setLoading] = useState<boolean>(true)
   const [pending, setPending] = useState<Set<string>>(new Set())
   const { toasts, push, remove } = useToast()
@@ -89,6 +134,13 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
         if (!active) return
 
         if (res.status === 401) {
+          if (mockMode) {
+            setIsAuthenticated(true)
+            setFavorites(new Map())
+            keyVersionRef.current.clear()
+            setLoading(false)
+            return
+          }
           setIsAuthenticated(false)
           setFavorites(new Map())
           keyVersionRef.current.clear()
@@ -168,7 +220,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
     return () => {
       active = false
     }
-  }, [push])
+  }, [push, fetchWithFallback, mockMode])
 
   const isFavorite = useCallback(
     (therapistId: string) => {
@@ -198,7 +250,9 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
         return
       }
 
-      if (isAuthenticated === false) {
+      if (mockMode && isAuthenticated === false) {
+        setIsAuthenticated(true)
+      } else if (isAuthenticated === false) {
         push('error', 'お気に入り機能を利用するにはログインが必要です。')
         return
       }
@@ -219,10 +273,12 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
           })
 
           if (res.status === 401) {
-            setIsAuthenticated(false)
-            setFavorites(new Map())
-            push('error', 'お気に入りを削除するにはログインしてください。')
-            return
+            if (!mockMode) {
+              setIsAuthenticated(false)
+              setFavorites(new Map())
+              push('error', 'お気に入りを削除するにはログインしてください。')
+              return
+            }
           }
 
           if (!res.ok && res.status !== 404) {
@@ -249,10 +305,12 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
           })
 
           if (res.status === 401) {
-            setIsAuthenticated(false)
-            setFavorites(new Map())
-            push('error', 'お気に入り機能を利用するにはログインが必要です。')
-            return
+            if (!mockMode) {
+              setIsAuthenticated(false)
+              setFavorites(new Map())
+              push('error', 'お気に入り機能を利用するにはログインが必要です。')
+              return
+            }
           }
 
           if (!res.ok) {
@@ -292,7 +350,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
         })
       }
     },
-    [favorites, isAuthenticated, push]
+    [favorites, isAuthenticated, push, fetchWithFallback]
   )
 
   const value = useMemo<TherapistFavoritesContextValue>(

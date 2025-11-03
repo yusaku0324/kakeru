@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import pytest
+from fastapi import HTTPException
 from starlette.requests import Request
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -70,6 +71,8 @@ class _DummySettings:
         self.reservation_notification_retry_backoff_multiplier = 2.0
         self.reservation_notification_worker_interval_seconds = 1.0
         self.reservation_notification_batch_size = 10
+        self.test_auth_enabled = True
+        self.test_auth_secret = "secret"
 
     @property
     def auth_session_cookie_name(self) -> str:
@@ -84,7 +87,7 @@ import importlib
 
 from app import models  # type: ignore  # noqa: E402
 auth = importlib.import_module("app.domains.auth.router")  # type: ignore  # noqa: E402
-from app.schemas import AuthRequestLink, AuthVerifyRequest  # type: ignore  # noqa: E402
+from app.schemas import AuthRequestLink, AuthTestLoginRequest, AuthVerifyRequest  # type: ignore  # noqa: E402
 from app.settings import settings  # type: ignore  # noqa: E402
 import app.utils.auth as auth_utils  # type: ignore  # noqa: E402
 from app.utils.auth import hash_token  # type: ignore  # noqa: E402
@@ -172,6 +175,10 @@ class FakeSession:
 
     def add(self, obj: Any) -> None:
         if isinstance(obj, models.User):
+            if obj.id is None:
+                obj.id = uuid.uuid4()
+            if obj.created_at is None:
+                obj.created_at = datetime.now(UTC)
             self.users_by_email[obj.email] = obj
             if obj.id is not None:
                 self.users_by_id[str(obj.id)] = obj
@@ -328,6 +335,41 @@ async def test_verify_site_scope_sets_site_cookie_only():
     cookies = response.headers.getlist("set-cookie")
     assert any("site_cookie" in cookie for cookie in cookies)
     assert not any("dash_cookie" in cookie for cookie in cookies)
+
+
+@pytest.mark.anyio
+async def test_test_login_creates_user_and_session():
+    session = FakeSession()
+    payload = AuthTestLoginRequest(email="ci-user@example.com", display_name="CI User", scope="site")
+    response = await auth.test_login(payload, _request({"user-agent": "pytest"}), db=session, x_test_auth_secret="secret")
+
+    assert response.status_code == 200
+    assert session.sessions
+    assert session.sessions[0].scope == "site"
+    assert session.sessions[0].user_id is not None
+
+
+@pytest.mark.anyio
+async def test_test_login_rejects_invalid_secret():
+    session = FakeSession()
+    payload = AuthTestLoginRequest(email="ci-user@example.com")
+    with pytest.raises(HTTPException) as exc_info:
+        await auth.test_login(payload, _request(), db=session, x_test_auth_secret="wrong")
+    assert exc_info.value.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_test_login_missing_secret_returns_503():
+    session = FakeSession()
+    payload = AuthTestLoginRequest(email="ci-user@example.com")
+    original_secret = settings.test_auth_secret
+    settings.test_auth_secret = None
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            await auth.test_login(payload, _request(), db=session, x_test_auth_secret="whatever")
+        assert exc_info.value.status_code == 503
+    finally:
+        settings.test_auth_secret = original_secret
 
 
 @pytest.mark.anyio

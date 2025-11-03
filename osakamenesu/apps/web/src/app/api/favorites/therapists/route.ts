@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import {
+  addMockFavorite,
+  readMockFavorites,
+  isMockFavoritesMode,
+  writeMockFavorites,
+} from '../mockStore'
 
 const API_BASE =
   process.env.OSAKAMENESU_API_INTERNAL_BASE ||
@@ -60,13 +66,74 @@ async function forwardRequest(
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  return forwardRequest(req, '/api/favorites/therapists', { method: 'GET' })
+  if (isMockFavoritesMode()) {
+    const favorites = readMockFavorites(req)
+    const entries = Array.from(favorites.values()).map((item) => ({
+      therapist_id: item.therapistId,
+      shop_id: item.shopId,
+      created_at: item.createdAt,
+    }))
+    const response = NextResponse.json(entries, { status: 200 })
+    writeMockFavorites(response, favorites)
+    return response
+  }
+
+  const shouldFallbackForStatus = (status: number): boolean => {
+    return status >= 500 || status === 401 || status === 403 || status === 404
+  }
+
+  try {
+    const response = await forwardRequest(req, '/api/favorites/therapists', { method: 'GET' })
+    if (shouldFallbackForStatus(response.status)) {
+      return response
+    }
+    return response
+  } catch (error) {
+    throw error
+  }
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const body = await req.text()
-  return forwardRequest(req, '/api/favorites/therapists', {
-    method: 'POST',
-    body,
-  })
+  if (isMockFavoritesMode()) {
+    let payload: unknown
+    try {
+      payload = body ? JSON.parse(body) : {}
+    } catch {
+      return NextResponse.json({ detail: 'invalid_json' }, { status: 400 })
+    }
+    const therapistId = (payload as Record<string, unknown>)['therapist_id']
+    if (typeof therapistId !== 'string' || !therapistId.trim()) {
+      return NextResponse.json({ detail: 'therapist_id_required' }, { status: 400 })
+    }
+    const favorites = readMockFavorites(req)
+    const record = addMockFavorite(favorites, therapistId.trim())
+    const response = NextResponse.json(
+      {
+        therapist_id: record.therapistId,
+        shop_id: record.shopId,
+        created_at: record.createdAt,
+      },
+      { status: 201 },
+    )
+    writeMockFavorites(response, favorites)
+    return response
+  }
+
+  const shouldFallbackForStatus = (status: number): boolean => {
+    return status >= 500 || status === 401 || status === 403 || status === 404
+  }
+
+  try {
+    const response = await forwardRequest(req, '/api/favorites/therapists', {
+      method: 'POST',
+      body,
+    })
+    if (shouldFallbackForStatus(response.status)) {
+      return response
+    }
+    return response
+  } catch (error) {
+    throw error
+  }
 }
