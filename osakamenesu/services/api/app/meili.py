@@ -1,5 +1,6 @@
 from typing import Any
 import logging
+from threading import Lock
 
 from meilisearch import Client
 from meilisearch.errors import MeilisearchApiError
@@ -8,6 +9,9 @@ from .settings import settings
 INDEX = "profiles"
 
 logger = logging.getLogger("app.meili")
+
+_index_init_lock = Lock()
+_indexes_ensured = False
 
 def get_client() -> Client:
     return Client(settings.meili_host, settings.meili_master_key)
@@ -29,59 +33,75 @@ def _wait_for_task(task: Any, client: Client | None = None) -> None:
 
 
 def ensure_indexes() -> None:
-    client = get_client()
+    global _indexes_ensured
+    with _index_init_lock:
+        client = get_client()
+        try:
+            client.get_index(INDEX)
+        except Exception:
+            create_task = client.create_index(INDEX, {"primaryKey": "id"})
+            _wait_for_task(create_task, client)
+        idx = client.index(INDEX)
+        # Use default ranking rules and avoid invalid custom rules for Meilisearch v1.x
+        # Custom ordering can be achieved via the `sort` parameter at query time.
+        settings_task = idx.update_settings({
+            "filterableAttributes": [
+                "area",
+                "bust_tag",
+                "service_type",
+                "body_tags",
+                "price_min",
+                "price_max",
+                "price_band",
+                "status",
+                "today",
+                "height_cm",
+                "age",
+                "ranking_badges",
+                "has_promotions",
+                "has_discounts",
+                "has_diaries",
+                "nearest_station",
+                "station_line",
+                "station_walk_minutes",
+            ],
+            "sortableAttributes": [
+                "price_min",
+                "price_max",
+                "updated_at",
+                "ctr7d",
+                "today",
+                "height_cm",
+                "age",
+                "ranking_weight",
+                "ranking_score",
+                "review_score",
+                "review_count",
+            ],
+            "searchableAttributes": ["name", "store_name", "area", "nearest_station", "station_line", "body_tags", "ranking_badges"],
+            # Keep default ranking rules; use `sort` at query time for ordering
+            "rankingRules": [
+                "words", "typo", "proximity", "attribute", "sort", "exactness"
+            ],
+        })
+        _wait_for_task(settings_task, client)
+        _indexes_ensured = True
+
+
+def ensure_indexes_if_needed() -> None:
+    global _indexes_ensured
+    if _indexes_ensured:
+        return
     try:
-        client.get_index(INDEX)
+        ensure_indexes()
     except Exception:
-        create_task = client.create_index(INDEX, {"primaryKey": "id"})
-        _wait_for_task(create_task, client)
-    idx = client.index(INDEX)
-    # Use default ranking rules and avoid invalid custom rules for Meilisearch v1.x
-    # Custom ordering can be achieved via the `sort` parameter at query time.
-    settings_task = idx.update_settings({
-        "filterableAttributes": [
-            "area",
-            "bust_tag",
-            "service_type",
-            "body_tags",
-            "price_min",
-            "price_max",
-            "price_band",
-            "status",
-            "today",
-            "height_cm",
-            "age",
-            "ranking_badges",
-            "has_promotions",
-            "has_discounts",
-            "has_diaries",
-            "nearest_station",
-            "station_line",
-            "station_walk_minutes",
-        ],
-        "sortableAttributes": [
-            "price_min",
-            "price_max",
-            "updated_at",
-            "ctr7d",
-            "today",
-            "height_cm",
-            "age",
-            "ranking_weight",
-            "ranking_score",
-            "review_score",
-            "review_count",
-        ],
-        "searchableAttributes": ["name", "store_name", "area", "nearest_station", "station_line", "body_tags", "ranking_badges"],
-        # Keep default ranking rules; use `sort` at query time for ordering
-        "rankingRules": [
-            "words", "typo", "proximity", "attribute", "sort", "exactness"
-        ],
-    })
-    _wait_for_task(settings_task, client)
+        # If ensure_indexes fails we want to reset the flag so a later attempt can retry
+        _indexes_ensured = False
+        raise
 
 
 def index_profile(doc: dict):
+    ensure_indexes_if_needed()
     client = get_client()
     task = client.index(INDEX).add_documents([doc])
     _wait_for_task(task, client)
@@ -90,12 +110,14 @@ def index_profile(doc: dict):
 def index_bulk(docs: list[dict]):
     if not docs:
         return
+    ensure_indexes_if_needed()
     client = get_client()
     task = client.index(INDEX).add_documents(docs)
     _wait_for_task(task, client)
 
 
 def delete_profile(doc_id: str):
+    ensure_indexes_if_needed()
     client = get_client()
     task = client.index(INDEX).delete_document(doc_id)
     _wait_for_task(task, client)
@@ -103,6 +125,7 @@ def delete_profile(doc_id: str):
 
 def purge_all():
     """Delete all documents in the index (keeps settings)."""
+    ensure_indexes_if_needed()
     client = get_client()
     task = client.index(INDEX).delete_all_documents()
     _wait_for_task(task, client)
@@ -175,6 +198,7 @@ def search(
     page_size: int,
     facets: list[str] | None = None,
 ) -> dict:
+    ensure_indexes_if_needed()
     idx = get_client().index(INDEX)
     options: dict = {"limit": page_size, "offset": (page - 1) * page_size}
     if filter_expr:
