@@ -38,11 +38,13 @@ export type SampleShop = {
   store_name?: string | null
   area: string
   area_name?: string | null
+  address?: string | null
+  categories?: string[] | null
   min_price: number
   max_price: number
   description?: string | null
   catch_copy?: string | null
-  photos?: Array<{ url: string }> | null
+  photos?: Array<{ url: string; alt?: string | null }> | null
   contact?: SampleContact | null
   menus?: Array<{
     id: string
@@ -60,10 +62,17 @@ export type SampleShop = {
   } | null
   badges?: string[] | null
   today_available?: boolean | null
+  next_available_at?: string | null
+  distance_km?: number | null
+  online_reservation?: boolean | null
   service_tags?: string[] | null
   metadata?: Record<string, unknown> | null
+  has_promotions?: boolean | null
+  promotion_count?: number | null
+  has_discounts?: boolean | null
   promotions?: Array<{ label: string; description?: string | null; expires_at?: string | null }> | null
   ranking_reason?: string | null
+  updated_at?: string | null
   reviews?: {
     average_score?: number | null
     review_count?: number | null
@@ -74,7 +83,10 @@ export type SampleShop = {
       score: number
       visited_at?: string | null
       author_alias?: string | null
+      aspects?: Record<string, unknown> | null
     }> | null
+    aspect_averages?: Record<string, number> | null
+    aspect_counts?: Record<string, number> | null
   } | null
   diary_count?: number | null
   has_diaries?: boolean | null
