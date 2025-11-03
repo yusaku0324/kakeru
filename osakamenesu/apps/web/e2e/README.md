@@ -10,7 +10,8 @@
 | `ADMIN_API_KEY` | `/api/admin/*` 系エンドポイントへアクセスするためのキー。シードスクリプトもこのキーで認証します。 |
 | `OSAKAMENESU_API_INTERNAL_BASE` (優先) / `NEXT_PUBLIC_OSAKAMENESU_API_BASE` | API のベース URL。Cloud Run / Docker Compose など実行環境に合わせて設定してください。 |
 | `CLOUD_RUN_ID_TOKEN` など | IAM 認証が必要な場合に Bearer トークンを渡します（不要な環境では未設定で問題ありません）。 |
-| `E2E_SITE_COOKIE` | サイト利用者としてログイン済みのセッション Cookie。お気に入り実 API テストで使用します。 |
+| `E2E_SITE_COOKIE` | サイト利用者としてログイン済みのセッション Cookie。お気に入り実 API テストで使用します。|
+| `E2E_TEST_AUTH_SECRET` | (`services/api`) の `/api/auth/test-login` を利用して Cookie を生成する際の共有シークレット。 |
 
 ※ 上記のいずれも設定されていない場合、シードスクリプトは何も行わず終了します。
 
@@ -53,3 +54,14 @@ E2E_SITE_COOKIE='session_token=...; another_cookie=...' npm run test:e2e -- favo
 
 Cookie が指定されていない場合、このテストは自動的に `skip` されます。
 
+開発・CI 環境では、API サーバー側で `TEST_AUTH_ENABLED=1` と `TEST_AUTH_SECRET=ランダム文字列` を設定すると `/api/auth/test-login` エンドポイントが有効になります。次のように呼び出すと JSON レスポンスと共にセッション Cookie が返ってくるため、その値を `E2E_SITE_COOKIE` として利用できます。
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Test-Auth-Secret: $TEST_AUTH_SECRET" \
+  -d '{"email": "tester@example.com", "scope": "site"}' \
+  -i https://your-api-host/api/auth/test-login
+```
+
+レスポンスヘッダーの `set-cookie` をコピーし、Playwright 実行前に `E2E_SITE_COOKIE` としてエクスポートしてください。

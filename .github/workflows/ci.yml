@@ -55,6 +55,8 @@ jobs:
       MEILI_HOST: http://127.0.0.1:7700
       MEILI_MASTER_KEY: dev_meili_master_key
       ANYIO_BACKEND: asyncio
+      TEST_AUTH_ENABLED: "1"
+      TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
     steps:
       - uses: actions/checkout@v4
 
@@ -94,6 +96,32 @@ jobs:
           echo "Meilisearch did not become ready in time" >&2
           exit 1
 
+      - name: Generate login cookie for favorites E2E
+        id: test_login_cookie
+        run: |
+          if [ -z "$TEST_AUTH_SECRET" ]; then
+            echo "TEST_AUTH_SECRET is not set; skipping login cookie generation" >&2
+            exit 0
+          fi
+          RESPONSE=$(curl -sS -D - -o /tmp/test-login-response.json \
+            -H "Content-Type: application/json" \
+            -H "X-Test-Auth-Secret: $TEST_AUTH_SECRET" \
+            -d '{"email": "e2e+favorites@example.com", "scope": "site"}' \
+            "$API_INTERNAL_BASE/api/auth/test-login") || {
+              echo "Test login request failed" >&2
+              cat /tmp/test-login-response.json >&2 || true
+              exit 1
+            }
+
+          COOKIE=$(echo "$RESPONSE" | grep -i "set-cookie:" | head -n 1 | cut -d: -f2- | tr -d '\r' | xargs)
+          if [ -z "$COOKIE" ]; then
+            echo "No Set-Cookie header found in test login response" >&2
+            cat /tmp/test-login-response.json >&2 || true
+            exit 1
+          fi
+
+          echo "cookie=$COOKIE" >> "$GITHUB_OUTPUT"
+
       - name: Run Alembic migrations
         run: alembic upgrade head
 
@@ -105,6 +133,13 @@ jobs:
 
       - name: Run pytest
         run: pytest -n auto app/tests -q
+
+      - name: Run favorites E2E (real API)
+        if: ${{ steps.test_login_cookie.outputs.cookie }}
+        env:
+          E2E_SITE_COOKIE: ${{ steps.test_login_cookie.outputs.cookie }}
+        working-directory: osakamenesu/apps/web
+        run: npm run test:e2e -- favorites.spec.ts
 
   integration-test:
     needs:

@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     reservation_notification_retry_backoff_multiplier: float = 2.0
     reservation_notification_worker_interval_seconds: float = 1.5
     reservation_notification_batch_size: int = 20
+    test_auth_enabled: bool = Field(default=False, validation_alias=AliasChoices("TEST_AUTH_ENABLED", "E2E_TEST_AUTH_ENABLED"))
+    test_auth_secret: str | None = Field(default=None, validation_alias=AliasChoices("TEST_AUTH_SECRET", "E2E_TEST_AUTH_SECRET"))
     dashboard_session_cookie_name: str = Field(
         default="osakamenesu_session",
         validation_alias=AliasChoices("AUTH_SESSION_COOKIE_NAME", "DASHBOARD_SESSION_COOKIE_NAME"),
