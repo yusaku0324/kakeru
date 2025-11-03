@@ -122,7 +122,7 @@ function normalizeBaseURL(baseURL: string): string {
   return baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL
 }
 
-async function ensureAuthenticated(context: BrowserContext, page: Page, baseURL: string) {
+async function ensureAuthenticated(context: BrowserContext, page: Page, baseURL: string): Promise<string> {
   const cookieHeader = process.env.E2E_SITE_COOKIE
   const target = new URL(baseURL)
   if (cookieHeader) {
@@ -131,7 +131,7 @@ async function ensureAuthenticated(context: BrowserContext, page: Page, baseURL:
       throw new Error('E2E_SITE_COOKIE must contain at least one cookie pair (name=value)')
     }
     await context.addCookies(cookies)
-    return
+    return cookieHeader
   }
 
   const email = process.env.E2E_TEST_AUTH_EMAIL ?? 'playwright-site-user@example.com'
@@ -189,7 +189,8 @@ async function ensureAuthenticated(context: BrowserContext, page: Page, baseURL:
     }
 
     await context.addCookies(cookies)
-    return
+    const serialized = cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ')
+    return serialized
   }
 
   if (unauthorized) {
@@ -199,15 +200,46 @@ async function ensureAuthenticated(context: BrowserContext, page: Page, baseURL:
   throw new Error('test-login API が利用できませんでした')
 }
 
+async function ensureSampleTherapistViaApi(context: BrowserContext, baseURL: string, cookieHeader: string) {
+  if (!cookieHeader) {
+    throw new Error('Session cookie is required to bootstrap sample therapist')
+  }
+
+  const normalizedBase = normalizeBaseURL(baseURL)
+  const headers = { Cookie: cookieHeader, 'Content-Type': 'application/json' }
+
+  const postResponse = await context.request.post(`${normalizedBase}/api/favorites/therapists`, {
+    data: { therapist_id: THERAPIST_ID },
+    headers,
+  })
+
+  if (![201, 409].includes(postResponse.status())) {
+    const body = await postResponse.text()
+    throw new Error(`Failed to bootstrap sample therapist (status ${postResponse.status()}): ${body}`)
+  }
+
+  const deleteResponse = await context.request.delete(
+    `${normalizedBase}/api/favorites/therapists/${encodeURIComponent(THERAPIST_ID)}`,
+    { headers: { Cookie: cookieHeader } },
+  )
+
+  if (![204, 404].includes(deleteResponse.status())) {
+    const body = await deleteResponse.text()
+    throw new Error(`Failed to reset sample therapist favorite (status ${deleteResponse.status()}): ${body}`)
+  }
+}
+
 const AREA_QUERY = '/?area=京橋&page=1&force_samples=1'
 const THERAPIST_NAME = '葵'
+const THERAPIST_ID = '11111111-1111-1111-8888-111111111111'
 
 test.describe('お気に入り（実API）', () => {
   test('ログイン済みユーザーがセラピストのお気に入りをトグルできる', async ({ page, context, baseURL }) => {
     if (!baseURL) throw new Error('baseURL is not defined')
 
+    let sessionCookie: string
     try {
-      await ensureAuthenticated(context, page, baseURL)
+      sessionCookie = await ensureAuthenticated(context, page, baseURL)
     } catch (error) {
       if (error instanceof SkipTestError) {
         test.skip(true, error.message)
@@ -225,14 +257,34 @@ test.describe('お気に入り（実API）', () => {
 
     const toggleButton = therapistCard.getByRole('button', { name: /お気に入り/ })
 
-    // Ensure deterministic starting state
-    if ((await toggleButton.getAttribute('aria-pressed')) === 'true') {
-      await toggleButton.click()
-      await expect(toggleButton).toHaveAttribute('aria-pressed', 'false')
+    const waitForFavoritesResponse = (method: 'POST' | 'DELETE') =>
+      page.waitForResponse((res) => res.url().includes('/api/favorites/therapists') && res.request().method() === method)
+
+    const clickAndWait = async (button, method: 'POST' | 'DELETE') => {
+      const [response] = await Promise.all([waitForFavoritesResponse(method), button.click()])
+      return response
     }
 
-    await toggleButton.click()
-    await expect(toggleButton).toHaveAttribute('aria-pressed', 'true')
+    // Ensure deterministic starting state
+    if ((await toggleButton.getAttribute('aria-pressed')) === 'true') {
+      const initialDelete = await clickAndWait(toggleButton, 'DELETE')
+      if (!(initialDelete.ok() || initialDelete.status() === 404)) {
+        throw new Error(`Failed to reset favorite before test (status ${initialDelete.status()})`)
+      }
+      await expect(toggleButton).toHaveAttribute('aria-pressed', 'false', { timeout: 15000 })
+    }
+
+    let addResponse = await clickAndWait(toggleButton, 'POST')
+    if (addResponse.status() === 404) {
+      await ensureSampleTherapistViaApi(context, baseURL, sessionCookie)
+      await expect(toggleButton).toHaveAttribute('aria-pressed', 'false', { timeout: 15000 })
+      addResponse = await clickAndWait(toggleButton, 'POST')
+    }
+
+    if (!addResponse.ok()) {
+      throw new Error(`Failed to add favorite: status ${addResponse.status()}`)
+    }
+    await expect(toggleButton).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 })
 
     await page.goto(`${normalizedBase}/dashboard/favorites`, { waitUntil: 'networkidle' })
     await expect(page.getByRole('heading', { name: THERAPIST_NAME })).toBeVisible()
@@ -240,8 +292,11 @@ test.describe('お気に入り（実API）', () => {
     await page.goto(areaUrl, { waitUntil: 'networkidle' })
     await expect(therapistCard).toBeVisible()
     const removeButton = therapistCard.getByRole('button', { name: /お気に入りから削除/ })
-    await removeButton.click()
-    await expect(removeButton).toHaveAttribute('aria-pressed', 'false')
+    const removeResponse = await clickAndWait(removeButton, 'DELETE')
+    if (!(removeResponse.ok() || removeResponse.status() === 404)) {
+      throw new Error(`Failed to remove favorite: status ${removeResponse.status()}`)
+    }
+    await expect(removeButton).toHaveAttribute('aria-pressed', 'false', { timeout: 15000 })
 
     await page.goto(`${normalizedBase}/dashboard/favorites`, { waitUntil: 'networkidle' })
     const emptyState = page.getByText('お気に入りに登録した店舗はまだありません。')
