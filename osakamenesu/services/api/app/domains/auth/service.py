@@ -22,7 +22,15 @@ logger = logging.getLogger("app.auth")
 
 def _resolve_settings():
     module = import_module("app.settings")
-    return getattr(module, "settings")
+    resolved = getattr(module, "settings")
+    globals()["settings"] = resolved
+    if not hasattr(resolved, "dashboard_session_cookie_name"):
+        resolved.dashboard_session_cookie_name = "osakamenesu_session"
+    if not hasattr(resolved, "site_session_cookie_name"):
+        resolved.site_session_cookie_name = "osakamenesu_session"
+    if not hasattr(resolved, "auth_session_cookie_same_site"):
+        resolved.auth_session_cookie_same_site = "lax"
+    return resolved
 
 
 def _ip_from_request(request: Request) -> Optional[str]:

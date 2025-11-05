@@ -19,7 +19,13 @@ from .service import AuthMagicLinkService, _set_session_cookie
 
 def _settings():
     module = import_module("app.settings")
-    return getattr(module, "settings")
+    resolved = getattr(module, "settings")
+    globals()["settings"] = resolved
+    if not hasattr(resolved, "dashboard_session_cookie_name"):
+        resolved.dashboard_session_cookie_name = "osakamenesu_session"
+    if not hasattr(resolved, "site_session_cookie_name"):
+        resolved.site_session_cookie_name = "osakamenesu_session"
+    return resolved
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
