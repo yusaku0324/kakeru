@@ -4,6 +4,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from importlib import import_module
 from typing import Optional
+import sys
 
 from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -20,17 +21,22 @@ from ...utils.email import MailNotConfiguredError, send_email_async
 logger = logging.getLogger("app.auth")
 
 
+def _settings_candidates():
+    seen: set[int] = set()
+    primaries = [globals().get("settings"), getattr(import_module("app.settings"), "settings", None)]
+    for candidate in primaries:
+        if candidate is not None and id(candidate) not in seen:
+            seen.add(id(candidate))
+            yield candidate
+    for module in list(sys.modules.values()):
+        candidate = getattr(module, "settings", None)
+        if candidate is not None and id(candidate) not in seen:
+            seen.add(id(candidate))
+            yield candidate
+
+
 def _resolve_settings():
-    module = import_module("app.settings")
-    resolved = getattr(module, "settings")
-    globals()["settings"] = resolved
-    if not hasattr(resolved, "dashboard_session_cookie_name"):
-        resolved.dashboard_session_cookie_name = "osakamenesu_session"
-    if not hasattr(resolved, "site_session_cookie_name"):
-        resolved.site_session_cookie_name = "osakamenesu_session"
-    if not hasattr(resolved, "auth_session_cookie_same_site"):
-        resolved.auth_session_cookie_same_site = "lax"
-    return resolved
+    return next(_settings_candidates(), settings)
 
 
 def _ip_from_request(request: Request) -> Optional[str]:
@@ -44,28 +50,29 @@ def _hash_ip(ip: Optional[str]) -> Optional[str]:
 
 
 def _session_cookie_names(scope: str | None = None) -> list[str]:
-    resolved = _resolve_settings()
     names: list[str] = []
+
     def _append(value: str | None) -> None:
         if value and value not in names:
             names.append(value)
 
-    if scope == "dashboard":
-        _append(getattr(resolved, "dashboard_session_cookie_name", None))
-    elif scope == "site":
-        _append(getattr(resolved, "site_session_cookie_name", None))
-    else:
-        for candidate in (
-            getattr(resolved, "dashboard_session_cookie_name", None),
-            getattr(resolved, "site_session_cookie_name", None),
-        ):
-            _append(candidate)
+    for candidate in _settings_candidates():
+        if scope == "dashboard":
+            _append(getattr(candidate, "dashboard_session_cookie_name", None))
+        elif scope == "site":
+            _append(getattr(candidate, "site_session_cookie_name", None))
+        else:
+            _append(getattr(candidate, "dashboard_session_cookie_name", None))
+            _append(getattr(candidate, "site_session_cookie_name", None))
 
-    if scope in (None, "dashboard"):
-        legacy = getattr(resolved, "auth_session_cookie_name", None)
-        _append(legacy)
-        fallback = getattr(settings, "auth_session_cookie_name", None)
-        _append(fallback)
+        if scope in (None, "dashboard"):
+            _append(getattr(candidate, "auth_session_cookie_name", None))
+
+    if not names:
+        if scope == "site":
+            names.append("osakamenesu_session")
+        else:
+            names.append("osakamenesu_session")
     return names
 
 
