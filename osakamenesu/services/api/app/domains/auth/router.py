@@ -14,15 +14,15 @@ from ...db import get_session
 from ...deps import require_dashboard_user, require_site_user, get_optional_dashboard_user, get_optional_site_user
 from ...schemas import AuthRequestLink, AuthVerifyRequest, AuthSessionStatus, AuthTestLoginRequest, UserPublic
 from ...utils.email import send_email_async as _send_email_async
-from .service import AuthMagicLinkService, _set_session_cookie
+from ...settings import settings as default_settings
+from .service import AuthMagicLinkService, _set_session_cookie, _settings_candidates
 
 
 def _settings():
-    current = globals().get("settings")
-    if current is not None:
-        return current
-    module = import_module("app.settings")
-    return getattr(module, "settings")
+    for candidate in _settings_candidates():
+        if getattr(candidate, "test_auth_secret", None) is not None:
+            return candidate
+    return next(_settings_candidates(), default_settings)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
