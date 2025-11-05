@@ -19,6 +19,8 @@ const sampleTherapist: TherapistHit = {
   shopName: 'アロマリゾート 難波本店',
   shopArea: '京橋',
   shopAreaName: '京橋',
+  todayAvailable: true,
+  nextAvailableAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
 }
 
 export default function TestFavoritesClient() {

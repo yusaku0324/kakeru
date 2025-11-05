@@ -51,6 +51,8 @@ const BASE_HIT: TherapistHit = {
   shopName: 'テスト店舗',
   shopArea: '大阪',
   shopAreaName: null,
+  todayAvailable: true,
+  nextAvailableAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
 }
 
 describe('TherapistCard favorite button', () => {
