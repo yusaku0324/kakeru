@@ -295,13 +295,19 @@ export default function ReservationOverlay({
 
     normalizedAvailability.forEach((day) => {
       day.slots.forEach((slot) => {
-        const start = new Date(slot.start_at)
-        const end = new Date(slot.end_at)
-        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return
-        const step = 30
-        const startMinutes = start.getHours() * 60 + start.getMinutes()
-        const endMinutes = end.getHours() * 60 + end.getMinutes()
-        for (let minutes = startMinutes; minutes < endMinutes; minutes += step) {
+        const startKey = slot.timeKey ?? slot.start_at.slice(11, 16)
+        const [hourStr, minuteStr] = startKey.split(':')
+        const startHour = Number.parseInt(hourStr ?? '', 10)
+        const startMinute = Number.parseInt(minuteStr ?? '', 10)
+        if (Number.isNaN(startHour) || Number.isNaN(startMinute)) return
+
+        const startMinutes = startHour * 60 + startMinute
+        const durationMinutes = Math.max(
+          30,
+          Math.round((new Date(slot.end_at).getTime() - new Date(slot.start_at).getTime()) / 60000) || 0,
+        )
+        const endMinutes = Math.min(24 * 60, startMinutes + durationMinutes)
+        for (let minutes = startMinutes; minutes < endMinutes; minutes += 30) {
           activeMinutes.push(minutes)
         }
       })
