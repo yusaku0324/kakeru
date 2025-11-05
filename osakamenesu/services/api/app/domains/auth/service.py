@@ -38,32 +38,26 @@ def _hash_ip(ip: Optional[str]) -> Optional[str]:
 def _session_cookie_names(scope: str | None = None) -> list[str]:
     resolved = _resolve_settings()
     names: list[str] = []
-    if scope == "dashboard":
-        candidates = [
-            getattr(resolved, "dashboard_session_cookie_name", None),
-            getattr(settings, "dashboard_session_cookie_name", None),
-        ]
-    elif scope == "site":
-        candidates = [
-            getattr(resolved, "site_session_cookie_name", None),
-            getattr(settings, "site_session_cookie_name", None),
-        ]
-    else:
-        candidates = [
-            getattr(resolved, "dashboard_session_cookie_name", None),
-            getattr(resolved, "site_session_cookie_name", None),
-            getattr(settings, "dashboard_session_cookie_name", None),
-            getattr(settings, "site_session_cookie_name", None),
-        ]
+    def _append(value: str | None) -> None:
+        if value and value not in names:
+            names.append(value)
 
-    for name in candidates:
-        if name and name not in names:
-            names.append(name)
+    if scope == "dashboard":
+        _append(getattr(resolved, "dashboard_session_cookie_name", None))
+    elif scope == "site":
+        _append(getattr(resolved, "site_session_cookie_name", None))
+    else:
+        for candidate in (
+            getattr(resolved, "dashboard_session_cookie_name", None),
+            getattr(resolved, "site_session_cookie_name", None),
+        ):
+            _append(candidate)
 
     if scope in (None, "dashboard"):
-        legacy = getattr(settings, "auth_session_cookie_name", None)
-        if legacy and legacy not in names:
-            names.append(legacy)
+        legacy = getattr(resolved, "auth_session_cookie_name", None)
+        _append(legacy)
+        fallback = getattr(settings, "auth_session_cookie_name", None)
+        _append(fallback)
     return names
 
 
