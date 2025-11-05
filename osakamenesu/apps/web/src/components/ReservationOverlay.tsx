@@ -183,11 +183,23 @@ export default function ReservationOverlay({
 
   const fallbackMeta = FALLBACK_STAFF_META[hit.name] ?? null
   const dayFormatter = useMemo(
-    () => new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }),
+    () =>
+      new Intl.DateTimeFormat('ja-JP', {
+        month: 'numeric',
+        day: 'numeric',
+        weekday: 'short',
+        timeZone: 'Asia/Tokyo',
+      }),
     [],
   )
   const timeFormatter = useMemo(
-    () => new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    () =>
+      new Intl.DateTimeFormat('ja-JP', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Tokyo',
+      }),
     [],
   )
 
