@@ -1,10 +1,17 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, conint, constr, EmailStr
-from typing import Optional, List, Dict, Any, Literal
-from uuid import UUID
+import re
 from datetime import datetime, date
-from .constants import ReservationStatusLiteral
+from typing import Any, Dict, List, Literal, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, EmailStr, Field, conint, constr, field_validator, model_validator
+
+from .constants import (
+    RESERVATION_SLOT_STATUS_SET,
+    ReservationSlotStatusLiteral,
+    ReservationStatusLiteral,
+)
 
 
 REVIEW_ASPECT_KEYS = ("therapist_service", "staff_response", "room_cleanliness")
@@ -425,9 +432,66 @@ class ReservationCustomerInput(BaseModel):
     line_id: Optional[str] = None
     remark: Optional[str] = None
 
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("name is required")
+        normalized = value.strip()
+        if len(normalized) > 80:
+            raise ValueError("name must be 80 characters or fewer")
+        return normalized
+
+    @field_validator("phone")
+    @classmethod
+    def _validate_phone(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("phone is required")
+        normalized = value.strip()
+        digits = re.sub(r"\D+", "", normalized)
+        if len(digits) < 10 or len(digits) > 13:
+            raise ValueError("phone must include 10-13 numeric digits")
+        return normalized
+
+    @field_validator("email")
+    @classmethod
+    def _normalize_email(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
+
 
 class ReservationCustomer(ReservationCustomerInput):
     id: Optional[UUID] = None
+
+
+class ReservationPreferredSlotBase(BaseModel):
+    desired_start: datetime
+    desired_end: datetime
+    status: ReservationSlotStatusLiteral = "open"
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, value: str) -> ReservationSlotStatusLiteral:
+        if value not in RESERVATION_SLOT_STATUS_SET:
+            raise ValueError("invalid slot status")
+        return value  # type: ignore[return-value]
+
+    @model_validator(mode="after")
+    def _validate_range(self) -> "ReservationPreferredSlotBase":
+        if self.desired_end <= self.desired_start:
+            raise ValueError("desired_end must be after desired_start")
+        return self
+
+
+class ReservationPreferredSlotInput(ReservationPreferredSlotBase):
+    pass
+
+
+class ReservationPreferredSlot(ReservationPreferredSlotBase):
+    id: UUID
+    created_at: datetime
 
 
 class ReservationStatusEvent(BaseModel):
@@ -452,6 +516,7 @@ class Reservation(BaseModel):
     marketing_opt_in: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
+    preferred_slots: List[ReservationPreferredSlot] = Field(default_factory=list)
 
 
 class ReservationCreateRequest(BaseModel):
@@ -464,6 +529,7 @@ class ReservationCreateRequest(BaseModel):
     notes: Optional[str] = None
     customer: ReservationCustomerInput
     marketing_opt_in: Optional[bool] = None
+    preferred_slots: Optional[List[ReservationPreferredSlotInput]] = None
 
 
 class ReservationUpdateRequest(BaseModel):

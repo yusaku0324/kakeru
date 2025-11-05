@@ -36,6 +36,8 @@ type StoredProfile = {
   email?: string
 }
 
+type FormErrors = Partial<Record<'name' | 'phone' | 'email' | 'desiredStart', string>>
+
 const PROFILE_STORAGE_KEY = 'reservation.profile.v1'
 const MINUTES_OPTIONS = [60, 90, 120, 150, 180]
 
@@ -129,6 +131,7 @@ export default function ReservationForm({
     courseLabel?: string | null
     coursePrice?: string | null
   } | null>(null)
+  const [errors, setErrors] = useState<FormErrors>({})
 
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const shopUuid = uuidPattern.test(shopId) ? shopId : null
@@ -136,6 +139,7 @@ export default function ReservationForm({
   const isDemoEnvironment = !shopUuid
   const canSubmit = allowDemoSubmission || Boolean(shopUuid)
   const hasContactChannels = Boolean(tel || lineId)
+  const errorKeys: Array<keyof FormErrors> = ['name', 'phone', 'email', 'desiredStart']
 
   const minutesOptions = useMemo(() => {
     const options = [...MINUTES_OPTIONS]
@@ -170,8 +174,20 @@ export default function ReservationForm({
     if (selectedSlots && selectedSlots.length) {
       const primary = selectedSlots[0].startAt
       setForm((prev) => (prev.desiredStart === primary ? prev : { ...prev, desiredStart: primary }))
+      setErrors((prev) => {
+        if (!prev.desiredStart) return prev
+        const next = { ...prev }
+        delete next.desiredStart
+        return next
+      })
     } else if (defaultStart) {
       setForm((prev) => (prev.desiredStart === defaultStart ? prev : { ...prev, desiredStart: defaultStart }))
+      setErrors((prev) => {
+        if (!prev.desiredStart) return prev
+        const next = { ...prev }
+        delete next.desiredStart
+        return next
+      })
     }
   }, [selectedSlots, defaultStart])
 
@@ -214,6 +230,15 @@ export default function ReservationForm({
 
   function handleChange<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
+    const errorKey = key as keyof FormErrors
+    if (errorKeys.includes(errorKey)) {
+      setErrors((prev) => {
+        if (!prev[errorKey]) return prev
+        const next = { ...prev }
+        delete next[errorKey]
+        return next
+      })
+    }
   }
 
   function toggleRemember(checked: boolean) {
@@ -258,11 +283,42 @@ export default function ReservationForm({
       defaultStart ??
       nextHourIsoLocal(180)
 
-    const start = new Date(primaryStartIso)
-    if (Number.isNaN(start.getTime())) {
-      push('error', '候補時間を選択してください。')
+    const normalizedName = form.name.trim()
+    const normalizedPhone = form.phone.trim()
+    const normalizedEmail = form.email.trim()
+    const start = primaryStartIso ? new Date(primaryStartIso) : new Date('invalid')
+
+    const nextErrors: FormErrors = {}
+    if (!normalizedName) {
+      nextErrors.name = 'お名前を入力してください。'
+    } else if (normalizedName.length > 80) {
+      nextErrors.name = 'お名前は80文字以内で入力してください。'
+    }
+
+    const phoneDigits = normalizedPhone.replace(/\D+/g, '')
+    if (!normalizedPhone) {
+      nextErrors.phone = 'お電話番号を入力してください。'
+    } else if (phoneDigits.length < 10 || phoneDigits.length > 13) {
+      nextErrors.phone = 'お電話番号は10〜13桁の数字で入力してください。'
+    }
+
+    if (normalizedEmail) {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailPattern.test(normalizedEmail)) {
+        nextErrors.email = 'メールアドレスの形式が正しくありません。'
+      }
+    }
+
+    if (!primaryStartIso || Number.isNaN(start.getTime())) {
+      nextErrors.desiredStart = '候補時間を選択してください。'
+    }
+
+    if (Object.keys(nextErrors).length) {
+      setErrors(nextErrors)
+      push('error', '入力内容をご確認ください。')
       return
     }
+
     const durationMinutes =
       selectedCourse?.durationMinutes ?? (form.durationMinutes > 0 ? form.durationMinutes : 60)
     const end = new Date(start.getTime() + durationMinutes * 60000)
@@ -271,11 +327,31 @@ export default function ReservationForm({
     const courseLabel = selectedCourse?.label ?? null
     const coursePrice = selectedCourse?.priceLabel ?? null
     const courseLine = courseLabel ? `${courseLabel}${coursePrice ? `（${coursePrice}）` : ''}` : null
+    const preferredSlotSummary = Array.isArray(selectedSlots) && selectedSlots.length
+      ? selectedSlots
+          .map((slot, index) => {
+            const slotStart = new Date(slot.startAt)
+            const slotEnd = new Date(slot.endAt)
+            const dateLabel = slotStart.toLocaleDateString('ja-JP', {
+              month: 'numeric',
+              day: 'numeric',
+              weekday: 'short',
+            })
+            const startTime = slotStart.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
+            const endTime = slotEnd.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
+            const statusLabel = slot.status === 'open' ? '◎ 予約可' : slot.status === 'tentative' ? '△ 要確認' : '× 予約不可'
+            return `第${index + 1}候補: ${dateLabel} ${startTime}〜${endTime} (${statusLabel})`
+          })
+          .join('\n')
+      : null
     const noteParts = [
       courseLine ? `希望コース: ${courseLine}` : null,
+      preferredSlotSummary ? `希望日時候補:\n${preferredSlotSummary}` : null,
       form.notes.trim() ? form.notes.trim() : null,
     ].filter(Boolean)
     const mergedNotes = noteParts.join('\n')
+
+    setErrors({})
 
     startTransition(async () => {
       try {
@@ -295,12 +371,12 @@ export default function ReservationForm({
           notes: mergedNotes || undefined,
           marketing_opt_in: form.marketingOptIn,
           customer: {
-            name: form.name,
-            phone: form.phone,
-            email: form.email || undefined,
+            name: normalizedName,
+            phone: normalizedPhone,
+            email: normalizedEmail || undefined,
           },
           channel: 'web',
-          preferred_slots: preferredSlots ?? undefined,
+          preferred_slots: preferredSlots && preferredSlots.length ? preferredSlots : undefined,
         }
 
         const resp = await fetch('/api/reservations', {
@@ -342,12 +418,13 @@ export default function ReservationForm({
           coursePrice,
         })
         setForm((prev) => ({ ...prev, desiredStart: startIso, notes: '' }))
+        setErrors({})
 
         if (rememberProfile) {
           saveProfile({
-            name: form.name.trim(),
-            phone: form.phone.trim(),
-            email: form.email.trim() || undefined,
+            name: normalizedName,
+            phone: normalizedPhone,
+            email: normalizedEmail || undefined,
           })
         }
       } catch (err) {
@@ -357,6 +434,14 @@ export default function ReservationForm({
   }
 
   const disabled = isPending || !canSubmit
+  const inputBaseClass =
+    'w-full rounded-full bg-white/85 px-4 py-3 text-sm text-neutral-text shadow-sm transition focus:outline-none'
+  const inputClass = (hasError: boolean) =>
+    `${inputBaseClass} ${
+      hasError
+        ? 'border border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-200/70'
+        : 'border border-white/60 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30'
+    }`
 
   const summaryText = useMemo(() => {
     if (!lastPayload && !lastReservationId) return null
@@ -428,6 +513,12 @@ export default function ReservationForm({
         </div>
       ) : null}
 
+      {errors.desiredStart ? (
+        <div className="rounded-[18px] border border-red-300 bg-red-50 px-4 py-2 text-xs text-red-600">
+          {errors.desiredStart}
+        </div>
+      ) : null}
+
       {profileNotice ? (
         <div className="rounded-[18px] border border-brand-primary/40 bg-brand-primary/10 px-4 py-2 text-xs text-brand-primary">
           {profileNotice}
@@ -439,38 +530,62 @@ export default function ReservationForm({
           <label className="space-y-2">
             <span className="text-sm font-semibold text-neutral-text">お名前 *</span>
             <input
+              id="reservation-name"
               value={form.name}
               onChange={(event) => handleChange('name', event.target.value)}
-              className="w-full rounded-full border border-white/60 bg-white/85 px-4 py-3 text-sm text-neutral-text shadow-sm transition focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+              className={inputClass(Boolean(errors.name))}
               placeholder="例: 山田 太郎"
               required
               autoComplete="name"
+              aria-invalid={Boolean(errors.name)}
+              aria-describedby={errors.name ? 'reservation-name-error' : undefined}
             />
+            {errors.name ? (
+              <p id="reservation-name-error" className="text-xs text-red-500">
+                {errors.name}
+              </p>
+            ) : null}
           </label>
           <label className="space-y-2">
             <span className="text-sm font-semibold text-neutral-text">お電話番号 *</span>
             <input
+              id="reservation-phone"
               value={form.phone}
               onChange={(event) => handleChange('phone', event.target.value)}
-              className="w-full rounded-full border border-white/60 bg-white/85 px-4 py-3 text-sm text-neutral-text shadow-sm transition focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+              className={inputClass(Boolean(errors.phone))}
               placeholder="090-1234-5678"
               required
               autoComplete="tel"
               inputMode="tel"
+              aria-invalid={Boolean(errors.phone)}
+              aria-describedby={errors.phone ? 'reservation-phone-error' : undefined}
             />
+            {errors.phone ? (
+              <p id="reservation-phone-error" className="text-xs text-red-500">
+                {errors.phone}
+              </p>
+            ) : null}
           </label>
         </div>
 
         <label className="space-y-2">
           <span className="text-sm font-semibold text-neutral-text">メールアドレス</span>
           <input
+            id="reservation-email"
             value={form.email}
             onChange={(event) => handleChange('email', event.target.value)}
-            className="w-full rounded-full border border-white/60 bg-white/85 px-4 py-3 text-sm text-neutral-text shadow-sm transition focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+            className={inputClass(Boolean(errors.email))}
             placeholder="example@mail.com"
             type="email"
             autoComplete="email"
+            aria-invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? 'reservation-email-error' : undefined}
           />
+          {errors.email ? (
+            <p id="reservation-email-error" className="text-xs text-red-500">
+              {errors.email}
+            </p>
+          ) : null}
         </label>
 
         {courseOptions.length ? (
