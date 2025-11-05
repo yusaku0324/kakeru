@@ -1,6 +1,18 @@
 "use client"
+
+import clsx from 'clsx'
 import { type FormEventHandler, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+
+import { BasicSearchSection } from '@/components/filters/BasicSearchSection'
+import { FilterChipsSection } from '@/components/filters/FilterChipsSection'
+import { StyleFiltersSection } from '@/components/filters/StyleFiltersSection'
+import {
+  GLASS_CARD_CLASS,
+  GLASS_SELECT_BUTTON_CLASS,
+  GLASS_SELECT_MENU_CLASS,
+  GLASS_SELECT_OPTION_CLASS,
+} from '@/components/ui/glassStyles'
 
 type FacetValue = {
   value: string
@@ -10,7 +22,14 @@ type FacetValue = {
 }
 
 type Facets = Record<string, FacetValue[] | undefined>
-type Props = { init?: Record<string, any>, facets?: Facets }
+
+type Props = {
+  init?: Record<string, any>
+  facets?: Facets
+  sticky?: boolean
+  className?: string
+  resultCount?: number
+}
 
 const AREA_ORDER = [
   '難波/日本橋',
@@ -28,7 +47,64 @@ const AREA_ORDER = [
   '堺',
 ]
 
-export default function SearchFilters({ init, facets }: Props) {
+const numberFormatter = new Intl.NumberFormat('ja-JP')
+
+const BUST_SIZES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+const BUST_MIN_INDEX = 0
+const BUST_MAX_INDEX = BUST_SIZES.length - 1
+const AGE_MIN = 18
+const AGE_MAX_LIMIT = 65
+const AGE_DEFAULT_MAX = 35
+const HEIGHT_MIN = 145
+const HEIGHT_MAX_LIMIT = 190
+const HEIGHT_DEFAULT_MAX = 175
+const DEFAULT_TAG = '指定なし'
+const HAIR_COLOR_OPTIONS = [DEFAULT_TAG, '黒髪', '茶髪', '明るめ', '金髪', 'ピンク', 'その他']
+const HAIR_STYLE_OPTIONS = [DEFAULT_TAG, 'ロング', 'ミディアム', 'ショート', 'ボブ', 'ポニーテール']
+const BODY_TYPE_OPTIONS = [DEFAULT_TAG, 'スレンダー', '普通', 'グラマー', 'ぽっちゃり']
+
+const buildHighlightStyle = (minValue: number, maxValue: number, minBound: number, maxBound: number) => {
+  const range = maxBound - minBound
+  if (range <= 0) return { left: '0%', right: '0%' }
+  const start = ((minValue - minBound) / range) * 100
+  const end = ((maxValue - minBound) / range) * 100
+  return {
+    left: `${Math.max(0, Math.min(start, 100))}%`,
+    right: `${Math.max(0, 100 - Math.max(0, Math.min(end, 100)))}%`,
+  }
+}
+
+const glassSelectButtonClass = GLASS_SELECT_BUTTON_CLASS
+const glassSelectMenuClass = GLASS_SELECT_MENU_CLASS
+const glassSelectOptionClass = GLASS_SELECT_OPTION_CLASS
+
+const glassCard = GLASS_CARD_CLASS
+
+const AREA_SELECT_OPTIONS_DEFAULT = [{ value: '', label: 'すべて' }]
+const SERVICE_SELECT_OPTIONS = [
+  { value: '', label: 'すべて' },
+  { value: 'store', label: '店舗型' },
+  { value: 'dispatch', label: '派遣型' },
+]
+const SORT_SELECT_OPTIONS = [
+  { value: 'recommended', label: "おすすめ順" },
+  { value: 'price_asc', label: "料金が安い順" },
+  { value: 'price_desc', label: "料金が高い順" },
+  { value: 'rating', label: "クチコミ評価順" },
+  { value: 'reviews', label: "口コミ件数順" },
+  { value: 'availability', label: "予約可能枠が多い順" },
+  { value: 'new', label: "更新が新しい順" },
+  { value: 'favorites', label: "お気に入り数順" },
+]
+
+const tagClass = (active: boolean) =>
+  clsx(
+    'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold transition',
+    active
+      ? 'border-brand-primary bg-brand-primary/15 text-brand-primary shadow-[0_10px_24px_rgba(37,99,235,0.22)]'
+      : 'border-white/55 bg-white/55 text-neutral-text hover:border-brand-primary/40',
+  )
+export default function SearchFilters({ init, facets, sticky = false, className, resultCount }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const sp = useSearchParams()
@@ -44,30 +120,55 @@ export default function SearchFilters({ init, facets }: Props) {
     return sp.get(key) ?? ''
   }
 
-  const extractList = (key: string): string[] => {
-    const sources: string[] = []
-    const initValue = init?.[key]
-    if (typeof initValue === 'string') sources.push(initValue)
-    else if (Array.isArray(initValue)) sources.push(...initValue.map(v => String(v)))
-    sources.push(...sp.getAll(key))
-    return sources
-      .flatMap(v => String(v).split(','))
-      .map(v => v.trim())
-      .filter(Boolean)
-  }
-
   const [q, setQ] = useState<string>(() => extractParam('q'))
   const [area, setArea] = useState<string>(() => extractParam('area'))
-  const [station, setStation] = useState<string>(() => extractParam('station'))
   const [service, setService] = useState<string>(() => extractParam('service'))
-  const [body, setBody] = useState<string>(() => extractParam('body'))
   const [today, setToday] = useState<boolean>(() => extractParam('today') === 'true')
-  const [priceBands, setPriceBands] = useState<string[]>(() => extractList('price_band'))
-  const [rankingBadges, setRankingBadges] = useState<string[]>(() => extractList('ranking_badges'))
   const [promotionsOnly, setPromotionsOnly] = useState<boolean>(() => extractParam('promotions_only') === 'true')
   const [discountsOnly, setDiscountsOnly] = useState<boolean>(() => extractParam('discounts_only') === 'true')
   const [diariesOnly, setDiariesOnly] = useState<boolean>(() => extractParam('diaries_only') === 'true')
   const [sort, setSort] = useState<string>(() => extractParam('sort') || 'recommended')
+  const [bustMinIndex, setBustMinIndex] = useState<number>(() => {
+    const minPreset = BUST_SIZES.indexOf(extractParam('bust_min').toUpperCase())
+    const maxPreset = BUST_SIZES.indexOf(extractParam('bust_max').toUpperCase())
+    const minValue = minPreset >= 0 ? minPreset : BUST_MIN_INDEX
+    const maxValue = maxPreset >= 0 ? maxPreset : BUST_MAX_INDEX
+    return Math.min(minValue, maxValue)
+  })
+  const [bustMaxIndex, setBustMaxIndex] = useState<number>(() => {
+    const minPreset = BUST_SIZES.indexOf(extractParam('bust_min').toUpperCase())
+    const maxPreset = BUST_SIZES.indexOf(extractParam('bust_max').toUpperCase())
+    const minValue = minPreset >= 0 ? minPreset : BUST_MIN_INDEX
+    const maxValue = maxPreset >= 0 ? maxPreset : BUST_MAX_INDEX
+    return Math.max(minValue, maxValue)
+  })
+  const [ageMin, setAgeMin] = useState<number>(() => {
+    const value = Number.parseInt(extractParam('age_min'), 10)
+    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, AGE_MIN), AGE_MAX_LIMIT) : AGE_MIN
+    const valueMax = Number.parseInt(extractParam('age_max'), 10)
+    const normalizedMax = Number.isFinite(valueMax) ? Math.min(Math.max(valueMax, AGE_MIN), AGE_MAX_LIMIT) : AGE_DEFAULT_MAX
+    return Math.min(normalized, normalizedMax)
+  })
+  const [ageMax, setAgeMax] = useState<number>(() => {
+    const value = Number.parseInt(extractParam('age_max'), 10)
+    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, AGE_MIN), AGE_MAX_LIMIT) : AGE_DEFAULT_MAX
+    return normalized
+  })
+  const [heightMin, setHeightMin] = useState<number>(() => {
+    const value = Number.parseInt(extractParam('height_min'), 10)
+    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_MIN
+    const valueMax = Number.parseInt(extractParam('height_max'), 10)
+    const normalizedMax = Number.isFinite(valueMax) ? Math.min(Math.max(valueMax, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_DEFAULT_MAX
+    return Math.min(normalized, normalizedMax)
+  })
+  const [heightMax, setHeightMax] = useState<number>(() => {
+    const value = Number.parseInt(extractParam('height_max'), 10)
+    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_DEFAULT_MAX
+    return normalized
+  })
+  const [hairColor, setHairColor] = useState<string>(() => extractParam('hair_color') || DEFAULT_TAG)
+  const [hairStyle, setHairStyle] = useState<string>(() => extractParam('hair_style') || DEFAULT_TAG)
+  const [bodyShape, setBodyShape] = useState<string>(() => extractParam('body_shape') || DEFAULT_TAG)
   const firstRender = useRef(true)
 
   useEffect(() => {
@@ -86,7 +187,7 @@ export default function SearchFilters({ init, facets }: Props) {
   const scrollToResults = () => {
     if (typeof window === 'undefined') return
     requestAnimationFrame(() => {
-      const el = document.getElementById('search-results')
+      const el = document.getElementById('therapist-results')
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }
@@ -95,15 +196,20 @@ export default function SearchFilters({ init, facets }: Props) {
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (area) params.set('area', area)
-    if (station) params.set('station', station)
     if (service) params.set('service', service)
-    if (body) params.set('body', body)
     if (today) params.set('today', 'true')
-    if (priceBands.length) params.set('price_band', priceBands.join(','))
-    if (rankingBadges.length) params.set('ranking_badges', rankingBadges.join(','))
     if (promotionsOnly) params.set('promotions_only', 'true')
     if (discountsOnly) params.set('discounts_only', 'true')
     if (diariesOnly) params.set('diaries_only', 'true')
+    if (bustMinIndex !== BUST_MIN_INDEX) params.set('bust_min', BUST_SIZES[bustMinIndex])
+    if (bustMaxIndex !== BUST_MAX_INDEX) params.set('bust_max', BUST_SIZES[bustMaxIndex])
+    if (ageMin !== AGE_MIN) params.set('age_min', String(ageMin))
+    if (ageMax !== AGE_DEFAULT_MAX) params.set('age_max', String(ageMax))
+    if (heightMin !== HEIGHT_MIN) params.set('height_min', String(heightMin))
+    if (heightMax !== HEIGHT_DEFAULT_MAX) params.set('height_max', String(heightMax))
+    if (hairColor && hairColor !== DEFAULT_TAG) params.set('hair_color', hairColor)
+    if (hairStyle && hairStyle !== DEFAULT_TAG) params.set('hair_style', hairStyle)
+    if (bodyShape && bodyShape !== DEFAULT_TAG) params.set('body_shape', bodyShape)
     if (sort && sort !== 'recommended') params.set('sort', sort)
     params.set('page', '1')
     startTransition(() => {
@@ -111,44 +217,74 @@ export default function SearchFilters({ init, facets }: Props) {
       scrollToResults()
     })
     if (isMobile) setShowFilters(false)
-    try { localStorage.setItem('search.last', params.toString()) } catch {}
+    try {
+      localStorage.setItem('search.last', params.toString())
+    } catch {
+      // ignore
+    }
   }
 
   function reset() {
     setQ('')
     setArea('')
-    setStation('')
     setService('')
-    setBody('')
     setToday(false)
-    setPriceBands([])
-    setRankingBadges([])
     setPromotionsOnly(false)
     setDiscountsOnly(false)
     setDiariesOnly(false)
+    setBustMinIndex(BUST_MIN_INDEX)
+    setBustMaxIndex(BUST_MAX_INDEX)
+    setAgeMin(AGE_MIN)
+    setAgeMax(AGE_DEFAULT_MAX)
+    setHeightMin(HEIGHT_MIN)
+    setHeightMax(HEIGHT_DEFAULT_MAX)
+    setHairColor(DEFAULT_TAG)
+    setHairStyle(DEFAULT_TAG)
+    setBodyShape(DEFAULT_TAG)
     setSort('recommended')
     startTransition(() => {
       router.replace(pathname)
       scrollToResults()
     })
     if (isMobile) setShowFilters(false)
-    try { localStorage.removeItem('search.last') } catch {}
+    try {
+      localStorage.removeItem('search.last')
+    } catch {
+      // ignore
+    }
   }
 
   useEffect(() => {
     setQ(extractParam('q'))
     setArea(extractParam('area'))
-    setStation(extractParam('station'))
     setService(extractParam('service'))
-    setBody(extractParam('body'))
     setToday(extractParam('today') === 'true')
-    setPriceBands(extractList('price_band'))
-    setRankingBadges(extractList('ranking_badges'))
     setPromotionsOnly(extractParam('promotions_only') === 'true')
     setDiscountsOnly(extractParam('discounts_only') === 'true')
     setDiariesOnly(extractParam('diaries_only') === 'true')
     setSort(extractParam('sort') || 'recommended')
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    const bustMinPreset = BUST_SIZES.indexOf(extractParam('bust_min').toUpperCase())
+    const bustMaxPreset = BUST_SIZES.indexOf(extractParam('bust_max').toUpperCase())
+    const minValue = bustMinPreset >= 0 ? bustMinPreset : BUST_MIN_INDEX
+    const maxValue = bustMaxPreset >= 0 ? bustMaxPreset : BUST_MAX_INDEX
+    setBustMinIndex(Math.min(minValue, maxValue))
+    setBustMaxIndex(Math.max(minValue, maxValue))
+    const parsedAgeMin = Number.parseInt(extractParam('age_min'), 10)
+    const normalizedAgeMin = Number.isFinite(parsedAgeMin) ? Math.min(Math.max(parsedAgeMin, AGE_MIN), AGE_MAX_LIMIT) : AGE_MIN
+    const parsedAgeMax = Number.parseInt(extractParam('age_max'), 10)
+    const normalizedAgeMax = Number.isFinite(parsedAgeMax) ? Math.min(Math.max(parsedAgeMax, AGE_MIN), AGE_MAX_LIMIT) : AGE_DEFAULT_MAX
+    setAgeMin(Math.min(normalizedAgeMin, normalizedAgeMax))
+    setAgeMax(Math.max(normalizedAgeMin, normalizedAgeMax))
+    const parsedHeightMin = Number.parseInt(extractParam('height_min'), 10)
+    const normalizedHeightMin = Number.isFinite(parsedHeightMin) ? Math.min(Math.max(parsedHeightMin, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_MIN
+    const parsedHeightMax = Number.parseInt(extractParam('height_max'), 10)
+    const normalizedHeightMax = Number.isFinite(parsedHeightMax) ? Math.min(Math.max(parsedHeightMax, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_DEFAULT_MAX
+    setHeightMin(Math.min(normalizedHeightMin, normalizedHeightMax))
+    setHeightMax(Math.max(normalizedHeightMin, normalizedHeightMax))
+    setHairColor(extractParam('hair_color') || DEFAULT_TAG)
+    setHairStyle(extractParam('hair_style') || DEFAULT_TAG)
+    setBodyShape(extractParam('body_shape') || DEFAULT_TAG)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spKey])
 
   useEffect(() => {
@@ -168,213 +304,319 @@ export default function SearchFilters({ init, facets }: Props) {
       setShowFilters(false)
       scrollToResults()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spKey, isMobile])
 
-  const areaOptions = useMemo(() => {
-    const facetList = facets?.area || []
-    const items: Array<[string, string]> = facetList.length
-      ? facetList.map(f => [f.value, f.label || f.value])
-      : AREA_ORDER.map(k => [k, k])
-    if (area && !items.some(([v]) => v === area)) items.unshift([area, area])
-    return items
+  const areaSelectOptions = useMemo(() => {
+    const facetList = facets?.area ?? []
+    const seen = new Set<string>([''])
+    const options: { value: string; label: string }[] = [...AREA_SELECT_OPTIONS_DEFAULT]
+    for (const value of AREA_ORDER) {
+      if (seen.has(value)) continue
+      options.push({ value, label: value })
+      seen.add(value)
+    }
+    for (const facet of facetList) {
+      const value = facet.value
+      if (!value || seen.has(value)) continue
+      options.push({ value, label: facet.label || value })
+      seen.add(value)
+    }
+    if (area && !seen.has(area)) {
+      options.push({ value: area, label: area })
+    }
+    return options
   }, [area, facets?.area])
 
-  const stationOptions = useMemo(() => {
-    const facetList = facets?.nearest_station || []
-    const items: Array<[string, string]> = facetList.length
-      ? facetList.map(f => [f.value, f.label || f.value])
-      : []
-    if (station && !items.some(([v]) => v === station)) items.unshift([station, station])
-    return items
-  }, [station, facets?.nearest_station])
+  const serviceSelectOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const options: { value: string; label: string }[] = []
+    for (const option of SERVICE_SELECT_OPTIONS) {
+      if (seen.has(option.value)) continue
+      options.push(option)
+      seen.add(option.value)
+    }
+    if (service && !seen.has(service)) {
+      options.push({ value: service, label: service })
+    }
+    return options
+  }, [service])
 
-  const serviceOptions = useMemo(() => {
-    const facetList = facets?.service_type || []
-    if (!facetList.length) return [
-      ['store', '店舗型'],
-      ['dispatch', '派遣型'],
-    ]
-    return facetList.map(f => [f.value, f.label || f.value])
-  }, [facets?.service_type])
+  const sortSelectOptions = useMemo(() => SORT_SELECT_OPTIONS, [])
 
-  const priceFacet = facets?.price_band || []
-  const badgeFacet = facets?.ranking_badges || []
-  const diariesFacetCount = (facets?.has_diaries || []).find((f) => f.value === 'true')?.count ?? 0
+  const bustHighlightStyle = buildHighlightStyle(bustMinIndex, bustMaxIndex, BUST_MIN_INDEX, BUST_MAX_INDEX)
+  const ageHighlightStyle = buildHighlightStyle(ageMin, ageMax, AGE_MIN, AGE_MAX_LIMIT)
+  const heightHighlightStyle = buildHighlightStyle(heightMin, heightMax, HEIGHT_MIN, HEIGHT_MAX_LIMIT)
 
-  const toggleValue = (list: string[], value: string): string[] => (
-    list.includes(value) ? list.filter(v => v !== value) : [...list, value]
+  const diariesFacetCount = useMemo(
+    () => (facets?.has_diaries || []).find((facet) => facet.value === 'true')?.count ?? 0,
+    [facets?.has_diaries],
   )
 
-  const fieldClass = 'w-full rounded-lg border border-neutral-borderLight bg-neutral-surface px-3 py-2 text-sm shadow-sm focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-secondary/30'
-  const chipClass = (active: boolean) => `inline-flex items-center gap-1 rounded-badge border px-3 py-1 text-sm transition ${active ? 'border-brand-primary bg-brand-primary text-white shadow-sm' : 'border-neutral-borderLight bg-neutral-surfaceAlt text-neutral-text'}`
+  const handleBustRangeChange = (minIndex: number, maxIndex: number) => {
+    const clampedMin = Math.min(Math.max(minIndex, BUST_MIN_INDEX), BUST_MAX_INDEX)
+    const clampedMax = Math.min(Math.max(maxIndex, BUST_MIN_INDEX), BUST_MAX_INDEX)
+    setBustMinIndex(Math.min(clampedMin, clampedMax))
+    setBustMaxIndex(Math.max(clampedMin, clampedMax))
+  }
+
+  const handleAgeRangeChange = (minValue: number, maxValue: number) => {
+    const clampedMin = Math.min(Math.max(minValue, AGE_MIN), AGE_MAX_LIMIT)
+    const clampedMax = Math.min(Math.max(maxValue, AGE_MIN), AGE_MAX_LIMIT)
+    setAgeMin(Math.min(clampedMin, clampedMax))
+    setAgeMax(Math.max(clampedMin, clampedMax))
+  }
+
+  const handleHeightRangeChange = (minValue: number, maxValue: number) => {
+    const clampedMin = Math.min(Math.max(minValue, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+    const clampedMax = Math.min(Math.max(maxValue, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+    setHeightMin(Math.min(clampedMin, clampedMax))
+    setHeightMax(Math.max(clampedMin, clampedMax))
+  }
+
+  const resetStyleFilters = () => {
+    setBustMinIndex(BUST_MIN_INDEX)
+    setBustMaxIndex(BUST_MAX_INDEX)
+    setAgeMin(AGE_MIN)
+    setAgeMax(AGE_DEFAULT_MAX)
+    setHeightMin(HEIGHT_MIN)
+    setHeightMax(HEIGHT_DEFAULT_MAX)
+    setHairColor(DEFAULT_TAG)
+    setHairStyle(DEFAULT_TAG)
+    setBodyShape(DEFAULT_TAG)
+  }
+
+  const fieldClass =
+    'w-full rounded-[24px] border border-white/50 bg-white/60 px-4 py-2.5 text-sm text-neutral-text shadow-[0_12px_32px_rgba(37,99,235,0.13)] transition focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30'
+
 
   const onSubmit: FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault()
     push()
   }
-
+  const formattedResult = typeof resultCount === 'number'
+    ? `${numberFormatter.format(resultCount)} 名のセラピストが該当`
+    : diariesFacetCount
+      ? `写メ日記あり: ${numberFormatter.format(diariesFacetCount)} 名`
+      : '条件を設定すると結果が表示されます'
   return (
-    <div className="relative space-y-2">
-      {isMobile ? (
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-neutral-text">検索条件</span>
-          <button
-            type="button"
-            onClick={() => setShowFilters(prev => !prev)}
-            className="inline-flex items-center gap-1 rounded-badge border border-neutral-borderLight px-3 py-1 text-xs font-semibold text-neutral-text transition hover:border-brand-primary hover:text-brand-primary"
-          >
-            {showFilters ? '条件を閉じる' : '条件を開く'}
-          </button>
+    <section
+      className={clsx(
+        'relative overflow-visible rounded-[48px] border border-white/35 bg-white/40 p-8 shadow-[0_36px_120px_rgba(37,99,235,0.22)] backdrop-blur-[24px]',
+        sticky && 'lg:sticky lg:top-16 lg:z-20',
+        className,
+      )}
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(147,197,253,0.35)_0%,rgba(147,197,253,0)_60%),linear-gradient(135deg,rgba(239,246,255,0.95)_0%,rgba(236,254,255,0.6)_50%,rgba(239,246,255,0.9)_100%)]"
+      />
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3 text-neutral-text">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand-primary to-brand-secondary text-white shadow-[0_12px_28px_rgba(37,99,235,0.25)]">
+            🔍
+          </span>
+          <div className="space-y-1">
+            <p className="text-lg font-semibold">詳細検索</p>
+            <p className="text-sm text-neutral-textMuted">複数条件を組み合わせて、希望に合ったセラピストを見つけましょう。</p>
+          </div>
         </div>
-      ) : null}
+        <div className="flex items-center gap-3 text-sm">
+          {isMobile ? (
+            <button
+              type="button"
+              onClick={() => setShowFilters((prev) => !prev)}
+              className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/55 px-3 py-1.5 font-semibold text-brand-primary shadow-[0_10px_28px_rgba(37,99,235,0.18)] transition hover:border-brand-primary hover:bg-brand-primary/10"
+            >
+              {showFilters ? '条件を閉じる' : '条件を開く'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={reset}
+              disabled={isPending}
+              className="inline-flex items-center gap-2 rounded-full border border-white/55 bg-white/55 px-3 py-1.5 font-semibold text-brand-primary shadow-[0_10px_28px_rgba(37,99,235,0.18)] transition hover:border-brand-primary hover:bg-brand-primary/10 disabled:opacity-60"
+            >
+              すべてクリア
+            </button>
+          )}
+        </div>
+      </header>
+
       <form
         onSubmit={onSubmit}
         role="search"
         aria-label="店舗検索条件"
-        className={`space-y-4 rounded-section border border-neutral-borderLight/70 bg-white/85 p-5 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70 ${isMobile ? '' : 'lg:sticky lg:top-16 lg:z-20'} ${isMobile && !showFilters ? 'border-none bg-transparent p-0 shadow-none backdrop-blur-none space-y-0' : ''}`}
         aria-busy={isPending}
+        className={clsx('mt-8 space-y-8', isMobile && !showFilters && 'hidden')}
       >
-        <div className={isMobile && !showFilters ? 'hidden' : 'space-y-4'}>
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-textMuted">検索条件</span>
-          <p className="text-xs text-neutral-textMuted/80">気になる条件を組み合わせて、一覧をリアルタイムに更新します。</p>
-        </div>
-        <button
-          type="button"
-          onClick={reset}
-          className="inline-flex items-center gap-1 rounded-badge border border-neutral-borderLight/80 px-3 py-1 text-xs font-semibold text-neutral-text transition hover:border-brand-primary hover:text-brand-primary"
-          disabled={isPending}
-        >
-          条件をリセット
-        </button>
-      </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4 xl:grid-cols-5">
-        <input
-          value={q}
-          onChange={e=>setQ(e.target.value)}
-          placeholder="キーワードを入力"
-          className={`${fieldClass} sm:col-span-2 lg:col-span-2 xl:col-span-2`}
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <BasicSearchSection
+            keyword={q}
+            onKeywordChange={setQ}
+            area={area}
+            onAreaChange={setArea}
+            service={service}
+            onServiceChange={setService}
+            areaOptions={areaSelectOptions}
+            serviceOptions={serviceSelectOptions}
+            fieldClass={fieldClass}
+            selectButtonClass={glassSelectButtonClass}
+            selectMenuClass={glassSelectMenuClass}
+            selectOptionClass={glassSelectOptionClass}
+          />
+
+          <FilterChipsSection
+            todayOnly={today}
+            onToggleToday={setToday}
+            promotionsOnly={promotionsOnly}
+            onTogglePromotions={setPromotionsOnly}
+            discountsOnly={discountsOnly}
+            onToggleDiscounts={setDiscountsOnly}
+            diariesOnly={diariesOnly}
+            onToggleDiaries={setDiariesOnly}
+            sort={sort}
+            sortOptions={sortSelectOptions}
+            onSortChange={setSort}
+            selectButtonClass={glassSelectButtonClass}
+            selectMenuClass={glassSelectMenuClass}
+            selectOptionClass={glassSelectOptionClass}
+          />
+        </div>
+
+        <StyleFiltersSection
+          bustSizes={BUST_SIZES}
+          bustMinIndex={bustMinIndex}
+          bustMaxIndex={bustMaxIndex}
+          bustHighlightStyle={bustHighlightStyle}
+          onBustChange={handleBustRangeChange}
+          bustMinLimit={BUST_MIN_INDEX}
+          bustMaxLimit={BUST_MAX_INDEX}
+          ageMin={ageMin}
+          ageMax={ageMax}
+          ageHighlightStyle={ageHighlightStyle}
+          onAgeChange={handleAgeRangeChange}
+          ageMinLimit={AGE_MIN}
+          ageMaxLimit={AGE_MAX_LIMIT}
+          heightMin={heightMin}
+          heightMax={heightMax}
+          heightHighlightStyle={heightHighlightStyle}
+          onHeightChange={handleHeightRangeChange}
+          heightMinLimit={HEIGHT_MIN}
+          heightMaxLimit={HEIGHT_MAX_LIMIT}
+          onReset={resetStyleFilters}
         />
-        <div className="flex flex-col gap-2 sm:col-span-2 lg:col-span-2 xl:col-span-1">
-          <select value={area} onChange={e=>setArea(e.target.value)} className={fieldClass}>
-            <option value="">エリア</option>
-            {areaOptions.map(([value,label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-          <select value={station} onChange={e=>setStation(e.target.value)} className={fieldClass}>
-            <option value="">駅を選択</option>
-            {stationOptions.map(([value,label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </div>
-        <select value={service} onChange={e=>setService(e.target.value)} className={`${fieldClass} sm:col-span-2 lg:col-span-1`}>
-          <option value="">サービス形態</option>
-          {serviceOptions.map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
-        <input
-          value={body}
-          onChange={e=>setBody(e.target.value)}
-          placeholder="こだわりキーワード (例: アロマ)"
-          className={`${fieldClass} sm:col-span-2 lg:col-span-2 xl:col-span-2`}
-        />
-        <label className="flex items-center gap-2 rounded-lg border border-neutral-borderLight/70 bg-neutral-surfaceAlt px-3 py-2 text-sm text-neutral-text sm:col-span-2 lg:col-span-1">
-          <input type="checkbox" checked={today} onChange={e=>setToday(e.target.checked)} className="h-4 w-4" />
-          本日出勤のみ
-        </label>
-        <select value={sort} onChange={e=>setSort(e.target.value)} className={`${fieldClass} sm:col-span-2 lg:col-span-1`}>
-          <option value="recommended">おすすめ順</option>
-          <option value="price_asc">料金が安い順</option>
-          <option value="price_desc">料金が高い順</option>
-          <option value="rating">クチコミ評価順</option>
-          <option value="new">更新が新しい順</option>
-        </select>
-        <button
-          type="submit"
-          className="inline-flex items-center justify-center rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-primaryDark disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2 lg:col-span-1 lg:w-full xl:w-auto"
-          disabled={isPending}
-        >
-          {isPending ? '更新中…' : '検索する'}
-        </button>
-      </div>
 
-      {priceFacet.length ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-textMuted">料金帯</span>
-          {priceFacet.map((facet) => {
-            const active = priceBands.includes(facet.value)
-            return (
-              <button
-                type="button"
-                key={facet.value}
-                className={chipClass(active)}
-                onClick={() => setPriceBands(prev => toggleValue(prev, facet.value))}
-              >
-                {facet.label || facet.value}
-                {typeof facet.count === 'number' ? <span className="text-xs opacity-70">{facet.count}</span> : null}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
 
-      {badgeFacet.length ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-textMuted">特集バッジ</span>
-          {badgeFacet.map((facet) => {
-            const active = rankingBadges.includes(facet.value)
-            return (
-              <button
-                type="button"
-                key={facet.value}
-                className={chipClass(active)}
-                onClick={() => setRankingBadges(prev => toggleValue(prev, facet.value))}
-              >
-                {facet.label || facet.value}
-                {typeof facet.count === 'number' ? <span className="text-xs opacity-70">{facet.count}</span> : null}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
 
-      <div className="flex flex-wrap gap-3 text-sm text-neutral-text">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={promotionsOnly}
-            onChange={(e) => setPromotionsOnly(e.target.checked)}
-          />
-          割引・キャンペーン実施中のみ
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={discountsOnly}
-            onChange={(e) => setDiscountsOnly(e.target.checked)}
-          />
-          クーポン掲載あり
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={diariesOnly}
-            onChange={(e) => setDiariesOnly(e.target.checked)}
-          />
-          写メ日記掲載あり{diariesFacetCount ? ` (${diariesFacetCount})` : ''}
-        </label>
-      </div>
-        </div>
+        <section className={glassCard}>
+          <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(191,219,254,0.25)_0%,rgba(191,219,254,0)_60%)]" />
+          <header className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary">
+              🎨
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-neutral-text">スタイルタグ</p>
+              <p className="text-xs text-neutral-textMuted">髪色・髪型・体型などのタグを選択できます</p>
+            </div>
+          </header>
+          <div className="mt-6 space-y-5 text-sm text-neutral-text">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">髪色</span>
+                {hairColor !== DEFAULT_TAG ? (
+                  <button
+                    type="button"
+                    onClick={() => setHairColor(DEFAULT_TAG)}
+                    className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
+                  >
+                    指定を解除
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {HAIR_COLOR_OPTIONS.map((option) => (
+                  <button
+                    key={`hair-color-${option}`}
+                    type="button"
+                    onClick={() => setHairColor(option)}
+                    className={tagClass(hairColor === option)}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">髪型</span>
+                {hairStyle !== DEFAULT_TAG ? (
+                  <button
+                    type="button"
+                    onClick={() => setHairStyle(DEFAULT_TAG)}
+                    className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
+                  >
+                    指定を解除
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {HAIR_STYLE_OPTIONS.map((option) => (
+                  <button
+                    key={`hair-style-${option}`}
+                    type="button"
+                    onClick={() => setHairStyle(option)}
+                    className={tagClass(hairStyle === option)}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">体型</span>
+                {bodyShape !== DEFAULT_TAG ? (
+                  <button
+                    type="button"
+                    onClick={() => setBodyShape(DEFAULT_TAG)}
+                    className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
+                  >
+                    指定を解除
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {BODY_TYPE_OPTIONS.map((option) => (
+                  <button
+                    key={`body-shape-${option}`}
+                    type="button"
+                    onClick={() => setBodyShape(option)}
+                    className={tagClass(bodyShape === option)}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <footer className="flex flex-wrap items-center justify-between gap-4 rounded-[32px] border border-white/45 bg-white/45 px-6 py-4 shadow-[0_24px_70px_rgba(37,99,235,0.18)] backdrop-blur">
+          <div className="text-sm text-neutral-textMuted">{formattedResult}</div>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-6 py-2.5 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(37,99,235,0.26)] transition hover:from-brand-primary/90 hover:to-brand-secondary/90 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            この条件で検索する
+          </button>
+        </footer>
       </form>
-    </div>
+    </section>
   )
 }

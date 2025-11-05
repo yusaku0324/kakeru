@@ -1,17 +1,20 @@
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import type { Metadata } from 'next'
 import { createHash } from 'crypto'
 import Gallery from '@/components/Gallery'
+import RecentlyViewedRecorder from '@/components/RecentlyViewedRecorder'
+import type { ReservationOverlayProps } from '@/components/ReservationOverlay'
+import ReservationOverlayRoot from '@/components/ReservationOverlayRoot'
+import ShopReviews from '@/components/ShopReviews'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
-import ShopReviews from '@/components/ShopReviews'
+import type { TherapistHit } from '@/components/staff/TherapistCard'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
-import RecentlyViewedRecorder from '@/components/RecentlyViewedRecorder'
+import ShopReservationCardClient from './ShopReservationCardClient'
 
 type Props = { params: { id: string }; searchParams?: Record<string, string | string[] | undefined> }
 
@@ -239,8 +242,6 @@ function parseBooleanParam(value?: string | string[] | null): boolean {
   return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on'
 }
 
-const ReservationForm = dynamic(() => import('@/components/ReservationForm'), { ssr: false })
-
 function toDateTimeLocal(iso?: string | null) {
   if (!iso) return undefined
   const date = new Date(iso)
@@ -261,6 +262,29 @@ function toTimeLabel(iso: string): string {
     .replace(/^24:/, '00:')
 }
 
+function formatWaitLabel(startIso?: string | null) {
+  if (!startIso) return null
+  const target = new Date(startIso)
+  if (Number.isNaN(target.getTime())) return null
+  const now = new Date()
+  const diffMs = target.getTime() - now.getTime()
+  if (diffMs <= 0) return 'まもなく'
+  const totalMinutes = Math.round(diffMs / 60_000)
+  if (totalMinutes < 60) return `約${totalMinutes}分後`
+  const totalHours = Math.floor(totalMinutes / 60)
+  const remainMinutes = totalMinutes % 60
+  if (totalHours < 24) {
+    return `約${totalHours}時間${remainMinutes ? `${remainMinutes}分` : ''}後`
+  }
+  const days = Math.floor(totalHours / 24)
+  const remainHours = totalHours % 24
+  let label = `約${days}日`
+  if (remainHours) label += `${remainHours}時間`
+  if (remainMinutes && days < 3) label += `${remainMinutes}分`
+  label += '後'
+  return label
+}
+
 function formatDayLabel(dateStr: string): string {
   const date = new Date(dateStr)
   if (Number.isNaN(date.getTime())) return dateStr
@@ -273,7 +297,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const badges = shop.badges || []
   const contact = shop.contact || {}
   const phone = contact.phone || null
-  const lineId = contact.line_id || null
+  const lineId = contact.line_id ? (contact.line_id.startsWith('@') ? contact.line_id.slice(1) : contact.line_id) : null
   const menus = Array.isArray(shop.menus) ? shop.menus : []
   const staff = Array.isArray(shop.staff) ? shop.staff : []
   const availability = shop.availability_calendar?.days || []
@@ -327,9 +351,75 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     return diff || undefined
   })()
 
+  const tentativeSlotFallback = (() => {
+    for (const day of availability) {
+      if (!day?.slots) continue
+      const tentativeSlot = day.slots.find((slot) => slot.status === 'tentative')
+      if (tentativeSlot) return tentativeSlot
+    }
+    return null
+  })()
+
+  const nextReservableStartIso = selectedSlot?.start_at ?? firstOpenSlot?.start_at ?? tentativeSlotFallback?.start_at ?? null
+
+  const shopGallerySources = uniquePhotos(shop.photos)
+  const shopPrimaryPhoto = shopGallerySources[0] ?? null
+  const reservationTags = Array.isArray(shop.service_tags)
+    ? shop.service_tags
+        .filter((tag): tag is string => typeof tag === 'string' && Boolean(tag.trim()))
+        .map((tag) => tag.trim())
+    : []
+
+  const reservationHit: TherapistHit = {
+    id: `${shop.id}-reservation`,
+    therapistId: null,
+    staffId: `${shop.id}-web`,
+    name: shop.name,
+    alias: shop.store_name ?? null,
+    headline: shorten(shop.catch_copy, 80) ?? shorten(shop.description, 80) ?? null,
+    specialties: reservationTags,
+    avatarUrl: shopPrimaryPhoto,
+    rating: shop.reviews?.average_score ?? null,
+    reviewCount: shop.reviews?.review_count ?? null,
+    shopId: shop.id,
+    shopSlug: shop.slug ?? null,
+    shopName: shop.name,
+    shopArea: shop.area,
+    shopAreaName: shop.area_name ?? null,
+    todayAvailable: shop.today_available ?? null,
+    nextAvailableAt: nextReservableStartIso,
+  }
+
   const availabilityUpdatedLabel = shop.availability_calendar?.generated_at
     ? formatDayLabel(shop.availability_calendar.generated_at)
     : null
+  const overlayProfileDetails = [
+    shop.area_name || shop.area ? { label: 'エリア', value: shop.area_name || shop.area } : null,
+    shop.staff?.length ? { label: '在籍セラピスト', value: `${shop.staff.length}名` } : null,
+    reservationTags.length ? { label: 'サービス', value: reservationTags.slice(0, 4).join(' / ') } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>
+  const overlaySchedule = availabilityUpdatedLabel ? `空き状況更新: ${availabilityUpdatedLabel}` : null
+  const overlayPricingLabel = `${formatYen(shop.min_price)}〜${formatYen(shop.max_price)}`
+
+  const reservationOverlayConfig = {
+    hit: reservationHit,
+    tel: phone,
+    lineId,
+    defaultStart: defaultSlotLocal ?? null,
+    defaultDurationMinutes: defaultDurationMinutes ?? null,
+    allowDemoSubmission,
+    gallery: shopGallerySources.length ? shopGallerySources : undefined,
+    profileDetails: overlayProfileDetails.length ? overlayProfileDetails : undefined,
+    profileBio: shop.catch_copy ?? shop.description ?? null,
+    profileSchedule: overlaySchedule,
+    profilePricing: overlayPricingLabel,
+    availabilityDays: availability,
+  } satisfies Omit<ReservationOverlayProps, 'onClose'>
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayAvailability = availability.find((day) => day.date === todayIso) || null
+  const todaySlots = todayAvailability?.slots || []
+  const upcomingOpenToday = todaySlots.filter((slot) => slot.status === 'open')
+  const reservedToday = todaySlots.filter((slot) => slot.status === 'blocked')
 
   const contactLinks = [
     contact.phone ? { label: `TEL: ${contact.phone}`, href: `tel:${contact.phone}` } : null,
@@ -341,14 +431,30 @@ export default async function ProfilePage({ params, searchParams }: Props) {
       : null,
   ].filter(Boolean) as Array<{ label: string; href: string; external?: boolean }>
 
-  const slotStatusMap: Record<AvailabilitySlot['status'], { label: string; className: string }> = {
-    open: { label: '◎ 空きあり', className: 'text-state-successText' },
-    tentative: { label: '△ 要確認', className: 'text-brand-primaryDark' },
-    blocked: { label: '× 満席', className: 'text-neutral-textMuted' },
+  const slotStatusMap: Record<
+    AvailabilitySlot['status'],
+    { label: string; badgeClass: string; icon?: string }
+  > = {
+    open: {
+      label: '空き枠',
+      badgeClass: 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/30',
+      icon: '◎',
+    },
+    tentative: {
+      label: '要確認',
+      badgeClass: 'bg-amber-100 text-amber-700 border border-amber-300',
+      icon: '△',
+    },
+    blocked: {
+      label: '予約済',
+      badgeClass: 'bg-neutral-200 text-neutral-700 border border-neutral-300',
+      icon: '×',
+    },
   }
 
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 pb-24">
+      <ReservationOverlayRoot />
       <RecentlyViewedRecorder
         shopId={shop.id}
         slug={shop.slug ?? null}
@@ -532,21 +638,14 @@ export default async function ProfilePage({ params, searchParams }: Props) {
             </Section>
           ) : null}
 
-          <Card className="space-y-3 p-4">
-            <div className="text-sm font-semibold text-neutral-text">WEB予約リクエスト</div>
-            <p className="text-xs leading-relaxed text-neutral-textMuted">
-              送信内容をもとに担当者が折り返しご連絡します。返信をもって予約成立となります。
-            </p>
-            <ReservationForm
-              shopId={shop.id}
-              defaultStart={defaultSlotLocal}
-              defaultDurationMinutes={defaultDurationMinutes}
-              staffId={selectedSlot?.staff_id ?? undefined}
-              tel={phone}
-              lineId={lineId}
-              shopName={shop.name}
-              allowDemoSubmission={allowDemoSubmission}
-            />
+          <Card id="web-reservation" className="space-y-4 p-4">
+            <div className="space-y-2">
+              <div className="text-sm font-semibold text-neutral-text">WEB予約リクエスト</div>
+              <p className="text-xs leading-relaxed text-neutral-textMuted">
+                送信内容をもとに担当者が折り返しご連絡します。返信をもって予約成立となります。
+              </p>
+            </div>
+            <ShopReservationCardClient tel={phone} lineId={lineId} shopName={shop.name} overlay={reservationOverlayConfig} />
           </Card>
         </div>
       </section>
@@ -674,35 +773,61 @@ export default async function ProfilePage({ params, searchParams }: Props) {
           }
           className="shadow-none border border-neutral-borderLight bg-neutral-surface"
         >
+          {todaySlots.length ? (
+            <Card className="mb-4 space-y-3 border border-brand-primary/20 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-semibold">本日の枠</div>
+                <span className="text-xs text-brand-primaryDark/80">{formatDayLabel(todayIso)}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {upcomingOpenToday.length ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-600">
+                    ◎ 空き {upcomingOpenToday.length}枠
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-600">
+                    空き枠なし
+                  </span>
+                )}
+                {reservedToday.length ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-600">
+                    × 予約済 {reservedToday.length}枠
+                  </span>
+                ) : null}
+              </div>
+            </Card>
+          ) : null}
           <div className="grid gap-4 md:grid-cols-2">
-            {availability.slice(0, 4).map((day) => (
+            {availability.slice(0, 6).map((day) => (
               <Card key={day.date} className="space-y-3 p-4">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold text-neutral-text">{formatDayLabel(day.date)}</div>
                   {day.is_today ? <Badge variant="brand">本日</Badge> : null}
                 </div>
                 {day.slots?.length ? (
-                  <ul className="space-y-2 text-sm text-neutral-text">
-                    {day.slots.slice(0, 4).map((slot, idx) => {
+                  <div className="space-y-2 text-sm text-neutral-text">
+                    {day.slots.slice(0, 6).map((slot, idx) => {
                       const display = slotStatusMap[slot.status]
+                      const waitLabel = slot.status !== 'blocked' ? formatWaitLabel(slot.start_at) : null
                       return (
-                        <li
+                        <div
                           key={`${slot.start_at}-${idx}`}
-                          className="flex items-center justify-between gap-3 rounded-card border border-neutral-borderLight/70 bg-neutral-surfaceAlt px-3 py-2"
+                          className="flex items-center gap-3 rounded-card border border-neutral-borderLight/70 bg-neutral-surfaceAlt px-3 py-2"
                         >
-                          <span>
-                            {toTimeLabel(slot.start_at)}〜{toTimeLabel(slot.end_at)}
+                          <span className="font-medium text-neutral-text">{toTimeLabel(slot.start_at)}〜{toTimeLabel(slot.end_at)}</span>
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${display.badgeClass}`}>
+                            {display.icon ? <span aria-hidden>{display.icon}</span> : null}
+                            {display.label}
                           </span>
-                          <span className={`text-xs font-semibold ${display.className}`}>{display.label}</span>
-                        </li>
+                          {waitLabel ? (
+                            <span className="text-[11px] font-medium text-brand-primary">{waitLabel}</span>
+                          ) : null}
+                        </div>
                       )
                     })}
-                    {day.slots.length > 4 ? (
-                      <li className="text-xs text-neutral-textMuted">他にも空き枠があります。店舗までお問い合わせください。</li>
-                    ) : null}
-                  </ul>
+                  </div>
                 ) : (
-                  <div className="text-xs text-neutral-textMuted">公開された出勤枠はありません。</div>
+                  <p className="text-xs text-neutral-textMuted">公開された枠はありません</p>
                 )}
               </Card>
             ))}

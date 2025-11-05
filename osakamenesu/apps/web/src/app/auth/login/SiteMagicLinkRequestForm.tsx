@@ -49,39 +49,42 @@ export function SiteMagicLinkRequestForm() {
     <div className="space-y-6">
       <ToastContainer toasts={toasts} onDismiss={remove} />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <label className="space-y-1">
-          <span className="text-sm font-medium text-neutral-text">メールアドレス</span>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <label className="space-y-2">
+          <span className="text-sm font-semibold text-neutral-text">メールアドレス</span>
           <input
             type="email"
             inputMode="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded border border-neutral-borderLight px-3 py-2 text-sm"
+            className="w-full rounded-full border border-white/50 bg-white/85 px-4 py-3 text-sm text-neutral-text shadow-sm transition focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
             placeholder="you@example.com"
             required
           />
         </label>
 
         {errorMessage ? (
-          <p className="text-sm text-state-dangerText">{errorMessage}</p>
+          <p className="rounded-[20px] border border-state-dangerBg bg-state-dangerBg/60 px-4 py-2 text-sm text-state-dangerText">
+            {errorMessage}
+          </p>
         ) : null}
 
         <button
           type="submit"
           disabled={isSending}
-          className="inline-flex items-center justify-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-primary/25 transition hover:from-brand-primary/90 hover:to-brand-secondary/90 disabled:cursor-not-allowed disabled:opacity-60"
         >
+          <span aria-hidden>📨</span>
           {isSending ? '送信中...' : 'ログインリンクを送信'}
         </button>
       </form>
 
       {status === 'success' ? (
-        <div className="rounded border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+        <div className="rounded-[20px] border border-brand-primary/30 bg-brand-primary/5 px-4 py-3 text-sm text-brand-primary">
           メールに記載されたリンクを同じブラウザで開くとログインが完了します。リンクの有効期限は数分間です。
         </div>
       ) : (
-        <p className="text-sm text-neutral-600">
+        <p className="text-sm text-neutral-textMuted">
           ログインリンクは数分間有効です。届かない場合は迷惑メールフォルダもご確認ください。
         </p>
       )}
