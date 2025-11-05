@@ -105,7 +105,7 @@ export function StyleFiltersSection({
               accentColor="#3b82f6"
               minLabel="バストサイズの下限"
               maxLabel="バストサイズの上限"
-              trackInset={24}
+              trackInset={6}
             />
           </div>
           <div className="flex items-center justify-between text-[11px] text-neutral-textMuted uppercase">
@@ -139,7 +139,7 @@ export function StyleFiltersSection({
                 accentColor="#ec4899"
                 minLabel="年齢の下限"
                 maxLabel="年齢の上限"
-                trackInset={24}
+                trackInset={6}
               />
             </div>
             <div className="flex items-center justify-between text-[11px] text-[#ec4899]">
@@ -171,7 +171,7 @@ export function StyleFiltersSection({
                 accentColor="#10b981"
                 minLabel="身長の下限"
                 maxLabel="身長の上限"
-                trackInset={24}
+                trackInset={6}
               />
             </div>
             <div className="flex items-center justify-between text-[11px] text-[#10b981]">

@@ -83,6 +83,38 @@ SORT_ALIASES: Dict[str, List[str]] = {
 }
 
 
+BUST_ORDER = [chr(code) for code in range(ord("A"), ord("Z") + 1)]
+STYLE_IGNORE_VALUES = {"指定なし", "すべて", "全て", "", None}
+
+
+def _expand_bust_range(min_tag: str | None, max_tag: str | None) -> list[str] | None:
+    if not min_tag and not max_tag:
+        return None
+
+    try:
+        min_index = BUST_ORDER.index((min_tag or "A").upper())
+    except ValueError:
+        min_index = 0
+    try:
+        max_index = BUST_ORDER.index((max_tag or "Z").upper())
+    except ValueError:
+        max_index = len(BUST_ORDER) - 1
+
+    if min_index > max_index:
+        min_index, max_index = max_index, min_index
+
+    return BUST_ORDER[min_index : max_index + 1]
+
+
+def _normalize_style_filter(value: str | None) -> str | None:
+    if value is None:
+        return None
+    candidate = value.strip()
+    if candidate in STYLE_IGNORE_VALUES:
+        return None
+    return candidate
+
+
 def serialize_review(review: models.Review) -> ReviewItem:
     aspects_raw = normalize_review_aspects(getattr(review, "aspect_scores", {}))
     aspects = {key: {k: v for k, v in value.items() if v is not None} for key, value in aspects_raw.items()}
@@ -822,21 +854,55 @@ async def search_shops(
     promotions_only: bool | None = Query(default=None, description="Filter shops with promotions"),
     discounts_only: bool | None = Query(default=None, description="Filter shops with discounts"),
     diaries_only: bool | None = Query(default=None, description="Filter shops with published diaries"),
+    bust_min: str | None = Query(default=None, description="Lower bound bust tag (A-Z)"),
+    bust_max: str | None = Query(default=None, description="Upper bound bust tag (A-Z)"),
+    age_min: int | None = Query(default=None, ge=0),
+    age_max: int | None = Query(default=None, ge=0),
+    height_min: int | None = Query(default=None, ge=0),
+    height_max: int | None = Query(default=None, ge=0),
+    hair_color: str | None = Query(default=None, description="Hair color tag"),
+    hair_style: str | None = Query(default=None, description="Hair style tag"),
+    body_shape: str | None = Query(default=None, description="Body shape tag"),
     sort: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=12, ge=1, le=50),
     db: AsyncSession = Depends(get_session),
 ):
     # Map request filters to existing Meilisearch document structure
-    body_tags = [tag.strip() for tag in (service_tags or "").split(",") if tag.strip()]
+    base_body_tags = [tag.strip() for tag in (service_tags or "").split(",") if tag.strip()]
+    style_tags: list[str] = []
+    for raw in (hair_color, hair_style, body_shape):
+        normalized = _normalize_style_filter(raw)
+        if normalized:
+            style_tags.append(normalized)
+
+    body_tags_combined: list[str] = []
+    seen_tags: set[str] = set()
+    for tag in base_body_tags + style_tags:
+        if tag not in seen_tags:
+            body_tags_combined.append(tag)
+            seen_tags.add(tag)
+
     price_bands = [band.strip() for band in (price_band or "").split(",") if band.strip()]
     ranking_badges = [badge.strip() for badge in (ranking_badges_param or "").split(",") if badge.strip()]
+    bust_tags = _expand_bust_range(bust_min, bust_max)
+
+    age_min_value = age_min
+    age_max_value = age_max
+    if isinstance(age_min_value, int) and isinstance(age_max_value, int) and age_min_value > age_max_value:
+        age_min_value, age_max_value = age_max_value, age_min_value
+
+    height_min_value = height_min
+    height_max_value = height_max
+    if isinstance(height_min_value, int) and isinstance(height_max_value, int) and height_min_value > height_max_value:
+        height_min_value, height_max_value = height_max_value, height_min_value
+
     filter_expr = build_filter(
         area,
         station,
         bust=None,
         service_type=category,
-        body_tags=body_tags or None,
+        body_tags=body_tags_combined or None,
         today=open_now,
         price_min=price_min,
         price_max=price_max,
@@ -846,6 +912,11 @@ async def search_shops(
         has_promotions=promotions_only,
         has_discounts=discounts_only,
         has_diaries=diaries_only,
+        bust_tags=bust_tags,
+        age_min=age_min_value,
+        age_max=age_max_value,
+        height_min=height_min_value,
+        height_max=height_max_value,
     )
     sort_expr = _resolve_sort(sort)
     try:
@@ -902,8 +973,8 @@ async def search_shops(
         selected_facets["nearest_station"] = {station}
     if category:
         selected_facets["service_type"] = {category}
-    if body_tags:
-        selected_facets["body_tags"] = set(body_tags)
+    if body_tags_combined:
+        selected_facets["body_tags"] = set(body_tags_combined)
     if open_now is not None:
         selected_facets["today"] = {"true" if open_now else "false"}
     if price_bands:
