@@ -2,7 +2,7 @@ import os
 import sys
 import types
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -67,6 +67,9 @@ class _DummySettings:
         self.reservation_notification_retry_backoff_multiplier = 2.0
         self.reservation_notification_worker_interval_seconds = 1.0
         self.reservation_notification_batch_size = 10
+        self.media_storage_backend = "memory"
+        self.media_root = Path("/tmp")
+        self.media_url_prefix = "/media"
 
     @property
     def auth_session_cookie_name(self) -> str:
@@ -78,6 +81,7 @@ settings_module.settings = _DummySettings()
 sys.modules["app.settings"] = settings_module
 
 from app.services.reservations_admin import build_reservation_summary  # type: ignore  # noqa: E402
+from app.domains.admin.reservations import _reservation_to_schema  # type: ignore  # noqa: E402
 
 
 def _make_reservation(**overrides):
@@ -125,3 +129,46 @@ def test_build_reservation_summary_falls_back_for_unknown_status():
 
     assert summary.status == "pending"
     assert summary.shop_name == "Shop"
+
+
+def test_reservation_to_schema_includes_preferred_slots():
+    now = datetime.now(UTC)
+    reservation_id = uuid.uuid4()
+    shop_id = uuid.uuid4()
+    slot_id = uuid.uuid4()
+    end_time = now + timedelta(hours=1)
+    reservation = SimpleNamespace(
+        id=reservation_id,
+        shop_id=shop_id,
+        staff_id=None,
+        menu_id=None,
+        channel="web",
+        desired_start=now,
+        desired_end=now,
+        notes=None,
+        status="pending",
+        marketing_opt_in=False,
+        customer_name="Tester",
+        customer_phone="09000000000",
+        customer_email="tester@example.com",
+        customer_line_id=None,
+        customer_remark=None,
+        created_at=now,
+        updated_at=now,
+        status_events=[
+            SimpleNamespace(status="pending", changed_at=now, changed_by="system", note=None),
+        ],
+        preferred_slots=[
+                SimpleNamespace(
+                    id=slot_id,
+                    desired_start=now,
+                    desired_end=end_time,
+                status="tentative",
+                created_at=now,
+            )
+        ],
+    )
+
+    schema = _reservation_to_schema(reservation)
+    assert schema.preferred_slots
+    assert schema.preferred_slots[0].status == "tentative"

@@ -55,14 +55,13 @@ describe('ReservationOverlay schedule selection', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /予約フォームを開く/ }))
+    const detailOverlay = await screen.findByRole('dialog', { name: /りなの予約詳細/ })
+    fireEvent.click(within(detailOverlay).getByRole('button', { name: '空き状況・予約' }))
 
-    // schedule tab should be active by default when availability exists
-    const formOverlay = await screen.findByRole('dialog', { name: /りな.+予約フォーム/ })
-    const targetSlotButtons = within(formOverlay).getAllByRole('button', { name: /11\/4.*13:00/ })
-    fireEvent.click(targetSlotButtons[0])
+    const scheduleButtons = await within(detailOverlay).findAllByRole('button', { name: /11\/4.*13:00/ })
+    fireEvent.click(scheduleButtons[0])
 
-    const candidateBadges = await within(formOverlay).findAllByText(/第\d候補/)
+    const candidateBadges = await within(detailOverlay).findAllByText(/第\d候補/)
     expect(candidateBadges.length).toBeGreaterThan(1)
   })
 })

@@ -157,13 +157,25 @@ def build_filter(
     has_promotions: bool | None = None,
     has_discounts: bool | None = None,
     has_diaries: bool | None = None,
+    bust_tags: list[str] | None = None,
+    age_min: int | None = None,
+    age_max: int | None = None,
+    height_min: int | None = None,
+    height_max: int | None = None,
 ) -> str | None:
     parts: list[str] = []
     if area:
         parts.append(f"area = '{area}'")
     if station:
         parts.append(f"nearest_station = '{station}'")
-    if bust:
+    if bust_tags:
+        if len(bust_tags) == 1:
+            parts.append(f"bust_tag = '{bust_tags[0]}'")
+        else:
+            or_clause = " OR ".join(f"bust_tag = '{tag}'" for tag in bust_tags)
+            if or_clause:
+                parts.append(f"({or_clause})")
+    elif bust:
         parts.append(f"bust_tag = '{bust}'")
     if service_type:
         parts.append(f"service_type = '{service_type}'")
@@ -193,6 +205,14 @@ def build_filter(
         rng.append(f"price_min >= {price_min}")
     if price_max is not None:
         rng.append(f"price_max <= {price_max}")
+    if age_min is not None:
+        rng.append(f"age >= {age_min}")
+    if age_max is not None:
+        rng.append(f"age <= {age_max}")
+    if height_min is not None:
+        rng.append(f"height_cm >= {height_min}")
+    if height_max is not None:
+        rng.append(f"height_cm <= {height_max}")
     if rng:
         parts.extend(rng)
     if not parts:

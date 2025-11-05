@@ -28,8 +28,8 @@ type WeekAvailabilityGridProps = {
   variant?: 'desktop' | 'mobile'
 }
 
-const WEEKDAY_FORMATTER = new Intl.DateTimeFormat('ja-JP', { weekday: 'short' })
-const MONTH_FORMATTER = new Intl.DateTimeFormat('ja-JP', { month: 'short' })
+const WEEKDAY_FORMATTER = new Intl.DateTimeFormat('ja-JP', { weekday: 'short', timeZone: 'Asia/Tokyo' })
+const MONTH_FORMATTER = new Intl.DateTimeFormat('ja-JP', { month: 'short', timeZone: 'Asia/Tokyo' })
 
 function buildSlotKey(day: AvailabilityDay, slot: AvailabilitySlot) {
   const key = slot.timeKey ?? slot.start_at.slice(11, 16)
