@@ -114,3 +114,13 @@ Dockerコンテナ化とGitHub Container Registryへの自動デプロイ
 
 ライセンス
 このプロジェクトはMITライセンスの下で公開されています。再試行Claudeは間違えることがあります。回答内容を必ずご確認ください。
+
+### Raycast Script Commands (osakamenesu)
+Export once in your shell profile:
+```sh
+echo 'export OSAKAMENESU_REPO_DIR="$HOME/dev/osakamenesu"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Then in Raycast: Settings → Extensions → Script Commands → Add Script Directory and add scripts/raycast.
+Optionally assign hotkeys: web/api/up/down/logs.
