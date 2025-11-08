@@ -7,6 +7,12 @@ if (!process.env.FAVORITES_API_MODE) {
 if (!process.env.NEXT_PUBLIC_FAVORITES_API_MODE) {
   process.env.NEXT_PUBLIC_FAVORITES_API_MODE = 'mock'
 }
+if (!process.env.NEXT_CACHE_COMPONENTS) {
+  process.env.NEXT_CACHE_COMPONENTS = '0'
+}
+if (!process.env.NEXT_DISABLE_REACT_COMPILER) {
+  process.env.NEXT_DISABLE_REACT_COMPILER = '1'
+}
 
 const adminUser = process.env.ADMIN_BASIC_USER
 const adminPass = process.env.ADMIN_BASIC_PASS
@@ -23,7 +29,6 @@ const basicAuthHeader = adminUser && adminPass
   : undefined
 
 if (!basicAuthHeader) {
-  // eslint-disable-next-line no-console
   console.warn('[playwright] ADMIN_BASIC_USER / ADMIN_BASIC_PASS が設定されていないため、管理画面テストは認証エラーになります')
 }
 
@@ -38,6 +43,12 @@ export default defineConfig({
     baseURL: resolvedBaseURL,
     trace: 'on-first-retry',
     headless: true,
+    httpCredentials: adminUser && adminPass
+      ? {
+          username: adminUser,
+          password: adminPass,
+        }
+      : undefined,
     extraHTTPHeaders: basicAuthHeader
       ? {
           Authorization: basicAuthHeader,
@@ -60,6 +71,9 @@ export default defineConfig({
           ...process.env,
           FAVORITES_API_MODE: 'mock',
           NEXT_PUBLIC_FAVORITES_API_MODE: 'mock',
+          NEXT_CACHE_COMPONENTS: process.env.NEXT_CACHE_COMPONENTS,
+          NEXT_DISABLE_REACT_COMPILER: process.env.NEXT_DISABLE_REACT_COMPILER,
+          E2E_DISABLE_RATE_LIMIT: '1',
         },
       },
 })
