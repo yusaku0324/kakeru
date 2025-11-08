@@ -94,7 +94,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-if settings.media_storage_backend.lower() == "local":
+media_backend = getattr(settings, "media_storage_backend", "memory")
+if media_backend and media_backend.lower() == "local":
     media_root = settings.media_root
     media_root.mkdir(parents=True, exist_ok=True)
     mount_path = settings.media_url_prefix
