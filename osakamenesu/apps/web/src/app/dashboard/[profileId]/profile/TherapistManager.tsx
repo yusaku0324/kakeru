@@ -1,5 +1,6 @@
 "use client"
 
+import Image, { type ImageLoader } from 'next/image'
 import React, { ChangeEvent, FormEvent, KeyboardEvent, useMemo, useState } from 'react'
 
 import { Card } from '@/components/ui/Card'
@@ -19,6 +20,8 @@ import {
 } from '@/lib/dashboard-therapists'
 
 type ToastFn = (type: 'success' | 'error', message: string) => void
+
+const passthroughImageLoader: ImageLoader = ({ src }) => src
 
 type Props = {
   profileId: string
@@ -193,11 +196,16 @@ export function TherapistPhotoField({
               className="flex flex-col gap-3 rounded-md border border-neutral-200 bg-neutral-50 p-3 sm:flex-row sm:items-center"
             >
               <div className="flex items-start gap-3 sm:w-1/2">
-                <img
+                <Image
+                  loader={passthroughImageLoader}
                   src={url}
                   alt={`セラピスト写真 ${index + 1}`}
+                  width={80}
+                  height={80}
+                  sizes="80px"
                   className="h-20 w-20 flex-shrink-0 rounded-md object-cover"
                   loading="lazy"
+                  unoptimized
                 />
                 <p className="flex-1 break-all text-xs text-neutral-600">{url}</p>
               </div>
@@ -646,12 +654,17 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
                 {therapist.photo_urls.length ? (
                   <div className="flex items-center gap-2">
                     {therapist.photo_urls.slice(0, 3).map((url, photoIndex) => (
-                      <img
+                      <Image
                         key={`${therapist.id}-photo-${photoIndex}`}
+                        loader={passthroughImageLoader}
                         src={url}
                         alt={`${therapist.name}の写真${photoIndex + 1}`}
+                        width={48}
+                        height={48}
+                        sizes="48px"
                         className="h-12 w-12 rounded-md object-cover"
                         loading="lazy"
+                        unoptimized
                       />
                     ))}
                     {therapist.photo_urls.length > 3 ? (

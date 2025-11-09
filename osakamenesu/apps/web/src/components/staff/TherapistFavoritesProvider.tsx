@@ -220,7 +220,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
     return () => {
       active = false
     }
-  }, [push, fetchWithFallback, mockMode])
+  }, [push, fetchWithFallback])
 
   const isFavorite = useCallback(
     (therapistId: string) => {
