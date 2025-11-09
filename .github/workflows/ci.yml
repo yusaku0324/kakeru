@@ -117,9 +117,6 @@ jobs:
       DOCKER_BUILDKIT: 1
       COMPOSE_DOCKER_CLI_BUILD: 1
       CACHE_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api-test-cache
-    defaults:
-      run:
-        working-directory: osakamenesu
     steps:
       - uses: actions/checkout@v4
 
@@ -237,6 +234,7 @@ jobs:
           docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
 
       - name: Build API runtime image
+        working-directory: osakamenesu
         run: |
           docker buildx build \
             --builder osakamenesu-builder \
@@ -249,6 +247,7 @@ jobs:
             --push
 
       - name: Build web runtime image
+        working-directory: osakamenesu
         run: |
           docker buildx build \
             --builder osakamenesu-builder \
