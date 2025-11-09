@@ -63,6 +63,8 @@ debug/
 videos/
 *.png
 *.json
+!osakamenesu/package.json
+!osakamenesu/pnpm-lock.yaml
 !osakamenesu/apps/web/package.json
 !osakamenesu/apps/web/package-lock.json
 !osakamenesu/apps/web/tsconfig.json
