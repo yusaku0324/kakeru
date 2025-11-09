@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from py.path import local
+from typing import Any
 
 
 def _normalize_markexpr(config) -> str:
@@ -23,33 +23,43 @@ def _excludes_integration(config) -> bool:
     return "notintegration" in expr
 
 
-def _is_unit_test_path(path: local) -> bool:
-    candidate = Path(str(path))
+def _resolve_parts(candidate: Path) -> tuple[str, ...]:
     try:
-        parts = candidate.resolve().parts
+        return candidate.resolve().parts
     except OSError:
-        parts = candidate.parts
+        return candidate.parts
+
+
+def _coerce_path(value: Any) -> Path:
+    if isinstance(value, Path):
+        return value
+    return Path(str(value))
+
+
+def _is_unit_test_path(path: Path) -> bool:
+    parts = _resolve_parts(path)
     for idx, part in enumerate(parts):
         if part == "app" and idx + 1 < len(parts) and parts[idx + 1] == "tests":
             return True
     return False
 
 
-def _is_integration_test_path(path: local) -> bool:
-    candidate = Path(str(path))
-    try:
-        parts = candidate.resolve().parts
-    except OSError:
-        parts = candidate.parts
+def _is_integration_test_path(path: Path) -> bool:
+    parts = _resolve_parts(path)
     for idx, part in enumerate(parts):
         if part == "app" and idx + 1 < len(parts) and parts[idx + 1] == "tests_integration":
             return True
     return False
 
 
-def pytest_ignore_collect(path: local, config) -> bool:
-    if _excludes_integration(config) and _is_integration_test_path(path):
+def pytest_ignore_collect(collection_path, path=None, config=None) -> bool:
+    if config is None:
+        config = path
+        path = collection_path
+        collection_path = None
+    candidate_path = _coerce_path(collection_path or path)
+    if _excludes_integration(config) and _is_integration_test_path(candidate_path):
         return True
     if not _selects_integration(config):
         return False
-    return _is_unit_test_path(path)
+    return _is_unit_test_path(candidate_path)
