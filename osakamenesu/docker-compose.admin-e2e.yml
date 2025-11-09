@@ -58,6 +58,10 @@ services:
   web:
     build:
       context: ./apps/web
+      cache_from:
+        - type=gha,scope=osakamenesu-web
+      cache_to:
+        - type=gha,scope=osakamenesu-web,mode=max
       args:
         NEXT_PUBLIC_OSAKAMENESU_API_BASE: http://api:8000
         NEXT_PUBLIC_SITE_URL: http://web:3000
@@ -80,7 +84,7 @@ services:
       - "3000:3000"
     depends_on:
       - api
-    command: ["sh", "-c", "npm run start -- -p ${PORT:-3000} --hostname 0.0.0.0"]
+    command: ["sh", "-c", "pnpm run start -- -p ${PORT:-3000} --hostname 0.0.0.0"]
 
   e2e:
     image: mcr.microsoft.com/playwright:v1.56.1-jammy

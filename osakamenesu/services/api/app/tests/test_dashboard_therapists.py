@@ -5,15 +5,19 @@ import types
 import uuid
 from datetime import datetime, UTC
 from pathlib import Path
+
+_HELPER_DIR = Path(__file__).resolve().parent
+if str(_HELPER_DIR) not in sys.path:
+    sys.path.insert(0, str(_HELPER_DIR))
+
+from _path_setup import configure_paths
 from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException, status  # type: ignore
 from starlette.datastructures import Headers, UploadFile
 
-ROOT = Path(__file__).resolve().parents[4]
-os.chdir(ROOT)
-sys.path.insert(0, str(ROOT / "services" / "api"))
+ROOT = configure_paths(Path(__file__))
 
 dummy_settings_module = types.ModuleType("app.settings")
 

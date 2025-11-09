@@ -113,6 +113,10 @@ jobs:
     needs:
       - test
     runs-on: ubuntu-latest
+    env:
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
+      CACHE_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api-test-cache
     defaults:
       run:
         working-directory: osakamenesu
@@ -123,6 +127,13 @@ jobs:
         run: |
           curl -Ls https://cli.doppler.com/install.sh | sudo sh
           echo "$HOME/.doppler/bin" >> "$GITHUB_PATH"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Export integration secrets via Doppler
         working-directory: osakamenesu
@@ -137,10 +148,24 @@ jobs:
           MEILI_MASTER_KEY=$(doppler secrets get MEILI_MASTER_KEY --project osakamenesu --config "${DOPPLER_CONFIG}" --plain)
           echo "MEILI_MASTER_KEY=$MEILI_MASTER_KEY" >> "$GITHUB_ENV"
 
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
+
+      - name: Build api-test image with cache
+        run: |
+          docker buildx build \
+            --builder osakamenesu-builder \
+            --cache-from=type=registry,ref=${CACHE_IMAGE} \
+            --cache-to=type=registry,ref=${CACHE_IMAGE},mode=max \
+            -t osakamenesu-api-test \
+            -f docker/api.Dockerfile \
+            --target api-test \
+            . \
+            --load
+
       - name: Run docker-compose integration tests
-        env:
-          DOCKER_BUILDKIT: 1
-        run: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from osakamenesu-api-test osakamenesu-api-test
+        run: docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from api-test api-test
 
       - name: Teardown integration stack
         if: always()

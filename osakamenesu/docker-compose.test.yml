@@ -1,42 +1,42 @@
 version: "3.9"
 
 services:
-  osakamenesu-db-test:
-    image: postgres:15
+  db:
+    image: postgres:16
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
       POSTGRES_DB: osaka_menesu
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "app"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
 
-  osakamenesu-meili-test:
-    image: getmeili/meilisearch:v1.7
+  meili:
+    image: getmeili/meilisearch:v1.11
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
-    command: ["meilisearch", "--http-addr", "0.0.0.0:7700"]
-    expose:
-      - "7700"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7700/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
 
-  osakamenesu-api-test:
+  api-test:
+    image: osakamenesu-api-test
     build:
-      context: ./services/api
-    volumes:
-      - ./services/api:/app
+      context: .
+      dockerfile: docker/api.Dockerfile
+      target: api-test
     environment:
-      DATABASE_URL: postgresql+asyncpg://app:app@osakamenesu-db-test:5432/osaka_menesu
-      MEILI_HOST: http://osakamenesu-meili-test:7700
+      DATABASE_URL: postgresql+asyncpg://app:app@db:5432/osaka_menesu
+      MEILI_HOST: http://meili:7700
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
       ADMIN_API_KEY: dev_admin_key
-      PYTHONUNBUFFERED: 1
-      PYTHONPATH: /app
     depends_on:
-      osakamenesu-db-test:
+      db:
         condition: service_healthy
-      osakamenesu-meili-test:
-        condition: service_started
-    command: >
-      bash -lc "pip install --no-cache-dir -r requirements-test.txt && alembic upgrade head && pytest app/tests_integration -m integration"
+      meili:
+        condition: service_healthy
+    command: bash -lc "alembic upgrade head && pytest app/tests_integration -m integration -q -n auto"

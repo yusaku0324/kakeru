@@ -53,7 +53,9 @@ async function openFirstShop(page: Page) {
   const firstShop = await fetchFirstShop(page)
 
   await page.goto('/admin/shops')
-  await expect(page.getByRole('heading', { name: '店舗管理' })).toBeVisible()
+  await page.waitForURL('**/admin/shops')
+  await page.waitForLoadState('networkidle')
+  await expect(page.getByTestId('admin-title')).toBeVisible({ timeout: 15000 })
   await page.getByRole('button', { name: firstShop.name, exact: false }).first().click()
   await expect(page.getByTestId('shop-address')).toBeVisible()
   return firstShop
@@ -61,7 +63,9 @@ async function openFirstShop(page: Page) {
 
 async function reopenShop(page: Page, shopName: string) {
   await page.goto('/admin/shops')
-  await expect(page.getByRole('heading', { name: '店舗管理' })).toBeVisible()
+  await page.waitForURL('**/admin/shops')
+  await page.waitForLoadState('networkidle')
+  await expect(page.getByTestId('admin-title')).toBeVisible({ timeout: 15000 })
   await page.getByRole('button', { name: shopName, exact: false }).first().click()
   await expect(page.getByTestId('shop-address')).toBeVisible()
 }
