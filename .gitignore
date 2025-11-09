@@ -31,6 +31,13 @@ recruit_posts.log
 .env.test.local
 .env.production.local
 .env.osakamenesu
+.env.admin-e2e
+doppler.env
+.pnpm-store/
+codex/
+codex-aarch64-apple-darwin
+codex.tar.gz
+*.tsbuildinfo
 
 # pytest
 .pytest_cache/

@@ -40,13 +40,18 @@ const nextConfig: NextConfig = {
   reactCompiler: enableReactCompiler,
   experimental: {},
   async rewrites() {
+    const base = normalizeBase(INTERNAL_API_BASE)
     return {
       beforeFiles: [],
       afterFiles: [],
       fallback: [
         {
-          source: '/api/:path*',
-          destination: `${normalizeBase(INTERNAL_API_BASE)}/api/:path*`,
+          source: '/api/line/:path*',
+          destination: `${base}/api/line/:path*`,
+        },
+        {
+          source: '/api/async/:path*',
+          destination: `${base}/api/async/:path*`,
         },
       ],
     }
