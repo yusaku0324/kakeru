@@ -411,7 +411,7 @@ export default function ReservationOverlay({
     const match = normalizedAvailability
       .flatMap((day) => day.slots.map((slot) => ({ day, slot })))
       .find(({ slot }) => slot.start_at === defaultStart)
-    if (match) {
+    if (match && match.slot.status !== 'blocked') {
       setSelectedSlots([
         {
           startAt: match.slot.start_at,
@@ -425,12 +425,13 @@ export default function ReservationOverlay({
 
   const toggleSlot = (day: NormalizedDay, slot: NormalizedSlot) => {
     if (slot.status === 'blocked') return
+    const selectableStatus: Exclude<AvailabilityStatus, 'blocked'> = slot.status
     setSelectedSlots((prev) => {
       const exists = prev.some((item) => item.startAt === slot.start_at)
       if (exists) {
         return prev.filter((item) => item.startAt !== slot.start_at)
       }
-      const next = [...prev, { startAt: slot.start_at, endAt: slot.end_at, date: day.date, status: slot.status }]
+      const next = [...prev, { startAt: slot.start_at, endAt: slot.end_at, date: day.date, status: selectableStatus }]
       if (next.length > 3) next.shift()
       return next
     })
@@ -443,7 +444,9 @@ export default function ReservationOverlay({
       .find(({ slot }) => slot.status !== 'blocked')
     if (first) {
       const slot = first.slot
-      const initial = { startAt: slot.start_at, endAt: slot.end_at, date: first.day.date, status: slot.status } as const
+      if (slot.status === 'blocked') return []
+      const safeStatus: Exclude<AvailabilityStatus, 'blocked'> = slot.status
+      const initial = { startAt: slot.start_at, endAt: slot.end_at, date: first.day.date, status: safeStatus } as const
       setSelectedSlots([initial])
       return [initial]
     }
@@ -1203,18 +1206,18 @@ export default function ReservationOverlay({
                       <div className="mt-4 hidden md:block">
                         <AvailabilityPickerDesktop
                           days={currentScheduleDays}
+                          timeline={timelineTimes ?? []}
                           selected={selectedSlots}
                           onToggle={toggleSlot}
-                          dayFormatter={dayFormatter}
                           timeFormatter={timeFormatter}
                         />
                       </div>
                       <div className="md:hidden">
                         <AvailabilityPickerMobile
                           days={currentScheduleDays}
+                          timeline={timelineTimes ?? []}
                           selected={selectedSlots}
                           onToggle={toggleSlot}
-                          dayFormatter={dayFormatter}
                           timeFormatter={timeFormatter}
                         />
                       </div>

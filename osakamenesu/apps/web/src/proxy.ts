@@ -57,7 +57,7 @@ const CONTENT_SECURITY_POLICY = [
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
-  "connect-src 'self' https:",
+  "connect-src 'self' https: http://localhost:8000 http://127.0.0.1:8000",
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
@@ -129,12 +129,14 @@ async function createSignature(payload: string): Promise<string | null> {
 }
 
 function getClientIp(request: NextRequest) {
-  return (
-    request.ip ??
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    request.headers.get('x-real-ip') ??
-    'unknown'
-  )
+  const forwarded = request.headers.get('x-forwarded-for')
+  if (forwarded) {
+    const candidate = forwarded.split(',')[0]?.trim()
+    if (candidate) return candidate
+  }
+  const realIp = request.headers.get('x-real-ip')
+  if (realIp) return realIp
+  return 'unknown'
 }
 
 function enforceAdminBasicAuth(request: NextRequest): NextResponse | null {
@@ -226,6 +228,7 @@ async function handleProxy(request: NextRequest): Promise<NextResponse | null> {
     'x-forwarded-proto',
     request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol.replace(':', ''),
   )
+  forwardedHeaders.set('cookie', request.headers.get('cookie') ?? '')
 
   const timestamp = Math.floor(Date.now() / 1000).toString()
   const signaturePayload = `${timestamp}:${request.method.toUpperCase()}:${pathname}${search}`

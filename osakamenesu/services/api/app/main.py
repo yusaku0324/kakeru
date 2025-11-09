@@ -13,12 +13,16 @@ from .domains.admin import (
     admin_profiles_router,
     admin_reservations_router,
 )
+from .domains.async_tasks.router import router as async_tasks_router
 from .domains.auth import router as auth_router
 from .domains.dashboard import (
     notifications_router as dashboard_notifications_router,
+    reservations_router as dashboard_reservations_router,
     shops_router as dashboard_shops_router,
     therapists_router as dashboard_therapists_router,
 )
+from .domains.line import router as line_router
+from .domains.ops import router as ops_router
 from .domains.site import favorites_router, shops_router
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -145,6 +149,10 @@ app.include_router(shops_router)
 app.include_router(admin_reservations_router)
 app.include_router(auth_router)
 app.include_router(favorites_router)
+app.include_router(async_tasks_router)
+app.include_router(line_router)
+app.include_router(ops_router)
 app.include_router(dashboard_notifications_router)
+app.include_router(dashboard_reservations_router)
 app.include_router(dashboard_shops_router)
 app.include_router(dashboard_therapists_router)

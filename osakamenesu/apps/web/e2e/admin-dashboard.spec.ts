@@ -1,5 +1,7 @@
 import { test, expect, Page } from '@playwright/test'
 
+import { ensureDashboardAuthenticated, SkipTestError } from './utils/dashboard-auth'
+
 const STATUS_OPTIONS = ['pending', 'confirmed', 'declined', 'cancelled', 'expired'] as const
 
 const NEW_ADDRESS = 'Playwrightテスト住所'
@@ -8,15 +10,41 @@ const CONTACT_PHONE = '08000001111'
 const CONTACT_LINE = 'playwright_line'
 const CONTACT_WEB = 'https://playwright.example.com'
 
+const AUTH_EXCLUDED_TITLES = new Set(['認証なしでは管理画面にアクセスできない'])
+
+test.beforeEach(async ({ page, context, baseURL }, testInfo) => {
+  if (AUTH_EXCLUDED_TITLES.has(testInfo.title)) {
+    return
+  }
+  const resolvedBase = baseURL ?? 'http://127.0.0.1:3000'
+  try {
+    await ensureDashboardAuthenticated(context, page, resolvedBase)
+  } catch (error) {
+    if (error instanceof SkipTestError) {
+      throw error
+    }
+    throw error
+  }
+})
+
+function extractFirstAdminShop(payload: unknown) {
+  const collections = Array.isArray((payload as { shops?: unknown[] })?.shops)
+    ? (payload as { shops?: unknown[] }).shops ?? []
+    : Array.isArray((payload as { items?: unknown[] })?.items)
+    ? (payload as { items?: unknown[] }).items ?? []
+    : []
+  return (collections as Array<{ id?: string; name?: string }>)[0]
+}
+
 async function fetchFirstShop(page: Page) {
-  const shopsResponse = await page.request.get('/api/dashboard/shops?limit=20')
+  const shopsResponse = await page.request.get('/api/admin/shops?limit=20')
   if (!shopsResponse.ok()) {
-    test.info().skip(`管理画面APIが利用できないためスキップ: /api/admin/shops -> ${shopsResponse.status()}`)
+    throw new Error(`管理画面APIが利用できません: /api/admin/shops -> ${shopsResponse.status()}`)
   }
   const shopsJson = await shopsResponse.json()
-  const firstShop = shopsJson.items?.[0]
+  const firstShop = extractFirstAdminShop(shopsJson)
   if (!firstShop) {
-    test.info().skip('管理画面用の店舗データが存在しないためスキップします')
+    throw new Error('管理画面用の店舗データが存在しません')
   }
   return firstShop
 }
@@ -47,12 +75,12 @@ async function ensureReservation(page: Page) {
     }
   }
 
-  const shopsResponse = await page.request.get('/api/dashboard/shops?limit=20')
+  const shopsResponse = await page.request.get('/api/admin/shops?limit=20')
   if (!shopsResponse.ok()) {
     throw new Error(`failed to load shops: ${shopsResponse.status()}`)
   }
   const shopsJson = await shopsResponse.json()
-  const shopId: string | undefined = shopsJson.items?.[0]?.id
+  const shopId: string | undefined = extractFirstAdminShop(shopsJson)?.id
   if (!shopId) {
     throw new Error('no shops available to create reservation')
   }
@@ -81,8 +109,21 @@ async function ensureReservation(page: Page) {
   return createdReservation
 }
 
+async function waitForAdminReservations(page: Page, minimum: number, timeout = 15000) {
+  await expect
+    .poll(async () => {
+      const response = await page.request.get('/api/admin/reservations?limit=50')
+      if (!response.ok()) {
+        return -1
+      }
+      const json = await response.json()
+      const items = Array.isArray(json?.items) ? json.items : []
+      return items.length
+    }, { timeout })
+    .toBeGreaterThanOrEqual(minimum)
+}
+
 test.describe('Admin dashboard', () => {
-  test.skip(!process.env.ADMIN_BASIC_USER || !process.env.ADMIN_BASIC_PASS, 'ADMIN_BASIC_USER / ADMIN_BASIC_PASS が必要です')
   test.describe.configure({ mode: 'serial' })
 
   test('店舗情報を更新して元に戻せる', async ({ page }) => {
@@ -157,9 +198,8 @@ test.describe('Admin dashboard', () => {
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/dashboard/shops/') &&
-        response.url().includes('/profile') &&
-        response.request().method() === 'PUT',
+        response.url().includes('/api/admin/shops/') &&
+        response.request().method() === 'PATCH',
     )
     await reopenShop(page, shop.name)
     const serviceTagsAfterSave = page.getByTestId('shop-service-tags')
@@ -177,9 +217,8 @@ test.describe('Admin dashboard', () => {
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/dashboard/shops/') &&
-        response.url().includes('/profile') &&
-        response.request().method() === 'PUT',
+        response.url().includes('/api/admin/shops/') &&
+        response.request().method() === 'PATCH',
     )
     await reopenShop(page, shop.name)
     const serviceTagsAfterRevert = page.getByTestId('shop-service-tags')
@@ -242,7 +281,7 @@ test.describe('Admin dashboard', () => {
     const addressInput = page.getByTestId('shop-address')
     const originalAddress = await addressInput.inputValue()
 
-  const errorRoute = `**/api/dashboard/shops/${shop.id}/profile`
+  const errorRoute = `**/api/admin/shops/${shop.id}`
     const handler = async (route: any) => {
       if (route.request().method() === 'PATCH') {
         await route.fulfill({
@@ -261,9 +300,8 @@ test.describe('Admin dashboard', () => {
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     const errorResponse = await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/dashboard/shops/') &&
-        response.url().includes('/profile') &&
-        response.request().method() === 'PUT',
+        response.url().includes('/api/admin/shops/') &&
+        response.request().method() === 'PATCH',
     )
     expect(errorResponse.status()).toBe(500)
     const errorToast = page.locator('text=/保存に失敗しました|simulated error/').first()
@@ -273,9 +311,8 @@ test.describe('Admin dashboard', () => {
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/dashboard/shops/') &&
-        response.url().includes('/profile') &&
-        response.request().method() === 'PUT',
+        response.url().includes('/api/admin/shops/') &&
+        response.request().method() === 'PATCH',
     )
     await expect(addressInput).toHaveValue(originalAddress, { timeout: 5000 })
   })
@@ -302,9 +339,8 @@ test.describe('Admin dashboard', () => {
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/dashboard/shops/') &&
-        response.url().includes('/profile') &&
-        response.request().method() === 'PUT',
+        response.url().includes('/api/admin/shops/') &&
+        response.request().method() === 'PATCH',
     )
 
     await reopenShop(page, shop.name)
@@ -317,9 +353,8 @@ test.describe('Admin dashboard', () => {
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/dashboard/shops/') &&
-        response.url().includes('/profile') &&
-        response.request().method() === 'PUT',
+        response.url().includes('/api/admin/shops/') &&
+        response.request().method() === 'PATCH',
     )
 
     await reopenShop(page, shop.name)
@@ -353,9 +388,8 @@ test.describe('Admin dashboard', () => {
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/dashboard/shops/') &&
-        response.url().includes('/profile') &&
-        response.request().method() === 'PUT',
+        response.url().includes('/api/admin/shops/') &&
+        response.request().method() === 'PATCH',
     )
 
     await reopenShop(page, shop.name)
@@ -368,9 +402,8 @@ test.describe('Admin dashboard', () => {
     await page.getByRole('button', { name: '店舗情報を保存' }).click()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/dashboard/shops/') &&
-        response.url().includes('/profile') &&
-        response.request().method() === 'PUT',
+        response.url().includes('/api/admin/shops/') &&
+        response.request().method() === 'PATCH',
     )
 
     await reopenShop(page, shop.name)
@@ -444,7 +477,7 @@ test.describe('Admin dashboard', () => {
         },
       })
       if (!create.ok()) {
-        test.skip(true, `予約作成に失敗しました status=${create.status()}`)
+        throw new Error(`予約作成に失敗しました status=${create.status()}`)
       }
       await Promise.all([waitForReservations(), page.reload()])
     }
@@ -575,7 +608,12 @@ test.describe('Admin dashboard', () => {
   })
 
   test('認証なしでは管理画面にアクセスできない', async ({ browser, baseURL }) => {
-    const context = await browser.newContext({ baseURL, extraHTTPHeaders: {} })
+    const context = await browser.newContext({
+      baseURL,
+      extraHTTPHeaders: {},
+      // グローバル設定で Basic 認証が有効な場合でも、このコンテキストでは送信しない
+      httpCredentials: process.env.ADMIN_BASIC_USER ? undefined : undefined,
+    })
     const pageNoAuth = await context.newPage()
 
     const response = await pageNoAuth.goto('/admin/shops', { waitUntil: 'domcontentloaded' })
@@ -596,7 +634,7 @@ test.describe('Admin dashboard', () => {
         const now = new Date()
         const desiredStart = new Date(now.getTime() + (i + 1) * 60 * 60 * 1000).toISOString()
         const desiredEnd = new Date(now.getTime() + (i + 2) * 60 * 60 * 1000).toISOString()
-        await page.request.post('/api/reservations', {
+        const response = await page.request.post('/api/reservations', {
           data: {
             shop_id: shop.id,
             desired_start: desiredStart,
@@ -609,16 +647,27 @@ test.describe('Admin dashboard', () => {
             },
           },
         })
+        if (!response.ok()) {
+          throw new Error(`予約作成に失敗しました status=${response.status()} index=${i}`)
+        }
       }
     }
 
     if (await page.getByTestId('reservation-card').count() < 10) {
       await ensureManyReservations()
       await page.reload()
-      await page.waitForLoadState('networkidle')
+      await page.waitForResponse(
+        (response) =>
+          response.url().includes('/api/admin/reservations') &&
+          response.request().method() === 'GET' &&
+          response.status() === 200,
+      )
+      await waitForAdminReservations(page, 10)
     }
 
-    const firstCardId = await page.getByTestId('reservation-card').first().locator('text=/[0-9a-f\-]{36}/').first().innerText()
+    const firstCard = page.getByTestId('reservation-card').first()
+    await expect(firstCard).toBeVisible({ timeout: 15000 })
+    const firstCardId = await firstCard.locator('text=/[0-9a-f\-]{36}/').first().innerText()
 
     await page.getByTestId('reservations-next').click()
     await page.waitForResponse((response) =>

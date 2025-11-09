@@ -5,7 +5,7 @@ from typing import Optional, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ... import models
@@ -73,6 +73,19 @@ def _reservation_to_schema(reservation: models.Reservation) -> ReservationSchema
         updated_at=reservation.updated_at,
         preferred_slots=preferred_slots,
     )
+
+
+@router.delete("")
+async def delete_reservations(
+    shop_id: UUID,
+    db: AsyncSession = Depends(get_session),
+    _: None = Depends(require_admin),
+) -> dict[str, int]:
+    stmt = delete(models.Reservation).where(models.Reservation.shop_id == shop_id)
+    result = await db.execute(stmt)
+    await db.commit()
+    deleted = result.rowcount or 0
+    return {"deleted": deleted}
 
 
 async def _ensure_shop(db: AsyncSession, shop_id: UUID) -> models.Profile:
@@ -196,8 +209,7 @@ async def create_reservation(
             )
 
     db.add(reservation)
-    await db.commit()
-    await db.refresh(reservation)
+    await db.flush()
     await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
 
     channels_config = await _resolve_notification_channels(db, reservation.shop_id, reservation.status)
@@ -237,6 +249,7 @@ async def create_reservation(
     )
     await enqueue_reservation_notification(db, notification)
     await db.commit()
+    await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
 
     return _reservation_to_schema(reservation).model_dump()
 

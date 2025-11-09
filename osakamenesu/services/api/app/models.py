@@ -353,6 +353,7 @@ class Reservation(Base):
     customer_remark: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
+    reminder_scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
     status_events: Mapped[list['ReservationStatusEvent']] = relationship(
         back_populates='reservation', cascade='all, delete-orphan', order_by='ReservationStatusEvent.changed_at'

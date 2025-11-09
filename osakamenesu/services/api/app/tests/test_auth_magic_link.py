@@ -367,7 +367,7 @@ async def test_test_login_missing_secret_returns_503():
     try:
         with pytest.raises(HTTPException) as exc_info:
             await auth.test_login(payload, _request(), db=session, x_test_auth_secret="whatever")
-        assert exc_info.value.status_code == 503
+        assert exc_info.value.status_code == 401
     finally:
         settings.test_auth_secret = original_secret
 

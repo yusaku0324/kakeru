@@ -861,6 +861,70 @@ class DashboardShopProfileUpdatePayload(BaseModel):
     status: Optional[str] = None
 
 
+class DashboardReservationPreferredSlot(BaseModel):
+    desired_start: datetime
+    desired_end: datetime
+    status: ReservationSlotStatusLiteral
+
+
+class DashboardReservationItem(BaseModel):
+    id: UUID
+    status: ReservationStatusLiteral
+    channel: Optional[str] = None
+    desired_start: datetime
+    desired_end: datetime
+    customer_name: str
+    customer_phone: str
+    customer_email: Optional[str] = None
+    notes: Optional[str] = None
+    marketing_opt_in: Optional[bool] = None
+    staff_id: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+    approval_decision: Optional[str] = None
+    approval_decided_at: Optional[datetime] = None
+    approval_decided_by: Optional[str] = None
+    reminder_scheduled_at: Optional[datetime] = None
+    preferred_slots: List[DashboardReservationPreferredSlot] = Field(default_factory=list)
+
+
+class DashboardReservationListResponse(BaseModel):
+    profile_id: UUID
+    total: int
+    reservations: List[DashboardReservationItem] = Field(default_factory=list)
+    next_cursor: Optional[str] = None
+    prev_cursor: Optional[str] = None
+
+
+class DashboardReservationUpdateRequest(BaseModel):
+    status: ReservationStatusLiteral
+    note: Optional[str] = None
+
+
+class OpsQueueStats(BaseModel):
+    pending: int = Field(ge=0)
+    lag_seconds: float = Field(ge=0.0)
+    oldest_created_at: Optional[datetime] = None
+    next_attempt_at: Optional[datetime] = None
+
+
+class OpsOutboxChannelSummary(BaseModel):
+    channel: str
+    pending: int = Field(ge=0)
+
+
+class OpsOutboxSummary(BaseModel):
+    channels: List[OpsOutboxChannelSummary] = Field(default_factory=list)
+
+
+class OpsSlotsSummary(BaseModel):
+    pending_total: int = Field(ge=0)
+    pending_stale: int = Field(ge=0)
+    confirmed_next_24h: int = Field(ge=0)
+    window_start: datetime
+    window_end: datetime
+
+
 class DashboardTherapistSummary(BaseModel):
     id: UUID
     name: str

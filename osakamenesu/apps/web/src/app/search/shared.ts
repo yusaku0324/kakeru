@@ -47,7 +47,6 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         review_count: 87,
         specialties: ['リンパ', 'ホットストーン'],
         avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=640&q=80',
-        today_available: true,
         next_available_at: isoHoursFromNow(2),
       },
       {
@@ -59,7 +58,6 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         review_count: 52,
         specialties: ['ストレッチ', '指圧'],
         avatar_url: 'https://images.unsplash.com/photo-1487412912498-0447578fcca8?auto=format&fit=crop&w=400&q=80',
-        today_available: true,
         next_available_at: isoHoursFromNow(5),
       },
     ],
@@ -139,7 +137,6 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         review_count: 38,
         specialties: ['ドライヘッドスパ', 'ストレッチ'],
         avatar_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=640&q=80',
-        today_available: true,
         next_available_at: isoHoursFromNow(3),
       },
       {

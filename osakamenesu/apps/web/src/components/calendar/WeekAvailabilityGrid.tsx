@@ -156,7 +156,7 @@ export function WeekAvailabilityGrid({
               }
 
               const statusMeta = AVAILABILITY_STATUS_META[slot.status]
-              const disabled = slot.status === 'blocked' || (!selectedNow && selected.length >= maxSelection)
+              const disabled = !selectedNow && selected.length >= maxSelection
               const iconClass = buildIconClass(slot.status, selectedNow)
 
               return (

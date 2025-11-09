@@ -1,0 +1,121 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    env_file:
+      - .env.admin-e2e
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-osaka_menesu}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-app}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  meili:
+    image: getmeili/meilisearch:v1.7
+    env_file:
+      - .env.admin-e2e
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
+    expose:
+      - "7700"
+
+  redis:
+    image: redis:7-alpine
+    env_file:
+      - .env.admin-e2e
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+  api:
+    build:
+      context: ./services/api
+    env_file:
+      - .env.admin-e2e
+    environment:
+      DATABASE_URL: postgresql+asyncpg://app:app@db:5432/osaka_menesu
+      MEILI_HOST: http://meili:7700
+      RATE_LIMIT_REDIS_URL: redis://redis:6379/0
+      API_HOST: 0.0.0.0
+      API_ORIGIN: http://web:3000
+      PORT: 8000
+      TEST_AUTH_SECRET: ${TEST_AUTH_SECRET:-dev_test_auth}
+      E2E_TEST_AUTH_SECRET: ${E2E_TEST_AUTH_SECRET:-dev_test_auth}
+    depends_on:
+      db:
+        condition: service_healthy
+      meili:
+        condition: service_started
+      redis:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    command: ["bash", "start.sh"]
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_OSAKAMENESU_API_BASE: http://api:8000
+        NEXT_PUBLIC_SITE_URL: http://web:3000
+        FAVORITES_API_MODE: real
+        NEXT_PUBLIC_FAVORITES_API_MODE: real
+    env_file:
+      - .env.admin-e2e
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_OSAKAMENESU_API_BASE: http://api:8000
+      NEXT_PUBLIC_SITE_URL: http://web:3000
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-dev_admin_key}
+      OSAKAMENESU_API_INTERNAL_BASE: http://api:8000
+      FAVORITES_API_MODE: real
+      NEXT_PUBLIC_FAVORITES_API_MODE: real
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    command: ["sh", "-c", "npm run start -- -p ${PORT:-3000} --hostname 0.0.0.0"]
+
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.56.1-jammy
+    working_dir: /workspace/apps/web
+    env_file:
+      - .env.admin-e2e
+    environment:
+      NODE_ENV: production
+      OSAKAMENESU_API_INTERNAL_BASE: http://api:8000
+      NEXT_PUBLIC_OSAKAMENESU_API_BASE: http://api:8000
+      NEXT_PUBLIC_SITE_URL: http://web:3000
+      FAVORITES_API_MODE: real
+      NEXT_PUBLIC_FAVORITES_API_MODE: real
+      TEST_AUTH_SECRET: ${TEST_AUTH_SECRET:-dev_test_auth}
+      E2E_TEST_AUTH_SECRET: ${E2E_TEST_AUTH_SECRET:-dev_test_auth}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-dev_admin_key}
+      E2E_SEED_API_BASE: http://api:8000
+      E2E_API_BASE: http://api:8000
+      E2E_BASE_URL: http://web:3000
+      ADMIN_BASIC_USER: ${ADMIN_BASIC_USER:-admin}
+      ADMIN_BASIC_PASS: ${ADMIN_BASIC_PASS:-password}
+      CI: "1"
+    volumes:
+      - .:/workspace
+    depends_on:
+      - web
+    command: >
+      bash -lc "
+        cd /workspace &&
+        corepack enable &&
+        pnpm install &&
+        cd apps/web &&
+        for i in {1..60}; do 
+          if curl -fsS http://api:8000/healthz >/dev/null && curl -fsS http://web:3000 >/dev/null; then 
+            break; 
+          fi; 
+          sleep 2; 
+        done && 
+        pnpm test:e2e
+      "

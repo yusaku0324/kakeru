@@ -143,15 +143,17 @@ jobs:
 
   web-lint:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: osakamenesu/apps/web
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
 
       - name: Export web env
         run: |
@@ -163,227 +165,51 @@ jobs:
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
 
       - name: Install dependencies
-        run: npm ci
+        working-directory: osakamenesu
+        run: pnpm install
 
       - name: Run unit tests
-        run: npm run test:unit
+        working-directory: osakamenesu
+        run: pnpm --dir apps/web run test:unit
 
       - name: Run lint (placeholder)
-        run: npm run lint
+        working-directory: osakamenesu
+        run: pnpm --dir apps/web run lint
 
   admin-e2e:
     needs:
       - web-lint
     runs-on: ubuntu-latest
-    services:
-      osakamenesu-db:
-        image: postgres:15
-        env:
-          POSTGRES_USER: app
-          POSTGRES_PASSWORD: app
-          POSTGRES_DB: osaka_menesu
-        options: >-
-          --health-cmd "pg_isready -U app -d osaka_menesu"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-      meilisearch:
-        image: getmeili/meilisearch:v1.7
-        env:
-          MEILI_MASTER_KEY: dev_meili_master_key
-          MEILI_ENV: development
-          MEILI_NO_ANALYTICS: "true"
-        ports:
-          - 7700:7700
     env:
-      DATABASE_URL: postgresql+asyncpg://app:app@127.0.0.1:5432/osaka_menesu
-      MEILI_HOST: http://127.0.0.1:7700
-      MEILI_MASTER_KEY: dev_meili_master_key
-      ANYIO_BACKEND: asyncio
-      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
       ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-      OSAKAMENESU_ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-      TEST_AUTH_ENABLED: "1"
       TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
       E2E_TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
+      MEILI_MASTER_KEY: ${{ secrets.MEILI_MASTER_KEY }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install API dependencies
-        run: pip install -r requirements.txt
-        working-directory: osakamenesu/services/api
-
-      - name: Configure API endpoints
-        run: |
-          internal_base="${API_INTERNAL_BASE:-http://127.0.0.1:8000}"
-          public_base="${PUBLIC_API_BASE:-$internal_base}"
-          seed_base="${SEED_API_BASE:-$internal_base}"
-          {
-            echo "OSAKAMENESU_API_INTERNAL_BASE=${internal_base}"
-            echo "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${public_base}"
-            echo "E2E_SEED_API_BASE=${seed_base}"
-          } >> "$GITHUB_ENV"
+      - name: Generate .env.admin-e2e via Doppler
+        working-directory: osakamenesu
         env:
-          API_INTERNAL_BASE: ${{ secrets.OSAKAMENESU_API_INTERNAL_BASE }}
-          PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
-          SEED_API_BASE: ${{ secrets.E2E_SEED_API_BASE }}
-
-      - name: Install Postgres client
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_HEALTH_TOKEN }}
+          DOPPLER_CONFIG: stg
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-
-      - name: Wait for Postgres
-        env:
-          PGPASSWORD: app
-        run: |
-          for i in {1..60}; do
-            if pg_isready -h 127.0.0.1 -p 5432 -U app -d osaka_menesu; then
-              echo "Postgres is ready"
-              exit 0
-            fi
-            echo "Waiting for Postgres..."
-            sleep 2
-          done
-          echo "Postgres did not become ready in time" >&2
-          exit 1
-
-      - name: Wait for Meilisearch
-        run: |
-          for i in {1..30}; do
-            if curl -fsS "$MEILI_HOST/health" >/dev/null; then
-              echo "Meilisearch is ready"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Meilisearch did not become ready in time" >&2
-          exit 1
-
-      - name: Run Alembic migrations
-        run: alembic upgrade head
-        working-directory: osakamenesu/services/api
-
-      - name: Start API server
-        run: |
-          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          echo $! > /tmp/osakamenesu-api.pid
-        working-directory: osakamenesu/services/api
-
-      - name: Wait for API health
-        run: |
-          for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/healthz >/dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "API did not become ready in time" >&2
-          exit 1
-
-      - name: Generate site login cookie
-        id: generate-site-cookie
-        env:
-          TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
-        run: |
-          set -euo pipefail
-          if [ -z "${TEST_AUTH_SECRET:-}" ]; then
-            echo "::error::TEST_AUTH_SECRET secret is not configured. Configure it in the repository secrets to enable site login automation." >&2
+          if [ -z "${DOPPLER_TOKEN:-}" ]; then
+            echo '::error::DOPPLER_HEALTH_TOKEN is not set' >&2
             exit 1
           fi
+          doppler secrets download --project osakamenesu --config ${DOPPLER_CONFIG:-stg} --format env > .env.admin-e2e
 
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
-          headers_file="$tmpdir/headers"
-          body_file="$tmpdir/body.json"
-
-          curl -sS -D "$headers_file" -o "$body_file" \
-            -H "Content-Type: application/json" \
-            -H "X-Test-Auth-Secret: ${TEST_AUTH_SECRET}" \
-            --data '{"email":"ci-favorites@example.com","display_name":"CI Favorites User","scope":"site"}' \
-            http://127.0.0.1:8000/api/auth/test-login
-
-          if ! status_code=$(awk 'NR==1 {print $2}' "$headers_file"); then
-            echo "::error::Failed to read response status from /api/auth/test-login" >&2
-            cat "$body_file" >&2 || true
-            exit 1
-          fi
-
-          if [ "$status_code" != "200" ]; then
-            echo "::error::/api/auth/test-login responded with status $status_code" >&2
-            cat "$body_file" >&2 || true
-            exit 1
-          fi
-
-          cookie_value=$(
-            python osakamenesu/services/api/scripts/extract_cookie.py \
-              --headers "$headers_file"
-          ) || {
-            echo "::error::Failed to parse Set-Cookie header from /api/auth/test-login response." >&2
-            cat "$body_file" >&2 || true
-            exit 1
-          }
-
-          cookie_value="$(printf '%s' "$cookie_value" | tr -d '\r')"
-
-          if [ -z "$cookie_value" ]; then
-            echo "::error::Cookie value could not be derived from /api/auth/test-login response." >&2
-            cat "$body_file" >&2 || true
-            exit 1
-          fi
-
-          echo "::add-mask::${cookie_value}"
-          echo "E2E_SITE_COOKIE=${cookie_value}" >> "$GITHUB_ENV"
-
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install web dependencies
-        run: npm ci
-        working-directory: osakamenesu/apps/web
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-        working-directory: osakamenesu/apps/web
-
-      - name: Seed admin data
+      - name: Run admin E2E via docker-compose
+        working-directory: osakamenesu
         env:
-          ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER }}
-          ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS }}
-          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-        run: npm run e2e:setup
-        working-directory: osakamenesu/apps/web
+          DOCKER_BUILDKIT: 1
+        run: docker compose -f docker-compose.admin-e2e.yml up --build --abort-on-container-exit e2e
 
-      - name: Run web E2E (non-admin)
-        env:
-          ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER }}
-          ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS }}
-          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-        run: npm run test:e2e -- --grep-invert "Admin"
-        working-directory: osakamenesu/apps/web
-
-      - name: Run admin E2E tests
-        env:
-          ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER }}
-          ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS }}
-          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-        run: npm run test:e2e -- --grep "Admin"
-        working-directory: osakamenesu/apps/web
-
-      - name: Stop API server
+      - name: Teardown admin e2e stack
         if: always()
-        run: |
-          if [ -f /tmp/osakamenesu-api.pid ]; then
-            kill "$(cat /tmp/osakamenesu-api.pid)" || true
-          fi
+        working-directory: osakamenesu
+        run: docker compose -f docker-compose.admin-e2e.yml down -v
 
   deploy:
     needs:

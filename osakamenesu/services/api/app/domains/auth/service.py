@@ -9,6 +9,7 @@ import sys
 from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
@@ -326,8 +327,13 @@ class AuthMagicLinkService:
         if not user:
             user = models.User(email=email, display_name=display_name)
             db.add(user)
-            await db.flush()
-        elif display_name and user.display_name != display_name:
+            try:
+                await db.flush()
+            except IntegrityError:
+                await db.rollback()
+                result = await db.execute(stmt)
+                user = result.scalar_one()
+        if display_name and user.display_name != display_name:
             user.display_name = display_name
 
         now = datetime.now(UTC)

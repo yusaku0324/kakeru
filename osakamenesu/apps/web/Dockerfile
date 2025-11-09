@@ -1,26 +1,40 @@
-FROM node:20-slim AS builder
+# syntax=docker/dockerfile:1.7
+ARG TARGETPLATFORM=linux/amd64
+ARG NODE_IMAGE="node:22-alpine@sha256:b2358485e3e33bc3a33114d2b1bdb18cdbe4df01bd2b257198eb51beb1f026c5"
+
+FROM --platform=${TARGETPLATFORM} ${NODE_IMAGE} AS base
+WORKDIR /app
+
+FROM base AS builder
 ARG NEXT_PUBLIC_OSAKAMENESU_API_BASE
 ARG NEXT_PUBLIC_SITE_URL
+ARG FAVORITES_API_MODE
+ARG NEXT_PUBLIC_FAVORITES_API_MODE
 ENV NEXT_PUBLIC_OSAKAMENESU_API_BASE=$NEXT_PUBLIC_OSAKAMENESU_API_BASE
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
-WORKDIR /app
+ENV FAVORITES_API_MODE=$FAVORITES_API_MODE
+ENV NEXT_PUBLIC_FAVORITES_API_MODE=$NEXT_PUBLIC_FAVORITES_API_MODE
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm install
 COPY . .
 RUN npm run build
 
-FROM node:20-slim
+FROM base AS runner
 ARG NEXT_PUBLIC_OSAKAMENESU_API_BASE
 ARG NEXT_PUBLIC_SITE_URL
+ARG FAVORITES_API_MODE
+ARG NEXT_PUBLIC_FAVORITES_API_MODE
 ENV NODE_ENV=production
 ENV NEXT_PUBLIC_OSAKAMENESU_API_BASE=$NEXT_PUBLIC_OSAKAMENESU_API_BASE
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+ENV FAVORITES_API_MODE=$FAVORITES_API_MODE
+ENV NEXT_PUBLIC_FAVORITES_API_MODE=$NEXT_PUBLIC_FAVORITES_API_MODE
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./
+COPY --from=builder /app/next.config.ts ./
 COPY --from=builder /app/tailwind.config.ts ./
 COPY --from=builder /app/postcss.config.js ./
 COPY --from=builder /app/src ./src

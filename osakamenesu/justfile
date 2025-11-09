@@ -1,0 +1,23 @@
+set shell := ["bash", "-c"]
+
+# Start dependent containers (Postgres/Meili/Redis) with Doppler secrets
+ops-dev-up:
+	doppler run --project osakamenesu --config dev_docker -- \
+	  docker compose up osakamenesu-db osakamenesu-meili osakamenesu-redis -d
+
+# Stop and remove dependent containers
+ops-dev-down:
+	doppler run --project osakamenesu --config dev_docker -- docker compose down
+
+# Run FastAPI locally with Doppler secrets and Meilisearch override
+ops-dev-api:
+	cd services/api && \
+	  MEILI_HOST=http://127.0.0.1:7700 \
+	  doppler run --project osakamenesu --config dev_web -- \
+	    uvicorn app.main:app --reload --port 8000 --reload-exclude 'node_modules|.next|dist|venv|.git'
+
+# Convenience command to curl Ops endpoints once API is up
+ops-dev-check:
+	curl -sS http://127.0.0.1:8000/api/ops/queue | jq
+	curl -sS http://127.0.0.1:8000/api/ops/outbox | jq
+	curl -sS http://127.0.0.1:8000/api/ops/slots | jq
