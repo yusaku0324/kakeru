@@ -22,6 +22,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
+      start_period: 20s
 
   api-test:
     image: osakamenesu-api-test
