@@ -119,22 +119,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Install Doppler CLI
+        run: |
+          curl -Ls https://cli.doppler.com/install.sh | sh
+          echo "$HOME/.doppler/bin" >> "$GITHUB_PATH"
 
-      - name: Fetch Meilisearch master key
-        id: meili-secret
-        uses: google-github-actions/get-secretmanager-secrets@v2
-        with:
-          secrets: |
-            MEILI_MASTER_KEY:projects/${{ secrets.GCP_PROJECT_ID }}/secrets/MEILI_MASTER_KEY/versions/latest
+      - name: Export integration secrets via Doppler
+        working-directory: osakamenesu
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_HEALTH_TOKEN }}
+          DOPPLER_CONFIG: stg
+        run: |
+          if [ -z "${DOPPLER_TOKEN:-}" ]; then
+            echo '::error::DOPPLER_HEALTH_TOKEN is not set' >&2
+            exit 1
+          fi
+          MEILI_MASTER_KEY=$(doppler secrets get MEILI_MASTER_KEY --project osakamenesu --config "${DOPPLER_CONFIG}" --plain)
+          echo "MEILI_MASTER_KEY=$MEILI_MASTER_KEY" >> "$GITHUB_ENV"
 
       - name: Run docker-compose integration tests
         env:
           DOCKER_BUILDKIT: 1
-          MEILI_MASTER_KEY: ${{ steps.meili-secret.outputs.MEILI_MASTER_KEY }}
         run: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from osakamenesu-api-test osakamenesu-api-test
 
       - name: Teardown integration stack
