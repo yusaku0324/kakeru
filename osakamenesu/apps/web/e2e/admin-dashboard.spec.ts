@@ -665,21 +665,23 @@ test.describe('Admin dashboard', () => {
       await waitForAdminReservations(page, 10)
     }
 
-    const firstCard = page.getByTestId('reservation-card').first()
-    await expect(firstCard).toBeVisible({ timeout: 15000 })
-    const firstCardId = await firstCard.locator('text=/[0-9a-f\-]{36}/').first().innerText()
+  const firstCard = page.getByTestId('reservation-card').first()
+  await expect(firstCard).toBeVisible({ timeout: 15000 })
+  const firstCardId = await firstCard.locator('text=/[0-9a-f\-]{36}/').first().innerText()
 
-    await page.getByTestId('reservations-next').click()
-    await page.waitForResponse((response) =>
-      response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
-    )
-    const secondCardId = await page.getByTestId('reservation-card').first().locator('text=/[0-9a-f\-]{36}/').first().innerText()
-    expect(secondCardId).not.toBe(firstCardId)
+  await page.getByTestId('reservations-next').click()
+  await page.waitForResponse((response) =>
+    response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
+  )
+  const secondCardLocator = page.getByTestId('reservation-card').first().locator('text=/[0-9a-f\-]{36}/').first()
+  await expect
+    .poll(async () => secondCardLocator.innerText(), { timeout: 15000 })
+    .not.toBe(firstCardId)
 
-    await page.getByTestId('reservations-prev').click()
-    await page.waitForResponse((response) =>
-      response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
-    )
+  await page.getByTestId('reservations-prev').click()
+  await page.waitForResponse((response) =>
+    response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
+  )
   })
 
   test('予約更新失敗時にエラートーストが表示される', async ({ page }) => {
