@@ -226,6 +226,8 @@ jobs:
     outputs:
       web_image: ${{ steps.image-tags.outputs.web_image }}
       api_image: ${{ steps.image-tags.outputs.api_image }}
+      web_pushed: ${{ steps.image-tags.outputs.web_pushed }}
+      api_pushed: ${{ steps.image-tags.outputs.api_pushed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -243,41 +245,62 @@ jobs:
       - name: Build API runtime image
         working-directory: osakamenesu
         run: |
-          PUSH_ARGS="--push"
-          if [ "${{ github.event_name }}" != "push" ] || [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            PUSH_ARGS="--load"
+          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            docker buildx build \
+              --builder osakamenesu-builder \
+              --cache-from=type=gha,scope=api-runtime \
+              --cache-to=type=gha,scope=api-runtime,mode=max \
+              -t ${API_IMAGE} \
+              -f docker/api.Dockerfile \
+              --target api-runtime \
+              . \
+              --push
+            echo "api_pushed=true" >> "$GITHUB_OUTPUT"
+          else
+            docker buildx build \
+              --builder osakamenesu-builder \
+              --cache-from=type=gha,scope=api-runtime \
+              --cache-to=type=gha,scope=api-runtime,mode=max \
+              -t osakamenesu-api-runtime \
+              -f docker/api.Dockerfile \
+              --target api-runtime \
+              . \
+              --load
+            echo "api_pushed=false" >> "$GITHUB_OUTPUT"
           fi
-          docker buildx build \
-            --builder osakamenesu-builder \
-            --cache-from=type=gha,scope=api-runtime \
-            --cache-to=type=gha,scope=api-runtime,mode=max \
-            -t ${API_IMAGE} \
-            -f docker/api.Dockerfile \
-            --target api-runtime \
-            . \
-            ${PUSH_ARGS}
 
       - name: Build web runtime image
         working-directory: osakamenesu
         run: |
-          PUSH_ARGS="--push"
-          if [ "${{ github.event_name }}" != "push" ] || [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            PUSH_ARGS="--load"
+          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            docker buildx build \
+              --builder osakamenesu-builder \
+              --cache-from=type=gha,scope=web-runtime \
+              --cache-to=type=gha,scope=web-runtime,mode=max \
+              -t ${WEB_IMAGE} \
+              -f docker/web.Dockerfile \
+              . \
+              --push
+            echo "web_pushed=true" >> "$GITHUB_OUTPUT"
+          else
+            docker buildx build \
+              --builder osakamenesu-builder \
+              --cache-from=type=gha,scope=web-runtime \
+              --cache-to=type=gha,scope=web-runtime,mode=max \
+              -t osakamenesu-web-runtime \
+              -f docker/web.Dockerfile \
+              . \
+              --load
+            echo "web_pushed=false" >> "$GITHUB_OUTPUT"
           fi
-          docker buildx build \
-            --builder osakamenesu-builder \
-            --cache-from=type=gha,scope=web-runtime \
-            --cache-to=type=gha,scope=web-runtime,mode=max \
-            -t ${WEB_IMAGE} \
-            -f docker/web.Dockerfile \
-            . \
-            ${PUSH_ARGS}
 
       - name: Export image tags
         id: image-tags
         run: |
           echo "web_image=${WEB_IMAGE}" >> "$GITHUB_OUTPUT"
           echo "api_image=${API_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "web_pushed=${GITHUB_EVENT_NAME == 'push' && github.ref == 'refs/heads/main'}" >> "$GITHUB_OUTPUT"
+          echo "api_pushed=${GITHUB_EVENT_NAME == 'push' && github.ref == 'refs/heads/main'}" >> "$GITHUB_OUTPUT"
 
   admin-e2e:
     needs:
@@ -322,8 +345,8 @@ jobs:
         working-directory: osakamenesu
         env:
           DOCKER_BUILDKIT: 1
-          ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_image }}
-          ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_image }}
+          ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_pushed == 'true' && needs.build-images.outputs.web_image || '' }}
+          ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_pushed == 'true' && needs.build-images.outputs.api_image || '' }}
         run: |
           docker compose -f docker-compose.admin-e2e.yml pull
           docker compose -f docker-compose.admin-e2e.yml up --abort-on-container-exit e2e
