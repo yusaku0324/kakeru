@@ -3,42 +3,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ReservationForm from '@/components/ReservationForm'
 
-const { createReservationActionMock, enqueueAsyncJobMock } = vi.hoisted(() => ({
-  createReservationActionMock: vi.fn(),
-  enqueueAsyncJobMock: vi.fn(),
-}))
-
-vi.mock('@/app/actions/reservations', () => ({
-  createReservationAction: (...args: unknown[]) => createReservationActionMock(...args),
-}))
-
-vi.mock('@/lib/async-jobs', () => ({
-  enqueueAsyncJob: enqueueAsyncJobMock,
-}))
-
 const uuidShopId = '11111111-2222-3333-4444-555555555555'
+const fetchMock = vi.fn()
 
 describe('ReservationForm payload', () => {
   beforeEach(() => {
-    createReservationActionMock.mockResolvedValue({
-      success: true,
-      reservation: {
-        id: 'reservation-1',
-        status: 'pending',
-        shop_id: uuidShopId,
-        customer: {
-          name: '山田 太郎',
-          phone: '090-1111-2222',
-          email: 'guest@example.com',
-        },
-      },
-      asyncJob: { status: 'queued' },
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ id: 'reservation-1' }),
     })
-    enqueueAsyncJobMock.mockReset()
   })
 
   afterEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('sends preferred slot list and course details when submitting', async () => {
@@ -69,9 +48,10 @@ describe('ReservationForm payload', () => {
     const submitButton = screen.getByRole('button', { name: '予約リクエストを送信' })
     fireEvent.click(submitButton)
 
-    await waitFor(() => expect(createReservationActionMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
 
-    const [payload] = createReservationActionMock.mock.calls[0]!
+    const [, requestOptions] = fetchMock.mock.calls[0]!
+    const payload = JSON.parse((requestOptions?.body as string) ?? '{}')
 
     expect(payload.shop_id).toBe(uuidShopId)
     expect(payload.customer).toMatchObject({
