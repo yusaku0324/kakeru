@@ -210,6 +210,9 @@ jobs:
     needs:
       - web-lint
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: osakamenesu
     env:
       DOCKER_BUILDKIT: 1
       WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:${{ github.sha }}
