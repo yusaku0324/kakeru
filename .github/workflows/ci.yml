@@ -206,15 +206,74 @@ jobs:
         working-directory: osakamenesu
         run: pnpm --dir apps/web run lint
 
+  build-images:
+    needs:
+      - web-lint
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_BUILDKIT: 1
+      WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:${{ github.sha }}
+      API_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:${{ github.sha }}
+      WEB_CACHE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:cache
+      API_CACHE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:cache
+    outputs:
+      web_image: ${{ steps.image-tags.outputs.web_image }}
+      api_image: ${{ steps.image-tags.outputs.api_image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
+
+      - name: Build API runtime image
+        run: |
+          docker buildx build \
+            --builder osakamenesu-builder \
+            --cache-from=type=registry,ref=${API_CACHE} \
+            --cache-to=type=registry,ref=${API_CACHE},mode=max \
+            -t ${API_IMAGE} \
+            -f docker/api.Dockerfile \
+            --target api-runtime \
+            . \
+            --push
+
+      - name: Build web runtime image
+        run: |
+          docker buildx build \
+            --builder osakamenesu-builder \
+            --cache-from=type=registry,ref=${WEB_CACHE} \
+            --cache-to=type=registry,ref=${WEB_CACHE},mode=max \
+            -t ${WEB_IMAGE} \
+            -f docker/web.Dockerfile \
+            . \
+            --push
+
+      - name: Export image tags
+        id: image-tags
+        run: |
+          echo "web_image=${WEB_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "api_image=${API_IMAGE}" >> "$GITHUB_OUTPUT"
+
   admin-e2e:
     needs:
       - web-lint
+      - build-images
     runs-on: ubuntu-latest
     env:
       ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
       TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
       E2E_TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
       MEILI_MASTER_KEY: ${{ secrets.MEILI_MASTER_KEY }}
+      ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_image }}
+      ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_image }}
     steps:
       - uses: actions/checkout@v4
 
@@ -239,11 +298,18 @@ jobs:
         working-directory: osakamenesu
         env:
           DOCKER_BUILDKIT: 1
-        run: docker compose -f docker-compose.admin-e2e.yml up --build --abort-on-container-exit e2e
+          ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_image }}
+          ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_image }}
+        run: |
+          docker compose -f docker-compose.admin-e2e.yml pull
+          docker compose -f docker-compose.admin-e2e.yml up --abort-on-container-exit e2e
 
       - name: Teardown admin e2e stack
         if: always()
         working-directory: osakamenesu
+        env:
+          ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_image }}
+          ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_image }}
         run: docker compose -f docker-compose.admin-e2e.yml down -v
 
   deploy:

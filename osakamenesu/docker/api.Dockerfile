@@ -13,3 +13,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements-test.txt
 COPY services/api/ ./
 CMD ["pytest", "-q", "-n", "auto"]
+
+FROM api-base AS api-runtime
+COPY services/api/ ./
+EXPOSE 8000
+CMD ["bash", "start.sh"]
