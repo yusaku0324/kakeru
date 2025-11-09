@@ -25,6 +25,10 @@ on:
       - main
   workflow_dispatch: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
@@ -329,7 +333,6 @@ jobs:
 
   admin-e2e:
     needs:
-      - web-lint
       - build-api-image
       - build-web-image
       - build-e2e-image
