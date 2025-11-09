@@ -128,7 +128,7 @@ jobs:
         working-directory: osakamenesu
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_HEALTH_TOKEN }}
-          DOPPLER_CONFIG: dev_web
+          DOPPLER_CONFIG: stg
         run: |
           if [ -z "${DOPPLER_TOKEN:-}" ]; then
             echo '::error::DOPPLER_HEALTH_TOKEN is not set' >&2
@@ -202,13 +202,13 @@ jobs:
         working-directory: osakamenesu
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_HEALTH_TOKEN }}
-          DOPPLER_CONFIG: dev_web
+          DOPPLER_CONFIG: stg
         run: |
           if [ -z "${DOPPLER_TOKEN:-}" ]; then
             echo '::error::DOPPLER_HEALTH_TOKEN is not set' >&2
             exit 1
           fi
-          doppler secrets download --project osakamenesu --config ${DOPPLER_CONFIG:-dev_web} --format env > .env.admin-e2e
+          doppler secrets download --project osakamenesu --config ${DOPPLER_CONFIG:-stg} --format env > .env.admin-e2e
 
       - name: Run admin E2E via docker-compose
         working-directory: osakamenesu
