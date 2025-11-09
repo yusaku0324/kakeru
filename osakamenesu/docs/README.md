@@ -104,6 +104,21 @@ just ops-dev-up   # Postgres / Meilisearch / Redis を立ち上げ
 just ops-dev-down # 依存コンテナを停止
 ```
 
+## CI チェック / 回帰テスト
+
+GitHub Actions で動くタスクはローカルでも以下のコマンドで再現できます。
+
+```bash
+CI=true pnpm install                                # CI 環境と同じ依存解決 (TTY なし)
+pnpm lint                                           # ESLint + TypeScript
+pnpm test                                           # vitest ベースのユニットテスト
+docker compose -f docker-compose.admin-e2e.yml \
+  up --build --abort-on-container-exit e2e          # Playwright (admin dashboard) 回帰
+docker compose -f docker-compose.admin-e2e.yml down -v
+```
+
+CI で失敗したケースを個別に再現したいときは Raycast 経由の `osakamenesu-admin-e2e` スクリプト、または `scripts/doppler-dev.sh` を用いると Doppler 設定付きで Docker Compose を起動できます。
+
 ## メモ
 
 - 本番は API/DB/検索を別プロセス & CDN キャッシュ/ISR を併用
