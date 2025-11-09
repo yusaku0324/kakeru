@@ -188,6 +188,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Doppler CLI
+        run: |
+          curl -Ls https://cli.doppler.com/install.sh | sh
+          echo "$HOME/.doppler/bin" >> "$GITHUB_PATH"
+
       - name: Generate .env.admin-e2e via Doppler
         working-directory: osakamenesu
         env:
