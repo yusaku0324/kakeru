@@ -156,6 +156,7 @@ jobs:
           docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
 
       - name: Build api-test image with cache
+        working-directory: osakamenesu
         run: |
           docker buildx build \
             --builder osakamenesu-builder \
@@ -168,10 +169,12 @@ jobs:
             --load
 
       - name: Run docker-compose integration tests
+        working-directory: osakamenesu
         run: docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from api-test api-test
 
       - name: Teardown integration stack
         if: always()
+        working-directory: osakamenesu
         run: docker compose -f docker-compose.test.yml down -v
 
   web-lint:
