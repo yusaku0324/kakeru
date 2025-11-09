@@ -220,8 +220,6 @@ jobs:
       DOCKER_BUILDKIT: 1
       WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:${{ github.sha }}
       API_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:${{ github.sha }}
-      WEB_CACHE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:cache
-      API_CACHE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:cache
     outputs:
       web_image: ${{ steps.image-tags.outputs.web_image }}
       api_image: ${{ steps.image-tags.outputs.api_image }}
@@ -244,8 +242,8 @@ jobs:
         run: |
           docker buildx build \
             --builder osakamenesu-builder \
-            --cache-from=type=registry,ref=${API_CACHE} \
-            --cache-to=type=registry,ref=${API_CACHE},mode=max \
+            --cache-from=type=gha,scope=api-runtime \
+            --cache-to=type=gha,scope=api-runtime,mode=max \
             -t ${API_IMAGE} \
             -f docker/api.Dockerfile \
             --target api-runtime \
@@ -257,8 +255,8 @@ jobs:
         run: |
           docker buildx build \
             --builder osakamenesu-builder \
-            --cache-from=type=registry,ref=${WEB_CACHE} \
-            --cache-to=type=registry,ref=${WEB_CACHE},mode=max \
+            --cache-from=type=gha,scope=web-runtime \
+            --cache-to=type=gha,scope=web-runtime,mode=max \
             -t ${WEB_IMAGE} \
             -f docker/web.Dockerfile \
             . \
