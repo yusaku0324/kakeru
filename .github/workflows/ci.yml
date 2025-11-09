@@ -226,8 +226,10 @@ jobs:
     outputs:
       web_image: ${{ steps.image-tags.outputs.web_image }}
       api_image: ${{ steps.image-tags.outputs.api_image }}
+      e2e_image: ${{ steps.image-tags.outputs.e2e_image }}
       web_pushed: ${{ steps.image-tags.outputs.web_pushed }}
       api_pushed: ${{ steps.image-tags.outputs.api_pushed }}
+      e2e_pushed: ${{ steps.image-tags.outputs.e2e_pushed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -294,17 +296,45 @@ jobs:
             echo "web_pushed=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Build e2e runner image
+        working-directory: osakamenesu
+        run: |
+          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            docker buildx build \
+              --builder osakamenesu-builder \
+              --cache-from=type=gha,scope=e2e-runtime \
+              --cache-to=type=gha,scope=e2e-runtime,mode=max \
+              -t ${E2E_IMAGE} \
+              -f docker/e2e.Dockerfile \
+              . \
+              --push
+            echo "e2e_pushed=true" >> "$GITHUB_OUTPUT"
+          else
+            docker buildx build \
+              --builder osakamenesu-builder \
+              --cache-from=type=gha,scope=e2e-runtime \
+              --cache-to=type=gha,scope=e2e-runtime,mode=max \
+              -t osakamenesu-e2e-runtime \
+              -f docker/e2e.Dockerfile \
+              . \
+              --load
+            echo "e2e_pushed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Export image tags
         id: image-tags
         run: |
           echo "web_image=${WEB_IMAGE}" >> "$GITHUB_OUTPUT"
           echo "api_image=${API_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "e2e_image=${E2E_IMAGE}" >> "$GITHUB_OUTPUT"
           if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
             echo "web_pushed=true" >> "$GITHUB_OUTPUT"
             echo "api_pushed=true" >> "$GITHUB_OUTPUT"
+            echo "e2e_pushed=true" >> "$GITHUB_OUTPUT"
           else
             echo "web_pushed=false" >> "$GITHUB_OUTPUT"
             echo "api_pushed=false" >> "$GITHUB_OUTPUT"
+            echo "e2e_pushed=false" >> "$GITHUB_OUTPUT"
           fi
 
   admin-e2e:
@@ -319,8 +349,10 @@ jobs:
       MEILI_MASTER_KEY: ${{ secrets.MEILI_MASTER_KEY }}
       ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_image }}
       ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_image }}
+      ADMIN_E2E_IMAGE: ${{ needs.build-images.outputs.e2e_image }}
       ADMIN_WEB_PUSHED: ${{ needs.build-images.outputs.web_pushed }}
       ADMIN_API_PUSHED: ${{ needs.build-images.outputs.api_pushed }}
+      ADMIN_E2E_PUSHED: ${{ needs.build-images.outputs.e2e_pushed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -353,11 +385,12 @@ jobs:
         env:
           ADMIN_WEB_PUSHED: ${{ needs.build-images.outputs.web_pushed }}
           ADMIN_API_PUSHED: ${{ needs.build-images.outputs.api_pushed }}
+          ADMIN_E2E_PUSHED: ${{ needs.build-images.outputs.e2e_pushed }}
         run: |
-          if [ "$ADMIN_WEB_PUSHED" = "true" ] && [ "$ADMIN_API_PUSHED" = "true" ]; then
+          if [ "$ADMIN_WEB_PUSHED" = "true" ] && [ "$ADMIN_API_PUSHED" = "true" ] && [ "$ADMIN_E2E_PUSHED" = "true" ]; then
             docker compose -f docker-compose.admin-e2e.yml pull
           else
-            docker compose -f docker-compose.admin-e2e.yml build api web
+            docker compose -f docker-compose.admin-e2e.yml build api web e2e
           fi
 
       - name: Run admin E2E via docker-compose
@@ -366,6 +399,7 @@ jobs:
           DOCKER_BUILDKIT: 1
           ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_image }}
           ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_image }}
+          ADMIN_E2E_IMAGE: ${{ needs.build-images.outputs.e2e_image }}
         run: docker compose -f docker-compose.admin-e2e.yml up --abort-on-container-exit e2e
 
       - name: Teardown admin e2e stack

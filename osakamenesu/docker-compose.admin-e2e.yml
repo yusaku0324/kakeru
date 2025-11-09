@@ -85,7 +85,10 @@ services:
     command: ["sh", "-c", "pnpm run start -- -p ${PORT:-3000} --hostname 0.0.0.0"]
 
   e2e:
-    image: mcr.microsoft.com/playwright:v1.56.1-jammy
+    image: ${ADMIN_E2E_IMAGE:-osakamenesu-admin-e2e:latest}
+    build:
+      context: .
+      dockerfile: docker/e2e.Dockerfile
     working_dir: /workspace/apps/web
     env_file:
       - .env.admin-e2e
@@ -108,7 +111,10 @@ services:
     volumes:
       - .:/workspace
     depends_on:
-      - web
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
     command: >
       bash -lc "
         cd /workspace &&
