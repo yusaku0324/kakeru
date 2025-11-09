@@ -19,9 +19,9 @@ services:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:7700/health"]
-      interval: 3s
-      timeout: 2s
-      retries: 20
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   api-test:
     image: osakamenesu-api-test
