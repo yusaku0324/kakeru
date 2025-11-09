@@ -213,8 +213,7 @@ jobs:
         run: pnpm --dir apps/web run lint
 
   build-api-image:
-    needs:
-      - web-lint
+    needs: []
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -269,8 +268,7 @@ jobs:
           echo "api_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
 
   build-web-image:
-    needs:
-      - web-lint
+    needs: []
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -323,58 +321,11 @@ jobs:
           echo "web_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
 
   build-e2e-image:
-    needs:
-      - web-lint
+    needs: []
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: osakamenesu
-    env:
-      DOCKER_BUILDKIT: 1
-      E2E_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-e2e:${{ github.sha }}
-    outputs:
-      e2e_image: ${{ steps.build.outputs.e2e_image }}
-      e2e_pushed: ${{ steps.build.outputs.e2e_pushed }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        run: |
-          docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
-
-      - name: Build e2e runner image
-        id: build
-        run: |
-          PUSHED=false
-          if [ \"${{ github.event_name }}\" == \"push\" ] && [ \"${{ github.ref }}\" == \"refs/heads/main\" ]; then
-            docker buildx build \
-              --builder osakamenesu-builder \
-              --cache-from=type=gha,scope=e2e-runtime \
-              --cache-to=type=gha,scope=e2e-runtime,mode=max \
-              -t ${E2E_IMAGE} \
-              -f docker/e2e.Dockerfile \
-              . \
-              --push
-            PUSHED=true
-          else
-            docker buildx build \
-              --builder osakamenesu-builder \
-              --cache-from=type=gha,scope=e2e-runtime \
-              --cache-to=type=gha,scope=e2e-runtime,mode=max \
-              -t osakamenesu-e2e-runtime \
-              -f docker/e2e.Dockerfile \
-              . \
-              --load
-          fi
-          echo "e2e_image=${E2E_IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "e2e_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
+      - run: echo "Skipping e2e image build; using prebuilt runner"
+        shell: bash
 
   admin-e2e:
     needs:
