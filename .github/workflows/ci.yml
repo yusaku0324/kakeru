@@ -299,8 +299,13 @@ jobs:
         run: |
           echo "web_image=${WEB_IMAGE}" >> "$GITHUB_OUTPUT"
           echo "api_image=${API_IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "web_pushed=${GITHUB_EVENT_NAME == 'push' && github.ref == 'refs/heads/main'}" >> "$GITHUB_OUTPUT"
-          echo "api_pushed=${GITHUB_EVENT_NAME == 'push' && github.ref == 'refs/heads/main'}" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "web_pushed=true" >> "$GITHUB_OUTPUT"
+            echo "api_pushed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "web_pushed=false" >> "$GITHUB_OUTPUT"
+            echo "api_pushed=false" >> "$GITHUB_OUTPUT"
+          fi
 
   admin-e2e:
     needs:
