@@ -70,7 +70,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install deps
-        run: pip install -q -r ../requirements-test.txt
+        run: pip install -q -r ../../requirements-test.txt
 
       - name: Wait for Postgres
         env:
