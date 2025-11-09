@@ -17,6 +17,7 @@ services:
     image: getmeili/meilisearch:v1.11
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
+    command: ["meilisearch", "--http-addr", "0.0.0.0:7700"]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:7700/health"]
       interval: 5s
