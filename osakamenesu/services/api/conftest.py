@@ -5,8 +5,9 @@ from typing import Any
 
 
 def _normalize_markexpr(config) -> str:
-    expr = getattr(config.option, "markexpr", "") or ""
-    return expr.replace(" ", "").lower()
+    option = getattr(config, "option", None) if config is not None else None
+    expr = getattr(option, "markexpr", "") if option is not None else ""
+    return (expr or "").replace(" ", "").lower()
 
 
 def _selects_integration(config) -> bool:
