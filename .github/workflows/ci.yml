@@ -212,7 +212,7 @@ jobs:
         working-directory: osakamenesu
         run: pnpm --dir apps/web run lint
 
-  build-images:
+  build-api-image:
     needs:
       - web-lint
     runs-on: ubuntu-latest
@@ -221,15 +221,10 @@ jobs:
         working-directory: osakamenesu
     env:
       DOCKER_BUILDKIT: 1
-      WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:${{ github.sha }}
       API_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:${{ github.sha }}
     outputs:
-      web_image: ${{ steps.image-tags.outputs.web_image }}
-      api_image: ${{ steps.image-tags.outputs.api_image }}
-      e2e_image: ${{ steps.image-tags.outputs.e2e_image }}
-      web_pushed: ${{ steps.image-tags.outputs.web_pushed }}
-      api_pushed: ${{ steps.image-tags.outputs.api_pushed }}
-      e2e_pushed: ${{ steps.image-tags.outputs.e2e_pushed }}
+      api_image: ${{ steps.build.outputs.api_image }}
+      api_pushed: ${{ steps.build.outputs.api_pushed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -245,9 +240,10 @@ jobs:
           docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
 
       - name: Build API runtime image
-        working-directory: osakamenesu
+        id: build
         run: |
-          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          PUSHED=false
+          if [ \"${{ github.event_name }}\" == \"push\" ] && [ \"${{ github.ref }}\" == \"refs/heads/main\" ]; then
             docker buildx build \
               --builder osakamenesu-builder \
               --cache-from=type=gha,scope=api-runtime \
@@ -257,7 +253,7 @@ jobs:
               --target api-runtime \
               . \
               --push
-            echo "api_pushed=true" >> "$GITHUB_OUTPUT"
+            PUSHED=true
           else
             docker buildx build \
               --builder osakamenesu-builder \
@@ -268,13 +264,42 @@ jobs:
               --target api-runtime \
               . \
               --load
-            echo "api_pushed=false" >> "$GITHUB_OUTPUT"
           fi
+          echo "api_image=${API_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "api_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
+
+  build-web-image:
+    needs:
+      - web-lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: osakamenesu
+    env:
+      DOCKER_BUILDKIT: 1
+      WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:${{ github.sha }}
+    outputs:
+      web_image: ${{ steps.build.outputs.web_image }}
+      web_pushed: ${{ steps.build.outputs.web_pushed }}
+    steps:
+      - uses: actions/checkout 
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
 
       - name: Build web runtime image
-        working-directory: osakamenesu
+        id: build
         run: |
-          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          PUSHED=false
+          if [ \"${{ github.event_name }}\" == \"push\" ] && [ \"${{ github.ref }}\" == \"refs/heads/main\" ]; then
             docker buildx build \
               --builder osakamenesu-builder \
               --cache-from=type=gha,scope=web-runtime \
@@ -283,7 +308,7 @@ jobs:
               -f docker/web.Dockerfile \
               . \
               --push
-            echo "web_pushed=true" >> "$GITHUB_OUTPUT"
+            PUSHED=true
           else
             docker buildx build \
               --builder osakamenesu-builder \
@@ -293,13 +318,42 @@ jobs:
               -f docker/web.Dockerfile \
               . \
               --load
-            echo "web_pushed=false" >> "$GITHUB_OUTPUT"
           fi
+          echo "web_image=${WEB_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "web_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
+
+  build-e2e-image:
+    needs:
+      - web-lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: osakamenesu
+    env:
+      DOCKER_BUILDKIT: 1
+      E2E_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-e2e:${{ github.sha }}
+    outputs:
+      e2e_image: ${{ steps.build.outputs.e2e_image }}
+      e2e_pushed: ${{ steps.build.outputs.e2e_pushed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
 
       - name: Build e2e runner image
-        working-directory: osakamenesu
+        id: build
         run: |
-          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          PUSHED=false
+          if [ \"${{ github.event_name }}\" == \"push\" ] && [ \"${{ github.ref }}\" == \"refs/heads/main\" ]; then
             docker buildx build \
               --builder osakamenesu-builder \
               --cache-from=type=gha,scope=e2e-runtime \
@@ -308,7 +362,7 @@ jobs:
               -f docker/e2e.Dockerfile \
               . \
               --push
-            echo "e2e_pushed=true" >> "$GITHUB_OUTPUT"
+            PUSHED=true
           else
             docker buildx build \
               --builder osakamenesu-builder \
@@ -318,41 +372,28 @@ jobs:
               -f docker/e2e.Dockerfile \
               . \
               --load
-            echo "e2e_pushed=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Export image tags
-        id: image-tags
-        run: |
-          echo "web_image=${WEB_IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "api_image=${API_IMAGE}" >> "$GITHUB_OUTPUT"
           echo "e2e_image=${E2E_IMAGE}" >> "$GITHUB_OUTPUT"
-          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "web_pushed=true" >> "$GITHUB_OUTPUT"
-            echo "api_pushed=true" >> "$GITHUB_OUTPUT"
-            echo "e2e_pushed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "web_pushed=false" >> "$GITHUB_OUTPUT"
-            echo "api_pushed=false" >> "$GITHUB_OUTPUT"
-            echo "e2e_pushed=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "e2e_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
 
   admin-e2e:
     needs:
       - web-lint
-      - build-images
+      - build-api-image
+      - build-web-image
+      - build-e2e-image
     runs-on: ubuntu-latest
     env:
       ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
       TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
       E2E_TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
       MEILI_MASTER_KEY: ${{ secrets.MEILI_MASTER_KEY }}
-      ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_image }}
-      ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_image }}
-      ADMIN_E2E_IMAGE: ${{ needs.build-images.outputs.e2e_image }}
-      ADMIN_WEB_PUSHED: ${{ needs.build-images.outputs.web_pushed }}
-      ADMIN_API_PUSHED: ${{ needs.build-images.outputs.api_pushed }}
-      ADMIN_E2E_PUSHED: ${{ needs.build-images.outputs.e2e_pushed }}
+      ADMIN_WEB_IMAGE: ${{ needs.build-web-image.outputs.web_image }}
+      ADMIN_API_IMAGE: ${{ needs.build-api-image.outputs.api_image }}
+      ADMIN_E2E_IMAGE: ${{ needs.build-e2e-image.outputs.e2e_image }}
+      ADMIN_WEB_PUSHED: ${{ needs.build-web-image.outputs.web_pushed }}
+      ADMIN_API_PUSHED: ${{ needs.build-api-image.outputs.api_pushed }}
+      ADMIN_E2E_PUSHED: ${{ needs.build-e2e-image.outputs.e2e_pushed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -383,9 +424,9 @@ jobs:
       - name: Prepare images for admin E2E
         working-directory: osakamenesu
         env:
-          ADMIN_WEB_PUSHED: ${{ needs.build-images.outputs.web_pushed }}
-          ADMIN_API_PUSHED: ${{ needs.build-images.outputs.api_pushed }}
-          ADMIN_E2E_PUSHED: ${{ needs.build-images.outputs.e2e_pushed }}
+          ADMIN_WEB_PUSHED: ${{ needs.build-web-image.outputs.web_pushed }}
+          ADMIN_API_PUSHED: ${{ needs.build-api-image.outputs.api_pushed }}
+          ADMIN_E2E_PUSHED: ${{ needs.build-e2e-image.outputs.e2e_pushed }}
         run: |
           if [ "$ADMIN_WEB_PUSHED" = "true" ] && [ "$ADMIN_API_PUSHED" = "true" ] && [ "$ADMIN_E2E_PUSHED" = "true" ]; then
             docker compose -f docker-compose.admin-e2e.yml pull
@@ -397,17 +438,17 @@ jobs:
         working-directory: osakamenesu
         env:
           DOCKER_BUILDKIT: 1
-          ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_image }}
-          ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_image }}
-          ADMIN_E2E_IMAGE: ${{ needs.build-images.outputs.e2e_image }}
+          ADMIN_WEB_IMAGE: ${{ needs.build-web-image.outputs.web_image }}
+          ADMIN_API_IMAGE: ${{ needs.build-api-image.outputs.api_image }}
+          ADMIN_E2E_IMAGE: ${{ needs.build-e2e-image.outputs.e2e_image }}
         run: docker compose -f docker-compose.admin-e2e.yml up --abort-on-container-exit e2e
 
       - name: Teardown admin e2e stack
         if: always()
         working-directory: osakamenesu
         env:
-          ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_image }}
-          ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_image }}
+          ADMIN_WEB_IMAGE: ${{ needs.build-web-image.outputs.web_image }}
+          ADMIN_API_IMAGE: ${{ needs.build-api-image.outputs.api_image }}
         run: docker compose -f docker-compose.admin-e2e.yml down -v
 
   deploy:
