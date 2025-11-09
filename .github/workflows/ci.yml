@@ -346,15 +346,25 @@ jobs:
           fi
           doppler secrets download --project osakamenesu --config ${DOPPLER_CONFIG:-stg} --format env-no-quotes --no-file --no-fallback > .env.admin-e2e
 
+      - name: Prepare images for admin E2E
+        working-directory: osakamenesu
+        env:
+          ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_pushed == 'true' && needs.build-images.outputs.web_image || '' }}
+          ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_pushed == 'true' && needs.build-images.outputs.api_image || '' }}
+        run: |
+          if [ -n "$ADMIN_API_IMAGE" ] && [ -n "$ADMIN_WEB_IMAGE" ]; then
+            docker compose -f docker-compose.admin-e2e.yml pull
+          else
+            docker compose -f docker-compose.admin-e2e.yml build api web
+          fi
+
       - name: Run admin E2E via docker-compose
         working-directory: osakamenesu
         env:
           DOCKER_BUILDKIT: 1
           ADMIN_WEB_IMAGE: ${{ needs.build-images.outputs.web_pushed == 'true' && needs.build-images.outputs.web_image || '' }}
           ADMIN_API_IMAGE: ${{ needs.build-images.outputs.api_pushed == 'true' && needs.build-images.outputs.api_image || '' }}
-        run: |
-          docker compose -f docker-compose.admin-e2e.yml pull
-          docker compose -f docker-compose.admin-e2e.yml up --abort-on-container-exit e2e
+        run: docker compose -f docker-compose.admin-e2e.yml up --abort-on-container-exit e2e
 
       - name: Teardown admin e2e stack
         if: always()
