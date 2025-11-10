@@ -376,39 +376,23 @@ jobs:
           username: yusaku0324
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Install Doppler CLI
-        run: |
-          curl -Ls https://cli.doppler.com/install.sh | sudo sh
-          echo "$HOME/.doppler/bin" >> "$GITHUB_PATH"
-
-      - name: Generate .env.admin-e2e via Doppler
-        working-directory: osakamenesu
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-          DOPPLER_CONFIG: stg
-        run: |
-          if [ -z "${DOPPLER_TOKEN:-}" ]; then
-            echo '::error::DOPPLER_TOKEN is not set' >&2
-            exit 1
-          fi
-          doppler secrets download --project osakamenesu --config ${DOPPLER_CONFIG:-stg} --format env-no-quotes --no-file --no-fallback > .env.admin-e2e
-
-      - name: Validate required admin env values
+      - name: Write admin env file from GitHub secrets
         working-directory: osakamenesu
         run: |
           set -euo pipefail
-          REQUIRED_VARS=(POSTGRES_USER POSTGRES_PASSWORD ADMIN_API_KEY TEST_AUTH_SECRET E2E_TEST_AUTH_SECRET MEILI_MASTER_KEY)
-          for key in "${REQUIRED_VARS[@]}"; do
-            if ! grep -q "^${key}=" .env.admin-e2e; then
-              echo "::error::${key} missing in .env.admin-e2e" >&2
-              exit 1
-            fi
-            value=$(grep "^${key}=" .env.admin-e2e | tail -n1 | cut -d= -f2-)
-            if [ -z "${value}" ]; then
-              echo "::error::${key} is empty in .env.admin-e2e" >&2
-              exit 1
-            fi
-          done
+          cat <<'EOF' > .env.admin-e2e
+POSTGRES_USER=${{ secrets.ADMIN_POSTGRES_USER }}
+POSTGRES_PASSWORD=${{ secrets.ADMIN_POSTGRES_PASSWORD }}
+ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY }}
+TEST_AUTH_SECRET=${{ secrets.TEST_AUTH_SECRET }}
+E2E_TEST_AUTH_SECRET=${{ secrets.E2E_TEST_AUTH_SECRET }}
+MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}
+EOF
+          if grep -q "=\s*$" .env.admin-e2e; then
+            echo "::error::One or more admin env secrets are empty" >&2
+            cat .env.admin-e2e
+            exit 1
+          fi
 
       - name: Pull admin runtime images
         working-directory: osakamenesu
