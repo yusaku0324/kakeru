@@ -35,7 +35,7 @@ services:
     env_file:
       - .env.admin-e2e
     environment:
-      DATABASE_URL: postgresql+asyncpg://app:app@db:5432/osaka_menesu
+      DATABASE_URL: postgresql+asyncpg://app:app@db:5432/app
       MEILI_HOST: http://meili:7700
       RATE_LIMIT_REDIS_URL: redis://redis:6379/0
       API_HOST: 0.0.0.0
