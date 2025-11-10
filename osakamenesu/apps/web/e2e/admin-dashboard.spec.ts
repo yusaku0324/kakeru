@@ -1,6 +1,15 @@
 import { test, expect, Page } from '@playwright/test'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { ensureDashboardAuthenticated, SkipTestError } from './utils/dashboard-auth'
+
+const dashboardStoragePath =
+  process.env.PLAYWRIGHT_DASHBOARD_STORAGE ?? path.resolve(__dirname, 'storage', 'dashboard.json')
+
+if (fs.existsSync(dashboardStoragePath)) {
+  test.use({ storageState: dashboardStoragePath })
+}
 
 const STATUS_OPTIONS = ['pending', 'confirmed', 'declined', 'cancelled', 'expired'] as const
 

@@ -145,6 +145,10 @@ export async function ensureDashboardAuthenticated(
 ): Promise<void> {
   const resolvedWebBase = resolveWebBase(baseURL)
   const resolvedApiBase = resolveApiBase(baseURL)
+  const existingCookies = await context.cookies([resolvedWebBase])
+  if (existingCookies.some((cookie) => cookie.name === 'osakamenesu_session')) {
+    return
+  }
   const secretCandidates = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET]
     .filter((value): value is string => Boolean(value && value.trim()))
 

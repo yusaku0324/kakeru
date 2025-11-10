@@ -79,6 +79,7 @@ node_modules/
 **/.turbo/
 **/dist/
 db_data/
+osakamenesu/apps/web/e2e/storage/
 
 # Browser profiles
 profiles/*/
