@@ -17,6 +17,7 @@ on:
     branches:
       - main
       - feat/admin-dashboard-editor
+      - feat/raycast-commands
   pull_request:
     branches:
       - main
