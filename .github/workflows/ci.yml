@@ -144,11 +144,11 @@ jobs:
       - name: Export integration secrets via Doppler
         working-directory: osakamenesu
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_HEALTH_TOKEN }}
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           DOPPLER_CONFIG: stg
         run: |
           if [ -z "${DOPPLER_TOKEN:-}" ]; then
-            echo '::error::DOPPLER_HEALTH_TOKEN is not set' >&2
+            echo '::error::DOPPLER_TOKEN is not set' >&2
             exit 1
           fi
           MEILI_MASTER_KEY=$(doppler secrets get MEILI_MASTER_KEY --project osakamenesu --config "${DOPPLER_CONFIG}" --plain)
@@ -408,11 +408,11 @@ jobs:
       - name: Generate .env.admin-e2e via Doppler
         working-directory: osakamenesu
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_HEALTH_TOKEN }}
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           DOPPLER_CONFIG: stg
         run: |
           if [ -z "${DOPPLER_TOKEN:-}" ]; then
-            echo '::error::DOPPLER_HEALTH_TOKEN is not set' >&2
+            echo '::error::DOPPLER_TOKEN is not set' >&2
             exit 1
           fi
           doppler secrets download --project osakamenesu --config ${DOPPLER_CONFIG:-stg} --format env-no-quotes --no-file --no-fallback > .env.admin-e2e
