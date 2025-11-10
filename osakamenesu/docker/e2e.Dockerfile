@@ -2,7 +2,8 @@
 FROM node:20-slim
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    PNPM_VERSION=10.20.0
+    PNPM_VERSION=10.20.0 \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -31,7 +32,8 @@ RUN apt-get update && \
 
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
-RUN npx playwright@1.56.1 install --with-deps chromium
+RUN --mount=type=cache,target=/ms-playwright \
+    pnpm dlx playwright@1.56.1 install --with-deps chromium
 
 WORKDIR /workspace
 CMD ["bash"]

@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1.7
 FROM node:20-slim AS base
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    PNPM_VERSION=10.20.0
+    PNPM_VERSION=10.20.0 \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       wget \
@@ -25,6 +26,9 @@ RUN apt-get update && \
       xdg-utils \
       fonts-noto-color-emoji \
       fonts-noto-cjk && \
-    rm -rf /var/lib/apt/lists/* && \
-    corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate && \
-    npx playwright@1.56.1 install --with-deps chromium
+    rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+
+RUN --mount=type=cache,target=/ms-playwright \
+    pnpm dlx playwright@1.56.1 install --with-deps chromium
