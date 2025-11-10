@@ -161,8 +161,8 @@ jobs:
       - name: Build api-test image with cache
         uses: docker/build-push-action@v6
         with:
-          context: osakamenesu
-          file: docker/api.Dockerfile
+          context: ./osakamenesu
+          file: ./osakamenesu/docker/api.Dockerfile
           target: api-test
           tags: osakamenesu-api-test
           push: false
@@ -224,8 +224,8 @@ jobs:
       API_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:${{ github.sha }}
       API_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:ci-${{ github.sha }}
     outputs:
-      api_image: ${{ steps.build.outputs.api_image }}
-      api_pushed: ${{ steps.build.outputs.api_pushed }}
+      api_image: ${{ steps.set_api_image.outputs.api_image }}
+      api_pushed: ${{ steps.set_api_image.outputs.api_pushed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -248,12 +248,13 @@ jobs:
           file: docker/api.Dockerfile
           target: api-runtime
           tags: |
-            ${API_IMAGE}
-            ${API_CI_IMAGE}
+            ${{ env.API_IMAGE }}
+            ${{ env.API_CI_IMAGE }}
           push: true
           cache-from: type=gha,scope=api-runtime
           cache-to: type=gha,scope=api-runtime,mode=max
       - name: Set API image outputs
+        id: set_api_image
         run: |
           echo "api_image=${API_CI_IMAGE}" >> "$GITHUB_OUTPUT"
           echo "api_pushed=true" >> "$GITHUB_OUTPUT"
@@ -268,8 +269,8 @@ jobs:
       WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:${{ github.sha }}
       WEB_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:ci-${{ github.sha }}
     outputs:
-      web_image: ${{ steps.build.outputs.web_image }}
-      web_pushed: ${{ steps.build.outputs.web_pushed }}
+      web_image: ${{ steps.set_web_image.outputs.web_image }}
+      web_pushed: ${{ steps.set_web_image.outputs.web_pushed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -291,12 +292,13 @@ jobs:
           context: .
           file: docker/web.Dockerfile
           tags: |
-            ${WEB_IMAGE}
-            ${WEB_CI_IMAGE}
+            ${{ env.WEB_IMAGE }}
+            ${{ env.WEB_CI_IMAGE }}
           push: true
           cache-from: type=gha,scope=web-runtime
           cache-to: type=gha,scope=web-runtime,mode=max
       - name: Set web image outputs
+        id: set_web_image
         run: |
           echo "web_image=${WEB_CI_IMAGE}" >> "$GITHUB_OUTPUT"
           echo "web_pushed=true" >> "$GITHUB_OUTPUT"
@@ -311,8 +313,8 @@ jobs:
       E2E_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-e2e-runner:${{ github.sha }}
       E2E_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-e2e-runner:ci-${{ github.sha }}
     outputs:
-      e2e_image: ${{ steps.build.outputs.e2e_image }}
-      e2e_pushed: ${{ steps.build.outputs.e2e_pushed }}
+      e2e_image: ${{ steps.set_e2e_image.outputs.e2e_image }}
+      e2e_pushed: ${{ steps.set_e2e_image.outputs.e2e_pushed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -334,12 +336,13 @@ jobs:
           context: .
           file: docker/e2e-runner.Dockerfile
           tags: |
-            ${E2E_IMAGE}
-            ${E2E_CI_IMAGE}
+            ${{ env.E2E_IMAGE }}
+            ${{ env.E2E_CI_IMAGE }}
           push: true
           cache-from: type=gha,scope=e2e-runner
           cache-to: type=gha,scope=e2e-runner,mode=max
       - name: Set E2E image outputs
+        id: set_e2e_image
         run: |
           echo "e2e_image=${E2E_CI_IMAGE}" >> "$GITHUB_OUTPUT"
           echo "e2e_pushed=true" >> "$GITHUB_OUTPUT"
