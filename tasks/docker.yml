@@ -37,6 +37,27 @@ tasks:
         done
       - docker stop osakamenesu-web-smoke
 
+  api-smoke:
+    desc: "build API runtime and smoke-test /healthz"
+    dir: osakamenesu
+    cmds:
+      - docker build -f docker/api.Dockerfile --target api-runtime -t osakamenesu-api:smoke .
+      - docker run -d --rm --name osakamenesu-api-smoke -p 18000:8000 osakamenesu-api:smoke
+      - |
+        for i in {1..30}; do
+          if curl -fsS http://localhost:18000/healthz >/dev/null; then
+            echo "✅ api smoke test passed"
+            break
+          fi
+          sleep 2
+          if [ "$i" -eq 30 ]; then
+            echo "❌ api smoke test failed" >&2
+            docker logs osakamenesu-api-smoke || true
+            exit 1
+          fi
+        done
+      - docker stop osakamenesu-api-smoke
+
   push:
     desc: "docker push image to GHCR"
     deps: [login]
