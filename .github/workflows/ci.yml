@@ -223,6 +223,7 @@ jobs:
     env:
       DOCKER_BUILDKIT: 1
       API_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:${{ github.sha }}
+      API_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:ci-${{ github.sha }}
     outputs:
       api_image: ${{ steps.build.outputs.api_image }}
       api_pushed: ${{ steps.build.outputs.api_pushed }}
@@ -243,31 +244,18 @@ jobs:
       - name: Build API runtime image
         id: build
         run: |
-          PUSHED=false
-          if [ \"${{ github.event_name }}\" == \"push\" ] && [ \"${{ github.ref }}\" == \"refs/heads/main\" ]; then
-            docker buildx build \
-              --builder osakamenesu-builder \
-              --cache-from=type=gha,scope=api-runtime \
-              --cache-to=type=gha,scope=api-runtime,mode=max \
-              -t ${API_IMAGE} \
-              -f docker/api.Dockerfile \
-              --target api-runtime \
-              . \
-              --push
-            PUSHED=true
-          else
-            docker buildx build \
-              --builder osakamenesu-builder \
-              --cache-from=type=gha,scope=api-runtime \
-              --cache-to=type=gha,scope=api-runtime,mode=max \
-              -t osakamenesu-api-runtime \
-              -f docker/api.Dockerfile \
-              --target api-runtime \
-              . \
-              --load
-          fi
-          echo "api_image=${API_IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "api_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
+          docker buildx build \
+            --builder osakamenesu-builder \
+            --cache-from=type=gha,scope=api-runtime \
+            --cache-to=type=gha,scope=api-runtime,mode=max \
+            -t ${API_IMAGE} \
+            -t ${API_CI_IMAGE} \
+            -f docker/api.Dockerfile \
+            --target api-runtime \
+            . \
+            --push
+          echo "api_image=${API_CI_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "api_pushed=true" >> "$GITHUB_OUTPUT"
 
   build-web-image:
     runs-on: ubuntu-latest
@@ -277,6 +265,7 @@ jobs:
     env:
       DOCKER_BUILDKIT: 1
       WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:${{ github.sha }}
+      WEB_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:ci-${{ github.sha }}
     outputs:
       web_image: ${{ steps.build.outputs.web_image }}
       web_pushed: ${{ steps.build.outputs.web_pushed }}
@@ -297,29 +286,17 @@ jobs:
       - name: Build web runtime image
         id: build
         run: |
-          PUSHED=false
-          if [ \"${{ github.event_name }}\" == \"push\" ] && [ \"${{ github.ref }}\" == \"refs/heads/main\" ]; then
-            docker buildx build \
-              --builder osakamenesu-builder \
-              --cache-from=type=gha,scope=web-runtime \
-              --cache-to=type=gha,scope=web-runtime,mode=max \
-              -t ${WEB_IMAGE} \
-              -f docker/web.Dockerfile \
-              . \
-              --push
-            PUSHED=true
-          else
-            docker buildx build \
-              --builder osakamenesu-builder \
-              --cache-from=type=gha,scope=web-runtime \
-              --cache-to=type=gha,scope=web-runtime,mode=max \
-              -t osakamenesu-web-runtime \
-              -f docker/web.Dockerfile \
-              . \
-              --load
-          fi
-          echo "web_image=${WEB_IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "web_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
+          docker buildx build \
+            --builder osakamenesu-builder \
+            --cache-from=type=gha,scope=web-runtime \
+            --cache-to=type=gha,scope=web-runtime,mode=max \
+            -t ${WEB_IMAGE} \
+            -t ${WEB_CI_IMAGE} \
+            -f docker/web.Dockerfile \
+            . \
+            --push
+          echo "web_image=${WEB_CI_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "web_pushed=true" >> "$GITHUB_OUTPUT"
 
   build-e2e-image:
     runs-on: ubuntu-latest
@@ -329,6 +306,7 @@ jobs:
     env:
       DOCKER_BUILDKIT: 1
       E2E_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-e2e-runner:${{ github.sha }}
+      E2E_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-e2e-runner:ci-${{ github.sha }}
     outputs:
       e2e_image: ${{ steps.build.outputs.e2e_image }}
       e2e_pushed: ${{ steps.build.outputs.e2e_pushed }}
@@ -349,29 +327,17 @@ jobs:
       - name: Build E2E runner image
         id: build
         run: |
-          PUSHED=false
-          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            docker buildx build \
-              --builder osakamenesu-builder \
-              --cache-from=type=gha,scope=e2e-runner \
-              --cache-to=type=gha,scope=e2e-runner,mode=max \
-              -t ${E2E_IMAGE} \
-              -f docker/e2e-runner.Dockerfile \
-              . \
-              --push
-            PUSHED=true
-          else
-            docker buildx build \
-              --builder osakamenesu-builder \
-              --cache-from=type=gha,scope=e2e-runner \
-              --cache-to=type=gha,scope=e2e-runner,mode=max \
-              -t osakamenesu-e2e-runner \
-              -f docker/e2e-runner.Dockerfile \
-              . \
-              --load
-          fi
-          echo "e2e_image=${E2E_IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "e2e_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
+          docker buildx build \
+            --builder osakamenesu-builder \
+            --cache-from=type=gha,scope=e2e-runner \
+            --cache-to=type=gha,scope=e2e-runner,mode=max \
+            -t ${E2E_IMAGE} \
+            -t ${E2E_CI_IMAGE} \
+            -f docker/e2e-runner.Dockerfile \
+            . \
+            --push
+          echo "e2e_image=${E2E_CI_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "e2e_pushed=true" >> "$GITHUB_OUTPUT"
 
   admin-e2e:
     needs:
@@ -384,9 +350,9 @@ jobs:
         shard: [1, 2]
     runs-on: ubuntu-latest
     env:
-      ADMIN_WEB_IMAGE: osakamenesu-web:ci-${{ github.sha }}
-      ADMIN_API_IMAGE: osakamenesu-api:ci-${{ github.sha }}
-      ADMIN_E2E_IMAGE: osakamenesu-e2e-runner:ci-${{ github.sha }}
+      ADMIN_WEB_IMAGE: ${{ needs.build-web-image.outputs.web_image || format('ghcr.io/{0}/osakamenesu-web:ci-{1}', github.repository_owner, github.sha) }}
+      ADMIN_API_IMAGE: ${{ needs.build-api-image.outputs.api_image || format('ghcr.io/{0}/osakamenesu-api:ci-{1}', github.repository_owner, github.sha) }}
+      ADMIN_E2E_IMAGE: ${{ needs.build-e2e-image.outputs.e2e_image || format('ghcr.io/{0}/osakamenesu-e2e-runner:ci-{1}', github.repository_owner, github.sha) }}
       PLAYWRIGHT_TOTAL_SHARDS: 2
       PLAYWRIGHT_SHARD_INDEX: ${{ matrix.shard }}
       PLAYWRIGHT_WORKERS: 4
@@ -419,47 +385,19 @@ jobs:
           fi
           doppler secrets download --project osakamenesu --config ${DOPPLER_CONFIG:-stg} --format env-no-quotes --no-file --no-fallback > .env.admin-e2e
 
-      - name: Set up Docker Buildx
-        run: |
-          docker buildx create --driver docker-container --driver-opt network=host --use --name admin-e2e-builder || docker buildx use admin-e2e-builder
-
-      - name: Load admin runtime images locally
+      - name: Pull admin runtime images
         working-directory: osakamenesu
         run: |
           set -euo pipefail
+          docker pull "${ADMIN_API_IMAGE}"
+          docker pull "${ADMIN_WEB_IMAGE}"
+          docker pull "${ADMIN_E2E_IMAGE}"
 
-          docker buildx build \
-            --builder admin-e2e-builder \
-            --cache-from=type=gha,scope=api-runtime \
-            --cache-to=type=gha,scope=api-runtime,mode=max \
-            -t "${ADMIN_API_IMAGE}" \
-            -f docker/api.Dockerfile \
-            --target api-runtime \
-            . \
-            --load
-
-          docker buildx build \
-            --builder admin-e2e-builder \
-            --cache-from=type=gha,scope=web-runtime \
-            --cache-to=type=gha,scope=web-runtime,mode=max \
-            -t "${ADMIN_WEB_IMAGE}" \
-            -f docker/web.Dockerfile \
-            --target runner \
-            --build-arg NEXT_PUBLIC_OSAKAMENESU_API_BASE=http://api:8000 \
-            --build-arg NEXT_PUBLIC_SITE_URL=http://web:3000 \
-            --build-arg FAVORITES_API_MODE=real \
-            --build-arg NEXT_PUBLIC_FAVORITES_API_MODE=real \
-            . \
-            --load
-
-          docker buildx build \
-            --builder admin-e2e-builder \
-            --cache-from=type=gha,scope=e2e-runner \
-            --cache-to=type=gha,scope=e2e-runner,mode=max \
-            -t "${ADMIN_E2E_IMAGE}" \
-            -f docker/e2e-runner.Dockerfile \
-            . \
-            --load
+      - name: Prefetch base services
+        working-directory: osakamenesu
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.admin-e2e.yml pull db meili redis || true
 
       - name: Run admin E2E via docker-compose
         working-directory: osakamenesu

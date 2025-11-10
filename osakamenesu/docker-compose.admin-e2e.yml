@@ -30,9 +30,7 @@ services:
     command: ["redis-server", "--save", "", "--appendonly", "no"]
 
   api:
-    image: ${ADMIN_API_IMAGE:-osakamenesu-admin-api:latest}
-    build:
-      context: ./services/api
+    image: ${ADMIN_API_IMAGE:-ghcr.io/yusaku0324/osakamenesu-api:latest}
     env_file:
       - .env.admin-e2e
     environment:
@@ -63,14 +61,7 @@ services:
       start_period: 180s
 
   web:
-    image: ${ADMIN_WEB_IMAGE:-osakamenesu-admin-web:latest}
-    build:
-      context: ./apps/web
-      args:
-        NEXT_PUBLIC_OSAKAMENESU_API_BASE: http://api:8000
-        NEXT_PUBLIC_SITE_URL: http://web:3000
-        FAVORITES_API_MODE: real
-        NEXT_PUBLIC_FAVORITES_API_MODE: real
+    image: ${ADMIN_WEB_IMAGE:-ghcr.io/yusaku0324/osakamenesu-web:latest}
     env_file:
       - .env.admin-e2e
     environment:
@@ -103,10 +94,7 @@ services:
       start_period: 90s
 
   e2e:
-    image: ${ADMIN_E2E_IMAGE:-osakamenesu-admin-e2e-runner:latest}
-    build:
-      context: .
-      dockerfile: docker/e2e-runner.Dockerfile
+    image: ${ADMIN_E2E_IMAGE:-ghcr.io/yusaku0324/osakamenesu-e2e-runner:latest}
     working_dir: /workspace/apps/web
     env_file:
       - .env.admin-e2e
