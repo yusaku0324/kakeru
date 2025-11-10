@@ -159,10 +159,9 @@ jobs:
           docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
 
       - name: Build api-test image with cache
-        working-directory: osakamenesu
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: osakamenesu
           file: docker/api.Dockerfile
           target: api-test
           tags: osakamenesu-api-test
