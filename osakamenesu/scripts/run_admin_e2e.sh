@@ -16,7 +16,7 @@ SHARD_ARGS=""
 if [[ -n "${PLAYWRIGHT_TOTAL_SHARDS:-}" && -n "${PLAYWRIGHT_SHARD_INDEX:-}" ]]; then
   SHARD_ARGS=" --shard=${PLAYWRIGHT_SHARD_INDEX}/${PLAYWRIGHT_TOTAL_SHARDS}"
 fi
-pnpm test:e2e -- --workers="${PLAYWRIGHT_WORKERS}"${SHARD_ARGS}
+pnpm exec playwright test --reporter=line --workers="${PLAYWRIGHT_WORKERS}"${SHARD_ARGS}
 TEST_EXIT=$?
 pnpm exec playwright merge-reports --report-dir=playwright-report ./blob-report >/dev/null 2>&1 || true
 exit ${TEST_EXIT}
