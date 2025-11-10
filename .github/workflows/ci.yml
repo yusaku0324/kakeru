@@ -393,6 +393,23 @@ jobs:
           fi
           doppler secrets download --project osakamenesu --config ${DOPPLER_CONFIG:-stg} --format env-no-quotes --no-file --no-fallback > .env.admin-e2e
 
+      - name: Validate required admin env values
+        working-directory: osakamenesu
+        run: |
+          set -euo pipefail
+          REQUIRED_VARS=(POSTGRES_USER POSTGRES_PASSWORD ADMIN_API_KEY TEST_AUTH_SECRET E2E_TEST_AUTH_SECRET MEILI_MASTER_KEY)
+          for key in "${REQUIRED_VARS[@]}"; do
+            if ! grep -q "^${key}=" .env.admin-e2e; then
+              echo "::error::${key} missing in .env.admin-e2e" >&2
+              exit 1
+            fi
+            value=$(grep "^${key}=" .env.admin-e2e | tail -n1 | cut -d= -f2-)
+            if [ -z "${value}" ]; then
+              echo "::error::${key} is empty in .env.admin-e2e" >&2
+              exit 1
+            fi
+          done
+
       - name: Pull admin runtime images
         working-directory: osakamenesu
         run: |
@@ -406,6 +423,20 @@ jobs:
         run: |
           set -euo pipefail
           docker compose -f docker-compose.admin-e2e.yml pull db meili redis || true
+
+      - name: Sanity-check compose rendering
+        working-directory: osakamenesu
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.admin-e2e.yml config > /tmp/admin-e2e-compose.yml
+          if ! grep -q "POSTGRES_DB: app" /tmp/admin-e2e-compose.yml; then
+            echo '::error::Rendered compose config is not pinning POSTGRES_DB to app' >&2
+            exit 1
+          fi
+          if ! grep -q "DATABASE_URL: postgresql+asyncpg://app:app@db:5432/app" /tmp/admin-e2e-compose.yml; then
+            echo '::error::Rendered compose config has unexpected DATABASE_URL' >&2
+            exit 1
+          fi
 
       - name: Run admin E2E via docker-compose
         working-directory: osakamenesu
