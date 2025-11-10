@@ -4,5 +4,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     NPM_CONFIG_UPDATE_NOTIFIER=false
 RUN npm install -g pnpm@10.20.0
 COPY package.json pnpm-lock.yaml ./
+# postinstall scripts expect apps/web to exist for pnpm --dir invocations
+COPY apps ./apps
 RUN pnpm install --frozen-lockfile
 COPY . .
