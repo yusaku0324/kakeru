@@ -45,7 +45,6 @@ services:
       TEST_AUTH_SECRET: ${TEST_AUTH_SECRET:-dev_test_auth}
       E2E_TEST_AUTH_SECRET: ${E2E_TEST_AUTH_SECRET:-dev_test_auth}
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
-      MEILI_HOST: http://meili:7700
     depends_on:
       db:
         condition: service_healthy
