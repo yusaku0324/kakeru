@@ -484,6 +484,19 @@ jobs:
             exit "${FAILURE}"
           fi
 
+      - name: Wait for web health before tests
+        if: always()
+        working-directory: osakamenesu
+        run: |
+          for i in {1..60}; do
+            if docker compose -f docker-compose.admin-e2e.yml exec -T web wget -qO- http://localhost:3000/api/health >/dev/null 2>&1; then
+              echo "web is ready"
+              break
+            fi
+            echo "Waiting for web health..."
+            sleep 3
+          done
+
       - name: Collect Playwright artifacts
         if: always()
         working-directory: osakamenesu

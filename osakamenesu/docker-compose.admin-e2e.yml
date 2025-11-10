@@ -19,6 +19,7 @@ services:
       - .env.admin-e2e
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
+      MEILI_ENV: development
     expose:
       - "7700"
 
@@ -43,6 +44,8 @@ services:
       PORT: 8000
       TEST_AUTH_SECRET: ${TEST_AUTH_SECRET:-dev_test_auth}
       E2E_TEST_AUTH_SECRET: ${E2E_TEST_AUTH_SECRET:-dev_test_auth}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
+      MEILI_HOST: http://meili:7700
     depends_on:
       db:
         condition: service_healthy
@@ -58,7 +61,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 30
-      start_period: 30s
+      start_period: 60s
 
   web:
     image: ${ADMIN_WEB_IMAGE:-osakamenesu-admin-web:latest}
@@ -85,6 +88,8 @@ services:
       HOSTNAME: 0.0.0.0
       MEILI_HOST: http://meili:7700
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
+      NEXT_PUBLIC_MEILI_HOST: http://meili:7700
+      NEXT_PUBLIC_MEILI_API_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
     ports:
       - "3000:3000"
     depends_on:
@@ -96,7 +101,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 40
-      start_period: 40s
+      start_period: 90s
 
   e2e:
     image: ${ADMIN_E2E_IMAGE:-osakamenesu-admin-e2e-runner:latest}
