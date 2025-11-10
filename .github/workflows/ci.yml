@@ -484,6 +484,57 @@ jobs:
             exit "${FAILURE}"
           fi
 
+      - name: Collect Playwright artifacts
+        if: always()
+        working-directory: osakamenesu
+        env:
+          SHARD_ID: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          CONTAINER_ID=$(docker compose -f docker-compose.admin-e2e.yml ps -q e2e || true)
+          if [ -z "$CONTAINER_ID" ]; then
+            echo "No e2e container found; skipping artifact copy"
+            exit 0
+          fi
+          ARTIFACT_DIR="../artifacts/playwright-shard-${SHARD_ID}"
+          mkdir -p "$ARTIFACT_DIR"
+          docker cp "$CONTAINER_ID:/workspace/apps/web/test-results" "$ARTIFACT_DIR/" >/dev/null 2>&1 || true
+          docker cp "$CONTAINER_ID:/workspace/apps/web/playwright-report" "$ARTIFACT_DIR/" >/dev/null 2>&1 || true
+          docker cp "$CONTAINER_ID:/workspace/apps/web/blob-report" "$ARTIFACT_DIR/" >/dev/null 2>&1 || true
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-shard-${{ matrix.shard }}
+          path: artifacts/playwright-shard-${{ matrix.shard }}/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Collect compose logs
+        if: always()
+        working-directory: osakamenesu
+        env:
+          SHARD_ID: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          LOG_DIR="../artifacts/playwright-shard-${SHARD_ID}/compose"
+          mkdir -p "$LOG_DIR"
+          docker compose -f docker-compose.admin-e2e.yml logs --no-color > "$LOG_DIR/compose.log" || true
+          docker compose -f docker-compose.admin-e2e.yml ps > "$LOG_DIR/ps.txt" || true
+          for s in web api meili db redis; do
+            docker compose -f docker-compose.admin-e2e.yml logs --no-color "$s" > "$LOG_DIR/$s.log" 2>/dev/null || true
+          done
+
+      - name: Upload compose logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-logs-shard-${{ matrix.shard }}
+          path: artifacts/playwright-shard-${{ matrix.shard }}/compose
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Smoke check web health
         working-directory: osakamenesu
         run: |

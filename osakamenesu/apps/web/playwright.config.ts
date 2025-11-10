@@ -41,7 +41,7 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.cjs',
   use: {
     baseURL: resolvedBaseURL,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     headless: true,
     httpCredentials: adminUser && adminPass
       ? {
