@@ -390,6 +390,8 @@ jobs:
       PLAYWRIGHT_TOTAL_SHARDS: 2
       PLAYWRIGHT_SHARD_INDEX: ${{ matrix.shard }}
       PLAYWRIGHT_WORKERS: 4
+      ADMIN_SOURCE_REPOSITORY: https://github.com/yusaku0324/kakeru.git
+      ADMIN_SOURCE_REF: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
