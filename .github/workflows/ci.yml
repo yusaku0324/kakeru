@@ -507,7 +507,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-shard-${{ matrix.shard }}
-          path: artifacts/playwright-shard-${{ matrix.shard }}/test-results
+          path: artifacts/playwright-shard-${{ matrix.shard }}
           if-no-files-found: ignore
           retention-days: 7
 
