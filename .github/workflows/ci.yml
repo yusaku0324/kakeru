@@ -380,14 +380,14 @@ jobs:
         working-directory: osakamenesu
         run: |
           set -euo pipefail
-          cat <<'EOF' > .env.admin-e2e
-POSTGRES_USER=${{ secrets.ADMIN_POSTGRES_USER || 'app' }}
-POSTGRES_PASSWORD=${{ secrets.ADMIN_POSTGRES_PASSWORD || 'app' }}
-ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY }}
-TEST_AUTH_SECRET=${{ secrets.TEST_AUTH_SECRET }}
-E2E_TEST_AUTH_SECRET=${{ secrets.E2E_TEST_AUTH_SECRET }}
-MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}
-EOF
+          printf "%s\n" \
+            "POSTGRES_USER=${{ secrets.ADMIN_POSTGRES_USER || 'app' }}" \
+            "POSTGRES_PASSWORD=${{ secrets.ADMIN_POSTGRES_PASSWORD || 'app' }}" \
+            "ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY }}" \
+            "TEST_AUTH_SECRET=${{ secrets.TEST_AUTH_SECRET }}" \
+            "E2E_TEST_AUTH_SECRET=${{ secrets.E2E_TEST_AUTH_SECRET }}" \
+            "MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}" \
+            > .env.admin-e2e
           for key in POSTGRES_USER POSTGRES_PASSWORD ADMIN_API_KEY TEST_AUTH_SECRET E2E_TEST_AUTH_SECRET MEILI_MASTER_KEY; do
             if ! grep -q "^${key}=" .env.admin-e2e; then
               echo "::error::${key} missing from env file" >&2
