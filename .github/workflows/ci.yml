@@ -377,6 +377,10 @@ jobs:
       - build-api-image
       - build-web-image
       - build-e2e-image
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     runs-on: ubuntu-latest
     env:
       ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
@@ -386,6 +390,9 @@ jobs:
       ADMIN_WEB_IMAGE: osakamenesu-web:ci-${{ github.sha }}
       ADMIN_API_IMAGE: osakamenesu-api:ci-${{ github.sha }}
       ADMIN_E2E_IMAGE: osakamenesu-e2e-runner:ci-${{ github.sha }}
+      PLAYWRIGHT_TOTAL_SHARDS: 2
+      PLAYWRIGHT_SHARD_INDEX: ${{ matrix.shard }}
+      PLAYWRIGHT_WORKERS: 4
     steps:
       - uses: actions/checkout@v4
 
@@ -462,7 +469,19 @@ jobs:
         working-directory: osakamenesu
         env:
           DOCKER_BUILDKIT: 1
-        run: docker compose -f docker-compose.admin-e2e.yml up --abort-on-container-exit --exit-code-from e2e --no-build e2e
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.admin-e2e.yml up \
+            --abort-on-container-exit \
+            --exit-code-from e2e \
+            --no-build \
+            e2e || FAILURE=$?
+          echo "::group::Playwright logs (shard ${{ matrix.shard }})"
+          docker compose -f docker-compose.admin-e2e.yml logs e2e
+          echo "::endgroup::"
+          if [ -n "${FAILURE:-}" ]; then
+            exit "${FAILURE}"
+          fi
 
       - name: Smoke check web health
         working-directory: osakamenesu
