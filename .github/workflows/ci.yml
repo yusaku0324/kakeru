@@ -244,8 +244,8 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: docker/api.Dockerfile
+          context: ./osakamenesu
+          file: ./osakamenesu/docker/api.Dockerfile
           target: api-runtime
           tags: |
             ${{ env.API_IMAGE }}
@@ -289,8 +289,8 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: docker/web.Dockerfile
+          context: ./osakamenesu
+          file: ./osakamenesu/docker/web.Dockerfile
           tags: |
             ${{ env.WEB_IMAGE }}
             ${{ env.WEB_CI_IMAGE }}
@@ -333,8 +333,8 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: docker/e2e-runner.Dockerfile
+          context: ./osakamenesu
+          file: ./osakamenesu/docker/e2e-runner.Dockerfile
           tags: |
             ${{ env.E2E_IMAGE }}
             ${{ env.E2E_CI_IMAGE }}
