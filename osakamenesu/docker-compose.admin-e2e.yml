@@ -30,6 +30,7 @@ services:
     command: ["redis-server", "--save", "", "--appendonly", "no"]
 
   api:
+    platform: linux/amd64
     image: ${ADMIN_API_IMAGE:-ghcr.io/yusaku0324/osakamenesu-api:latest}
     env_file:
       - .env.admin-e2e
@@ -61,6 +62,7 @@ services:
       start_period: 180s
 
   web:
+    platform: linux/amd64
     image: ${ADMIN_WEB_IMAGE:-ghcr.io/yusaku0324/osakamenesu-web:latest}
     env_file:
       - .env.admin-e2e
