@@ -120,8 +120,6 @@ jobs:
         run: pytest -n auto app/tests -q
 
   integration-test:
-    needs:
-      - test
     runs-on: ubuntu-latest
     env:
       DOCKER_BUILDKIT: 1
@@ -217,7 +215,6 @@ jobs:
         run: pnpm --dir apps/web run lint
 
   build-api-image:
-    needs: []
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -272,7 +269,6 @@ jobs:
           echo "api_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
 
   build-web-image:
-    needs: []
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -325,11 +321,56 @@ jobs:
           echo "web_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
 
   build-e2e-image:
-    needs: []
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: osakamenesu
+    env:
+      DOCKER_BUILDKIT: 1
+      E2E_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-e2e-runner:${{ github.sha }}
+    outputs:
+      e2e_image: ${{ steps.build.outputs.e2e_image }}
+      e2e_pushed: ${{ steps.build.outputs.e2e_pushed }}
     steps:
-      - run: echo "Skipping e2e image build; using prebuilt runner"
-        shell: bash
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
+
+      - name: Build E2E runner image
+        id: build
+        run: |
+          PUSHED=false
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            docker buildx build \
+              --builder osakamenesu-builder \
+              --cache-from=type=gha,scope=e2e-runner \
+              --cache-to=type=gha,scope=e2e-runner,mode=max \
+              -t ${E2E_IMAGE} \
+              -f docker/e2e-runner.Dockerfile \
+              . \
+              --push
+            PUSHED=true
+          else
+            docker buildx build \
+              --builder osakamenesu-builder \
+              --cache-from=type=gha,scope=e2e-runner \
+              --cache-to=type=gha,scope=e2e-runner,mode=max \
+              -t osakamenesu-e2e-runner \
+              -f docker/e2e-runner.Dockerfile \
+              . \
+              --load
+          fi
+          echo "e2e_image=${E2E_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "e2e_pushed=$PUSHED" >> "$GITHUB_OUTPUT"
 
   admin-e2e:
     needs:
@@ -342,12 +383,9 @@ jobs:
       TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
       E2E_TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
       MEILI_MASTER_KEY: ${{ secrets.MEILI_MASTER_KEY }}
-      ADMIN_WEB_IMAGE: ${{ needs.build-web-image.outputs.web_image }}
-      ADMIN_API_IMAGE: ${{ needs.build-api-image.outputs.api_image }}
-      ADMIN_E2E_IMAGE: ${{ needs.build-e2e-image.outputs.e2e_image }}
-      ADMIN_WEB_PUSHED: ${{ needs.build-web-image.outputs.web_pushed }}
-      ADMIN_API_PUSHED: ${{ needs.build-api-image.outputs.api_pushed }}
-      ADMIN_E2E_PUSHED: ${{ needs.build-e2e-image.outputs.e2e_pushed }}
+      ADMIN_WEB_IMAGE: osakamenesu-web:ci-${{ github.sha }}
+      ADMIN_API_IMAGE: osakamenesu-api:ci-${{ github.sha }}
+      ADMIN_E2E_IMAGE: osakamenesu-e2e-runner:ci-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -374,35 +412,66 @@ jobs:
             exit 1
           fi
           doppler secrets download --project osakamenesu --config ${DOPPLER_CONFIG:-stg} --format env-no-quotes --no-file --no-fallback > .env.admin-e2e
-
-      - name: Prepare images for admin E2E
-        working-directory: osakamenesu
-        env:
-          ADMIN_WEB_PUSHED: ${{ needs.build-web-image.outputs.web_pushed }}
-          ADMIN_API_PUSHED: ${{ needs.build-api-image.outputs.api_pushed }}
-          ADMIN_E2E_PUSHED: ${{ needs.build-e2e-image.outputs.e2e_pushed }}
-        run: |
-          if [ "$ADMIN_WEB_PUSHED" = "true" ] && [ "$ADMIN_API_PUSHED" = "true" ] && [ "$ADMIN_E2E_PUSHED" = "true" ]; then
-            docker compose -f docker-compose.admin-e2e.yml pull
-          else
-            docker compose -f docker-compose.admin-e2e.yml build api web e2e
+          if [ -n "${{ secrets.ADMIN_API_KEY }}" ]; then
+            printf '\nADMIN_API_KEY=%s\n' "${{ secrets.ADMIN_API_KEY }}" >> .env.admin-e2e
           fi
+
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx create --driver docker-container --driver-opt network=host --use --name admin-e2e-builder || docker buildx use admin-e2e-builder
+
+      - name: Load admin runtime images locally
+        working-directory: osakamenesu
+        run: |
+          set -euo pipefail
+
+          docker buildx build \
+            --builder admin-e2e-builder \
+            --cache-from=type=gha,scope=api-runtime \
+            --cache-to=type=gha,scope=api-runtime,mode=max \
+            -t "${ADMIN_API_IMAGE}" \
+            -f docker/api.Dockerfile \
+            --target api-runtime \
+            . \
+            --load
+
+          docker buildx build \
+            --builder admin-e2e-builder \
+            --cache-from=type=gha,scope=web-runtime \
+            --cache-to=type=gha,scope=web-runtime,mode=max \
+            -t "${ADMIN_WEB_IMAGE}" \
+            -f docker/web.Dockerfile \
+            --target runner \
+            --build-arg NEXT_PUBLIC_OSAKAMENESU_API_BASE=http://api:8000 \
+            --build-arg NEXT_PUBLIC_SITE_URL=http://web:3000 \
+            --build-arg FAVORITES_API_MODE=real \
+            --build-arg NEXT_PUBLIC_FAVORITES_API_MODE=real \
+            . \
+            --load
+
+          docker buildx build \
+            --builder admin-e2e-builder \
+            --cache-from=type=gha,scope=e2e-runner \
+            --cache-to=type=gha,scope=e2e-runner,mode=max \
+            -t "${ADMIN_E2E_IMAGE}" \
+            -f docker/e2e-runner.Dockerfile \
+            . \
+            --load
 
       - name: Run admin E2E via docker-compose
         working-directory: osakamenesu
         env:
           DOCKER_BUILDKIT: 1
-          ADMIN_WEB_IMAGE: ${{ needs.build-web-image.outputs.web_image }}
-          ADMIN_API_IMAGE: ${{ needs.build-api-image.outputs.api_image }}
-          ADMIN_E2E_IMAGE: ${{ needs.build-e2e-image.outputs.e2e_image }}
-        run: docker compose -f docker-compose.admin-e2e.yml up --abort-on-container-exit e2e
+        run: docker compose -f docker-compose.admin-e2e.yml up --abort-on-container-exit --exit-code-from e2e --no-build e2e
+
+      - name: Smoke check web health
+        working-directory: osakamenesu
+        run: |
+          curl -fsS http://localhost:3000/ > /dev/null
 
       - name: Teardown admin e2e stack
         if: always()
         working-directory: osakamenesu
-        env:
-          ADMIN_WEB_IMAGE: ${{ needs.build-web-image.outputs.web_image }}
-          ADMIN_API_IMAGE: ${{ needs.build-api-image.outputs.api_image }}
         run: docker compose -f docker-compose.admin-e2e.yml down -v
 
   deploy:

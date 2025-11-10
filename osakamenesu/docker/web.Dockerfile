@@ -17,19 +17,15 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store/v3 pnpm install --of
 
 FROM install AS builder
 COPY apps/web .
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store/v3 pnpm run build
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store/v3 \
+    --mount=type=cache,target=/app/apps/web/.next/cache \
+    pnpm run build
 
 FROM base AS runner
-ENV NODE_ENV=production
-WORKDIR /app/apps/web
-COPY apps/web/pnpm-lock.yaml apps/web/package.json ./
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store/v3 pnpm fetch
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store/v3 pnpm install --offline --frozen-lockfile --prod
-COPY --from=builder /app/apps/web/.next ./.next
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
+WORKDIR /app
+COPY --from=builder /app/apps/web/.next/standalone ./
+COPY --from=builder /app/apps/web/.next/static ./.next/static
 COPY --from=builder /app/apps/web/public ./public
-COPY --from=builder /app/apps/web/next.config.ts ./next.config.ts
-COPY --from=builder /app/apps/web/tailwind.config.ts ./tailwind.config.ts
-COPY --from=builder /app/apps/web/postcss.config.js ./postcss.config.js
-COPY --from=builder /app/apps/web/src ./src
-EXPOSE 8080
-CMD ["sh","-c","pnpm run start -- -p ${PORT:-8080} --hostname 0.0.0.0"]
+EXPOSE 3000
+CMD ["node", "server.js"]

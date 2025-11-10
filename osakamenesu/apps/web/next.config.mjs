@@ -1,5 +1,3 @@
-import type { NextConfig } from 'next'
-
 const INTERNAL_API_BASE =
   process.env.OSAKAMENESU_API_INTERNAL_BASE ||
   process.env.API_INTERNAL_BASE ||
@@ -7,13 +5,14 @@ const INTERNAL_API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
   'http://osakamenesu-api:8000'
 
-const normalizeBase = (base: string) => base.replace(/\/$/, '')
+const normalizeBase = (base) => base.replace(/\/$/, '')
 
 const enableCacheComponents = false
 
 if (!process.env.NEXT_DISABLE_REACT_COMPILER) {
   process.env.NEXT_DISABLE_REACT_COMPILER = '1'
 }
+
 const enableReactCompiler = process.env.NEXT_DISABLE_REACT_COMPILER === '1' ? false : true
 
 if (!process.env.NEXT_PUBLIC_ADMIN_BASIC_AUTH && process.env.ADMIN_BASIC_USER && process.env.ADMIN_BASIC_PASS) {
@@ -25,7 +24,9 @@ if (!process.env.NEXT_PUBLIC_ADMIN_API_KEY && process.env.ADMIN_API_KEY) {
   process.env.NEXT_PUBLIC_ADMIN_API_KEY = process.env.ADMIN_API_KEY
 }
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'standalone',
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'picsum.photos' },

@@ -26,27 +26,14 @@ ENV FAVORITES_API_MODE=$FAVORITES_API_MODE
 ENV NEXT_PUBLIC_FAVORITES_API_MODE=$NEXT_PUBLIC_FAVORITES_API_MODE
 COPY . .
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store/v3 \
+    --mount=type=cache,target=/app/.next/cache \
     pnpm run build
 
 FROM base AS runner
-ARG NEXT_PUBLIC_OSAKAMENESU_API_BASE
-ARG NEXT_PUBLIC_SITE_URL
-ARG FAVORITES_API_MODE
-ARG NEXT_PUBLIC_FAVORITES_API_MODE
-ENV NODE_ENV=production
-ENV NEXT_PUBLIC_OSAKAMENESU_API_BASE=$NEXT_PUBLIC_OSAKAMENESU_API_BASE
-ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
-ENV FAVORITES_API_MODE=$FAVORITES_API_MODE
-ENV NEXT_PUBLIC_FAVORITES_API_MODE=$NEXT_PUBLIC_FAVORITES_API_MODE
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store/v3 \
-    pnpm install --frozen-lockfile --prod
-COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.ts ./
-COPY --from=builder /app/tailwind.config.ts ./
-COPY --from=builder /app/postcss.config.js ./
-COPY --from=builder /app/src ./src
-EXPOSE 8080
-CMD ["sh","-c","pnpm run start -- -p ${PORT:-8080} --hostname 0.0.0.0"]
+EXPOSE 3000
+CMD ["node","server.js"]

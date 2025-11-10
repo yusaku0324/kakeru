@@ -16,6 +16,27 @@ tasks:
     cmds:
       - docker run --rm -it -p 8000:8000 kakeru:dev
 
+  web-smoke:
+    desc: "build web runtime and smoke-test via curl"
+    dir: osakamenesu
+    cmds:
+      - docker build -f docker/web.Dockerfile --target runner -t osakamenesu-web:smoke .
+      - docker run -d --rm --name osakamenesu-web-smoke -p 3000:3000 osakamenesu-web:smoke
+      - |
+        for i in {1..30}; do
+          if curl -fsS http://localhost:3000/ >/dev/null; then
+            echo "✅ web smoke test passed"
+            break
+          fi
+          sleep 2
+          if [ "$i" -eq 30 ]; then
+            echo "❌ web smoke test failed" >&2
+            docker logs osakamenesu-web-smoke || true
+            exit 1
+          fi
+        done
+      - docker stop osakamenesu-web-smoke
+
   push:
     desc: "docker push image to GHCR"
     deps: [login]
