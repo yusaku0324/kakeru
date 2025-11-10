@@ -428,6 +428,12 @@ jobs:
             exit 1
           fi
 
+      - name: Start admin stack (db/meili/redis/api/web)
+        working-directory: osakamenesu
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.admin-e2e.yml up -d db meili redis api web
+
       - name: Run admin E2E via docker-compose
         working-directory: osakamenesu
         env:
@@ -435,6 +441,7 @@ jobs:
         run: |
           set -euo pipefail
           docker compose -f docker-compose.admin-e2e.yml up \
+            --no-deps \
             --abort-on-container-exit \
             --exit-code-from e2e \
             --no-build \
