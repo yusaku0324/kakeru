@@ -419,8 +419,9 @@ jobs:
             exit 1
           fi
           doppler secrets download --project osakamenesu --config ${DOPPLER_CONFIG:-stg} --format env-no-quotes --no-file --no-fallback > .env.admin-e2e
-          if [ -n "${{ secrets.ADMIN_API_KEY }}" ]; then
-            printf '\nADMIN_API_KEY=%s\n' "${{ secrets.ADMIN_API_KEY }}" >> .env.admin-e2e
+          MEILI_FROM_DOPPLER=$(grep '^MEILI_MASTER_KEY=' .env.admin-e2e || true)
+          if [ -z "$MEILI_FROM_DOPPLER" ] && [ -n "${{ secrets.MEILI_MASTER_KEY }}" ]; then
+            printf 'MEILI_MASTER_KEY=%s\n' "${{ secrets.MEILI_MASTER_KEY }}" >> .env.admin-e2e
           fi
 
       - name: Set up Docker Buildx
