@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 cd /workspace
-corepack enable
 pnpm install
 cd apps/web
 for i in {1..60}; do
