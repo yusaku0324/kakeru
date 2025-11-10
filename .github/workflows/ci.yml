@@ -126,6 +126,8 @@ jobs:
       DOCKER_BUILDKIT: 1
       COMPOSE_DOCKER_CLI_BUILD: 1
       CACHE_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api-test-cache
+      DOCKER_BUILD_CLOUD_ID: ${{ secrets.DOCKER_BUILD_CLOUD_ID }}
+      DOCKER_BUILD_CLOUD_TOKEN: ${{ secrets.DOCKER_BUILD_CLOUD_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -167,6 +169,7 @@ jobs:
           tags: osakamenesu-api-test
           push: false
           load: true
+          builder: cloud
           cache-from: type=gha,scope=api-test
           cache-to: type=gha,scope=api-test,mode=max
 
@@ -223,6 +226,8 @@ jobs:
       DOCKER_BUILDKIT: 1
       API_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:${{ github.sha }}
       API_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:ci-${{ github.sha }}
+      DOCKER_BUILD_CLOUD_ID: ${{ secrets.DOCKER_BUILD_CLOUD_ID }}
+      DOCKER_BUILD_CLOUD_TOKEN: ${{ secrets.DOCKER_BUILD_CLOUD_TOKEN }}
     outputs:
       api_image: ${{ steps.set_api_image.outputs.api_image }}
       api_pushed: ${{ steps.set_api_image.outputs.api_pushed }}
@@ -250,6 +255,7 @@ jobs:
           tags: |
             ${{ env.API_IMAGE }}
             ${{ env.API_CI_IMAGE }}
+          builder: cloud
           push: true
           cache-from: type=gha,scope=api-runtime
           cache-to: type=gha,scope=api-runtime,mode=max
@@ -268,6 +274,8 @@ jobs:
       DOCKER_BUILDKIT: 1
       WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:${{ github.sha }}
       WEB_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:ci-${{ github.sha }}
+      DOCKER_BUILD_CLOUD_ID: ${{ secrets.DOCKER_BUILD_CLOUD_ID }}
+      DOCKER_BUILD_CLOUD_TOKEN: ${{ secrets.DOCKER_BUILD_CLOUD_TOKEN }}
     outputs:
       web_image: ${{ steps.set_web_image.outputs.web_image }}
       web_pushed: ${{ steps.set_web_image.outputs.web_pushed }}
@@ -294,6 +302,7 @@ jobs:
           tags: |
             ${{ env.WEB_IMAGE }}
             ${{ env.WEB_CI_IMAGE }}
+          builder: cloud
           push: true
           cache-from: type=gha,scope=web-runtime
           cache-to: type=gha,scope=web-runtime,mode=max
@@ -312,6 +321,8 @@ jobs:
       DOCKER_BUILDKIT: 1
       E2E_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-e2e-runner:${{ github.sha }}
       E2E_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-e2e-runner:ci-${{ github.sha }}
+      DOCKER_BUILD_CLOUD_ID: ${{ secrets.DOCKER_BUILD_CLOUD_ID }}
+      DOCKER_BUILD_CLOUD_TOKEN: ${{ secrets.DOCKER_BUILD_CLOUD_TOKEN }}
     outputs:
       e2e_image: ${{ steps.set_e2e_image.outputs.e2e_image }}
       e2e_pushed: ${{ steps.set_e2e_image.outputs.e2e_pushed }}
@@ -338,6 +349,7 @@ jobs:
           tags: |
             ${{ env.E2E_IMAGE }}
             ${{ env.E2E_CI_IMAGE }}
+          builder: cloud
           push: true
           cache-from: type=gha,scope=e2e-runner
           cache-to: type=gha,scope=e2e-runner,mode=max
