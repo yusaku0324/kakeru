@@ -160,16 +160,16 @@ jobs:
 
       - name: Build api-test image with cache
         working-directory: osakamenesu
-        run: |
-          docker buildx build \
-            --builder osakamenesu-builder \
-            --cache-from=type=registry,ref=${CACHE_IMAGE} \
-            --cache-to=type=registry,ref=${CACHE_IMAGE},mode=max \
-            -t osakamenesu-api-test \
-            -f docker/api.Dockerfile \
-            --target api-test \
-            . \
-            --load
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          target: api-test
+          tags: osakamenesu-api-test
+          push: false
+          load: true
+          cache-from: type=gha,scope=api-test
+          cache-to: type=gha,scope=api-test,mode=max
 
       - name: Run docker-compose integration tests
         working-directory: osakamenesu
@@ -243,17 +243,19 @@ jobs:
 
       - name: Build API runtime image
         id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          target: api-runtime
+          tags: |
+            ${API_IMAGE}
+            ${API_CI_IMAGE}
+          push: true
+          cache-from: type=gha,scope=api-runtime
+          cache-to: type=gha,scope=api-runtime,mode=max
+      - name: Set API image outputs
         run: |
-          docker buildx build \
-            --builder osakamenesu-builder \
-            --cache-from=type=gha,scope=api-runtime \
-            --cache-to=type=gha,scope=api-runtime,mode=max \
-            -t ${API_IMAGE} \
-            -t ${API_CI_IMAGE} \
-            -f docker/api.Dockerfile \
-            --target api-runtime \
-            . \
-            --push
           echo "api_image=${API_CI_IMAGE}" >> "$GITHUB_OUTPUT"
           echo "api_pushed=true" >> "$GITHUB_OUTPUT"
 
@@ -285,16 +287,18 @@ jobs:
 
       - name: Build web runtime image
         id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/web.Dockerfile
+          tags: |
+            ${WEB_IMAGE}
+            ${WEB_CI_IMAGE}
+          push: true
+          cache-from: type=gha,scope=web-runtime
+          cache-to: type=gha,scope=web-runtime,mode=max
+      - name: Set web image outputs
         run: |
-          docker buildx build \
-            --builder osakamenesu-builder \
-            --cache-from=type=gha,scope=web-runtime \
-            --cache-to=type=gha,scope=web-runtime,mode=max \
-            -t ${WEB_IMAGE} \
-            -t ${WEB_CI_IMAGE} \
-            -f docker/web.Dockerfile \
-            . \
-            --push
           echo "web_image=${WEB_CI_IMAGE}" >> "$GITHUB_OUTPUT"
           echo "web_pushed=true" >> "$GITHUB_OUTPUT"
 
@@ -326,16 +330,18 @@ jobs:
 
       - name: Build E2E runner image
         id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/e2e-runner.Dockerfile
+          tags: |
+            ${E2E_IMAGE}
+            ${E2E_CI_IMAGE}
+          push: true
+          cache-from: type=gha,scope=e2e-runner
+          cache-to: type=gha,scope=e2e-runner,mode=max
+      - name: Set E2E image outputs
         run: |
-          docker buildx build \
-            --builder osakamenesu-builder \
-            --cache-from=type=gha,scope=e2e-runner \
-            --cache-to=type=gha,scope=e2e-runner,mode=max \
-            -t ${E2E_IMAGE} \
-            -t ${E2E_CI_IMAGE} \
-            -f docker/e2e-runner.Dockerfile \
-            . \
-            --push
           echo "e2e_image=${E2E_CI_IMAGE}" >> "$GITHUB_OUTPUT"
           echo "e2e_pushed=true" >> "$GITHUB_OUTPUT"
 
