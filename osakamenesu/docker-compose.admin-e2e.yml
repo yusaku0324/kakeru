@@ -59,8 +59,8 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8000/healthz >/dev/null || exit 1"]
       interval: 5s
       timeout: 2s
-      retries: 40
-      start_period: 120s
+      retries: 50
+      start_period: 180s
 
   web:
     image: ${ADMIN_WEB_IMAGE:-osakamenesu-admin-web:latest}
