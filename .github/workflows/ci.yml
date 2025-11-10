@@ -384,10 +384,6 @@ jobs:
         shard: [1, 2]
     runs-on: ubuntu-latest
     env:
-      ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-      TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
-      E2E_TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
-      MEILI_MASTER_KEY: ${{ secrets.MEILI_MASTER_KEY }}
       ADMIN_WEB_IMAGE: osakamenesu-web:ci-${{ github.sha }}
       ADMIN_API_IMAGE: osakamenesu-api:ci-${{ github.sha }}
       ADMIN_E2E_IMAGE: osakamenesu-e2e-runner:ci-${{ github.sha }}
@@ -420,10 +416,6 @@ jobs:
             exit 1
           fi
           doppler secrets download --project osakamenesu --config ${DOPPLER_CONFIG:-stg} --format env-no-quotes --no-file --no-fallback > .env.admin-e2e
-          MEILI_FROM_DOPPLER=$(grep '^MEILI_MASTER_KEY=' .env.admin-e2e || true)
-          if [ -z "$MEILI_FROM_DOPPLER" ] && [ -n "${{ secrets.MEILI_MASTER_KEY }}" ]; then
-            printf 'MEILI_MASTER_KEY=%s\n' "${{ secrets.MEILI_MASTER_KEY }}" >> .env.admin-e2e
-          fi
 
       - name: Set up Docker Buildx
         run: |
