@@ -381,13 +381,13 @@ jobs:
         run: |
           set -euo pipefail
           cat <<'EOF' > .env.admin-e2e
-POSTGRES_USER=${{ secrets.ADMIN_POSTGRES_USER }}
-POSTGRES_PASSWORD=${{ secrets.ADMIN_POSTGRES_PASSWORD }}
-ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY }}
-TEST_AUTH_SECRET=${{ secrets.TEST_AUTH_SECRET }}
-E2E_TEST_AUTH_SECRET=${{ secrets.E2E_TEST_AUTH_SECRET }}
-MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}
-EOF
+            POSTGRES_USER=${{ secrets.ADMIN_POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.ADMIN_POSTGRES_PASSWORD }}
+            ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY }}
+            TEST_AUTH_SECRET=${{ secrets.TEST_AUTH_SECRET }}
+            E2E_TEST_AUTH_SECRET=${{ secrets.E2E_TEST_AUTH_SECRET }}
+            MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}
+          EOF
           if grep -q "=\s*$" .env.admin-e2e; then
             echo "::error::One or more admin env secrets are empty" >&2
             cat .env.admin-e2e
