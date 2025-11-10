@@ -381,18 +381,24 @@ jobs:
         run: |
           set -euo pipefail
           cat <<'EOF' > .env.admin-e2e
-            POSTGRES_USER=${{ secrets.ADMIN_POSTGRES_USER }}
-            POSTGRES_PASSWORD=${{ secrets.ADMIN_POSTGRES_PASSWORD }}
+            POSTGRES_USER=${{ secrets.ADMIN_POSTGRES_USER || 'app' }}
+            POSTGRES_PASSWORD=${{ secrets.ADMIN_POSTGRES_PASSWORD || 'app' }}
             ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY }}
             TEST_AUTH_SECRET=${{ secrets.TEST_AUTH_SECRET }}
             E2E_TEST_AUTH_SECRET=${{ secrets.E2E_TEST_AUTH_SECRET }}
             MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}
           EOF
-          if grep -q "=\s*$" .env.admin-e2e; then
-            echo "::error::One or more admin env secrets are empty" >&2
-            cat .env.admin-e2e
-            exit 1
-          fi
+          for key in POSTGRES_USER POSTGRES_PASSWORD ADMIN_API_KEY TEST_AUTH_SECRET E2E_TEST_AUTH_SECRET MEILI_MASTER_KEY; do
+            if ! grep -q "^${key}=" .env.admin-e2e; then
+              echo "::error::${key} missing from env file" >&2
+              exit 1
+            fi
+            value=$(grep "^${key}=" .env.admin-e2e | tail -n1 | cut -d= -f2-)
+            if [ -z "${value}" ]; then
+              echo "::error::${key} is empty" >&2
+              exit 1
+            fi
+          done
 
       - name: Pull admin runtime images
         working-directory: osakamenesu
