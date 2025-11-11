@@ -136,23 +136,20 @@ jobs:
           username: yusaku0324
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Install Doppler CLI
-        run: |
-          curl -Ls https://cli.doppler.com/install.sh | sudo sh
-          echo "$HOME/.doppler/bin" >> "$GITHUB_PATH"
-
-      - name: Export integration secrets via Doppler
+      - name: Write integration env file from secrets
         working-directory: osakamenesu
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-          DOPPLER_CONFIG: stg
         run: |
-          if [ -z "${DOPPLER_TOKEN:-}" ]; then
-            echo '::error::DOPPLER_TOKEN is not set' >&2
-            exit 1
-          fi
-          MEILI_MASTER_KEY=$(doppler secrets get MEILI_MASTER_KEY --project osakamenesu --config "${DOPPLER_CONFIG}" --plain)
-          echo "MEILI_MASTER_KEY=$MEILI_MASTER_KEY" >> "$GITHUB_ENV"
+          set -euo pipefail
+          printf "%s\n" \
+            "MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}" \
+            "MEILI_HOST=${{ secrets.INTEGRATION_MEILI_HOST || 'http://127.0.0.1:7700' }}" \
+            "DATABASE_URL=${{ secrets.INTEGRATION_DATABASE_URL || 'postgresql+asyncpg://app:app@osakamenesu-db:5432/osaka_menesu' }}" \
+            "ASYNC_WORKER_TOKEN=${{ secrets.ASYNC_WORKER_TOKEN || '' }}" \
+            > .env.integration
+          printf "%s\n" \
+            "MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}" \
+            "MEILI_HOST=${{ secrets.INTEGRATION_MEILI_HOST || 'http://127.0.0.1:7700' }}" \
+            > "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         run: |
