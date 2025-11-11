@@ -151,6 +151,20 @@ jobs:
             "MEILI_HOST=${{ secrets.INTEGRATION_MEILI_HOST || 'http://127.0.0.1:7700' }}" \
             > "$GITHUB_ENV"
 
+      - name: Inspect integration env (masked)
+        if: always()
+        working-directory: osakamenesu
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            key="${line%%=*}"
+            value="${line#*=}"
+            if [ -n "$value" ]; then
+              echo "::add-mask::$value"
+            fi
+            echo "$key=***"
+          done < .env.integration
+
       - name: Set up Docker Buildx
         run: |
           docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
