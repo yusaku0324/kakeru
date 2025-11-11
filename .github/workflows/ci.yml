@@ -165,6 +165,14 @@ jobs:
             echo "$key=***"
           done < .env.integration
 
+      - name: Upload integration env artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-env
+          path: osakamenesu/.env.integration
+          retention-days: 1
+
       - name: Set up Docker Buildx
         run: |
           docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
