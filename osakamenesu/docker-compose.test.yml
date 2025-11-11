@@ -5,6 +5,8 @@ services:
     image: postgres:16
     env_file:
       - .env.integration
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-osaka_menesu}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app"]
       interval: 3s
