@@ -143,7 +143,7 @@ jobs:
           printf "%s\n" \
             "MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}" \
             "MEILI_HOST=${{ secrets.INTEGRATION_MEILI_HOST || 'http://127.0.0.1:7700' }}" \
-            "DATABASE_URL=${{ secrets.INTEGRATION_DATABASE_URL || 'postgresql+asyncpg://app:app@osakamenesu-db:5432/osaka_menesu' }}" \
+            "DATABASE_URL=${{ secrets.INTEGRATION_DATABASE_URL || 'postgresql+asyncpg://app:app@db:5432/osaka_menesu' }}" \
             "ASYNC_WORKER_TOKEN=${{ secrets.ASYNC_WORKER_TOKEN || '' }}" \
             > .env.integration
           printf "%s\n" \
