@@ -5,10 +5,6 @@ services:
     image: postgres:16
     env_file:
       - .env.integration
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
-      POSTGRES_DB: ${POSTGRES_DB:-osaka_menesu}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app"]
       interval: 3s
@@ -19,8 +15,6 @@ services:
     image: getmeili/meilisearch:v1.11
     env_file:
       - .env.integration
-    environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
     command: ["meilisearch", "--http-addr", "0.0.0.0:7700"]
 
   api-test:
@@ -31,11 +25,6 @@ services:
       target: api-test
     env_file:
       - .env.integration
-    environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://app:app@db:5432/osaka_menesu}
-      MEILI_HOST: ${MEILI_HOST:-http://meili:7700}
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
-      ADMIN_API_KEY: ${ADMIN_API_KEY:-dev_admin_key}
     depends_on:
       db:
         condition: service_healthy

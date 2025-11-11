@@ -144,6 +144,10 @@ jobs:
             "MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}" \
             "MEILI_HOST=${{ secrets.INTEGRATION_MEILI_HOST || 'http://meili:7700' }}" \
             "DATABASE_URL=${{ secrets.INTEGRATION_DATABASE_URL || 'postgresql+asyncpg://app:app@db:5432/osaka_menesu' }}" \
+            "POSTGRES_USER=${{ secrets.POSTGRES_USER || 'app' }}" \
+            "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'app' }}" \
+            "POSTGRES_DB=${{ secrets.POSTGRES_DB || 'osaka_menesu' }}" \
+            "ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY || 'dev_admin_key' }}" \
             "ASYNC_WORKER_TOKEN=${{ secrets.ASYNC_WORKER_TOKEN || '' }}" \
             > .env.integration
           printf "%s\n" \
