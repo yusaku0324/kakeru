@@ -387,6 +387,9 @@ jobs:
             "TEST_AUTH_SECRET=${{ secrets.TEST_AUTH_SECRET }}" \
             "E2E_TEST_AUTH_SECRET=${{ secrets.E2E_TEST_AUTH_SECRET }}" \
             "MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}" \
+            "E2E_SITE_COOKIE=${{ secrets.E2E_SITE_COOKIE || '' }}" \
+            "E2E_TEST_AUTH_EMAIL=${{ secrets.E2E_TEST_AUTH_EMAIL || '' }}" \
+            "E2E_TEST_AUTH_DISPLAY_NAME=${{ secrets.E2E_TEST_AUTH_DISPLAY_NAME || '' }}" \
             > .env.admin-e2e
           for key in POSTGRES_USER POSTGRES_PASSWORD ADMIN_API_KEY TEST_AUTH_SECRET E2E_TEST_AUTH_SECRET MEILI_MASTER_KEY; do
             if ! grep -q "^${key}=" .env.admin-e2e; then
