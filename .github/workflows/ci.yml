@@ -142,13 +142,13 @@ jobs:
           set -euo pipefail
           printf "%s\n" \
             "MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}" \
-            "MEILI_HOST=${{ secrets.INTEGRATION_MEILI_HOST || 'http://127.0.0.1:7700' }}" \
+            "MEILI_HOST=${{ secrets.INTEGRATION_MEILI_HOST || 'http://meili:7700' }}" \
             "DATABASE_URL=${{ secrets.INTEGRATION_DATABASE_URL || 'postgresql+asyncpg://app:app@db:5432/osaka_menesu' }}" \
             "ASYNC_WORKER_TOKEN=${{ secrets.ASYNC_WORKER_TOKEN || '' }}" \
             > .env.integration
           printf "%s\n" \
             "MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}" \
-            "MEILI_HOST=${{ secrets.INTEGRATION_MEILI_HOST || 'http://127.0.0.1:7700' }}" \
+            "MEILI_HOST=${{ secrets.INTEGRATION_MEILI_HOST || 'http://meili:7700' }}" \
             > "$GITHUB_ENV"
 
       - name: Inspect integration env (masked)
