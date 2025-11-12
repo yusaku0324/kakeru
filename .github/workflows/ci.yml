@@ -425,9 +425,6 @@ jobs:
             NEXT_PUBLIC_SITE_URL
             FAVORITES_API_MODE
             NEXT_PUBLIC_FAVORITES_API_MODE
-            E2E_BASE_URL
-            E2E_API_BASE
-            E2E_SITE_COOKIE
           )
           for key in "${required_keys[@]}"; do
             if ! grep -q "^${key}=" .env.admin-e2e; then
