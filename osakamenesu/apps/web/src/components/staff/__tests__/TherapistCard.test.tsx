@@ -32,7 +32,7 @@ vi.mock('next/link', () => ({
 
 vi.mock('next/image', () => ({
   __esModule: true,
-  default: (props: any) => <img {...props} alt={props.alt || ''} />,
+  default: (props: any) => <span data-next-image="true" {...props} />,
 }))
 
 const BASE_HIT: TherapistHit = {

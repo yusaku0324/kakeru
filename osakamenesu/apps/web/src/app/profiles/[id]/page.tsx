@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
 import type { Metadata } from 'next'
 import { createHash } from 'crypto'
 import Gallery from '@/components/Gallery'
@@ -16,7 +17,12 @@ import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
 import ShopReservationCardClient from './ShopReservationCardClient'
 
-type Props = { params: { id: string }; searchParams?: Record<string, string | string[] | undefined> }
+type Props = {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+const SITE_SESSION_COOKIE = process.env.SITE_SESSION_COOKIE_NAME || 'osakamenesu_session'
 
 type MediaImage = { url: string; kind?: string | null; caption?: string | null }
 type Contact = {
@@ -111,22 +117,26 @@ export type ShopDetail = {
   diaries?: DiaryEntry[] | null
 }
 
-async function fetchShop(id: string): Promise<ShopDetail> {
-  const targets = resolveApiBases()
-  const endpoint = `/api/v1/shops/${id}`
-
-  for (const base of targets) {
-    try {
-      const r = await fetch(buildApiUrl(base, endpoint), { cache: 'no-store' })
-      if (r.ok) return (await r.json()) as ShopDetail
-      if (r.status === 404) continue
-    } catch (error) {
-      // try next base
+async function fetchShop(id: string, preferApi = false): Promise<ShopDetail> {
+  if (preferApi) {
+    const targets = resolveApiBases()
+    const endpoint = `/api/v1/shops/${id}`
+    for (const base of targets) {
+      try {
+        const response = await fetch(buildApiUrl(base, endpoint), { cache: 'no-store' })
+        if (response.ok) {
+          return (await response.json()) as ShopDetail
+        }
+      } catch {
+        // try next base
+      }
     }
   }
 
   const fallback = SAMPLE_SHOPS.find((shop) => shop.id === id || shop.slug === id)
-  if (fallback) return convertSampleShop(fallback)
+  if (fallback) {
+    return convertSampleShop(fallback)
+  }
 
   notFound()
 }
@@ -292,7 +302,13 @@ function formatDayLabel(dateStr: string): string {
 }
 
 export default async function ProfilePage({ params, searchParams }: Props) {
-  const shop = await fetchShop(params.id)
+  const [resolvedParams, resolvedSearchParams = {}] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve(undefined),
+  ])
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get(SITE_SESSION_COOKIE)
+  const shop = await fetchShop(resolvedParams.id, Boolean(sessionCookie))
   const photos = uniquePhotos(shop.photos)
   const badges = shop.badges || []
   const contact = shop.contact || {}
@@ -302,8 +318,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const staff = Array.isArray(shop.staff) ? shop.staff : []
   const availability = shop.availability_calendar?.days || []
   const slotParamValue = (() => {
-    if (!searchParams) return undefined
-    const value = searchParams.slot
+    const value = resolvedSearchParams.slot
     if (Array.isArray(value)) return value[0]
     return value
   })()
@@ -324,8 +339,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     return null
   })()
 
-  const forceReviewsFetch = parseBooleanParam(searchParams?.force_reviews ?? null)
-  const allowDemoSubmission = parseBooleanParam(searchParams?.force_demo_submit ?? null)
+  const forceReviewsFetch = parseBooleanParam(resolvedSearchParams.force_reviews ?? null)
+  const allowDemoSubmission = parseBooleanParam(resolvedSearchParams.force_demo_submit ?? null)
 
   const firstOpenSlot = (() => {
     for (const day of availability) {
@@ -839,7 +854,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const shop = await fetchShop(params.id)
+  const { id } = await params
+  const shop = await fetchShop(id, false)
   const title = `${shop.name} - 大阪メンエス.com`
   const descParts = [shop.area, `${formatYen(shop.min_price)}〜${formatYen(shop.max_price)}`]
   if (shop.catch_copy) descParts.unshift(shop.catch_copy)

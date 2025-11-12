@@ -10,41 +10,45 @@ test('therapist card navigates to staff page and reservation can be sent', async
     await route.fulfill({ status: 201, body: JSON.stringify({ id: 'e2e-reservation' }) })
   })
 
-  await page.goto(`${baseURL}/search?force_samples=1`)
+  const staffSlug = 'sample-namba-resort'
+  const staffId = '11111111-1111-1111-8888-111111111111'
+  const staffUrlWithSamples = `${baseURL}/profiles/${staffSlug}/staff/${staffId}?force_samples=1&force_demo_submit=1`
+  await page.goto(staffUrlWithSamples)
+  await expect(page).toHaveURL(/force_samples=1/)
+  await page.waitForLoadState('load')
 
-  const therapistCards = page.getByTestId('therapist-card')
-  const cardCount = await therapistCards.count()
-  if (!cardCount) {
-    test.info().skip('セラピストカードが表示されなかったためスキップします（サンプルデータ未設定）')
-  }
-  const therapistCard = therapistCards.first()
-  await expect(therapistCard).toBeVisible()
+  const reserveButton = page.getByRole('button', { name: /の予約詳細を開く/ }).first()
 
-  const staffLink = therapistCard.locator('a').first()
-  const targetHref = await staffLink.getAttribute('href')
-  await expect(targetHref).toContain('/profiles/')
-  await expect(targetHref).toContain('/staff/')
+  await expect(reserveButton).toBeVisible({ timeout: 15000 })
+  await reserveButton.click()
 
-  await staffLink.click()
-  await expect(page).toHaveURL(/\/profiles\/.+\/staff\//)
-  await page.waitForLoadState('networkidle')
-  const currentStaffUrl = page.url()
-  const staffUrlWithOverride = currentStaffUrl.includes('?')
-    ? `${currentStaffUrl}&force_demo_submit=1`
-    : `${currentStaffUrl}?force_demo_submit=1`
-  await page.goto(staffUrlWithOverride)
-  await expect(page).toHaveURL(/force_demo_submit=1/)
-  await expect(page.getByText('WEB予約リクエスト')).toBeVisible({ timeout: 15000 })
+  const overlay = page.getByRole('dialog', { name: /の予約詳細/ }).first()
+  await expect(overlay).toBeVisible({ timeout: 15000 })
 
-  const nameField = page.getByPlaceholder('例: 山田 太郎')
+  await overlay.getByRole('button', { name: '空き状況・予約' }).click()
+
+  const slotButton = overlay.locator('[aria-label*="予約可"], [aria-label*="要確認"]').first()
+  await slotButton.click()
+
+  await expect(overlay.getByText(/第1候補/)).toBeVisible()
+
+  const formOpenButton = overlay
+    .getByRole('button', { name: /予約フォーム(へ|に)進む|予約フォームを開く/ })
+    .first()
+  await formOpenButton.click()
+
+  const formDialog = page.getByRole('dialog', { name: /の予約フォーム/ }).first()
+  await expect(formDialog).toBeVisible({ timeout: 15000 })
+
+  const nameField = formDialog.getByPlaceholder('例: 山田 太郎')
   await expect(nameField).toBeVisible()
   await nameField.fill('E2E テスター')
 
-  const phoneField = page.getByPlaceholder('090...')
+  const phoneField = formDialog.getByPlaceholder('090-1234-5678')
   await expect(phoneField).toBeVisible()
   await phoneField.fill('09012345678')
 
-  await page.getByRole('button', { name: '予約リクエストを送信' }).click()
+  await formDialog.getByRole('button', { name: '予約リクエストを送信' }).click()
 
   await expect(page.getByText('送信が完了しました。店舗からの折り返しをお待ちください。')).toBeVisible()
 })

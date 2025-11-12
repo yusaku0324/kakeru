@@ -15,6 +15,7 @@ export type DashboardNotificationChannelEmail = {
 export type DashboardNotificationChannelLine = {
   enabled: boolean
   token: string | null
+  webhook_url?: string | null
 }
 
 export type DashboardNotificationChannelSlack = {

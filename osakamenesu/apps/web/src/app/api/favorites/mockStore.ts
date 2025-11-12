@@ -89,6 +89,13 @@ export function removeMockFavorite(favorites: Map<string, FavoriteRecord>, thera
 }
 
 export function isMockFavoritesMode(): boolean {
+  const forced = (process.env.FAVORITES_E2E_MODE || '').toLowerCase()
+  if (forced === 'real') {
+    return false
+  }
+  if (forced === 'mock') {
+    return true
+  }
   const mode = (process.env.FAVORITES_API_MODE ||
     process.env.NEXT_PUBLIC_FAVORITES_API_MODE ||
     '').toLowerCase()

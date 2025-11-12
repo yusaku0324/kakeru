@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
 const ADMIN_KEY = process.env.ADMIN_API_KEY || process.env.OSAKAMENESU_ADMIN_API_KEY
 const PUBLIC_BASE = process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE || process.env.NEXT_PUBLIC_API_BASE || '/api'
@@ -64,10 +64,12 @@ async function proxy(method: 'GET' | 'PATCH', request: Request, params: { id: st
   return NextResponse.json({ detail: 'admin shop unavailable' }, { status: 503 })
 }
 
-export async function GET(request: Request, context: { params: { id: string } }) {
-  return proxy('GET', request, context.params)
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params
+  return proxy('GET', request, { id })
 }
 
-export async function PATCH(request: Request, context: { params: { id: string } }) {
-  return proxy('PATCH', request, context.params)
+export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params
+  return proxy('PATCH', request, { id })
 }

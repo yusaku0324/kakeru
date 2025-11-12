@@ -4,8 +4,8 @@ import { cookies } from 'next/headers'
 import { NotificationSettingsForm } from './NotificationSettingsForm'
 import { fetchDashboardNotificationSettings } from '@/lib/dashboard-notifications'
 
-function cookieHeaderFromStore(): string | undefined {
-  const store = cookies()
+async function cookieHeaderFromStore(): Promise<string | undefined> {
+  const store = await cookies()
   const entries = store.getAll()
   if (!entries.length) {
     return undefined
@@ -19,10 +19,11 @@ export const revalidate = 0
 export default async function DashboardNotificationsPage({
   params,
 }: {
-  params: { profileId: string }
+  params: Promise<{ profileId: string }>
 }) {
-  const cookieHeader = cookieHeaderFromStore()
-  const result = await fetchDashboardNotificationSettings(params.profileId, { cookieHeader })
+  const { profileId } = await params
+  const cookieHeader = await cookieHeaderFromStore()
+  const result = await fetchDashboardNotificationSettings(profileId, { cookieHeader })
 
   if (result.status === 'unauthorized') {
     return (

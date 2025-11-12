@@ -56,6 +56,8 @@ export type ShopHit = {
     review_count?: number | null
     avatar_url?: string | null
     specialties?: string[] | null
+    today_available?: boolean | null
+    next_available_at?: string | null
   }> | null
 }
 
@@ -328,7 +330,7 @@ export function ShopCard({ hit }: { hit: ShopHit }) {
           {Array.isArray(hit.service_tags) && hit.service_tags.length ? (
             <div className="flex flex-wrap gap-1.5">
               {hit.service_tags.slice(0, 4).map((tag) => (
-                <Chip key={tag} size="sm" className="border-brand-primary/15 bg-white/90 text-[11px] text-neutral-text">
+                <Chip key={tag} className="border-brand-primary/15 bg-white/90 text-[11px] text-neutral-text">
                   {tag}
                 </Chip>
               ))}

@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import Link from 'next/link'
 
+import ReservationOverlayRoot from '@/components/ReservationOverlayRoot'
 import SearchFilters from '@/components/SearchFilters'
 import { TherapistFavoritesProvider } from '@/components/staff/TherapistFavoritesProvider'
 import { Section } from '@/components/ui/Section'
@@ -20,12 +21,19 @@ import {
 
 const numberFormatter = new Intl.NumberFormat('ja-JP')
 
-export default async function SearchPage({ searchParams }: { searchParams: Params }) {
+type SearchPageParams = { searchParams?: Promise<Params> }
+
+export default async function SearchPage({ searchParams }: SearchPageParams) {
+  const resolvedSearchParams = (await searchParams) ?? {}
   const forceSampleMode = parseBoolParam(
-    Array.isArray(searchParams.force_samples) ? searchParams.force_samples[0] : searchParams.force_samples,
+    Array.isArray(resolvedSearchParams.force_samples)
+      ? resolvedSearchParams.force_samples[0]
+      : resolvedSearchParams.force_samples,
   )
 
-  const data = forceSampleMode ? buildSampleResponse(searchParams) : await fetchSearchResults(searchParams)
+  const data = forceSampleMode
+    ? buildSampleResponse(resolvedSearchParams)
+    : await fetchSearchResults(resolvedSearchParams)
   const { results, facets, _error, page, page_size: pageSize, total } = data
   const hits = results ?? []
   const hasHits = hits.length > 0
@@ -43,7 +51,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
       ).map(([value, count]) => ({ value, label: value, count }))
 
   const sampleFallbackAllowed = !hasHits
-  const displayHits = hasHits ? hits : applyClientFilters(searchParams, SAMPLE_RESULTS)
+  const displayHits = hasHits ? hits : applyClientFilters(resolvedSearchParams, SAMPLE_RESULTS)
   const therapistHitsFromResults = buildTherapistHits(displayHits)
   const usingSampleTherapists = sampleFallbackAllowed
   const therapistHits = usingSampleTherapists ? buildTherapistHits(displayHits) : therapistHitsFromResults
@@ -90,7 +98,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
   ]
 
   const qp = (n: number) => {
-    const entries = Object.entries(searchParams || {}).filter(([, v]) => v !== undefined && v !== null)
+    const entries = Object.entries(resolvedSearchParams || {}).filter(([, v]) => v !== undefined && v !== null)
     const sp = new URLSearchParams(entries as [string, string][])
     sp.set('page', String(Math.min(Math.max(n, 1), lastPage)))
     return `/search?${sp.toString()}`
@@ -140,6 +148,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
       id="top"
       className="relative min-h-screen overflow-visible bg-[radial-gradient(circle_at_top,rgba(191,219,254,0.6)_0%,rgba(191,219,254,0)_55%),linear-gradient(180deg,#eef4ff_0%,#f3f8ff_45%,#ffffff_100%)] text-neutral-text"
     >
+      <ReservationOverlayRoot />
       <a
         href="#therapist-results"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-badge focus:bg-brand-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
@@ -181,23 +190,30 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  {heroAreas.map(({ value, label }) => (
-                    <Link
-                      key={`hero-area-${value}`}
-                      href={`/search?area=${encodeURIComponent(value)}`}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/45 px-4 py-2 text-sm font-semibold text-brand-primary shadow-[0_10px_28px_rgba(37,99,235,0.15)] backdrop-blur-sm transition hover:border-brand-primary hover:bg-brand-primary/10 hover:text-brand-primary"
-                    >
-                      <span aria-hidden>→</span>
-                      {label}
-                    </Link>
-                  ))}
+                  {heroAreas.map((facet) => {
+                    const value = facet.value ?? facet.label ?? ''
+                    const label = facet.label ?? facet.value ?? '未設定'
+                    if (!value) {
+                      return null
+                    }
+                    return (
+                      <Link
+                        key={`hero-area-${value}`}
+                        href={`/search?area=${encodeURIComponent(value)}`}
+                        className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/45 px-4 py-2 text-sm font-semibold text-brand-primary shadow-[0_10px_28px_rgba(37,99,235,0.15)] backdrop-blur-sm transition hover:border-brand-primary hover:bg-brand-primary/10 hover:text-brand-primary"
+                      >
+                        <span aria-hidden>→</span>
+                        {label}
+                      </Link>
+                    )
+                  })}
                 </div>
               </div>
             </div>
           </section>
 
           <section id="filters" className="overflow-visible rounded-[32px] border border-white/60 bg-white/92 p-6 shadow-[0_24px_80px_rgba(21,93,252,0.18)] backdrop-blur">
-            <SearchFilters init={searchParams} facets={facets} sticky={false} resultCount={therapistTotal} />
+            <SearchFilters init={resolvedSearchParams} facets={facets} sticky={false} resultCount={therapistTotal} />
           </section>
 
           <TherapistFavoritesProvider>
@@ -249,9 +265,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
             ) : null}
 
             {_error ? (
-              <Section className="border border-state-dangerBg bg-state-dangerBg/80 p-4 text-sm text-state-dangerText">
+              <div className="rounded-[32px] border border-state-dangerBg bg-state-dangerBg/80 p-4 text-sm text-state-dangerText">
                 {_error}
-              </Section>
+              </div>
             ) : null}
 
             <section id="therapist-results" className="space-y-6">
@@ -303,7 +319,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
                 </div>
               </header>
 
-              <Section className="border border-neutral-borderLight/70 bg-white/95 shadow-card">
+              <Section title="検索結果" className="border border-neutral-borderLight/70 bg-white/95 shadow-card">
                 {usingSampleTherapists ? (
                   <div className="mb-6 rounded-[24px] border border-brand-primary/30 bg-brand-primary/10 px-4 py-3 text-sm text-brand-primary">
                     API の検索結果にセラピスト情報が含まれていなかったため、参考用のサンプルセラピストを表示しています。

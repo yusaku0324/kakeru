@@ -1,6 +1,8 @@
 from typing import Optional
 from datetime import datetime, UTC
 
+import logging
+
 from fastapi import Header, HTTPException, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +12,8 @@ from .db import get_session
 from . import models
 from .utils.auth import hash_token
 import hashlib
+
+logger = logging.getLogger(__name__)
 
 
 async def _get_session_user(
@@ -88,6 +92,10 @@ async def get_optional_dashboard_user(
     request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> Optional[models.User]:
+    try:
+        logger.info("[dashboard auth] incoming cookies=%s", dict(request.cookies or {}))
+    except Exception:
+        logger.info("[dashboard auth] failed to log cookies")
     return await _get_session_user(
         request,
         db,

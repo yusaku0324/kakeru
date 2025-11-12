@@ -5,8 +5,8 @@ import { ShopProfileEditor } from './ShopProfileEditor'
 import { fetchDashboardShopProfile } from '@/lib/dashboard-shops'
 import { fetchDashboardTherapists } from '@/lib/dashboard-therapists'
 
-function cookieHeaderFromStore(): string | undefined {
-  const store = cookies()
+async function cookieHeaderFromStore(): Promise<string | undefined> {
+  const store = await cookies()
   const entries = store.getAll()
   if (!entries.length) {
     return undefined
@@ -22,7 +22,7 @@ export default async function DashboardShopProfilePage({
 }: {
   params: { profileId: string }
 }) {
-  const cookieHeader = cookieHeaderFromStore()
+  const cookieHeader = await cookieHeaderFromStore()
   const result = await fetchDashboardShopProfile(params.profileId, { cookieHeader })
 
   if (result.status === 'unauthorized') {

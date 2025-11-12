@@ -1,6 +1,6 @@
 """add log channel option for reservation notifications
 
-Revision ID: 0021_add_log_channel
+Revision ID: 0021_add_log_notification_channel
 Revises: 0020_reservation_notif_queue
 Create Date: 2025-11-02 00:00:00.000000
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "0021_add_log_channel"
+revision = "0021_add_log_notification_channel"
 down_revision = "0020_reservation_notif_queue"
 branch_labels = None
 depends_on = None

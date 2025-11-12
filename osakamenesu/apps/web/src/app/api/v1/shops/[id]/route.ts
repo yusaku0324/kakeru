@@ -1,12 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
 import { SAMPLE_SHOPS } from '@/lib/sampleShops'
 import { sampleShopToDetail } from '@/lib/sampleShopAdapters'
 
-type Params = { params: { id: string } }
+type Params = { params: Promise<{ id: string }> }
 
-export async function GET(_request: Request, { params }: Params) {
-  const identifier = params.id
+export async function GET(_request: NextRequest, context: Params) {
+  const { id: identifier } = await context.params
   const shop =
     SAMPLE_SHOPS.find((candidate) => candidate.id === identifier) ??
     SAMPLE_SHOPS.find((candidate) => candidate.slug === identifier)

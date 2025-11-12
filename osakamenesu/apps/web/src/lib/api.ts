@@ -28,8 +28,8 @@ export function resolveApiBases(): string[] {
     addBase(publicBase || '/api')
     addBase(internal)
   } else {
-    addBase('/api')
     addBase(internal)
+    addBase('/api')
     addBase(publicBase || '/api')
   }
 

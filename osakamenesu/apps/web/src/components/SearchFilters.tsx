@@ -1,7 +1,7 @@
 "use client"
 
 import clsx from 'clsx'
-import { type FormEventHandler, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { type FormEventHandler, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { BasicSearchSection } from '@/components/filters/BasicSearchSection'
@@ -184,13 +184,13 @@ export default function SearchFilters({ init, facets, sticky = false, className,
     return () => media.removeEventListener('change', listener)
   }, [])
 
-  const scrollToResults = () => {
+  const scrollToResults = useCallback(() => {
     if (typeof window === 'undefined') return
     requestAnimationFrame(() => {
       const el = document.getElementById('therapist-results')
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
-  }
+  }, [])
 
   function push() {
     const params = new URLSearchParams()
@@ -304,8 +304,7 @@ export default function SearchFilters({ init, facets, sticky = false, className,
       setShowFilters(false)
       scrollToResults()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spKey, isMobile])
+  }, [spKey, isMobile, scrollToResults])
 
   const areaSelectOptions = useMemo(() => {
     const facetList = facets?.area ?? []

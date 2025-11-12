@@ -1,5 +1,6 @@
 import './globals.css'
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 import Script from 'next/script'
 import localFont from 'next/font/local'
 
@@ -48,14 +49,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className={`${brandFont.variable} min-h-screen bg-neutral-surfaceAlt text-neutral-text font-sans`}>
         <header className="sticky top-0 z-30 border-b border-white/30 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 lg:px-6">
-            <a href="/" className="group inline-flex items-center gap-3">
+            <Link href="/" className="group inline-flex items-center gap-3">
               <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-brand-primary to-brand-secondary text-lg text-white shadow-lg shadow-brand-primary/40 transition duration-300 group-hover:shadow-brand-primary/50">
                 ✦
               </span>
               <span className="text-lg font-semibold tracking-tight text-transparent bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text">
                 大阪メンエス.com
               </span>
-            </a>
+            </Link>
             <SiteHeaderNav />
           </div>
         </header>

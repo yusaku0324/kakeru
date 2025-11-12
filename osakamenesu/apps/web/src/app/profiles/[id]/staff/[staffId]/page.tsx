@@ -67,9 +67,20 @@ const SAMPLE_STAFF_PROFILE_EXTRAS: Record<string, {
   },
 }
 
+type StaffAvailabilityEntry = {
+  date: string
+  is_today: boolean
+  slots: Array<{
+    start_at: string
+    end_at: string
+    status: 'open' | 'tentative' | 'blocked'
+    staff_id?: string | null
+  }>
+}
+
 type StaffPageProps = {
-  params: { id: string; staffId: string }
-  searchParams?: Record<string, string | string[] | undefined>
+  params: Promise<{ id: string; staffId: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 const dayFormatter = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
@@ -143,25 +154,30 @@ function parseBooleanParam(value?: string | string[] | null): boolean {
 const formatYen = (value: number) => `¥${Intl.NumberFormat('ja-JP').format(value)}`
 
 export async function generateMetadata({ params }: StaffPageProps): Promise<Metadata> {
-  const shop = await fetchShop(params.id)
-  const staff = findStaff(shop, params.staffId)
+  const resolvedParams = await params
+  const shop = await fetchShop(resolvedParams.id)
+  const staff = findStaff(shop, resolvedParams.staffId)
   const title = staff ? `${staff.name}｜${shop.name}のセラピスト` : `${shop.name}｜セラピスト`
   const description = staff?.headline || `${shop.name}に在籍するセラピストのプロフィール`
   return { title, description }
 }
 
 export default async function StaffProfilePage({ params, searchParams }: StaffPageProps) {
-  const shop = await fetchShop(params.id)
-  const staff = findStaff(shop, params.staffId)
+  const [resolvedParams, resolvedSearchParams = {}] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve(undefined),
+  ])
+  const shop = await fetchShop(resolvedParams.id)
+  const staff = findStaff(shop, resolvedParams.staffId)
 
   if (!staff) {
     notFound()
   }
 
-  const allowDemoSubmission = parseBooleanParam(searchParams?.force_demo_submit ?? null)
+  const allowDemoSubmission = parseBooleanParam(resolvedSearchParams.force_demo_submit ?? null)
 
-  const shopHref = buildShopHref(params)
-  const baseStaffHref = buildStaffHref(params.id, staff)
+  const shopHref = buildShopHref(resolvedParams)
+  const baseStaffHref = buildStaffHref(resolvedParams.id, staff)
   const staffId = staff.id
   const specialties = formatSpecialties(staff.specialties)
   const ratingLabel = typeof staff.rating === 'number' ? `${staff.rating.toFixed(1)} / 5.0` : null
@@ -173,7 +189,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
   const otherStaff = listOtherStaff(shop, staff.id)
   const availabilityDays = Array.isArray(shop.availability_calendar?.days) ? shop.availability_calendar?.days ?? [] : []
   const normalizedStaffId = slugifyStaffIdentifier(staff.id) || slugifyStaffIdentifier(staff.alias) || slugifyStaffIdentifier(staff.name)
-  const staffAvailabilityRaw = availabilityDays
+  const staffAvailabilityRaw: StaffAvailabilityEntry[] = availabilityDays
     .map((day) => ({
       date: day.date,
       is_today: day.is_today,
@@ -186,7 +202,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
     .filter((day) => day.slots.length > 0)
     .sort((a, b) => a.date.localeCompare(b.date))
 
-  const staffAvailability =
+  const staffAvailability: StaffAvailabilityEntry[] =
     staffAvailabilityRaw.length > 0
       ? staffAvailabilityRaw
       : (() => {
@@ -229,15 +245,13 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
         })()
 
   const slotParamValue = (() => {
-    if (!searchParams) return undefined
-    const value = searchParams.slot
+    const value = resolvedSearchParams.slot
     if (Array.isArray(value)) return value[0]
     return value
   })()
 
   const weekParamValue = (() => {
-    if (!searchParams) return undefined
-    const value = searchParams.week
+    const value = resolvedSearchParams.week
     if (Array.isArray(value)) return value[0]
     return value
   })()
@@ -309,7 +323,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
     const urlParams = new URLSearchParams()
     if (index > 0) urlParams.set('week', String(index))
     const search = urlParams.toString()
-    return `${buildStaffHref(params.id, staff)}${search ? `?${search}` : ''}`
+    return `${buildStaffHref(resolvedParams.id, staff)}${search ? `?${search}` : ''}`
   }
 
   const selectedSlotInfo = (() => {
@@ -897,7 +911,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
               {otherStaff.map((member) => (
                 <Link
                   key={member.id}
-                  href={buildStaffHref(params.id, member)}
+                  href={buildStaffHref(resolvedParams.id, member)}
                   className="flex items-center gap-3 rounded-card border border-neutral-borderLight/70 bg-neutral-surfaceAlt/60 p-3 transition hover:border-brand-primary"
                 >
                   <div className="relative h-16 w-16 overflow-hidden rounded-full bg-neutral-surface">
