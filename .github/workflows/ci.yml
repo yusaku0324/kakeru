@@ -399,17 +399,9 @@ jobs:
           username: yusaku0324
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Ensure Doppler CLI
-        working-directory: osakamenesu
-        run: |
-          set -euo pipefail
-          if ! command -v doppler >/dev/null 2>&1; then
-            curl -Ls https://cli.doppler.com/install.sh | sudo sh
-          fi
-          if ! command -v doppler >/dev/null 2>&1; then
-            echo "::error::Doppler CLI is required but could not be installed" >&2
-            exit 1
-          fi
+      - uses: dopplerhq/cli-action@v1
+        with:
+          doppler-token: ${{ secrets.DOPPLER_STG_TOKEN }}
 
       - name: Write admin env file from Doppler (stg)
         working-directory: osakamenesu
