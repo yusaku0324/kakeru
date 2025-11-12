@@ -12,6 +12,7 @@
     "lint": "eslint . --max-warnings=0",
     "e2e:setup": "python ../../services/api/scripts/seed_admin_test_data.py",
     "test:e2e": "playwright test --reporter=line",
+    "test:e2e:real": "bash ./scripts/run-e2e-real.sh",
     "test:unit": "vitest run",
     "screenshot:notifications": "node scripts/capture-notifications-screenshot.mjs"
   },

@@ -38,6 +38,37 @@ docker compose -f docker-compose.admin-e2e.yml down -v   # 後片付け
 
 API / Web / Postgres / Meilisearch / Redis / Playwright の全コンテナが起動し、`.env.admin-e2e` に流し込んだ値だけで検証できます。`.env.admin-e2e` は毎回 **Doppler で生成** してください。
 
+> **補足:** `services/api` をローカルで改修した場合は `docker buildx build --platform linux/arm64 -t osakamenesu-api:local services/api` で API イメージを作り、`ADMIN_API_IMAGE=osakamenesu-api:local COMPOSE_PLATFORM=linux/arm64 docker compose -f docker-compose.admin-e2e.yml up -d api` のように差し替えてください。`apps/web` も同様に `ADMIN_WEB_IMAGE` を上書きすれば、Docker 上でも最新コードで実 API E2E を回せます。
+
+### Playwright 実 API モード（ローカル Next.js + FastAPI）
+
+FastAPI (`pnpm dev:api`) と Next.js (`playwright.config.ts` の `webServer`) をローカルで動かしつつ、クッキー主体の認証で `/api` を叩くときは次の環境変数が必要です。
+
+| 変数 | 用途 |
+| --- | --- |
+| `E2E_TEST_AUTH_SECRET` または `TEST_AUTH_SECRET` | `/api/auth/test-login` / `/api/test/reservations` を叩くためのガード。FastAPI 側にも同じ値を渡してください。 |
+| `ADMIN_API_KEY` (`OSAKAMENESU_ADMIN_API_KEY`) | 管理画面 API proxy 用のヘッダー。 |
+| `ADMIN_BASIC_USER` / `ADMIN_BASIC_PASS` | Playwright の Basic 認証。 |
+| `NEXT_PUBLIC_OSAKAMENESU_API_BASE` | 実 API を叩くために `/api` を指定。Next 側の `app/api/*` で FastAPI にリレーします。 |
+| `NEXT_PUBLIC_SITE_URL` | Cookie の `domain` を揃えるため `http://127.0.0.1:3000` を指定。 |
+| `FAVORITES_API_MODE` / `NEXT_PUBLIC_FAVORITES_API_MODE` | `real` を指定すると `/api/favorites/therapists` を FastAPI 経由で叩きます。 |
+
+`apps/web/scripts/run-e2e-real.sh` が上記のデフォルト値をまとめて設定するので、以下のように実行すれば OK です（追加の引数は `playwright test` へ転送されます）。
+
+```bash
+# FastAPI (127.0.0.1:8000) を別プロセスで起動しておく
+doppler run --project osakamenesu --config dev_web -- pnpm dev:api
+
+# Playwright を実 API モードで起動
+doppler run --project osakamenesu --config dev_web -- \
+  pnpm --dir apps/web run test:e2e:real -- --project web favorites.spec.ts
+```
+
+Next.js 側には以下のプロキシ／補助エンドポイントを作成済みです。
+
+- `/api/auth/request-link`, `/api/auth/test-login`, `/api/auth/me/site`: FastAPI の `sessionCookieOptions()` をそのまま使い回し、Playwright でも正しい Cookie 属性が得られます。
+- `/api/test/reservations`: `X-Test-Auth-Secret` を付けた Playwright からリクエストすると FastAPI がテスト用予約を直接生成します（`admin-dashboard` の通知テストで利用）。
+
 ## Doppler 前提のその他タスク
 
 - 依存サービス (Postgres / Meilisearch / Redis) は `just ops-dev-up` でまとめて開始できます。

@@ -192,12 +192,26 @@ export async function ensureDashboardAuthenticated(
       throw new Error('test-login API の応答に Set-Cookie が含まれていません')
     }
 
-    const cookies = parseSetCookieHeaders(cookieHeaders, new URL(resolvedWebBase))
-    if (!cookies.length) {
+    const webOrigin = new URL(resolvedWebBase)
+    const parsedCookies = parseSetCookieHeaders(cookieHeaders, webOrigin)
+    if (!parsedCookies.length) {
       throw new Error('Set-Cookie ヘッダーの解析に失敗しました')
     }
 
-    await context.addCookies(cookies)
+    const cookies = parsedCookies.map((cookie) => {
+      if (!cookie.domain || cookie.domain === 'test_auth_secret_local') {
+        return { ...cookie, domain: webOrigin.hostname }
+      }
+      return cookie
+    })
+
+    const apiOrigin = new URL(resolvedApiBase)
+    const apiCookies: CookieInput[] = cookies.map((cookie) => ({
+      ...cookie,
+      domain: apiOrigin.hostname,
+    }))
+
+    await context.addCookies([...cookies, ...apiCookies])
     await syncSessionWithNextApp(context, resolvedWebBase, cookies)
     return
   }

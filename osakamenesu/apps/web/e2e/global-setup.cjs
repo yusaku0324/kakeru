@@ -230,7 +230,98 @@ async function createDashboardStorage() {
   }
 }
 
+async function createSiteStorage() {
+  if (process.env.SKIP_SITE_STORAGE === '1') {
+    console.warn('[playwright] SKIP_SITE_STORAGE=1 が設定されているためサイト用ストレージ生成をスキップします')
+    return
+  }
+
+  const secret = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET].find((value) => value && value.trim())
+  if (!secret) {
+    console.warn('[playwright] テスト用シークレットが未設定のため site storage を生成できません')
+    return
+  }
+
+  const webBase = resolveWebBase()
+  const storageDir = path.resolve(__dirname, 'storage')
+  const storagePath = path.resolve(storageDir, 'site.json')
+  const email = process.env.E2E_TEST_AUTH_EMAIL ?? 'playwright-site-user@example.com'
+  const displayName = process.env.E2E_TEST_AUTH_DISPLAY_NAME ?? 'Playwright Site User'
+
+  const requestContext = await request.newContext()
+  try {
+    const response = await requestContext.post(`${webBase}/api/auth/test-login`, {
+      data: {
+        email,
+        display_name: displayName,
+        scope: 'site',
+      },
+      headers: {
+        'X-Test-Auth-Secret': secret,
+      },
+    })
+
+    if (!response.ok()) {
+      console.warn(`[playwright] site 用 test-login API が失敗しました (${response.status()})`)
+      return
+    }
+
+    const cookieHeaders = response
+      .headersArray()
+      .filter((header) => header.name.toLowerCase() === 'set-cookie')
+      .map((header) => header.value)
+
+    if (!cookieHeaders.length) {
+      console.warn('[playwright] site 用 test-login API から Cookie が返されませんでした')
+      return
+    }
+
+    const parsedCookies = parseSetCookieHeaders(cookieHeaders, new URL(webBase))
+    if (!parsedCookies.length) {
+      console.warn('[playwright] site Cookie 解析に失敗しました')
+      return
+    }
+    const hostname = new URL(webBase).hostname
+    const cookiesForStorage = parsedCookies.map((cookie) => ({
+      ...cookie,
+      domain: hostname,
+      secure: webBase.startsWith('https://'),
+    }))
+
+    cookiesForStorage.push({
+      name: 'osakamenesu_csrf',
+      value: crypto.randomBytes(16).toString('hex'),
+      domain: hostname,
+      path: '/',
+      httpOnly: false,
+      secure: webBase.startsWith('https://'),
+    })
+
+    const storageState = {
+      cookies: cookiesForStorage.map((cookie) => ({
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: cookie.path || '/',
+        expires: cookie.expires ?? -1,
+        httpOnly: cookie.httpOnly ?? false,
+        secure: cookie.secure ?? false,
+        sameSite: cookie.sameSite,
+      })),
+      origins: [],
+    }
+
+    fs.mkdirSync(storageDir, { recursive: true })
+    fs.writeFileSync(storagePath, JSON.stringify(storageState, null, 2), 'utf8')
+    process.env.PLAYWRIGHT_SITE_STORAGE = storagePath
+    console.log(`[playwright] site storage を生成しました: ${storagePath}`)
+  } finally {
+    await requestContext.dispose()
+  }
+}
+
 module.exports = async () => {
   await runSeed()
   await createDashboardStorage()
+  await createSiteStorage()
 }

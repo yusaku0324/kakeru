@@ -139,9 +139,13 @@ function getClientIp(request: NextRequest) {
   return 'unknown'
 }
 
+function isSitePublicApi(pathname: string) {
+  return SITE_PUBLIC_API_PATHS.some((path) => pathname === path)
+}
+
 function enforceAdminBasicAuth(request: NextRequest): NextResponse | null {
   const pathname = request.nextUrl.pathname
-  if (!requiresAdminAuth(pathname)) {
+  if (!requiresAdminAuth(pathname) || isSitePublicApi(pathname)) {
     return null
   }
 
@@ -169,15 +173,24 @@ function enforceAdminBasicAuth(request: NextRequest): NextResponse | null {
   return null
 }
 
+const DASHBOARD_PUBLIC_PATHS = ['/dashboard/login', '/dashboard/favorites', '/dashboard/new']
+const SITE_PUBLIC_API_PATHS = ['/api/auth/me/site', '/api/auth/request-link', '/api/auth/test-login']
+
+function isPublicDashboardPath(pathname: string) {
+  return DASHBOARD_PUBLIC_PATHS.some(
+    (publicPath) => pathname === publicPath || pathname.startsWith(`${publicPath}/`),
+  )
+}
+
 async function handleProxy(request: NextRequest): Promise<NextResponse | null> {
   const { pathname, search } = request.nextUrl
 
   if (pathname.startsWith('/dashboard')) {
-    if (request.cookies.has(SESSION_COOKIE_NAME)) {
+    if (request.cookies.has(SESSION_COOKIE_NAME) || isPublicDashboardPath(pathname)) {
       return applySecurityHeaders(NextResponse.next())
     }
 
-    const loginUrl = new URL('/login', request.url)
+    const loginUrl = new URL('/dashboard/login', request.url)
     const fromPath = `${pathname}${search}`
     if (fromPath && fromPath !== '/') {
       loginUrl.searchParams.set('from', fromPath)
@@ -229,6 +242,13 @@ async function handleProxy(request: NextRequest): Promise<NextResponse | null> {
     request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol.replace(':', ''),
   )
   forwardedHeaders.set('cookie', request.headers.get('cookie') ?? '')
+
+  if (!requiresAdminAuth(pathname) || isSitePublicApi(pathname)) {
+    forwardedHeaders.delete('authorization')
+    forwardedHeaders.delete('Authorization')
+    forwardedHeaders.delete('x-admin-key')
+    forwardedHeaders.delete('X-Admin-Key')
+  }
 
   const timestamp = Math.floor(Date.now() / 1000).toString()
   const signaturePayload = `${timestamp}:${request.method.toUpperCase()}:${pathname}${search}`

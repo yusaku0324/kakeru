@@ -24,6 +24,7 @@ from .domains.dashboard import (
 from .domains.line import router as line_router
 from .domains.ops import router as ops_router
 from .domains.site import favorites_router, shops_router
+from .domains.test import router as test_router
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from .db import get_session
@@ -156,3 +157,4 @@ app.include_router(dashboard_notifications_router)
 app.include_router(dashboard_reservations_router)
 app.include_router(dashboard_shops_router)
 app.include_router(dashboard_therapists_router)
+app.include_router(test_router)

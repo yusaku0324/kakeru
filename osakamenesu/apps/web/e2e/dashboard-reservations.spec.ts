@@ -3,12 +3,24 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { ensureDashboardAuthenticated, resolveApiBase, SkipTestError } from './utils/dashboard-auth'
+import { resolveAdminExtraHeaders } from './utils/admin-headers'
 
 const dashboardStoragePath =
   process.env.PLAYWRIGHT_DASHBOARD_STORAGE ?? path.resolve(__dirname, 'storage', 'dashboard.json')
 
 if (fs.existsSync(dashboardStoragePath)) {
   test.use({ storageState: dashboardStoragePath })
+}
+
+const adminHeaders = resolveAdminExtraHeaders()
+const hasAdminKey = Boolean(process.env.ADMIN_API_KEY ?? process.env.OSAKAMENESU_ADMIN_API_KEY)
+
+if (!hasAdminKey) {
+  console.warn('[dashboard-reservations] ADMIN_API_KEY が未設定のため、一部の管理API呼び出しに失敗する可能性があります')
+}
+
+if (adminHeaders) {
+  test.use({ extraHTTPHeaders: adminHeaders })
 }
 
 test.describe.configure({ mode: 'serial' })

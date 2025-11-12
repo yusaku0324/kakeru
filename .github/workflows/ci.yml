@@ -399,22 +399,33 @@ jobs:
           username: yusaku0324
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Write admin env file from GitHub secrets
+      - name: Write admin env file from Doppler (stg)
         working-directory: osakamenesu
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_STG_TOKEN }}
         run: |
           set -euo pipefail
-          printf "%s\n" \
-            "POSTGRES_USER=${{ secrets.ADMIN_POSTGRES_USER || 'app' }}" \
-            "POSTGRES_PASSWORD=${{ secrets.ADMIN_POSTGRES_PASSWORD || 'app' }}" \
-            "ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY }}" \
-            "TEST_AUTH_SECRET=${{ secrets.TEST_AUTH_SECRET }}" \
-            "E2E_TEST_AUTH_SECRET=${{ secrets.E2E_TEST_AUTH_SECRET }}" \
-            "MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}" \
-            "E2E_SITE_COOKIE=${{ secrets.E2E_SITE_COOKIE || '' }}" \
-            "E2E_TEST_AUTH_EMAIL=${{ secrets.E2E_TEST_AUTH_EMAIL || '' }}" \
-            "E2E_TEST_AUTH_DISPLAY_NAME=${{ secrets.E2E_TEST_AUTH_DISPLAY_NAME || '' }}" \
-            > .env.admin-e2e
-          for key in POSTGRES_USER POSTGRES_PASSWORD ADMIN_API_KEY TEST_AUTH_SECRET E2E_TEST_AUTH_SECRET MEILI_MASTER_KEY; do
+          doppler secrets download --project osakamenesu --config stg --format env --no-file > .env.admin-e2e
+          required_keys=(
+            POSTGRES_USER
+            POSTGRES_PASSWORD
+            POSTGRES_DB
+            DATABASE_URL
+            ADMIN_API_KEY
+            ADMIN_BASIC_USER
+            ADMIN_BASIC_PASS
+            TEST_AUTH_SECRET
+            E2E_TEST_AUTH_SECRET
+            MEILI_MASTER_KEY
+            NEXT_PUBLIC_OSAKAMENESU_API_BASE
+            NEXT_PUBLIC_SITE_URL
+            FAVORITES_API_MODE
+            NEXT_PUBLIC_FAVORITES_API_MODE
+            E2E_BASE_URL
+            E2E_API_BASE
+            E2E_SITE_COOKIE
+          )
+          for key in "${required_keys[@]}"; do
             if ! grep -q "^${key}=" .env.admin-e2e; then
               echo "::error::${key} missing from env file" >&2
               exit 1

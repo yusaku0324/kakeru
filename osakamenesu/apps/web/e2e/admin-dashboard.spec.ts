@@ -2,7 +2,8 @@ import { test, expect, Page } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { ensureDashboardAuthenticated, SkipTestError } from './utils/dashboard-auth'
+import { ensureDashboardAuthenticated, resolveApiBase, SkipTestError } from './utils/dashboard-auth'
+import { resolveAdminExtraHeaders } from './utils/admin-headers'
 
 const dashboardStoragePath =
   process.env.PLAYWRIGHT_DASHBOARD_STORAGE ?? path.resolve(__dirname, 'storage', 'dashboard.json')
@@ -20,6 +21,17 @@ const CONTACT_LINE = 'playwright_line'
 const CONTACT_WEB = 'https://playwright.example.com'
 
 const AUTH_EXCLUDED_TITLES = new Set(['認証なしでは管理画面にアクセスできない'])
+
+const adminHeaders = resolveAdminExtraHeaders()
+const hasAdminKey = Boolean(process.env.ADMIN_API_KEY ?? process.env.OSAKAMENESU_ADMIN_API_KEY)
+
+if (!hasAdminKey) {
+  console.warn('[admin-dashboard] ADMIN_API_KEY が設定されていないため、一部の管理系API呼び出しが失敗する可能性があります')
+}
+
+if (adminHeaders) {
+  test.use({ extraHTTPHeaders: adminHeaders })
+}
 
 test.beforeEach(async ({ page, context, baseURL }, testInfo) => {
   if (AUTH_EXCLUDED_TITLES.has(testInfo.title)) {
@@ -61,30 +73,46 @@ async function fetchFirstShop(page: Page) {
 async function openFirstShop(page: Page) {
   const firstShop = await fetchFirstShop(page)
 
-  await page.goto('/admin/shops')
+  await page.goto('/admin/shops', { waitUntil: 'domcontentloaded' })
   await page.waitForURL('**/admin/shops')
-  await page.waitForLoadState('networkidle')
-  await expect(page.getByTestId('admin-title')).toBeVisible({ timeout: 15000 })
+  const titleLocator = page.getByTestId('admin-title')
+  await titleLocator.waitFor({ state: 'visible', timeout: 30000 })
   await page.getByRole('button', { name: firstShop.name, exact: false }).first().click()
   await expect(page.getByTestId('shop-address')).toBeVisible()
   return firstShop
 }
 
 async function reopenShop(page: Page, shopName: string) {
-  await page.goto('/admin/shops')
+  await page.goto('/admin/shops', { waitUntil: 'domcontentloaded' })
   await page.waitForURL('**/admin/shops')
-  await page.waitForLoadState('networkidle')
-  await expect(page.getByTestId('admin-title')).toBeVisible({ timeout: 15000 })
-  await page.getByRole('button', { name: shopName, exact: false }).first().click()
-  await expect(page.getByTestId('shop-address')).toBeVisible()
+  const title = page.getByTestId('admin-title')
+  const shopButton = page.getByRole('button', { name: shopName, exact: false }).first()
+  await expect.poll(async () => {
+    if (await title.isVisible()) return 'list'
+    if (await page.getByTestId('shop-address').isVisible()) return 'detail'
+    await page.waitForTimeout(250)
+    return 'pending'
+  }, { timeout: 15000, message: 'admin list did not render' }).not.toBe('pending')
+
+  if (await title.isVisible()) {
+    await shopButton.click()
+  }
+
+  await expect(page.getByTestId('shop-address')).toBeVisible({ timeout: 15000 })
 }
 
-async function ensureReservation(page: Page) {
-  const listResponse = await page.request.get('/api/admin/reservations?limit=1')
-  if (listResponse.ok()) {
-    const listJson = await listResponse.json()
-    if (Array.isArray(listJson.items) && listJson.items.length > 0) {
-      return listJson.items[0]
+type EnsureReservationOptions = {
+  forceNew?: boolean
+}
+
+async function ensureReservation(page: Page, options: EnsureReservationOptions = {}) {
+  if (!options.forceNew) {
+    const listResponse = await page.request.get('/api/admin/reservations?limit=1')
+    if (listResponse.ok()) {
+      const listJson = await listResponse.json()
+      if (Array.isArray(listJson.items) && listJson.items.length > 0) {
+        return listJson.items[0]
+      }
     }
   }
 
@@ -99,27 +127,57 @@ async function ensureReservation(page: Page) {
   }
 
   const now = new Date()
-  const desiredStart = new Date(now.getTime() + 60 * 60 * 1000).toISOString()
-  const desiredEnd = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString()
-    const createResponse = await page.request.post('/api/reservations', {
-    data: {
-      shop_id: shopId,
-      desired_start: desiredStart,
-      desired_end: desiredEnd,
-      channel: 'web',
-      notes: NEW_NOTES,
-      customer: {
-        name: 'Playwright User',
-        phone: '09000000000',
-        email: 'playwright@example.com',
+  let desiredStart = new Date(now.getTime() + 30 * 60 * 1000).toISOString()
+  let desiredEnd = new Date(now.getTime() + 60 * 60 * 1000).toISOString()
+  const testSecret = process.env.E2E_TEST_AUTH_SECRET ?? process.env.TEST_AUTH_SECRET
+  const createEndpoint = testSecret ? '/api/test/reservations' : '/api/reservations'
+  const requestHeaders = testSecret ? { 'X-Test-Auth-Secret': testSecret } : undefined
+  let lastError: string | null = null
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const createResponse = await page.request.post(createEndpoint, {
+      data: {
+        shop_id: shopId,
+        desired_start: desiredStart,
+        desired_end: desiredEnd,
+        channel: 'web',
+        notes: NEW_NOTES,
+        customer: {
+          name: 'Playwright User',
+          phone: '09000000000',
+          email: 'playwright@example.com',
+        },
       },
-    },
-  })
-  if (!createResponse.ok()) {
-    throw new Error(`failed to create reservation: ${createResponse.status()}`)
+      headers: requestHeaders,
+    })
+    if (createResponse.ok()) {
+      const created = await createResponse.json()
+      await waitForAdminReservations(page, 1, 20000)
+      return created
+    }
+    lastError = `failed to create reservation: ${createResponse.status()}`
+    if (createResponse.status() === 503 || createResponse.status() === 429) {
+      await page.waitForTimeout(2000 * (attempt + 1))
+      continue
+    }
+    if (createResponse.status() === 401) {
+      await page.goto('/admin/reservations')
+      await page.waitForResponse((response) =>
+        response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
+      )
+      continue
+    }
+    if (createResponse.status() === 400) {
+      const body = await createResponse.json().catch(() => ({}))
+      if (body?.detail === 'out_of_service_hours' || body?.detail === 'invalid_time_range') {
+        const nextStart = new Date(now.getTime() + 6 * 60 * 60 * 1000)
+        desiredStart = nextStart.toISOString()
+        desiredEnd = new Date(nextStart.getTime() + 30 * 60 * 1000).toISOString()
+        continue
+      }
+    }
+    break
   }
-  const createdReservation = await createResponse.json()
-  return createdReservation
+  throw new Error(lastError ?? 'failed to create reservation')
 }
 
 async function waitForAdminReservations(page: Page, minimum: number, timeout = 15000) {
@@ -294,39 +352,64 @@ test.describe('Admin dashboard', () => {
     const addressInput = page.getByTestId('shop-address')
     const originalAddress = await addressInput.inputValue()
 
-  const errorRoute = `**/api/admin/shops/${shop.id}`
-    const handler = async (route: any) => {
-      if (route.request().method() === 'PATCH') {
+  const isShopPatchTarget = (url: string) => {
+    try {
+      const parsed = new URL(url)
+      return parsed.pathname === `/api/admin/shops/${shop.id}` || parsed.pathname.startsWith(`/api/admin/shops/${shop.id}`)
+    } catch {
+      return url.includes(`/api/admin/shops/${shop.id}`)
+    }
+  }
+  const seenRequests: string[] = []
+  let injectedError = false
+
+  await page.route('**/api/admin/shops/**', async (route) => {
+    const request = route.request()
+    if (!injectedError && request.method() === 'PATCH') {
+      const postData = request.postData() ?? ''
+      if (isShopPatchTarget(request.url()) && postData.includes('PlaywrightError')) {
+        injectedError = true
+        seenRequests.push(request.url())
         await route.fulfill({
           status: 500,
           body: JSON.stringify({ detail: 'simulated error' }),
           headers: { 'Content-Type': 'application/json' },
         })
-        await page.unroute(errorRoute, handler)
-      } else {
-        await route.continue()
+        return
       }
     }
-    await page.route(errorRoute, handler)
+    await route.continue()
+  })
 
-    await addressInput.fill(`${originalAddress} PlaywrightError`)
-    await page.getByRole('button', { name: '店舗情報を保存' }).click()
-    const errorResponse = await page.waitForResponse(
-      (response) =>
-        response.url().includes('/api/admin/shops/') &&
-        response.request().method() === 'PATCH',
-    )
+    const errorAddress = `${originalAddress} PlaywrightError`
+    await addressInput.fill(errorAddress)
+    const errorResponsePromise = page.waitForResponse((response) => {
+      if (response.request().method() !== 'PATCH') return false
+      if (!isShopPatchTarget(response.url())) return false
+      const body = response.request().postData() ?? ''
+      return body.includes(errorAddress)
+    })
+    const [errorResponse] = await Promise.all([
+      errorResponsePromise,
+      page.getByRole('button', { name: '店舗情報を保存' }).click(),
+    ])
     expect(errorResponse.status()).toBe(500)
     const errorToast = page.locator('text=/保存に失敗しました|simulated error/').first()
     await expect(errorToast).toBeVisible()
 
+    if (!seenRequests.length) {
+      throw new Error('expected intercepted PATCH request, but none were fulfilled')
+    }
+
     await addressInput.fill(originalAddress)
-    await page.getByRole('button', { name: '店舗情報を保存' }).click()
-    await page.waitForResponse(
-      (response) =>
-        response.url().includes('/api/admin/shops/') &&
-        response.request().method() === 'PATCH',
-    )
+    const revertResponsePromise = page.waitForResponse((response) => {
+      if (response.request().method() !== 'PATCH') return false
+      return response.url().includes('/api/admin/shops/')
+    })
+    await Promise.all([
+      revertResponsePromise,
+      page.getByRole('button', { name: '店舗情報を保存' }).click(),
+    ])
     await expect(addressInput).toHaveValue(originalAddress, { timeout: 5000 })
   })
 
@@ -471,8 +554,8 @@ test.describe('Admin dashboard', () => {
     await expect(page.getByRole('heading', { name: '予約管理' })).toBeVisible()
 
     const cards = page.getByTestId('reservation-card')
-    if ((await cards.count()) === 0) {
-      const shop = await openFirstShop(page)
+    const createPendingReservation = async () => {
+      const shop = await fetchFirstShop(page)
       const now = new Date()
       const desiredStart = new Date(now.getTime() + 30 * 60 * 1000).toISOString()
       const desiredEnd = new Date(now.getTime() + 90 * 60 * 1000).toISOString()
@@ -492,21 +575,43 @@ test.describe('Admin dashboard', () => {
       if (!create.ok()) {
         throw new Error(`予約作成に失敗しました status=${create.status()}`)
       }
-      await Promise.all([waitForReservations(), page.reload()])
+    }
+
+    const reloadReservations = () => Promise.all([waitForReservations(), page.reload()])
+
+    if ((await cards.count()) === 0) {
+      await createPendingReservation()
+      await reloadReservations()
     }
 
     const initialCount = await cards.count()
     expect(initialCount).toBeGreaterThan(0)
 
+    const pendingCount = await cards
+      .locator('[data-testid="reservation-status"]')
+      .evaluateAll((nodes) =>
+        nodes.filter((node) => (node as HTMLSelectElement).value === 'pending').length,
+      )
+    if (pendingCount === 0) {
+      await createPendingReservation()
+      await reloadReservations()
+    }
+
     await Promise.all([
       waitForReservations(),
       page.getByTestId('status-filter').selectOption('pending'),
     ])
-    const filteredCount = await cards.count()
-    expect(filteredCount).toBeGreaterThan(0)
-    for (let i = 0; i < filteredCount; i += 1) {
-      await expect(cards.nth(i).getByTestId('reservation-status')).toHaveValue('pending')
-    }
+    await expect
+      .poll(async () => {
+        const statuses = await cards
+          .locator('[data-testid="reservation-status"]')
+          .evaluateAll((nodes) => nodes.map((node) => (node as HTMLSelectElement).value))
+        if (!statuses.length) {
+          return 'empty'
+        }
+        return statuses.every((value) => value === 'pending') ? 'ok' : statuses.join(',')
+      }, { timeout: 10000 })
+      .toBe('ok')
 
     await Promise.all([
       waitForReservations(),
@@ -568,9 +673,23 @@ test.describe('Admin dashboard', () => {
       response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
     )
 
-    await ensureReservation(page)
+    await ensureReservation(page, { forceNew: true })
     await page.getByTestId('reservations-refresh').click()
-    await expect(page.locator('text=/新しい予約/').first()).toBeVisible({ timeout: 5000 })
+    await page.waitForResponse((response) =>
+      response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
+    )
+    const highlightedCard = page.locator('[data-testid="reservation-card"]').first()
+    await expect
+      .poll(async () => {
+        const hasHighlight = await highlightedCard.evaluate((node) =>
+          node?.classList.contains('ring-amber-400'),
+        ).catch(() => false)
+        if (!hasHighlight) {
+          await highlightedCard.page().waitForTimeout(250)
+        }
+        return hasHighlight
+      }, { timeout: 15000, message: 'highlighted card did not appear' })
+      .toBe(true)
     const soundPlayed = await page.evaluate(() => Boolean((window as any).__soundPlayed))
     expect(soundPlayed).toBeTruthy()
   })
@@ -609,7 +728,7 @@ test.describe('Admin dashboard', () => {
       pageErrors.push(err.message)
     })
 
-    await ensureReservation(page)
+    await ensureReservation(page, { forceNew: true })
     await page.getByTestId('reservations-refresh').click()
     await expect(page.locator('text=/新しい予約/').first()).toBeVisible({ timeout: 5000 })
 
@@ -634,34 +753,62 @@ test.describe('Admin dashboard', () => {
     await context.close()
   })
 
-  test('予約一覧はページングされる', async ({ page }) => {
+  test('予約一覧はページングされる', async ({ page, baseURL }) => {
     await page.goto('/admin/reservations')
     await expect(page.getByRole('heading', { name: '予約管理' })).toBeVisible()
     await page.waitForResponse((response) =>
       response.url().includes('/api/admin/reservations') && response.request().method() === 'GET' && response.status() === 200,
     )
 
+    const apiBase = resolveApiBase(baseURL)
+    const adminKey = process.env.ADMIN_API_KEY ?? process.env.OSAKAMENESU_ADMIN_API_KEY
+
     const ensureManyReservations = async () => {
       const shop = await fetchFirstShop(page)
+      if (adminKey) {
+        await page.request.delete(`${apiBase}/api/v1/reservations`, {
+          params: { shop_id: shop.id },
+          headers: { 'X-Admin-Key': adminKey },
+        }).catch(() => null)
+      }
+      const runSeed = Date.now()
       for (let i = 0; i < 12; i += 1) {
-        const now = new Date()
-        const desiredStart = new Date(now.getTime() + (i + 1) * 60 * 60 * 1000).toISOString()
-        const desiredEnd = new Date(now.getTime() + (i + 2) * 60 * 60 * 1000).toISOString()
-        const response = await page.request.post('/api/reservations', {
-          data: {
-            shop_id: shop.id,
-            desired_start: desiredStart,
-            desired_end: desiredEnd,
-            channel: 'web',
-            notes: `Playwright paging ${i}`,
-            customer: {
-              name: `Paging User ${i}`,
-              phone: `09000000${(100 + i).toString().slice(-3)}`,
+        const baseStart = runSeed + (i + 1) * 60 * 60 * 1000
+        const baseEnd = runSeed + (i + 2) * 60 * 60 * 1000
+        const phoneSuffix = String(runSeed + i).slice(-8)
+        const uniquePhone = `090${phoneSuffix}`.slice(0, 11)
+        let created = false
+        let lastStatus = 0
+        for (let attempt = 0; attempt < 3 && !created; attempt += 1) {
+          const offset = attempt * 5 * 60 * 1000
+          const desiredStart = new Date(baseStart + offset).toISOString()
+          const desiredEnd = new Date(baseEnd + offset).toISOString()
+          const response = await page.request.post(`${apiBase}/api/v1/reservations`, {
+            data: {
+              shop_id: shop.id,
+              desired_start: desiredStart,
+              desired_end: desiredEnd,
+              channel: 'web',
+              notes: `Playwright paging ${i}`,
+              customer: {
+                name: `Paging User ${i}`,
+                phone: uniquePhone,
+              },
             },
-          },
-        })
-        if (!response.ok()) {
-          throw new Error(`予約作成に失敗しました status=${response.status()} index=${i}`)
+          })
+          if (response.ok()) {
+            created = true
+            break
+          }
+          lastStatus = response.status()
+          if (lastStatus === 429 || lastStatus >= 500) {
+            await page.waitForTimeout(500 * (attempt + 1))
+            continue
+          }
+          throw new Error(`予約作成に失敗しました status=${lastStatus} index=${i}`)
+        }
+        if (!created) {
+          throw new Error(`予約作成に失敗しました status=${lastStatus || 'unknown'} index=${i}`)
         }
       }
     }

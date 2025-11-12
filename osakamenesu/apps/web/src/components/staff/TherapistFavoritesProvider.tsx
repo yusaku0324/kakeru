@@ -89,7 +89,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
   const apiTargetsRef = useRef(resolveApiBases())
 
   const fetchWithFallback = useCallback(
-    async (path: string, init: RequestInit) => {
+    async (path: string, init: RequestInit = {}) => {
       const targets = apiTargetsRef.current
       let lastResponse: Response | null = null
       let lastError: unknown = null
@@ -97,6 +97,12 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
       for (const base of targets) {
         const url = buildApiUrl(base, path)
         try {
+          const headers = new Headers(init.headers)
+          headers.delete('authorization')
+          headers.delete('Authorization')
+          headers.delete('x-admin-key')
+          headers.delete('X-Admin-Key')
+
           const response = await fetch(url, init)
           if (
             response.status === 404 &&
