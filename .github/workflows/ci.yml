@@ -404,7 +404,7 @@ jobs:
         run: |
           set -euo pipefail
           if ! command -v doppler >/dev/null 2>&1; then
-            curl -Ls https://cli.doppler.com/install.sh | sh
+            curl -Ls https://cli.doppler.com/install.sh | sudo sh
           fi
           if ! command -v doppler >/dev/null 2>&1; then
             echo "::error::Doppler CLI is required but could not be installed" >&2
