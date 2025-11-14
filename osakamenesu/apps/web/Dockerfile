@@ -27,7 +27,7 @@ ENV NEXT_PUBLIC_FAVORITES_API_MODE=$NEXT_PUBLIC_FAVORITES_API_MODE
 COPY . .
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store/v3 \
     --mount=type=cache,target=/app/.next/cache \
-    pnpm run build
+    pnpm exec next build
 
 FROM base AS runner
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
