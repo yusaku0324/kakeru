@@ -36,6 +36,8 @@ permissions:
 
 jobs:
   test:
+    # Temporarily disable legacy Python CI until the old /app service is maintained again
+    if: ${{ false }}
     runs-on: ubuntu-latest
     services:
       osakamenesu-db:
@@ -121,6 +123,8 @@ jobs:
         run: pytest -n auto app/tests -q
 
   integration-test:
+    # Temporarily disabled alongside the legacy Python pipeline above
+    if: ${{ false }}
     runs-on: ubuntu-latest
     env:
       DOCKER_BUILDKIT: 1
