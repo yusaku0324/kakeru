@@ -8,14 +8,14 @@ const INITIAL_AVAILABILITY = [
   {
     date: '2024-12-24',
     slots: [
-      { start_at: '2024-12-24T10:00', end_at: '2024-12-24T11:00', status: 'open' },
-      { start_at: '2024-12-24T13:00', end_at: '2024-12-24T14:00', status: 'tentative' },
+      { start_at: '2024-12-24T10:00', end_at: '2024-12-24T11:00', status: 'open' as const },
+      { start_at: '2024-12-24T13:00', end_at: '2024-12-24T14:00', status: 'tentative' as const },
     ],
   },
-]
+] satisfies AvailabilityDay[]
 
 function ShopReservationSummaryPreview() {
-  const [availability, setAvailability] = useState(INITIAL_AVAILABILITY)
+  const [availability, setAvailability] = useState<AvailabilityDay[]>(INITIAL_AVAILABILITY)
 
   const updateSlots = (dayIndex: number, slotIndex: number, key: 'start_at' | 'end_at' | 'status', value: string) => {
     setAvailability(prev =>
@@ -38,7 +38,9 @@ function ShopReservationSummaryPreview() {
       onAddSlot={index =>
         setAvailability(prev =>
           prev.map((day, idx) =>
-            idx === index ? { ...day, slots: [...day.slots, { start_at: '', end_at: '', status: 'open' }] } : day,
+            idx === index
+              ? { ...day, slots: [...day.slots, { start_at: '', end_at: '', status: 'open' as const }] }
+              : day,
           ),
         )
       }
