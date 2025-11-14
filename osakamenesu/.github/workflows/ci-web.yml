@@ -1,0 +1,63 @@
+name: Web CI
+
+on:
+  push:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/ci-web.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/ci-web.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+jobs:
+  web-ci:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Type check
+        working-directory: apps/web
+        run: pnpm exec tsc --noEmit
+
+      - name: Unit tests
+        working-directory: apps/web
+        run: pnpm test:unit
+
+      - name: E2E smoke - reservations MVP
+        working-directory: apps/web
+        run: pnpm exec playwright test e2e/reservations-mvp.spec.ts
+        env:
+          # Provide these secrets in repository settings when ready
+          ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER || '' }}
+          ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS || '' }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY || '' }}
+
+      - name: E2E smoke - admin dashboard save
+        working-directory: apps/web
+        run: pnpm exec playwright test e2e/admin-dashboard.spec.ts --grep "店舗情報を更新して元に戻せる"
+        env:
+          ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER || '' }}
+          ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS || '' }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY || '' }}

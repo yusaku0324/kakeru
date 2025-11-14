@@ -1,8 +1,8 @@
-import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import type { Metadata } from 'next'
 import { createHash } from 'crypto'
+import SafeImage from '@/components/SafeImage'
 import Gallery from '@/components/Gallery'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
@@ -504,7 +504,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                       </div>
                       {diary.photos?.length ? (
                         <div className="relative aspect-[4/3] overflow-hidden rounded-card bg-neutral-surfaceAlt">
-                          <Image
+                          <SafeImage
                             src={diary.photos[0]}
                             alt={diary.title || '写メ日記'}
                             fill
@@ -620,19 +620,14 @@ export default async function ProfilePage({ params, searchParams }: Props) {
             {staff.map((member) => (
               <Card key={member.id} className="space-y-3 p-4">
                 <div className="flex items-start gap-3">
-                  {member.avatar_url ? (
-                    <Image
-                      src={member.avatar_url}
-                      alt={`${member.name}の写真`}
-                      width={64}
-                      height={64}
-                      className="h-16 w-16 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-neutral-surfaceAlt text-xs text-neutral-textMuted">
-                      NO PHOTO
-                    </div>
-                  )}
+                  <SafeImage
+                    src={member.avatar_url || undefined}
+                    alt={`${member.name}の写真`}
+                    width={64}
+                    height={64}
+                    className="h-16 w-16 rounded-full object-cover"
+                    fallbackSrc="/images/placeholder-avatar.svg"
+                  />
                   <div>
                     <div className="text-base font-semibold text-neutral-text">{member.name}</div>
                     {member.alias ? (

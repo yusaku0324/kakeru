@@ -1,9 +1,9 @@
-import Image from 'next/image'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 
+import SafeImage from '@/components/SafeImage'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
@@ -281,12 +281,13 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
           <div className="grid gap-6 md:grid-cols-[minmax(0,260px)_1fr] md:items-start">
             <div className="overflow-hidden rounded-card border border-neutral-borderLight bg-neutral-surface">
               {staff.avatar_url ? (
-                <Image
+                <SafeImage
                   src={staff.avatar_url}
                   alt={`${staff.name}の写真`}
                   width={480}
                   height={640}
                   className="h-full w-full object-cover"
+                  fallbackSrc="/images/placeholder-avatar.svg"
                 />
               ) : (
                 <div className="flex h-full min-h-[320px] items-center justify-center bg-neutral-surfaceAlt text-3xl font-semibold text-neutral-textMuted">
@@ -465,13 +466,13 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
                   className="flex items-center gap-3 rounded-card border border-neutral-borderLight/70 bg-neutral-surfaceAlt/60 p-3 transition hover:border-brand-primary"
                 >
                   <div className="relative h-16 w-16 overflow-hidden rounded-full bg-neutral-surface">
-                    {member.avatar_url ? (
-                      <Image src={member.avatar_url} alt={`${member.name}の写真`} fill className="object-cover" />
-                    ) : (
-                      <span className="grid h-full w-full place-items-center text-sm font-semibold text-neutral-textMuted">
-                        {member.name.slice(0, 1)}
-                      </span>
-                    )}
+                    <SafeImage
+                      src={member.avatar_url || undefined}
+                      alt={`${member.name}の写真`}
+                      fill
+                      className="object-cover"
+                      fallbackSrc="/images/placeholder-avatar.svg"
+                    />
                   </div>
                   <div className="flex-1">
                     <div className="font-semibold text-neutral-text">{member.name}</div>

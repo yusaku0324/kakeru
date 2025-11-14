@@ -1,4 +1,6 @@
+import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
+import { appendFile } from 'node:fs/promises'
 
 const ADMIN_KEY = process.env.ADMIN_API_KEY
 const PUBLIC_BASE = process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE || process.env.NEXT_PUBLIC_API_BASE || '/api'
@@ -9,6 +11,7 @@ function bases() {
 }
 
 async function proxy(method: 'GET' | 'PATCH', request: Request, params: { id: string }) {
+  const requestLabel = `[admin-shops-bff:${method}:${params.id}:${randomUUID()}]`
   if (!ADMIN_KEY) {
     return NextResponse.json({ detail: 'admin key not configured' }, { status: 500 })
   }
@@ -29,8 +32,16 @@ async function proxy(method: 'GET' | 'PATCH', request: Request, params: { id: st
   const targetPath = method === 'PATCH'
     ? `/api/admin/shops/${params.id}/content`
     : `/api/admin/shops/${params.id}`
+  const requestStart = Date.now()
+  const forwardPayload = {
+    targetPath,
+    body: method === 'PATCH' ? safelyLogBody(body) : undefined,
+  }
+  console.log(`${requestLabel} forwarding`, forwardPayload)
+  // temporary instrumentation removed
 
   for (const base of bases()) {
+    const hopStart = Date.now()
     try {
       const resp = await fetch(`${base}${targetPath}`, {
         method,
@@ -47,14 +58,27 @@ async function proxy(method: 'GET' | 'PATCH', request: Request, params: { id: st
           json = { detail: text }
         }
       }
+      const hopDuration = Date.now() - hopStart
+      const responseInfo = {
+        base,
+        status: resp.status,
+        durationMs: hopDuration,
+      }
+      console.log(`${requestLabel} response`, responseInfo)
       if (resp.ok) {
+        const totalDuration = Date.now() - requestStart
+        const successInfo = { durationMs: totalDuration }
+        console.log(`${requestLabel} success`, successInfo)
         return NextResponse.json(json)
       }
       lastError = { status: resp.status, body: json }
     } catch (err) {
+      console.error(`${requestLabel} fetch failed`, { base, error: String(err) })
       lastError = err
     }
   }
+  const totalDuration = Date.now() - requestStart
+  console.error(`${requestLabel} exhausted`, { durationMs: totalDuration, lastError })
   if (lastError?.status && lastError.body) {
     return NextResponse.json(lastError.body, { status: lastError.status })
   }
@@ -67,4 +91,14 @@ export async function GET(request: Request, context: { params: { id: string } })
 
 export async function PATCH(request: Request, context: { params: { id: string } }) {
   return proxy('PATCH', request, context.params)
+}
+
+function safelyLogBody(body?: string) {
+  if (!body) return undefined
+  try {
+    const parsed = JSON.parse(body)
+    return { ...parsed }
+  } catch {
+    return body
+  }
 }

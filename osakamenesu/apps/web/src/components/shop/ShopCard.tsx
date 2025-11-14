@@ -1,6 +1,6 @@
-import Image from 'next/image'
 import Link from 'next/link'
 
+import SafeImage from '@/components/SafeImage'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
@@ -129,17 +129,15 @@ export function ShopCard({ hit }: { hit: ShopHit }) {
   return (
     <Link href={getProfileHref(hit)} className="block focus:outline-none" prefetch>
       <Card interactive className="h-full" data-testid="shop-card">
-        <div className="relative aspect-[4/3] bg-neutral-surfaceAlt">
-          {hit.lead_image_url ? (
-            <Image
-              src={hit.lead_image_url}
-              alt={`${hit.name} の写真`}
-              fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              className="object-cover"
-              priority={false}
-            />
-          ) : null}
+        <div className="relative aspect-[4/3] overflow-hidden rounded-t-card bg-neutral-surfaceAlt">
+          <SafeImage
+            src={hit.lead_image_url || undefined}
+            alt={`${hit.name} の写真`}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover"
+            priority={false}
+          />
 
           {Array.isArray(hit.badges) && hit.badges.length ? (
             <div className="absolute left-2 top-2 flex flex-wrap gap-1">

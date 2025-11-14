@@ -1,6 +1,8 @@
 "use client"
-import Image from 'next/image'
+
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+import SafeImage from '@/components/SafeImage'
 
 type Props = {
   photos: string[]
@@ -110,7 +112,7 @@ export default function Gallery({ photos, altBase }: Props) {
             data-active={i===index}
             className={`relative w-24 aspect-[4/3] shrink-0 rounded overflow-hidden ring-1 ${i===index?'ring-slate-900':'ring-slate-200'}`}
           >
-            <Image src={src} alt={`${altBase} thumbnail ${i+1}`} fill sizes="96px" placeholder="blur" blurDataURL={BLUR_SVG} className="object-cover" />
+            <SafeImage src={src} alt={`${altBase} thumbnail ${i + 1}`} fill sizes="96px" placeholder="blur" blurDataURL={BLUR_SVG} className="object-cover" />
           </button>
         ))}
       </div>
@@ -121,7 +123,7 @@ export default function Gallery({ photos, altBase }: Props) {
           {photos.map((src, i) => (
             <div key={i} data-testid="gallery-slide" data-index={i} className="shrink-0 w-full snap-center">
               <div className="relative aspect-[4/3] bg-gray-100">
-                <Image
+                <SafeImage
                   src={src}
                   alt={`${altBase} ${i + 1}`}
                   fill
@@ -153,10 +155,10 @@ export default function Gallery({ photos, altBase }: Props) {
         <div className="flex gap-2 overflow-x-auto no-scrollbar md:hidden">
           {photos.map((src, i) => (
             <button key={i} onClick={() => goTo(i)} data-testid="gallery-thumb" data-active={i===index} className={`relative h-16 w-20 shrink-0 rounded overflow-hidden ring-1 ${i===index?'ring-slate-900':'ring-slate-200'}`}>
-              <Image src={src} alt={`${altBase} thumbnail ${i+1}`} fill sizes="80px" placeholder="blur" blurDataURL={BLUR_SVG} className="object-cover" />
-            </button>
-          ))}
-        </div>
+              <SafeImage src={src} alt={`${altBase} thumbnail ${i + 1}`} fill sizes="80px" placeholder="blur" blurDataURL={BLUR_SVG} className="object-cover" />
+          </button>
+        ))}
+      </div>
       </div>
     </div>
   )

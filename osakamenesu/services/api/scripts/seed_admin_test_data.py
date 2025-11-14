@@ -125,8 +125,8 @@ def _ensure_shop(
             "service_type": "store",
             "body_tags": ["清楚", "スレンダー"],
             "photos": [
-                "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=960&q=80",
-                "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=960&q=80",
+                "/images/demo-shop-1.svg",
+                "/images/demo-shop-2.svg",
             ],
             "contact_json": {
                 "store_name": "Playwright Seed Spa",
@@ -236,8 +236,8 @@ def _ensure_shop(
         "description": "梅田駅徒歩3分。完全個室のプレイライト向けメンエス体験。",
         "catch_copy": "都会の喧騒を忘れる上質な癒やしを。",
         "photos": [
-            "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=960&q=80",
-            "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=960&q=80",
+            "/images/demo-shop-1.svg",
+            "/images/demo-shop-2.svg",
         ],
     }
 

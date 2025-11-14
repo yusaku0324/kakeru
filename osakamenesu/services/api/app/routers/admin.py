@@ -1,4 +1,6 @@
 import inspect
+import logging
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.encoders import jsonable_encoder
@@ -47,6 +49,7 @@ from ..utils.slug import slugify
 
 router = APIRouter(dependencies=[Depends(require_admin), Depends(audit_admin)])
 JST = ZoneInfo("Asia/Tokyo")
+logger = logging.getLogger("app.admin")
 
 def _build_doc(
     p: models.Profile,
@@ -476,8 +479,11 @@ async def _resolve_profile(db: AsyncSession, identifier: str) -> models.Profile 
 
 @router.get("/api/admin/shops/{shop_id}", summary="Get shop detail", response_model=ShopAdminDetail)
 async def admin_get_shop(shop_id: UUID, db: AsyncSession = Depends(get_session)):
+    start = time.perf_counter()
+    logger.info("admin_get_shop start shop_id=%s", shop_id)
     profile = await db.get(models.Profile, shop_id)
     if not profile:
+        logger.warning("admin_get_shop missing shop_id=%s", shop_id)
         raise HTTPException(status_code=404, detail="shop not found")
 
     contact_json = profile.contact_json or {}
@@ -490,7 +496,7 @@ async def admin_get_shop(shop_id: UUID, db: AsyncSession = Depends(get_session))
     availability = availability_calendar.days if availability_calendar else []
     photos = profile.photos or []
 
-    return ShopAdminDetail(
+    detail = ShopAdminDetail(
         id=profile.id,
         name=profile.name,
         slug=profile.slug,
@@ -508,6 +514,14 @@ async def admin_get_shop(shop_id: UUID, db: AsyncSession = Depends(get_session))
         staff=staff_members,
         availability=availability,
     )
+    duration_ms = (time.perf_counter() - start) * 1000
+    logger.info(
+        "admin_get_shop success shop_id=%s duration_ms=%.1f address=%s",
+        shop_id,
+        duration_ms,
+        detail.address,
+    )
+    return detail
 
 
 @router.get(
@@ -549,8 +563,15 @@ async def admin_update_shop_content(
     payload: ShopContentUpdate,
     db: AsyncSession = Depends(get_session),
 ):
+    start = time.perf_counter()
+    logger.info(
+        "admin_update_shop_content start shop_id=%s payload_address=%s",
+        shop_id,
+        payload.address,
+    )
     profile = await db.get(models.Profile, shop_id)
     if not profile:
+        logger.warning("admin_update_shop_content missing shop_id=%s", shop_id)
         raise HTTPException(status_code=404, detail="shop not found")
 
     before_detail = await admin_get_shop(shop_id, db)
@@ -665,6 +686,13 @@ async def admin_update_shop_content(
         "content_update",
         before_detail.model_dump() if hasattr(before_detail, "model_dump") else jsonable_encoder(before_detail),
         detail.model_dump() if hasattr(detail, "model_dump") else jsonable_encoder(detail),
+    )
+    duration_ms = (time.perf_counter() - start) * 1000
+    logger.info(
+        "admin_update_shop_content success shop_id=%s duration_ms=%.1f persisted_address=%s",
+        profile.id,
+        duration_ms,
+        detail.address,
     )
     return detail
 

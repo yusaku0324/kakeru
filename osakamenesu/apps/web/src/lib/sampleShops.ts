@@ -101,8 +101,8 @@ export const SAMPLE_SHOPS: SampleShop[] = [
     description: 'リゾートのような完全個室空間で、丁寧なリンパケアが人気のメンエス。21時以降のビジネス利用も多数。',
     catch_copy: 'リゾートホテルを思わせる完全個室で極上の癒し体験を。',
     photos: [
-      { url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80' },
-      { url: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80' },
+      { url: '/images/demo-shop-1.svg' },
+      { url: '/images/demo-shop-2.svg' },
     ],
     contact: {
       phone: '066-100-1234',
@@ -139,7 +139,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         headline: '丁寧なオイルトリートメントで人気のセラピスト',
         rating: 4.6,
         review_count: 87,
-        avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=640&q=80',
+        avatar_url: '/images/demo-therapist-1.svg',
         specialties: ['リンパ', 'ホットストーン', '指名多数'],
       },
       {
@@ -149,7 +149,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         headline: 'ストレッチと指圧を組み合わせた独自施術が評判',
         rating: 4.3,
         review_count: 52,
-        avatar_url: 'https://images.unsplash.com/photo-1487412912498-0447578fcca8?auto=format&fit=crop&w=400&q=80',
+        avatar_url: '/images/demo-therapist-2.svg',
         specialties: ['ストレッチ', '指圧', 'ディープリンパ'],
       },
     ],
@@ -216,7 +216,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         id: 'diary-aki-1',
         title: '本日の空き枠',
         body: '本日は21時〜と23時〜で空きがございます。お仕事帰りにぜひお立ち寄りください。',
-        photos: ['https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=960&q=80'],
+        photos: ['/images/demo-shop-3.svg'],
         hashtags: ['葵', '当日予約'],
         published_at: '2025-10-01T09:00:00+09:00',
       },

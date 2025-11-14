@@ -1,9 +1,9 @@
 "use client"
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { useMemo } from 'react'
 
+import SafeImage from '@/components/SafeImage'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { useTherapistFavorites } from './TherapistFavoritesProvider'
@@ -94,12 +94,13 @@ export function TherapistCard({ hit }: { hit: TherapistHit }) {
       <Link href={staffHref} className="block focus:outline-none group">
         <div className="relative h-48 overflow-hidden rounded-t-card bg-neutral-surfaceAlt">
           {hit.avatarUrl ? (
-            <Image
+            <SafeImage
               src={hit.avatarUrl}
               alt={`${hit.name}の写真`}
               fill
               className="object-cover transition duration-300 group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              fallbackSrc="/images/placeholder-avatar.svg"
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-neutral-surfaceAlt text-neutral-textMuted">

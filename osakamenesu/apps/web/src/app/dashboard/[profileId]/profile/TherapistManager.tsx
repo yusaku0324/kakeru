@@ -2,6 +2,7 @@
 
 import React, { ChangeEvent, FormEvent, KeyboardEvent, useMemo, useState } from 'react'
 
+import SafeImage from '@/components/SafeImage'
 import { Card } from '@/components/ui/Card'
 import {
   type DashboardTherapistSummary,
@@ -193,11 +194,12 @@ export function TherapistPhotoField({
               className="flex flex-col gap-3 rounded-md border border-neutral-200 bg-neutral-50 p-3 sm:flex-row sm:items-center"
             >
               <div className="flex items-start gap-3 sm:w-1/2">
-                <img
+                <SafeImage
                   src={url}
                   alt={`セラピスト写真 ${index + 1}`}
+                  width={80}
+                  height={80}
                   className="h-20 w-20 flex-shrink-0 rounded-md object-cover"
-                  loading="lazy"
                 />
                 <p className="flex-1 break-all text-xs text-neutral-600">{url}</p>
               </div>
@@ -646,12 +648,13 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
                 {therapist.photo_urls.length ? (
                   <div className="flex items-center gap-2">
                     {therapist.photo_urls.slice(0, 3).map((url, photoIndex) => (
-                      <img
+                      <SafeImage
                         key={`${therapist.id}-photo-${photoIndex}`}
                         src={url}
                         alt={`${therapist.name}の写真${photoIndex + 1}`}
+                        width={48}
+                        height={48}
                         className="h-12 w-12 rounded-md object-cover"
-                        loading="lazy"
                       />
                     ))}
                     {therapist.photo_urls.length > 3 ? (

@@ -225,7 +225,17 @@ export default function AdminShopsPage() {
       setCatchCopy(json.catch_copy || '')
       setAddress(json.address || '')
       const photos: string[] = json.photos && json.photos.length > 0 ? json.photos : ['']
-      setPhotoUrls(photos)
+      const normalizedPhotos = photos
+        .map((url: string) => {
+          if (!url) return ''
+          if (url.startsWith('http')) {
+            // Use local placeholder for remote URLs to avoid runtime fetch errors
+            return '/images/placeholder-card.svg'
+          }
+          return url
+        })
+        .filter(Boolean)
+      setPhotoUrls(normalizedPhotos.length ? normalizedPhotos : ['/images/placeholder-card.svg'])
     } catch (err) {
       console.error(err)
       push('error', '店舗詳細の取得に失敗しました')
@@ -404,23 +414,23 @@ export default function AdminShopsPage() {
       reservation_form_url: contact.reservation_form_url || undefined,
     }
 
-    return {
-      name: name.trim(),
-      slug: slugValue.trim() || undefined,
-      area: areaValue.trim(),
-      price_min: Number(priceMin) || 0,
-      price_max: Number(priceMax) || 0,
-      service_type: serviceType,
-      service_tags: serviceTags,
-      menus: normalizedMenus,
-      staff: normalizedStaff,
-      contact: contactPayload,
-      description: description || undefined,
-      catch_copy: catchCopy || undefined,
-      address: address || undefined,
-      photos: photoUrls.map(url => url.trim()).filter(Boolean),
-    }
+  return {
+    name: name.trim(),
+    slug: slugValue.trim() || undefined,
+    area: areaValue.trim(),
+    price_min: Number(priceMin) || 0,
+    price_max: Number(priceMax) || 0,
+    service_type: serviceType,
+    service_tags: serviceTags,
+    menus: normalizedMenus,
+    staff: normalizedStaff,
+    contact: contactPayload,
+    description: description || undefined,
+    catch_copy: catchCopy || undefined,
+    address: address.trim(),
+    photos: photoUrls.map(url => url.trim()).filter(Boolean),
   }
+}
 
   function buildCreatePayload(updatePayload: ReturnType<typeof buildUpdatePayload>) {
     const contactJson: Record<string, any> = {}
@@ -463,68 +473,136 @@ export default function AdminShopsPage() {
 
   async function saveContent() {
     const updatePayload = buildUpdatePayload()
-    if (!updatePayload.name) {
+    const preparedPayload = {
+      ...updatePayload,
+      name: updatePayload.name || detail?.name || '',
+      slug: updatePayload.slug || detail?.slug || '',
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[admin-shops] saveContent invoked', {
+        selectedId,
+        isCreating,
+        hasDetail: Boolean(detail?.id),
+        payloadKeys: Object.keys(updatePayload),
+      })
+    }
+    if (!preparedPayload.name) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[admin-shops] saveContent missing name')
+      }
       push('error', '店舗名を入力してください')
       return
     }
-    if (!updatePayload.slug) {
-      push('error', 'スラッグを入力してください')
-      return
+    if (!preparedPayload.slug) {
+      if (isCreating) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[admin-shops] saveContent missing slug (create)')
+        }
+        push('error', 'スラッグを入力してください')
+        return
+      }
+      delete preparedPayload.slug
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[admin-shops] saveContent proceeding without slug (update)')
+      }
     }
 
     try {
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[admin-shops] saveContent entering try', { isCreating })
+      }
       if (isCreating) {
-        const createPayload = buildCreatePayload(updatePayload)
+        if (process.env.NODE_ENV !== 'production') {
+          console.info('[admin-shops] saveContent in create branch')
+        }
+        const createPayload = buildCreatePayload(preparedPayload)
         const createResp = await fetch('/api/admin/shops', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(createPayload),
         })
-      if (!createResp.ok) {
-        const detailResp = await createResp.json().catch(() => ({}))
-        push('error', detailResp?.detail || '店舗の作成に失敗しました')
-        return
-      }
-      const createJson = await createResp.json()
-      const newId = createJson.id || createJson?.detail?.id
-      if (!newId) {
-        push('error', '店舗IDを取得できませんでした')
-        return
-      }
+        if (!createResp.ok) {
+          const detailResp = await createResp.json().catch(() => ({}))
+          push('error', detailResp?.detail || '店舗の作成に失敗しました')
+          return
+        }
+        const createJson = await createResp.json()
+        const newId = createJson.id || createJson?.detail?.id
+        if (!newId) {
+          push('error', '店舗IDを取得できませんでした')
+          return
+        }
 
-      const patchResp = await fetch(`/api/admin/shops/${newId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload),
-      })
-      if (!patchResp.ok) {
-        const patchDetail = await patchResp.json().catch(() => ({}))
-        push('error', patchDetail?.detail || '店舗情報の更新に失敗しました')
-        return
-      }
+        const patchResp = await fetch(`/api/admin/shops/${newId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(preparedPayload),
+        })
+        if (!patchResp.ok) {
+          const patchDetail = await patchResp.json().catch(() => ({}))
+          push('error', patchDetail?.detail || '店舗情報の更新に失敗しました')
+          return
+        }
         setIsCreating(false)
         setSelectedId(newId)
         await fetchShops(false)
         push('success', '店舗を作成しました')
         return
-      }
+      } else {
+        if (process.env.NODE_ENV !== 'production') {
+          console.info('[admin-shops] saveContent after create block', { isCreating })
+        }
 
-      if (!selectedId) return
+        const targetId = selectedId || detail?.id || null
+        if (process.env.NODE_ENV !== 'production') {
+          console.info('[admin-shops] saveContent selectedId check', { selectedId, detailId: detail?.id, targetId })
+        }
+        if (!targetId) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('[admin-shops] saveContent aborted: missing selectedId')
+          }
+          return
+        }
 
-      const resp = await fetch(`/api/admin/shops/${selectedId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload),
-      })
-      if (!resp.ok) {
-        const detailResp = await resp.json().catch(() => ({}))
-        push('error', detailResp?.detail || '保存に失敗しました')
-        return
+        if (process.env.NODE_ENV !== 'production') {
+          console.info('[admin-shops] saveContent dispatching patch', {
+            selectedId,
+            payloadSample: {
+              name: preparedPayload.name,
+              slug: preparedPayload.slug,
+              address: preparedPayload.address,
+            },
+          })
+        }
+        if (process.env.NODE_ENV !== 'production') {
+          console.info('[admin-shops] saveContent issuing patch fetch', { targetId })
+        }
+        const resp = await fetch(`/api/admin/shops/${targetId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(preparedPayload),
+        })
+        if (process.env.NODE_ENV !== 'production') {
+          console.info('[admin-shops] saveContent patch response', {
+            selectedId,
+            targetId,
+            status: resp.status,
+            ok: resp.ok,
+          })
+        }
+        if (!resp.ok) {
+          const detailResp = await resp.json().catch(() => ({}))
+          push('error', detailResp?.detail || '保存に失敗しました')
+          return
+        }
+        await fetchDetail(targetId)
+        await fetchShops(false)
+        push('success', '店舗情報を保存しました')
       }
-      await fetchDetail(selectedId)
-      await fetchShops(false)
-      push('success', '店舗情報を保存しました')
     } catch (err) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[admin-shops] saveContent error', err)
+      }
       console.error(err)
       push('error', 'ネットワークエラーが発生しました')
     }
