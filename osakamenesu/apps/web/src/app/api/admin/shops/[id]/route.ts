@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { appendFile } from 'node:fs/promises'
 
 const ADMIN_KEY = process.env.ADMIN_API_KEY
@@ -10,7 +10,7 @@ function bases() {
   return [INTERNAL_BASE, PUBLIC_BASE]
 }
 
-async function proxy(method: 'GET' | 'PATCH', request: Request, params: { id: string }) {
+async function proxy(method: 'GET' | 'PATCH', request: NextRequest, params: { id: string }) {
   const requestLabel = `[admin-shops-bff:${method}:${params.id}:${randomUUID()}]`
   if (!ADMIN_KEY) {
     return NextResponse.json({ detail: 'admin key not configured' }, { status: 500 })
@@ -85,12 +85,24 @@ async function proxy(method: 'GET' | 'PATCH', request: Request, params: { id: st
   return NextResponse.json({ detail: 'admin shop unavailable' }, { status: 503 })
 }
 
-export async function GET(request: Request, context: { params: { id: string } }) {
-  return proxy('GET', request, context.params)
+type RouteContext = { params: Promise<{ id: string }> }
+
+async function resolveParams(context: RouteContext) {
+  const params = await context.params
+  if (!params || !params.id) {
+    throw new Error('missing shop id in route params')
+  }
+  return params
 }
 
-export async function PATCH(request: Request, context: { params: { id: string } }) {
-  return proxy('PATCH', request, context.params)
+export async function GET(request: NextRequest, context: RouteContext) {
+  const params = await resolveParams(context)
+  return proxy('GET', request, params)
+}
+
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  const params = await resolveParams(context)
+  return proxy('PATCH', request, params)
 }
 
 function safelyLogBody(body?: string) {
