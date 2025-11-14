@@ -35,7 +35,20 @@ function ShopMenusSectionPreview() {
         onUpdateMenu={(index, patch) =>
           setMenus(prev => prev.map((menu, idx) => (idx === index ? { ...menu, ...patch } : menu)))
         }
-        onAddMenu={() => setMenus(prev => [...prev, { id: `menu-${Date.now()}`, name: '', price: 0, tags: [] }])}
+        onAddMenu={() =>
+          setMenus(prev => [
+            ...prev,
+            {
+              id: `menu-${Date.now()}`,
+              name: '',
+              price: 0,
+              duration_minutes: 0,
+              description: '',
+              tags: [],
+              is_reservable_online: true,
+            },
+          ])
+        }
         onRemoveMenu={index => setMenus(prev => prev.filter((_, idx) => idx !== index))}
       />
     </div>
