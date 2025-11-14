@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 
 import DashboardReservationFeed from '@/components/dashboard/DashboardReservationFeed'
+import DashboardReservationDaySummary from '@/components/dashboard/DashboardReservationDaySummary'
 import { Card } from '@/components/ui/Card'
 import { fetchDashboardShopProfile } from '@/lib/dashboard-shops'
 
@@ -132,7 +133,9 @@ export default async function DashboardHomePage({
         </Card>
       </section>
 
+      <DashboardReservationDaySummary profileId={data.id} />
+
       <DashboardReservationFeed profileId={data.id} slug={data.slug} className="border-none shadow-none p-0" />
-    </main>
-  )
+   </main>
+ )
 }

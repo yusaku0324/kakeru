@@ -48,6 +48,7 @@ export async function fetchDashboardReservations(
     end,
     cursor,
     cursorDirection,
+    mode,
   }: {
     status?: string
     limit?: number
@@ -59,6 +60,7 @@ export async function fetchDashboardReservations(
     end?: string
     cursor?: string
     cursorDirection?: 'forward' | 'backward'
+    mode?: 'today' | 'tomorrow'
   } = {},
 ): Promise<DashboardReservationListResponse> {
   const params = new URLSearchParams()
@@ -86,6 +88,9 @@ export async function fetchDashboardReservations(
   }
   if (cursorDirection) {
     params.set('cursor_direction', cursorDirection)
+  }
+  if (mode) {
+    params.set('mode', mode)
   }
   const res = await apiFetch(`/api/dashboard/shops/${profileId}/reservations?${params.toString()}`, {
     method: 'GET',

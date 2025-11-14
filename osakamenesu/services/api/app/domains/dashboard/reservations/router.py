@@ -5,6 +5,7 @@ from typing import Any, List, Optional
 from uuid import UUID
 
 from datetime import date, datetime, time, timezone, timedelta
+from zoneinfo import ZoneInfo
 import base64
 import json
 import hmac
@@ -28,6 +29,8 @@ from ...admin import reservations as admin_reservations
 from ....settings import settings
 
 REMINDER_LEAD_HOURS = 3
+
+JST = ZoneInfo("Asia/Tokyo")
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -220,6 +223,7 @@ async def list_dashboard_reservations(
     query: Optional[str] = Query(default=None, alias="q"),
     start_date: Optional[str] = Query(default=None, alias="start"),
     end_date: Optional[str] = Query(default=None, alias="end"),
+    mode: Optional[str] = Query(default=None, pattern="^(today|tomorrow)$"),
     cursor: Optional[str] = Query(default=None),
     cursor_direction: str = Query(default="forward", pattern="^(forward|backward)$"),
     limit: int = Query(default=20, ge=1, le=100),
@@ -251,13 +255,21 @@ async def list_dashboard_reservations(
                 )
             )
 
-    if start_date:
-        start_dt = _parse_date_param(start_date, field="start")
+    if mode:
+        today_jst = datetime.now(JST).date()
+        target_date = today_jst if mode == "today" else today_jst + timedelta(days=1)
+        start_dt = datetime.combine(target_date, time.min, tzinfo=JST).astimezone(timezone.utc)
+        end_dt = datetime.combine(target_date, time.max, tzinfo=JST).astimezone(timezone.utc)
         filters.append(models.Reservation.desired_start >= start_dt)
-
-    if end_date:
-        end_dt = _parse_date_param(end_date, field="end", is_end=True)
         filters.append(models.Reservation.desired_start <= end_dt)
+    else:
+        if start_date:
+            start_dt = _parse_date_param(start_date, field="start")
+            filters.append(models.Reservation.desired_start >= start_dt)
+
+        if end_date:
+            end_dt = _parse_date_param(end_date, field="end", is_end=True)
+            filters.append(models.Reservation.desired_start <= end_dt)
 
     sort_column = models.Reservation.created_at if sort == "latest" else models.Reservation.desired_start
     order_clause = sort_column.asc() if direction == "asc" else sort_column.desc()
