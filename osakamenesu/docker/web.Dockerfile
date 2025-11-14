@@ -20,12 +20,14 @@ COPY apps/web .
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store/v3 \
     --mount=type=cache,target=/app/apps/web/.next/cache \
     pnpm run build
+RUN pnpm prune --prod
 
 FROM base AS runner
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
-COPY --from=builder /app/apps/web/.next/standalone ./
-COPY --from=builder /app/apps/web/.next/static ./.next/static
+COPY --from=builder /app/apps/web/.next ./.next
 COPY --from=builder /app/apps/web/public ./public
+COPY --from=builder /app/apps/web/node_modules ./node_modules
+COPY --from=builder /app/apps/web/package.json ./package.json
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["pnpm", "start"]
