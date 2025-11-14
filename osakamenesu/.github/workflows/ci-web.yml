@@ -63,3 +63,37 @@ jobs:
           ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS || '' }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY || '' }}
           SKIP_E2E_SETUP: '1'
+
+  web-storybook:
+    runs-on: ubuntu-latest
+    needs: web-ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Storybook
+        working-directory: apps/web
+        run: pnpm build-storybook
+
+      - name: Upload to Chromatic (if token configured)
+        working-directory: apps/web
+        env:
+          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN || '' }}
+        run: |
+          if [ -z "$CHROMATIC_PROJECT_TOKEN" ]; then
+            echo "Chromatic token is not configured. Skipping upload."
+            exit 0
+          fi
+          pnpm exec chromatic --storybook-dist-dir=storybook-static --only-changed --exit-zero-on-changes --exit-once-uploaded

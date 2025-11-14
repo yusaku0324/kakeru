@@ -50,3 +50,4 @@ CHROMATIC_PROJECT_TOKEN=xxxxx pnpm chromatic  # Chromatic へアップロード
 
 - Chromatic 実行時は `CHROMATIC_PROJECT_TOKEN` を GitHub Secrets などに設定しておく。
 - `story-storybook` コマンドは Next.js の設定 (`next.config.js`) を共有するよう `.storybook/main.ts` で指定済み。
+- CI では `.github/workflows/ci-web.yml` の `web-storybook` ジョブが `pnpm build-storybook` → Chromatic 送信を自動で実行。`CHROMATIC_PROJECT_TOKEN` が未設定の場合はアップロードをスキップし、ビルドのみ通過する。

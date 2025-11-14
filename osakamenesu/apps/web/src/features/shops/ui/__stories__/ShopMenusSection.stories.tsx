@@ -2,10 +2,9 @@
 
 import { useState } from 'react'
 
-import type { MenuItem } from '@/features/shops/model'
 import { ShopMenusSection } from '@/features/shops/ui/ShopMenusSection'
 
-const SAMPLE_MENUS: MenuItem[] = [
+const SAMPLE_MENUS = [
   {
     id: 'menu-aroma-60',
     name: 'アロマトリートメント 60分',
@@ -26,8 +25,8 @@ const SAMPLE_MENUS: MenuItem[] = [
   },
 ]
 
-export function ShopMenusSectionStory() {
-  const [menus, setMenus] = useState<MenuItem[]>(SAMPLE_MENUS)
+function ShopMenusSectionPreview() {
+  const [menus, setMenus] = useState(SAMPLE_MENUS)
 
   return (
     <div className="max-w-3xl space-y-4 rounded border border-slate-200 bg-slate-50 p-6">
@@ -41,4 +40,18 @@ export function ShopMenusSectionStory() {
       />
     </div>
   )
+}
+
+const meta = {
+  title: 'Features/Shops/ShopMenusSection',
+  component: ShopMenusSection,
+  parameters: {
+    layout: 'centered',
+  },
+}
+
+export default meta
+
+export const Default = {
+  render: () => <ShopMenusSectionPreview />,
 }

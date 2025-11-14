@@ -2,10 +2,9 @@
 
 import { useState } from 'react'
 
-import type { StaffItem } from '@/features/shops/model'
 import { ShopStaffSection } from '@/features/shops/ui/ShopStaffSection'
 
-const SAMPLE_STAFF: StaffItem[] = [
+const SAMPLE_STAFF = [
   {
     id: 'staff-kana',
     name: 'Kana',
@@ -22,8 +21,8 @@ const SAMPLE_STAFF: StaffItem[] = [
   },
 ]
 
-export function ShopStaffSectionStory() {
-  const [members, setMembers] = useState<StaffItem[]>(SAMPLE_STAFF)
+function ShopStaffSectionPreview() {
+  const [members, setMembers] = useState(SAMPLE_STAFF)
 
   return (
     <div className="max-w-3xl space-y-4 rounded border border-slate-200 bg-slate-50 p-6">
@@ -37,4 +36,18 @@ export function ShopStaffSectionStory() {
       />
     </div>
   )
+}
+
+const meta = {
+  title: 'Features/Shops/ShopStaffSection',
+  component: ShopStaffSection,
+  parameters: {
+    layout: 'centered',
+  },
+}
+
+export default meta
+
+export const Default = {
+  render: () => <ShopStaffSectionPreview />,
 }

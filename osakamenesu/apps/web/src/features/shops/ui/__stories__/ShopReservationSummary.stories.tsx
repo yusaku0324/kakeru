@@ -2,10 +2,9 @@
 
 import { useState } from 'react'
 
-import type { AvailabilityDay, AvailabilitySlot } from '@/features/shops/model'
 import { ShopReservationSummary } from '@/features/shops/ui/ShopReservationSummary'
 
-const INITIAL_AVAILABILITY: AvailabilityDay[] = [
+const INITIAL_AVAILABILITY = [
   {
     date: '2024-12-24',
     slots: [
@@ -15,10 +14,10 @@ const INITIAL_AVAILABILITY: AvailabilityDay[] = [
   },
 ]
 
-export function ShopReservationSummaryStory() {
-  const [availability, setAvailability] = useState<AvailabilityDay[]>(INITIAL_AVAILABILITY)
+function ShopReservationSummaryPreview() {
+  const [availability, setAvailability] = useState(INITIAL_AVAILABILITY)
 
-  const updateSlots = (dayIndex: number, slotIndex: number, key: keyof AvailabilitySlot, value: string) => {
+  const updateSlots = (dayIndex: number, slotIndex: number, key: 'start_at' | 'end_at' | 'status', value: string) => {
     setAvailability(prev =>
       prev.map((day, idx) =>
         idx === dayIndex
@@ -57,4 +56,18 @@ export function ShopReservationSummaryStory() {
       }}
     />
   )
+}
+
+const meta = {
+  title: 'Features/Shops/ShopReservationSummary',
+  component: ShopReservationSummary,
+  parameters: {
+    layout: 'centered',
+  },
+}
+
+export default meta
+
+export const Default = {
+  render: () => <ShopReservationSummaryPreview />,
 }
