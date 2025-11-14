@@ -407,6 +407,13 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
         const specialties = Array.isArray(staff.specialties)
           ? staff.specialties.filter((tag): tag is string => Boolean(tag)).map((tag) => tag.trim()).filter(Boolean)
           : []
+        const todayAvailable =
+          typeof staff.today_available === 'boolean'
+            ? staff.today_available
+            : typeof hit.today_available === 'boolean'
+            ? hit.today_available
+            : null
+        const nextAvailableAt = staff.next_available_at ?? hit.next_available_at ?? null
         return {
           id: uniqueId,
           therapistId: staff.id ? String(staff.id) : null,
@@ -423,6 +430,8 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
           shopName: hit.store_name || hit.name,
           shopArea: hit.area,
           shopAreaName: hit.area_name ?? null,
+          todayAvailable,
+          nextAvailableAt,
         } satisfies TherapistHit
       })
   })

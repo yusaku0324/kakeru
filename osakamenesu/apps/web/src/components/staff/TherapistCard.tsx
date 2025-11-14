@@ -24,6 +24,8 @@ export type TherapistHit = {
   shopName: string
   shopArea: string
   shopAreaName: string | null
+  todayAvailable: boolean | null
+  nextAvailableAt: string | null
 }
 
 const formatter = new Intl.NumberFormat('ja-JP')
