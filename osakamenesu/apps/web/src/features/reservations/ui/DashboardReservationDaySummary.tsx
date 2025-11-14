@@ -10,14 +10,14 @@ import {
 import { Card } from '@/components/ui/Card'
 import type { DashboardReservationItem } from '@/lib/dashboard-reservations'
 import {
-  loadShopReservationsForToday,
-  loadShopReservationsForTomorrow,
+  loadShopReservationsForDay,
+  type ReservationDayMode,
 } from '@/features/reservations/usecases'
 
-const DAY_TABS = [
-  { value: 'today', label: '今日' },
-  { value: 'tomorrow', label: '明日' },
-] as const
+const DAY_TABS: Array<{ mode: ReservationDayMode; label: string }> = [
+  { mode: 'today', label: '今日' },
+  { mode: 'tomorrow', label: '明日' },
+]
 
 const CANCELLED_STATUSES: Array<DashboardReservationItem['status']> = ['cancelled', 'declined', 'expired']
 
@@ -32,38 +32,35 @@ function formatDateLabel(item: DashboardReservationItem) {
   return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
 }
 
-type DayMode = (typeof DAY_TABS)[number]['value']
-
 type DayState = {
   loading: boolean
   error: string | null
   reservations: DashboardReservationItem[]
 }
 
-const INITIAL_STATE: Record<DayMode, DayState> = {
-  today: { loading: true, error: null, reservations: [] },
-  tomorrow: { loading: true, error: null, reservations: [] },
-}
+const INITIAL_STATE = DAY_TABS.reduce<Record<ReservationDayMode, DayState>>((acc, tab) => {
+  acc[tab.mode] = { loading: true, error: null, reservations: [] }
+  return acc
+}, {} as Record<ReservationDayMode, DayState>)
 
 export default function DashboardReservationDaySummary({ profileId }: { profileId: string }) {
-  const [mode, setMode] = useState<DayMode>('today')
+  const [mode, setMode] = useState<ReservationDayMode>('today')
   const [state, setState] = useState(INITIAL_STATE)
 
   useEffect(() => {
     let cancelled = false
-    const controllers: Record<DayMode, AbortController> = {
-      today: new AbortController(),
-      tomorrow: new AbortController(),
-    }
+    const controllers = DAY_TABS.reduce<Record<ReservationDayMode, AbortController>>((acc, tab) => {
+      acc[tab.mode] = new AbortController()
+      return acc
+    }, {} as Record<ReservationDayMode, AbortController>)
 
-    async function loadDay(day: DayMode) {
+    async function loadDay(day: ReservationDayMode) {
       setState(prev => ({
         ...prev,
         [day]: { ...prev[day], loading: true, error: null },
       }))
       try {
-        const loader = day === 'today' ? loadShopReservationsForToday : loadShopReservationsForTomorrow
-        const reservations = await loader(profileId, { signal: controllers[day].signal })
+        const reservations = await loadShopReservationsForDay(profileId, day, { signal: controllers[day].signal })
         if (cancelled) return
         setState(prev => ({ ...prev, [day]: { loading: false, error: null, reservations } }))
       } catch (error) {
@@ -76,13 +73,11 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
       }
     }
 
-    loadDay('today')
-    loadDay('tomorrow')
+    DAY_TABS.forEach(tab => loadDay(tab.mode))
 
     return () => {
       cancelled = true
-      controllers.today.abort()
-      controllers.tomorrow.abort()
+      DAY_TABS.forEach(tab => controllers[tab.mode].abort())
     }
   }, [profileId])
 
@@ -95,6 +90,7 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
   }, [mode, state])
 
   const currentState = state[mode]
+  const currentLabel = useMemo(() => DAY_TABS.find(tab => tab.mode === mode)?.label ?? '', [mode])
 
   return (
     <Card className="space-y-4 border border-brand-primary/20 bg-white/80 p-4 shadow-sm">
@@ -104,14 +100,14 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
           <h2 className="text-lg font-semibold text-neutral-text">今日は誰が来店しますか？</h2>
         </div>
         <div className="inline-flex rounded-full border border-brand-primary/30 bg-white p-0.5 text-sm font-semibold">
-          {DAY_TABS.map((tab) => (
+          {DAY_TABS.map(tab => (
             <button
-              key={tab.value}
+              key={tab.mode}
               type="button"
-              onClick={() => setMode(tab.value)}
+              onClick={() => setMode(tab.mode)}
               className={clsx(
                 'rounded-full px-3 py-1 transition',
-                mode === tab.value
+                mode === tab.mode
                   ? 'bg-brand-primary text-white'
                   : 'text-brand-primary hover:bg-brand-primary/10',
               )}
@@ -123,7 +119,7 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
       </div>
 
       <div className="rounded-card bg-brand-primary/5 px-4 py-3 text-sm font-medium text-brand-primaryDark">
-        {mode === 'today' ? '今日' : '明日'}の予約: {summary.total}件（来店予定 {summary.active}件 / キャンセル {summary.cancelled}件）
+        {currentLabel}の予約: {summary.total}件（来店予定 {summary.active}件 / キャンセル {summary.cancelled}件）
       </div>
 
       {currentState.loading ? (
@@ -131,7 +127,7 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
       ) : currentState.error ? (
         <p className="text-sm text-red-600">{currentState.error}</p>
       ) : currentState.reservations.length === 0 ? (
-        <p className="text-sm text-neutral-textMuted">{mode === 'today' ? '今日' : '明日'}の予約はまだありません。</p>
+        <p className="text-sm text-neutral-textMuted">{currentLabel}の予約はまだありません。</p>
       ) : (
         <ul className="space-y-3">
           {currentState.reservations.map((reservation) => {

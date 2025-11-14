@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { vi, type Mock } from 'vitest'
 
-import DashboardReservationFeed from '@/components/dashboard/DashboardReservationFeed'
+import DashboardReservationFeed from '@/features/reservations/ui/DashboardReservationFeed'
 
 declare global {
   var __fetchDashboardReservationsMock: Mock | undefined

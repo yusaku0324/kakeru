@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 
-import DashboardReservationFeed from '@/components/dashboard/DashboardReservationFeed'
-import DashboardReservationDaySummary from '@/components/dashboard/DashboardReservationDaySummary'
+import DashboardReservationFeed from '@/features/reservations/ui/DashboardReservationFeed'
+import DashboardReservationDaySummary from '@/features/reservations/ui/DashboardReservationDaySummary'
 import { Card } from '@/components/ui/Card'
 import { fetchDashboardShopProfile } from '@/lib/dashboard-shops'
 
