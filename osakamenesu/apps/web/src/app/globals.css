@@ -4,23 +4,23 @@
 
 @layer base {
   :root {
-    --color-brand-primary: #f97316;
-    --color-brand-primary-dark: #ea580c;
-    --color-brand-secondary: #fb7185;
+    --color-brand-primary: #155dfc;
+    --color-brand-primary-dark: #0b4aa6;
+    --color-brand-secondary: #00b8db;
     --color-surface: #ffffff;
-    --color-surface-alt: #f8fafc;
-    --color-border-light: #e2e8f0;
-    --color-text: #0f172a;
-    --color-text-muted: #475569;
-    --color-success-bg: #d1fae5;
-    --color-success-text: #047857;
+    --color-surface-alt: #f0f8ff;
+    --color-border-light: #f3f4f6;
+    --color-text: #1a1a1a;
+    --color-text-muted: #6a7282;
+    --color-success-bg: #e6f8ef;
+    --color-success-text: #0e9f6e;
     --color-danger-bg: #fee2e2;
     --color-danger-text: #b91c1c;
     --radius-badge: 9999px;
-    --radius-card: 18px;
+    --radius-card: 16px;
     --radius-section: 24px;
-    --shadow-card: 0 15px 45px rgba(15, 23, 42, 0.08);
-    --shadow-card-hover: 0 20px 60px rgba(15, 23, 42, 0.14);
+    --shadow-card: 0 8px 10px -6px rgba(0, 0, 0, 0.1), 0 20px 25px -5px rgba(0, 0, 0, 0.12);
+    --shadow-card-hover: 0 20px 45px -12px rgba(21, 93, 252, 0.15);
   }
 
   body {

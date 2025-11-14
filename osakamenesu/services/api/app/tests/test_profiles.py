@@ -4,15 +4,19 @@ import sys
 import uuid
 from datetime import date, datetime, UTC
 from pathlib import Path
+
+_HELPER_DIR = Path(__file__).resolve().parent
+if str(_HELPER_DIR) not in sys.path:
+    sys.path.insert(0, str(_HELPER_DIR))
+
+from _path_setup import configure_paths
 from typing import Any, Dict, List, Optional
 
 import pytest
 
 
 # Ensure app package is importable when tests are executed from repo root
-ROOT = Path(__file__).resolve().parents[4]
-os.chdir(ROOT)
-sys.path.insert(0, str(ROOT / "services" / "api"))
+ROOT = configure_paths(Path(__file__))
 
 for key in [
     "PROJECT_NAME",
@@ -67,16 +71,23 @@ class _DummySettings:
         self.site_session_cookie_name = "osakamenesu_session"
         self.escalation_pending_threshold_minutes = 30
         self.escalation_check_interval_minutes = 5
+        self.reservation_notification_max_attempts = 3
+        self.reservation_notification_retry_base_seconds = 1
+        self.reservation_notification_retry_backoff_multiplier = 2.0
+        self.reservation_notification_worker_interval_seconds = 1.0
+        self.reservation_notification_batch_size = 10
 
 
 dummy_settings_module.Settings = _DummySettings  # type: ignore[attr-defined]
 dummy_settings_module.settings = _DummySettings()
 sys.modules.setdefault("app.settings", dummy_settings_module)
 
+import importlib
+
 from app import models  # type: ignore  # noqa: E402
-from app.routers import admin as admin_router  # type: ignore  # noqa: E402
+admin_router = importlib.import_module("app.domains.admin.router")  # type: ignore  # noqa: E402
+site_shops = importlib.import_module("app.domains.site.shops")  # type: ignore  # noqa: E402
 from app.utils.profiles import build_profile_doc, compute_review_summary, normalize_review_aspects  # type: ignore  # noqa: E402
-from app.routers.shops import _prepare_aspect_scores, _collect_review_aspect_stats, serialize_review  # type: ignore  # noqa: E402
 
 
 class FakeScalarResult:
@@ -250,6 +261,7 @@ def test_build_profile_doc_promotions_and_reviews() -> None:
     assert doc["review_aspect_counts"]["therapist_service"] == 1
     assert doc["ranking_reason"] == "編集部ピックアップ"
 
+
 def test_compute_review_summary_returns_aspects() -> None:
     profile = _make_profile()
     average, count, highlights, aspect_averages, aspect_counts = compute_review_summary(
@@ -271,7 +283,7 @@ def test_prepare_aspect_scores_normalizes_input() -> None:
         "invalid": {"score": 3},
     }
 
-    cleaned = _prepare_aspect_scores(raw)
+    cleaned = site_shops._prepare_aspect_scores(raw)
 
     assert cleaned == {
         "therapist_service": {"score": 5, "note": "丁寧"},
@@ -281,7 +293,7 @@ def test_prepare_aspect_scores_normalizes_input() -> None:
 
 def test_serialize_review_includes_aspects() -> None:
     profile = _make_profile()
-    item = serialize_review(profile.reviews[0])
+    item = site_shops.serialize_review(profile.reviews[0])
 
     assert item.aspects["therapist_service"].score == 5
     assert item.aspects["therapist_service"].note == "丁寧"
@@ -290,12 +302,58 @@ def test_serialize_review_includes_aspects() -> None:
 
 def test_collect_review_aspect_stats_handles_models() -> None:
     profile = _make_profile()
-    item = serialize_review(profile.reviews[0])
-    averages, counts = _collect_review_aspect_stats([item])
+    item = site_shops.serialize_review(profile.reviews[0])
+    averages, counts = site_shops._collect_review_aspect_stats([item])
 
     assert averages["therapist_service"] == pytest.approx(5.0)
     assert counts["therapist_service"] == 1
 
+
+
+
+def test_build_profile_doc_staff_preview_includes_therapist_id() -> None:
+    profile = _make_profile()
+    now = datetime.now(UTC)
+    therapist = models.Therapist(
+        id=uuid.uuid4(),
+        profile_id=profile.id,
+        name="花咲 ゆめ",
+        alias="Yume",
+        headline="極上の癒しを届けます",
+        biography=None,
+        specialties=["オイル", "リンパ"],
+        qualifications=None,
+        experience_years=None,
+        photo_urls=["https://example.com/photo.jpg"],
+        display_order=1,
+        status="published",
+        is_booking_enabled=True,
+        created_at=now,
+        updated_at=now,
+    )
+    profile.therapists = [therapist]
+    contact = dict(profile.contact_json or {})
+    contact["staff"] = [
+        {
+            "name": "花咲 ゆめ",
+            "alias": "Yume",
+            "headline": "極上の癒しを届けます",
+            "avatar_url": "https://example.com/photo.jpg",
+            "specialties": ["オイル", "リンパ"],
+            "rating": 4.6,
+            "review_count": 28,
+        }
+    ]
+    profile.contact_json = contact
+
+    doc = build_profile_doc(profile)
+
+    assert doc["staff_preview"]
+    entry = doc["staff_preview"][0]
+    assert entry["id"] == str(therapist.id)
+    assert entry["name"] == "花咲 ゆめ"
+    assert entry["rating"] == pytest.approx(4.6)
+    assert entry["review_count"] == 28
 
 def test_compute_review_summary_returns_aspects() -> None:
     profile = _make_profile()
@@ -318,7 +376,7 @@ def test_prepare_aspect_scores_normalizes_input() -> None:
         "invalid": {"score": 3},
     }
 
-    cleaned = _prepare_aspect_scores(raw)
+    cleaned = site_shops._prepare_aspect_scores(raw)
 
     assert cleaned == {
         "therapist_service": {"score": 5, "note": "丁寧"},
@@ -328,7 +386,7 @@ def test_prepare_aspect_scores_normalizes_input() -> None:
 
 def test_serialize_review_includes_aspects() -> None:
     profile = _make_profile()
-    item = serialize_review(profile.reviews[0])
+    item = site_shops.serialize_review(profile.reviews[0])
 
     assert item.aspects["therapist_service"].score == 5
     assert item.aspects["therapist_service"].note == "丁寧"

@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     auth_magic_link_expire_minutes: int = 15
     auth_magic_link_rate_limit: int = 5
     auth_session_ttl_days: int = 30
+    reservation_notification_max_attempts: int = 5
+    reservation_notification_retry_base_seconds: int = 30
+    reservation_notification_retry_backoff_multiplier: float = 2.0
+    reservation_notification_worker_interval_seconds: float = 1.5
+    reservation_notification_batch_size: int = 20
+    ops_api_token: str | None = Field(default=None, validation_alias=AliasChoices("OPS_API_TOKEN", "OPS_TOKEN"))
+    cursor_signature_secret: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("CURSOR_SIGNATURE_SECRET", "DASHBOARD_CURSOR_SIGNATURE_SECRET"),
+    )
     dashboard_session_cookie_name: str = Field(
         default="osakamenesu_session",
         validation_alias=AliasChoices("AUTH_SESSION_COOKIE_NAME", "DASHBOARD_SESSION_COOKIE_NAME"),
@@ -39,6 +49,10 @@ class Settings(BaseSettings):
     )
     auth_session_cookie_secure: bool = False
     auth_session_cookie_domain: str | None = None
+    auth_session_cookie_same_site: str = Field(
+        default="lax",
+        validation_alias=AliasChoices("AUTH_SESSION_COOKIE_SAMESITE", "SESSION_COOKIE_SAMESITE"),
+    )
     auth_magic_link_redirect_path: str = "/auth/complete"
     auth_magic_link_debug: bool = True
     site_base_url: str | None = Field(
@@ -80,6 +94,14 @@ class Settings(BaseSettings):
     media_s3_secret_access_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices("MEDIA_S3_SECRET_ACCESS_KEY", "MEDIA_SECRET_KEY"),
+    )
+    sentry_traces_sample_rate: float | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SENTRY_TRACES_SAMPLE_RATE", "NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE"),
+    )
+    test_auth_secret: str | None = Field(
+        default="secret",
+        validation_alias=AliasChoices("E2E_TEST_AUTH_SECRET", "TEST_AUTH_SECRET"),
     )
 
     class Config:

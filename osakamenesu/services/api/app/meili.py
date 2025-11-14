@@ -1,9 +1,18 @@
 from typing import Any
+import logging
+from threading import Lock
 
 from meilisearch import Client
+from meilisearch.errors import MeilisearchApiError
 from .settings import settings
 
 INDEX = "profiles"
+
+logger = logging.getLogger("app.meili")
+
+_index_init_lock = Lock()
+_indexes_ensured = False
+
 
 def get_client() -> Client:
     return Client(settings.meili_host, settings.meili_master_key)
@@ -13,8 +22,8 @@ def _extract_task_uid(task: Any) -> Any:
     if task is None:
         return None
     if isinstance(task, dict):
-        return task.get('taskUid') or task.get('uid')
-    return getattr(task, 'task_uid', None) or getattr(task, 'uid', None)
+        return task.get("taskUid") or task.get("uid")
+    return getattr(task, "task_uid", None) or getattr(task, "uid", None)
 
 
 def _wait_for_task(task: Any, client: Client | None = None) -> None:
@@ -25,6 +34,7 @@ def _wait_for_task(task: Any, client: Client | None = None) -> None:
 
 
 def ensure_indexes() -> None:
+    global _indexes_ensured
     client = get_client()
     try:
         client.get_index(INDEX)
@@ -34,50 +44,74 @@ def ensure_indexes() -> None:
     idx = client.index(INDEX)
     # Use default ranking rules and avoid invalid custom rules for Meilisearch v1.x
     # Custom ordering can be achieved via the `sort` parameter at query time.
-    settings_task = idx.update_settings({
-        "filterableAttributes": [
-            "area",
-            "bust_tag",
-            "service_type",
-            "body_tags",
-            "price_min",
-            "price_max",
-            "price_band",
-            "status",
-            "today",
-            "height_cm",
-            "age",
-            "ranking_badges",
-            "has_promotions",
-            "has_discounts",
-            "has_diaries",
-            "nearest_station",
-            "station_line",
-            "station_walk_minutes",
-        ],
-        "sortableAttributes": [
-            "price_min",
-            "price_max",
-            "updated_at",
-            "ctr7d",
-            "today",
-            "height_cm",
-            "age",
-            "ranking_weight",
-            "ranking_score",
-            "review_score",
-            "review_count",
-        ],
-        "searchableAttributes": ["name", "store_name", "area", "nearest_station", "station_line", "body_tags", "ranking_badges"],
-        # Keep default ranking rules; use `sort` at query time for ordering
-        "rankingRules": [
-            "words", "typo", "proximity", "attribute", "sort", "exactness"
-        ],
-    })
+    settings_task = idx.update_settings(
+        {
+            "filterableAttributes": [
+                "area",
+                "bust_tag",
+                "service_type",
+                "body_tags",
+                "price_min",
+                "price_max",
+                "price_band",
+                "status",
+                "today",
+                "height_cm",
+                "age",
+                "ranking_badges",
+                "has_promotions",
+                "has_discounts",
+                "has_diaries",
+                "nearest_station",
+                "station_line",
+                "station_walk_minutes",
+            ],
+            "sortableAttributes": [
+                "price_min",
+                "price_max",
+                "updated_at",
+                "ctr7d",
+                "today",
+                "height_cm",
+                "age",
+                "ranking_weight",
+                "ranking_score",
+                "review_score",
+                "review_count",
+            ],
+            "searchableAttributes": [
+                "name",
+                "store_name",
+                "area",
+                "nearest_station",
+                "station_line",
+                "body_tags",
+                "ranking_badges",
+            ],
+            # Keep default ranking rules; use `sort` at query time for ordering
+            "rankingRules": ["words", "typo", "proximity", "attribute", "sort", "exactness"],
+        }
+    )
     _wait_for_task(settings_task, client)
+    _indexes_ensured = True
+
+
+def ensure_indexes_if_needed() -> None:
+    global _indexes_ensured
+    if _indexes_ensured:
+        return
+    with _index_init_lock:
+        if _indexes_ensured:
+            return
+        try:
+            ensure_indexes()
+        except Exception:
+            _indexes_ensured = False
+            raise
 
 
 def index_profile(doc: dict):
+    ensure_indexes_if_needed()
     client = get_client()
     task = client.index(INDEX).add_documents([doc])
     _wait_for_task(task, client)
@@ -86,12 +120,14 @@ def index_profile(doc: dict):
 def index_bulk(docs: list[dict]):
     if not docs:
         return
+    ensure_indexes_if_needed()
     client = get_client()
     task = client.index(INDEX).add_documents(docs)
     _wait_for_task(task, client)
 
 
 def delete_profile(doc_id: str):
+    ensure_indexes_if_needed()
     client = get_client()
     task = client.index(INDEX).delete_document(doc_id)
     _wait_for_task(task, client)
@@ -99,6 +135,7 @@ def delete_profile(doc_id: str):
 
 def purge_all():
     """Delete all documents in the index (keeps settings)."""
+    ensure_indexes_if_needed()
     client = get_client()
     task = client.index(INDEX).delete_all_documents()
     _wait_for_task(task, client)
@@ -120,13 +157,25 @@ def build_filter(
     has_promotions: bool | None = None,
     has_discounts: bool | None = None,
     has_diaries: bool | None = None,
+    bust_tags: list[str] | None = None,
+    age_min: int | None = None,
+    age_max: int | None = None,
+    height_min: int | None = None,
+    height_max: int | None = None,
 ) -> str | None:
     parts: list[str] = []
     if area:
         parts.append(f"area = '{area}'")
     if station:
         parts.append(f"nearest_station = '{station}'")
-    if bust:
+    if bust_tags:
+        if len(bust_tags) == 1:
+            parts.append(f"bust_tag = '{bust_tags[0]}'")
+        else:
+            or_clause = " OR ".join(f"bust_tag = '{tag}'" for tag in bust_tags)
+            if or_clause:
+                parts.append(f"({or_clause})")
+    elif bust:
         parts.append(f"bust_tag = '{bust}'")
     if service_type:
         parts.append(f"service_type = '{service_type}'")
@@ -156,6 +205,14 @@ def build_filter(
         rng.append(f"price_min >= {price_min}")
     if price_max is not None:
         rng.append(f"price_max <= {price_max}")
+    if age_min is not None:
+        rng.append(f"age >= {age_min}")
+    if age_max is not None:
+        rng.append(f"age <= {age_max}")
+    if height_min is not None:
+        rng.append(f"height_cm >= {height_min}")
+    if height_max is not None:
+        rng.append(f"height_cm <= {height_max}")
     if rng:
         parts.extend(rng)
     if not parts:
@@ -171,6 +228,7 @@ def search(
     page_size: int,
     facets: list[str] | None = None,
 ) -> dict:
+    ensure_indexes_if_needed()
     idx = get_client().index(INDEX)
     options: dict = {"limit": page_size, "offset": (page - 1) * page_size}
     if filter_expr:
@@ -183,5 +241,21 @@ def search(
     if facets:
         options["facets"] = facets
     # meilisearch-python >=0.30 expects the query as the first positional arg
-    res = idx.search(q or "", options)
-    return res
+    try:
+        return idx.search(q or "", options)
+    except MeilisearchApiError as exc:
+        message = str(exc).lower()
+        if exc.error_code == "invalid_search_filter" or "not filterable" in message:
+            logger.warning("meilisearch invalid filter detected; reapplying index settings and retrying")
+            try:
+                with _index_init_lock:
+                    ensure_indexes()
+            except Exception as ensure_exc:  # pragma: no cover - defensive logging
+                logger.error("failed to reapply meilisearch settings: %s", ensure_exc)
+            idx = get_client().index(INDEX)
+            try:
+                return idx.search(q or "", options)
+            except MeilisearchApiError as retry_exc:
+                logger.error("meilisearch retry failed after settings reapplied: %s", retry_exc)
+                raise
+        raise

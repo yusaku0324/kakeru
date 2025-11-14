@@ -12,13 +12,31 @@ export function resolveApiBases(): string[] {
   const publicBase =
     process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
     process.env.NEXT_PUBLIC_API_BASE ||
-    '/api'
+    ''
 
   const bases: string[] = []
-  if (internal) {
-    bases.push(internal)
+  const isBrowser = typeof window !== 'undefined'
+
+  const addBase = (base: string | null | undefined) => {
+    if (!base) return
+    if (bases.includes(base)) return
+    bases.push(base)
   }
-  bases.push(publicBase)
+
+  if (isBrowser) {
+    addBase('/api')
+    addBase(publicBase || '/api')
+    addBase(internal)
+  } else {
+    addBase(internal)
+    addBase('/api')
+    addBase(publicBase || '/api')
+  }
+
+  if (!bases.length) {
+    bases.push('/api')
+  }
+
   return bases
 }
 

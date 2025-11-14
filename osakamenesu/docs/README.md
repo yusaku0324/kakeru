@@ -1,19 +1,26 @@
 # Osaka × メンズエステ — 開発環境
 
-ローカルで MVP を最速で検証できるよう、Web(Next.js) + API(FastAPI) + Postgres + Meilisearch を docker-compose で起動できる構成を用意しました。
+ローカルで MVP を最速で検証できるよう、Web(Next.js) + API(FastAPI) + Postgres + Meilisearch を Doppler + pnpm ベースで起動できます。
 
 ## セットアップ
 
+> すべての環境変数は Doppler 管理です。`.env` には何も書きません。
+
+```bash
+doppler setup --token <SERVICE_TOKEN>   # 初回のみ
+pnpm install                            # ルート + apps/web の依存をまとめて導入
+pnpm dev                                # Doppler 経由で FastAPI / Next.js を同時起動
 ```
-cp -n .env.example .env
-make osakamenesu-dev   # db/meili/api/web が立ち上がります
-```
+
+依存コンテナ(Postgres/Meili/Redis)が必要な場合は `just ops-dev-up` を併用し、停止時は `just ops-dev-down` を実行します。
+
+> 🔁 Docker Compose 版のワークフローは下部に分離しています。ふだんは pnpm + Doppler が唯一の正解です。
 
 アクセス:
 - Web: http://localhost:3000
 - API: http://localhost:8000/healthz → `{ "ok": true }`
-- Meilisearch: http://localhost:7700 (APIキーは `.env` の `MEILI_MASTER_KEY`)
-- Postgres: `localhost:5432` (user/pass/db は `.env`)
+- Meilisearch: http://localhost:7700 (APIキーは Doppler `dev_web` と同じ)
+- Postgres: `localhost:5432` (ユーザー/パスワードも Doppler 参照)
 
 ## ディレクトリ
 
@@ -22,7 +29,7 @@ apps/web        # Next.js(App Router) — フロント
 services/api    # FastAPI — API
 docker-compose.yml
 docker-compose.test.yml
-.env.example
+.env.example   # Docker Compose 用サンプル (通常の dev では未使用)
 Makefile
 ```
 
@@ -44,15 +51,73 @@ curl --http1.1 -sS http://127.0.0.1:3000/api/health
 curl --http1.1 -sS http://127.0.0.1:3000/api/openapi.json
 ```
 
+## Doppler ワークフローでの Ops API 確認
+
+FastAPI (dev_web) と docker compose (dev_docker) を同時に動かすと `/api/ops/*` のレスポンスを確認できます。`just` がインストール済みであれば次のワークフローで実行できます。
+
+```bash
+just ops-dev-up        # Postgres / Meilisearch / Redis を起動
+just ops-dev-api       # Doppler 経由で FastAPI を起動 (MEILI_HOST は 127.0.0.1 に上書き)
+just ops-dev-check     # /api/ops/{queue,outbox,slots} を curl で確認
+just ops-dev-down      # 依存コンテナと API を停止
+```
+
+`just` が無い場合は `doppler run --project osakamenesu --config dev_docker -- docker compose up ...` および `doppler run --project osakamenesu --config dev_web -- uvicorn ...` をそのまま実行してください。起動後は `curl http://127.0.0.1:8000/api/ops/queue | jq` などで JSON を確認できます。
+
+## Docker Compose (オプション)
+
+Docker で API/Web/DB をまとめて起動したいケース向けに `.env.example` を残しています。通常の開発では pnpm + Doppler を使ってください。
+
+```bash
+cp -n .env.example .env                 # Docker 専用 (pnpm dev では未使用)
+docker compose up -d osakamenesu-db osakamenesu-meili
+doppler run --project osakamenesu --config dev_web -- pnpm dev  # もしくは docker compose up osakamenesu-api/osakamenesu-web
+```
+
+- `pnpm dev` を使わず Docker だけで API/Web を動かす場合:
+
+```bash
+cp -n .env.example .env                 # Docker 専用 (pnpm dev では未使用)
+docker compose up -d osakamenesu-db osakamenesu-meili
+docker compose up -d osakamenesu-api osakamenesu-web
+docker compose logs -f osakamenesu-api osakamenesu-web
+```
+
+- Admin 向け E2E を Docker + Doppler で実行する場合:
+
+```bash
+doppler secrets download --project osakamenesu --config stg --format env > .env.admin-e2e
+docker compose -f docker-compose.admin-e2e.yml up --build --abort-on-container-exit e2e
+docker compose -f docker-compose.admin-e2e.yml down -v
+```
+
+- `.env` は Docker コンテナ用のみに利用します。ホストで FastAPI/Next.js を動かすときは **必ず Doppler** を使うこと。
+- `Makefile` の `osakamenesu-*` ターゲットは Docker フロー向けのレガシーサポートです。pnpm スクリプトと混同しないようにしてください。
+
 ## よく使うコマンド
 
 ```
-make osakamenesu-up        # db/meili を先に起動
-make osakamenesu-api       # API を起動(ホットリロード)
-make osakamenesu-web       # Web を起動(ホットリロード)
-make osakamenesu-logs      # 全ログ
-make osakamenesu-down      # 停止
+pnpm dev          # Doppler 付きで FastAPI + Next.js を同時起動
+pnpm dev:api      # API 単体 (MEILI_HOST=127.0.0.1 上書き)
+pnpm dev:web      # Web 単体 (Doppler 経由で API URL 等を注入)
+just ops-dev-up   # Postgres / Meilisearch / Redis を立ち上げ
+just ops-dev-down # 依存コンテナを停止
 ```
+
+## CI チェック / 回帰テスト
+
+GitHub Actions で動くタスクはローカルでも以下のコマンドで再現できます。
+
+```bash
+CI=true pnpm install                                # CI 環境と同じ依存解決 (TTY なし)
+pnpm lint                                           # ESLint + TypeScript
+pnpm test                                           # vitest ベースのユニットテスト
+docker compose -f docker-compose.admin-e2e.yml \
+  up --build --abort-on-container-exit e2e          # Playwright (admin dashboard) 回帰
+docker compose -f docker-compose.admin-e2e.yml down -v
+```
+
+CI で失敗したケースを個別に再現したいときは Raycast 経由の `osakamenesu-admin-e2e` スクリプト、または `scripts/doppler-dev.sh` を用いると Doppler 設定付きで Docker Compose を起動できます。
 
 ## メモ
 
@@ -85,3 +150,18 @@ YAMLには以下の情報を記載できます:
 4. `/api/admin/reindex` で Meilisearch を同期
 
 ※ `services/api/requirements.txt` に `PyYAML` を追加したので、`pip install -r requirements.txt` の再実行が必要です。
+
+### Ops デバッグ用のサンプルデータ投入
+
+`tools/seed_ops_samples.py` を実行すると、Ops API の値を確認するためのサンプルプロフィール／予約／通知キューを投入できます。
+
+```bash
+cd services/api
+doppler run --project osakamenesu --config dev_web -- \
+  python tools/seed_ops_samples.py
+
+# Makefile 経由で実行する場合
+make ops-sample-seed
+```
+
+既存のサンプル（channel=`ops_seed`）はスクリプト実行時にクリーンアップされるため、何度でも流し直せます。

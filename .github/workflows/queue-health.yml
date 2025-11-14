@@ -1,0 +1,49 @@
+name: Queue Health
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      config:
+        description: Doppler config name
+        default: stg
+        required: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      DOPPLER_PROJECT: osakamenesu
+      DOPPLER_CONFIG: ${{ github.event.inputs.config }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Doppler CLI
+        run: curl -sSfL https://cli.doppler.com/install.sh | sh
+
+      - name: Run queue health check
+        working-directory: osakamenesu
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_HEALTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOPPLER_TOKEN:-}" ]; then
+            echo "::warning::DOPPLER_HEALTH_TOKEN is not set; skipping queue health check."
+            exit 0
+          fi
+          CONFIG="${DOPPLER_CONFIG:-stg}"
+          echo "Checking queue health using project=$DOPPLER_PROJECT config=$CONFIG"
+          doppler run --project "$DOPPLER_PROJECT" --config "$CONFIG" -- bash -c '
+            set -euo pipefail
+            API_BASE=${OPS_QUEUE_BASE:-${API_PUBLIC_BASE_URL:-http://127.0.0.1:8000}}
+            API_BASE=${API_BASE%/}
+            URL="${API_BASE}/api/ops/queue"
+            echo "Requesting ${URL}"
+            if [ -n "${OPS_API_TOKEN:-}" ]; then
+              AUTH_HEADER="Authorization: Bearer ${OPS_API_TOKEN}"
+              curl -fsSL -H "$AUTH_HEADER" "$URL"
+            else
+              curl -fsSL "$URL"
+            fi
+          '

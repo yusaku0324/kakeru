@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import MutableMapping
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool, text, String
+from sqlalchemy import String, engine_from_config, pool, text
 
 # Alembic config holds values from alembic.ini when the CLI runs this module.
 config = context.config
@@ -95,8 +95,17 @@ def _ensure_version_column_length(connection, *, min_length: int = 64) -> None:
     table_ref = f"{schema}.{version_table}" if schema else version_table
 
     try:
+        create_sql = text(
+            f"CREATE TABLE IF NOT EXISTS {table_ref} (version_num varchar(:length) NOT NULL)"
+        )
+        connection.execute(create_sql, {"length": min_length})
+        connection.commit()
+    except Exception:
+        connection.rollback()
+
+    try:
         sql = text(
-            "ALTER TABLE {table} ALTER COLUMN version_num TYPE varchar(:length) "
+            "ALTER TABLE IF EXISTS {table} ALTER COLUMN version_num TYPE varchar(:length) "
             "USING version_num::varchar(:length)".format(table=table_ref)
         )
         connection.execute(sql, {"length": min_length})

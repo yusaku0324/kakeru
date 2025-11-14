@@ -1,5 +1,6 @@
 "use client"
 
+import Link from 'next/link'
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -132,9 +133,9 @@ function AuthCompleteFallback() {
     <main className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-6 px-6 text-center">
       <h1 className="text-2xl font-semibold">メール確認</h1>
       <p>ログインリンクを確認しています。しばらくお待ちください。</p>
-      <a href="/" className="rounded bg-black px-4 py-2 text-white">
+      <Link href="/" className="rounded bg-black px-4 py-2 text-white">
         トップへ戻る
-      </a>
+      </Link>
     </main>
   )
 }

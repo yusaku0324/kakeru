@@ -1,42 +1,44 @@
 version: "3.9"
 
 services:
-  osakamenesu-db-test:
-    image: postgres:15
+  db:
+    image: postgres:16
+    env_file:
+      - .env.integration
     environment:
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
-      POSTGRES_DB: osaka_menesu
+      POSTGRES_DB: ${POSTGRES_DB:-osaka_menesu}
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "app"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
 
-  osakamenesu-meili-test:
-    image: getmeili/meilisearch:v1.7
-    environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
+  meili:
+    image: getmeili/meilisearch:v1.11
+    env_file:
+      - .env.integration
     command: ["meilisearch", "--http-addr", "0.0.0.0:7700"]
-    ports:
-      - "7700:7700"
 
-  osakamenesu-api-test:
+  api-test:
+    image: osakamenesu-api-test
     build:
-      context: ./services/api
-    volumes:
-      - ./services/api:/app
-    environment:
-      DATABASE_URL: postgresql+asyncpg://app:app@osakamenesu-db-test:5432/osaka_menesu
-      MEILI_HOST: http://osakamenesu-meili-test:7700
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
-      ADMIN_API_KEY: dev_admin_key
-      PYTHONUNBUFFERED: 1
-      PYTHONPATH: /app
+      context: .
+      dockerfile: docker/api.Dockerfile
+      target: api-test
+    env_file:
+      - .env.integration
     depends_on:
-      osakamenesu-db-test:
+      db:
         condition: service_healthy
-      osakamenesu-meili-test:
+      meili:
         condition: service_started
     command: >
-      bash -lc "pip install --no-cache-dir -r requirements-test.txt && alembic upgrade head && pytest app/tests_integration -m integration"
+      bash -lc "
+        for i in {1..60}; do 
+          if curl -fsS http://meili:7700/health >/dev/null 2>&1; then 
+            break; 
+          fi; 
+          sleep 2; 
+        done && 
+        alembic upgrade head && pytest app/tests_integration -m integration -q -n auto
+      "

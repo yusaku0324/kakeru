@@ -3,6 +3,12 @@ import sys
 import uuid
 from datetime import datetime, UTC, timedelta
 from pathlib import Path
+
+_HELPER_DIR = Path(__file__).resolve().parent
+if str(_HELPER_DIR) not in sys.path:
+    sys.path.insert(0, str(_HELPER_DIR))
+
+from _path_setup import configure_paths
 from types import SimpleNamespace
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -10,9 +16,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 
-ROOT = Path(__file__).resolve().parents[4]
-os.chdir(ROOT)
-sys.path.insert(0, str(ROOT / "services" / "api"))
+ROOT = configure_paths(Path(__file__))
 
 for key in [
     "PROJECT_NAME",
@@ -54,14 +58,22 @@ class _DummySettings:
         self.mail_provider_base_url = "https://api.resend.com"
         self.dashboard_session_cookie_name = "osakamenesu_session"
         self.site_session_cookie_name = "osakamenesu_session"
+        self.reservation_notification_max_attempts = 3
+        self.reservation_notification_retry_base_seconds = 1
+        self.reservation_notification_retry_backoff_multiplier = 2.0
+        self.reservation_notification_worker_interval_seconds = 1.0
+        self.reservation_notification_batch_size = 10
 
 
 dummy_settings_module.Settings = _DummySettings  # type: ignore[attr-defined]
 dummy_settings_module.settings = _DummySettings()
 sys.modules.setdefault("app.settings", dummy_settings_module)
 
+import importlib
+
 from app import models  # type: ignore  # noqa: E402
-from app.routers import favorites  # type: ignore  # noqa: E402
+favorites = importlib.import_module("app.domains.site.favorites")  # type: ignore  # noqa: E402
+from fastapi import HTTPException, status
 from app.schemas import TherapistFavoriteCreate  # type: ignore  # noqa: E402
 
 
@@ -321,10 +333,10 @@ async def test_add_therapist_favorite_missing_therapist_raises():
     session = FakeSession()
     payload = TherapistFavoriteCreate(therapist_id=uuid.uuid4())
 
-    with pytest.raises(favorites.HTTPException) as exc:
+    with pytest.raises(HTTPException) as exc:
         await favorites.add_therapist_favorite(payload=payload, user=user, db=session)
 
-    assert exc.value.status_code == favorites.status.HTTP_404_NOT_FOUND
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
     assert exc.value.detail == "therapist_not_found"
 
 

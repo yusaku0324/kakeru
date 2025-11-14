@@ -38,11 +38,13 @@ export type SampleShop = {
   store_name?: string | null
   area: string
   area_name?: string | null
+  address?: string | null
+  categories?: string[] | null
   min_price: number
   max_price: number
   description?: string | null
   catch_copy?: string | null
-  photos?: Array<{ url: string }> | null
+  photos?: Array<{ url: string; alt?: string | null }> | null
   contact?: SampleContact | null
   menus?: Array<{
     id: string
@@ -60,10 +62,17 @@ export type SampleShop = {
   } | null
   badges?: string[] | null
   today_available?: boolean | null
+  next_available_at?: string | null
+  distance_km?: number | null
+  online_reservation?: boolean | null
   service_tags?: string[] | null
   metadata?: Record<string, unknown> | null
+  has_promotions?: boolean | null
+  promotion_count?: number | null
+  has_discounts?: boolean | null
   promotions?: Array<{ label: string; description?: string | null; expires_at?: string | null }> | null
   ranking_reason?: string | null
+  updated_at?: string | null
   reviews?: {
     average_score?: number | null
     review_count?: number | null
@@ -74,7 +83,10 @@ export type SampleShop = {
       score: number
       visited_at?: string | null
       author_alias?: string | null
+      aspects?: Record<string, unknown> | null
     }> | null
+    aspect_averages?: Record<string, number> | null
+    aspect_counts?: Record<string, number> | null
   } | null
   diary_count?: number | null
   has_diaries?: boolean | null
@@ -162,9 +174,9 @@ export const SAMPLE_SHOPS: SampleShop[] = [
           is_today: true,
           slots: [
             {
-              start_at: '2025-10-07T21:00:00+09:00',
-              end_at: '2025-10-07T23:00:00+09:00',
-              status: 'open',
+              start_at: '2025-10-07T17:00:00+09:00',
+              end_at: '2025-10-07T18:30:00+09:00',
+              status: 'blocked',
               staff_id: '11111111-1111-1111-8888-111111111111',
             },
             {
@@ -173,16 +185,119 @@ export const SAMPLE_SHOPS: SampleShop[] = [
               status: 'tentative',
               staff_id: '22222222-2222-2222-8888-222222222222',
             },
+            {
+              start_at: '2025-10-07T21:00:00+09:00',
+              end_at: '2025-10-07T23:00:00+09:00',
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
           ],
         },
         {
           date: '2025-10-08',
           slots: [
             {
+              start_at: '2025-10-08T14:00:00+09:00',
+              end_at: '2025-10-08T15:30:00+09:00',
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+            {
               start_at: '2025-10-08T18:00:00+09:00',
               end_at: '2025-10-08T20:00:00+09:00',
               status: 'open',
               staff_id: '22222222-2222-2222-8888-222222222222',
+            },
+          ],
+        },
+        {
+          date: '2025-10-09',
+          slots: [
+            {
+              start_at: '2025-10-09T12:00:00+09:00',
+              end_at: '2025-10-09T13:30:00+09:00',
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+            {
+              start_at: '2025-10-09T16:00:00+09:00',
+              end_at: '2025-10-09T17:30:00+09:00',
+              status: 'tentative',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+            {
+              start_at: '2025-10-09T20:00:00+09:00',
+              end_at: '2025-10-09T21:30:00+09:00',
+              status: 'blocked',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+          ],
+        },
+        {
+          date: '2025-10-10',
+          slots: [
+            {
+              start_at: '2025-10-10T13:00:00+09:00',
+              end_at: '2025-10-10T14:30:00+09:00',
+              status: 'tentative',
+              staff_id: '22222222-2222-2222-8888-222222222222',
+            },
+            {
+              start_at: '2025-10-10T19:30:00+09:00',
+              end_at: '2025-10-10T21:00:00+09:00',
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+          ],
+        },
+        {
+          date: '2025-10-11',
+          slots: [
+            {
+              start_at: '2025-10-11T11:00:00+09:00',
+              end_at: '2025-10-11T12:30:00+09:00',
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+            {
+              start_at: '2025-10-11T15:00:00+09:00',
+              end_at: '2025-10-11T16:30:00+09:00',
+              status: 'blocked',
+              staff_id: '22222222-2222-2222-8888-222222222222',
+            },
+          ],
+        },
+        {
+          date: '2025-10-12',
+          slots: [
+            {
+              start_at: '2025-10-12T10:30:00+09:00',
+              end_at: '2025-10-12T12:00:00+09:00',
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+            {
+              start_at: '2025-10-12T17:30:00+09:00',
+              end_at: '2025-10-12T19:00:00+09:00',
+              status: 'tentative',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+          ],
+        },
+        {
+          date: '2025-10-13',
+          slots: [
+            {
+              start_at: '2025-10-13T13:00:00+09:00',
+              end_at: '2025-10-13T14:30:00+09:00',
+              status: 'open',
+              staff_id: '22222222-2222-2222-8888-222222222222',
+            },
+            {
+              start_at: '2025-10-13T18:30:00+09:00',
+              end_at: '2025-10-13T20:00:00+09:00',
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
             },
           ],
         },

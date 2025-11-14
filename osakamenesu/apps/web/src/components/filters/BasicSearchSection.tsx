@@ -1,0 +1,103 @@
+"use client"
+
+import clsx from 'clsx'
+
+import { GlassSelect } from '@/components/ui/GlassSelect'
+
+type Option = {
+  value: string
+  label: string
+}
+
+type BasicSearchSectionProps = {
+  keyword: string
+  onKeywordChange: (value: string) => void
+  area: string
+  onAreaChange: (value: string) => void
+  service: string
+  onServiceChange: (value: string) => void
+  areaOptions: Option[]
+  serviceOptions: Option[]
+  fieldClass: string
+  selectButtonClass: string
+  selectMenuClass: string
+  selectOptionClass: string
+}
+
+export function BasicSearchSection({
+  keyword,
+  onKeywordChange,
+  area,
+  onAreaChange,
+  service,
+  onServiceChange,
+  areaOptions,
+  serviceOptions,
+  fieldClass,
+  selectButtonClass,
+  selectMenuClass,
+  selectOptionClass,
+}: BasicSearchSectionProps) {
+  return (
+    <section className="relative overflow-visible rounded-[32px] border border-white/45 bg-white/45 p-6 shadow-[0_24px_70px_rgba(37,99,235,0.18)] backdrop-blur">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(147,197,253,0.25)_0%,rgba(147,197,253,0)_65%)]" />
+      <header className="flex items-center gap-3">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary">
+          🔎
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-neutral-text">基本検索</p>
+          <p className="text-xs text-neutral-textMuted">キーワード・エリア・サービス形態を指定</p>
+        </div>
+      </header>
+
+      <div className="mt-6 space-y-4">
+        <label className="grid gap-2 text-sm text-neutral-text" htmlFor="keyword-search">
+          キーワード検索
+          <div className="relative">
+            <input
+              id="keyword-search"
+              type="search"
+              value={keyword}
+              onChange={(event) => onKeywordChange(event.target.value)}
+              placeholder="セラピスト名、店舗名で検索"
+              className={clsx(fieldClass, 'pr-12 backdrop-blur-sm')}
+            />
+            <span className="pointer-events-none absolute inset-y-0 right-4 inline-flex items-center text-neutral-textMuted">
+              🔍
+            </span>
+          </div>
+        </label>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 text-sm text-neutral-text">
+            <span className="font-semibold">エリア</span>
+            <GlassSelect
+              name="area"
+              value={area}
+              onChange={onAreaChange}
+              options={areaOptions}
+              placeholder="すべて"
+              buttonClassName={selectButtonClass}
+              menuClassName={selectMenuClass}
+              optionClassName={selectOptionClass}
+            />
+          </div>
+          <div className="space-y-2 text-sm text-neutral-text">
+            <span className="font-semibold">サービス形態</span>
+            <GlassSelect
+              name="service"
+              value={service}
+              onChange={onServiceChange}
+              options={serviceOptions}
+              placeholder="すべて"
+              buttonClassName={selectButtonClass}
+              menuClassName={selectMenuClass}
+              optionClassName={selectOptionClass}
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}

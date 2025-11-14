@@ -653,7 +653,7 @@ export default function AdminShopsPage() {
   if (!detail || (!selectedId && !isCreating)) {
     return (
       <main className="max-w-5xl mx-auto p-4 space-y-4">
-        <h1 className="text-2xl font-semibold">店舗管理</h1>
+        <h1 data-testid="admin-title" className="text-2xl font-semibold">店舗管理</h1>
         <p className="text-sm text-slate-500">店舗を選択してください。</p>
         <ToastContainer toasts={toasts} onDismiss={remove} />
       </main>

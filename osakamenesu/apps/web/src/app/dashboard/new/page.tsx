@@ -7,8 +7,8 @@ import { ShopCreateForm } from './ShopCreateForm'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export default function DashboardNewShopPage() {
-  const store = cookies()
+export default async function DashboardNewShopPage() {
+  const store = await cookies()
   const sessionCookie = store.get('osakamenesu_session')
   const isAuthenticated = Boolean(sessionCookie?.value)
 

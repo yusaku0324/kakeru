@@ -5,6 +5,9 @@ import { describe, expect, beforeEach, afterEach, it, vi } from 'vitest'
 import { TherapistFavoritesProvider, useTherapistFavorites } from '../TherapistFavoritesProvider'
 
 const originalFetch = global.fetch
+const originalInternalBase = process.env.OSAKAMENESU_API_INTERNAL_BASE
+const originalPublicBase = process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE
+const originalFallbackBase = process.env.NEXT_PUBLIC_API_BASE
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
@@ -28,6 +31,9 @@ describe('TherapistFavoritesProvider', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     global.fetch = originalFetch
+    process.env.OSAKAMENESU_API_INTERNAL_BASE = originalInternalBase
+    process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE = originalPublicBase
+    process.env.NEXT_PUBLIC_API_BASE = originalFallbackBase
   })
 
   it('loads existing favorites on mount', async () => {
@@ -153,5 +159,40 @@ describe('TherapistFavoritesProvider', () => {
 
     expect(result.current.isFavorite('t-late')).toBe(true)
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('falls back to public API host when /api returns 404', async () => {
+    process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE = 'https://api.example.com'
+    process.env.OSAKAMENESU_API_INTERNAL_BASE = ''
+    process.env.NEXT_PUBLIC_API_BASE = ''
+
+    const fetchMock = vi.fn((url: RequestInfo | URL) => {
+      const urlString = typeof url === 'string' ? url : url.toString()
+      if (urlString.startsWith('/api/')) {
+        return Promise.resolve(new Response(null, { status: 404 }))
+      }
+      if (urlString.startsWith('https://api.example.com')) {
+        return Promise.resolve(
+          jsonResponse([
+            { therapist_id: 'fallback-1', shop_id: 'shop-1', created_at: '2024-05-05T05:00:00Z' },
+          ]),
+        )
+      }
+      return Promise.reject(new Error(`Unexpected fetch url: ${urlString}`))
+    })
+
+    global.fetch = fetchMock
+
+    const { result } = renderHook(() => useTherapistFavorites(), {
+      wrapper: wrapperFactory(),
+    })
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.isAuthenticated).toBe(true)
+    expect(result.current.isFavorite('fallback-1')).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/favorites/therapists')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://api.example.com/api/favorites/therapists')
   })
 })

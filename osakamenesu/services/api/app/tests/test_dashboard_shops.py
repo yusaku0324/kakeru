@@ -4,13 +4,17 @@ import types
 import uuid
 from datetime import datetime, UTC
 from pathlib import Path
+
+_HELPER_DIR = Path(__file__).resolve().parent
+if str(_HELPER_DIR) not in sys.path:
+    sys.path.insert(0, str(_HELPER_DIR))
+
+from _path_setup import configure_paths
 from types import SimpleNamespace
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[4]
-os.chdir(ROOT)
-sys.path.insert(0, str(ROOT / "services" / "api"))
+ROOT = configure_paths(Path(__file__))
 
 for key in [
     "PROJECT_NAME",
@@ -61,14 +65,21 @@ class _DummySettings:
         self.escalation_pending_threshold_minutes = 30
         self.escalation_check_interval_minutes = 5
         self.site_base_url = None
+        self.reservation_notification_max_attempts = 3
+        self.reservation_notification_retry_base_seconds = 1
+        self.reservation_notification_retry_backoff_multiplier = 2.0
+        self.reservation_notification_worker_interval_seconds = 1.0
+        self.reservation_notification_batch_size = 10
 
 
 dummy_settings_module.Settings = _DummySettings  # type: ignore[attr-defined]
 dummy_settings_module.settings = _DummySettings()
 sys.modules.setdefault("app.settings", dummy_settings_module)
 
+import importlib
+
 from app import models  # type: ignore  # noqa: E402
-from app.routers import dashboard_shops  # type: ignore  # noqa: E402
+dashboard_shops = importlib.import_module("app.domains.dashboard.shops.router")  # type: ignore  # noqa: E402
 
 
 class FakeSession:

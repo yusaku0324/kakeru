@@ -3,6 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ToastContainer, useToast } from '@/components/useToast'
+import { buildApiUrl, resolveApiBases } from '@/lib/api'
 
 type TherapistFavoriteRecord = {
   therapistId: string
@@ -32,14 +33,98 @@ function normalizeId(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null
 }
 
+const mockMode =
+  ((process.env.NEXT_PUBLIC_FAVORITES_API_MODE || process.env.FAVORITES_API_MODE || '') as string)
+    .toLowerCase()
+    .includes('mock')
+
 export function TherapistFavoritesProvider({ children }: { children: React.ReactNode }) {
-  const [favorites, setFavorites] = useState<Map<string, TherapistFavoriteRecord>>(new Map())
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const initialFavorites = useMemo(() => {
+    if (!mockMode || typeof document === 'undefined') {
+      return new Map<string, TherapistFavoriteRecord>()
+    }
+    const cookieName = 'osakamenesu_favorites_mock'
+    const rawCookie = document.cookie
+      ?.split(';')
+      .map((part) => part.trim())
+      .find((item) => item.startsWith(`${cookieName}=`))
+    if (!rawCookie) {
+      return new Map<string, TherapistFavoriteRecord>()
+    }
+    const payload = rawCookie.slice(cookieName.length + 1)
+    try {
+      const parsed = JSON.parse(decodeURIComponent(payload))
+      if (!Array.isArray(parsed)) {
+        return new Map<string, TherapistFavoriteRecord>()
+      }
+      const map = new Map<string, TherapistFavoriteRecord>()
+      for (const record of parsed) {
+        const entry = record as Record<string, unknown>
+        const therapistId = normalizeId(entry['therapistId'] as string | null | undefined)
+        const shopId = normalizeId(entry['shopId'] as string | null | undefined)
+        const createdAt =
+          typeof entry['createdAt'] === 'string'
+            ? String(entry['createdAt'])
+            : new Date().toISOString()
+        if (therapistId && shopId) {
+          map.set(therapistId, {
+            therapistId,
+            shopId,
+            createdAt,
+          })
+        }
+      }
+      return map
+    } catch {
+      return new Map<string, TherapistFavoriteRecord>()
+    }
+  }, [])
+  const [favorites, setFavorites] = useState<Map<string, TherapistFavoriteRecord>>(initialFavorites)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(mockMode ? true : null)
   const [loading, setLoading] = useState<boolean>(true)
   const [pending, setPending] = useState<Set<string>>(new Set())
   const { toasts, push, remove } = useToast()
   const mutationVersionRef = useRef(0)
   const keyVersionRef = useRef(new Map<string, number>())
+  const apiTargetsRef = useRef(resolveApiBases())
+
+  const fetchWithFallback = useCallback(
+    async (path: string, init: RequestInit = {}) => {
+      const targets = apiTargetsRef.current
+      let lastResponse: Response | null = null
+      let lastError: unknown = null
+
+      for (const base of targets) {
+        const url = buildApiUrl(base, path)
+        try {
+          const headers = new Headers(init.headers)
+          headers.delete('authorization')
+          headers.delete('Authorization')
+          headers.delete('x-admin-key')
+          headers.delete('X-Admin-Key')
+
+          const response = await fetch(url, init)
+          if (
+            response.status === 404 &&
+            !(base?.startsWith('http://') || base?.startsWith('https://') || base?.startsWith('//'))
+          ) {
+            // 404 from relative base (same origin) — try next candidate such as the public API host
+            lastResponse = response
+            continue
+          }
+          return response
+        } catch (error) {
+          lastError = error
+        }
+      }
+
+      if (lastResponse) {
+        return lastResponse
+      }
+      throw lastError ?? new Error('All API targets failed')
+    },
+    []
+  )
 
   useEffect(() => {
     let active = true
@@ -48,13 +133,20 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
     async function loadFavorites() {
       setLoading(true)
       try {
-        const res = await fetch('/api/favorites/therapists', {
+        const res = await fetchWithFallback('/api/favorites/therapists', {
           credentials: 'include',
         })
 
         if (!active) return
 
         if (res.status === 401) {
+          if (mockMode) {
+            setIsAuthenticated(true)
+            setFavorites(new Map())
+            keyVersionRef.current.clear()
+            setLoading(false)
+            return
+          }
           setIsAuthenticated(false)
           setFavorites(new Map())
           keyVersionRef.current.clear()
@@ -134,7 +226,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
     return () => {
       active = false
     }
-  }, [push])
+  }, [push, fetchWithFallback])
 
   const isFavorite = useCallback(
     (therapistId: string) => {
@@ -164,7 +256,9 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
         return
       }
 
-      if (isAuthenticated === false) {
+      if (mockMode && isAuthenticated === false) {
+        setIsAuthenticated(true)
+      } else if (isAuthenticated === false) {
         push('error', 'お気に入り機能を利用するにはログインが必要です。')
         return
       }
@@ -179,16 +273,18 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
 
       try {
         if (currentlyFavorite) {
-          const res = await fetch(`/api/favorites/therapists/${encodeURIComponent(normalizedTherapistId)}`, {
+          const res = await fetchWithFallback(`/api/favorites/therapists/${encodeURIComponent(normalizedTherapistId)}`, {
             method: 'DELETE',
             credentials: 'include',
           })
 
           if (res.status === 401) {
-            setIsAuthenticated(false)
-            setFavorites(new Map())
-            push('error', 'お気に入りを削除するにはログインしてください。')
-            return
+            if (!mockMode) {
+              setIsAuthenticated(false)
+              setFavorites(new Map())
+              push('error', 'お気に入りを削除するにはログインしてください。')
+              return
+            }
           }
 
           if (!res.ok && res.status !== 404) {
@@ -205,7 +301,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
           })
           push('success', 'お気に入りから削除しました。')
         } else {
-          const res = await fetch('/api/favorites/therapists', {
+          const res = await fetchWithFallback('/api/favorites/therapists', {
             method: 'POST',
             credentials: 'include',
             headers: {
@@ -215,10 +311,12 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
           })
 
           if (res.status === 401) {
-            setIsAuthenticated(false)
-            setFavorites(new Map())
-            push('error', 'お気に入り機能を利用するにはログインが必要です。')
-            return
+            if (!mockMode) {
+              setIsAuthenticated(false)
+              setFavorites(new Map())
+              push('error', 'お気に入り機能を利用するにはログインが必要です。')
+              return
+            }
           }
 
           if (!res.ok) {
@@ -258,7 +356,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
         })
       }
     },
-    [favorites, isAuthenticated, push]
+    [favorites, isAuthenticated, push, fetchWithFallback]
   )
 
   const value = useMemo<TherapistFavoritesContextValue>(

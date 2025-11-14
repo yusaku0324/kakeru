@@ -1,6 +1,19 @@
 import 'dotenv/config'
 import { defineConfig } from '@playwright/test'
 
+if (!process.env.FAVORITES_API_MODE) {
+  process.env.FAVORITES_API_MODE = 'mock'
+}
+if (!process.env.NEXT_PUBLIC_FAVORITES_API_MODE) {
+  process.env.NEXT_PUBLIC_FAVORITES_API_MODE = 'mock'
+}
+if (!process.env.NEXT_CACHE_COMPONENTS) {
+  process.env.NEXT_CACHE_COMPONENTS = '0'
+}
+if (!process.env.NEXT_DISABLE_REACT_COMPILER) {
+  process.env.NEXT_DISABLE_REACT_COMPILER = '1'
+}
+
 const adminUser = process.env.ADMIN_BASIC_USER
 const adminPass = process.env.ADMIN_BASIC_PASS
 const adminKey = process.env.ADMIN_API_KEY
@@ -11,12 +24,7 @@ const prodServerCommand = `npm run build && npm run start -- --hostname 127.0.0.
 const devServerCommand = `npx next dev -p ${port} --hostname 127.0.0.1`
 const webServerCommand = isCI ? prodServerCommand : devServerCommand
 
-const basicAuthHeader = adminUser && adminPass
-  ? `Basic ${Buffer.from(`${adminUser}:${adminPass}`).toString('base64')}`
-  : undefined
-
-if (!basicAuthHeader) {
-  // eslint-disable-next-line no-console
+if (!(adminUser && adminPass)) {
   console.warn('[playwright] ADMIN_BASIC_USER / ADMIN_BASIC_PASS が設定されていないため、管理画面テストは認証エラーになります')
 }
 
@@ -29,18 +37,15 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.cjs',
   use: {
     baseURL: resolvedBaseURL,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     headless: true,
-    extraHTTPHeaders: basicAuthHeader
+    httpCredentials: adminUser && adminPass
       ? {
-          Authorization: basicAuthHeader,
-          ...(adminKey ? { 'X-Admin-Key': adminKey } : {}),
+          username: adminUser,
+          password: adminPass,
         }
-      : adminKey
-      ? {
-          'X-Admin-Key': adminKey,
-        }
-      : {},
+      : undefined,
+    extraHTTPHeaders: {},
   },
   webServer: process.env.E2E_BASE_URL
     ? undefined
@@ -49,5 +54,14 @@ export default defineConfig({
         port,
         reuseExistingServer: !isCI,
         timeout: isCI ? 240_000 : 120_000,
+        env: {
+          ...process.env,
+          FAVORITES_API_MODE: process.env.FAVORITES_API_MODE ?? 'mock',
+          NEXT_PUBLIC_FAVORITES_API_MODE:
+            process.env.NEXT_PUBLIC_FAVORITES_API_MODE ?? process.env.FAVORITES_API_MODE ?? 'mock',
+          NEXT_CACHE_COMPONENTS: process.env.NEXT_CACHE_COMPONENTS,
+          NEXT_DISABLE_REACT_COMPILER: process.env.NEXT_DISABLE_REACT_COMPILER,
+          E2E_DISABLE_RATE_LIMIT: '1',
+        },
       },
 })

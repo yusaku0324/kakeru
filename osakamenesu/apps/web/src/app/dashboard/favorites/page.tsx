@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 
 import RecentlyViewedList from '@/components/RecentlyViewedList'
+import { Card } from '@/components/ui/Card'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 
 type FavoriteRecord = {
@@ -17,12 +18,38 @@ type ShopSummary = {
   min_price?: number | null
   max_price?: number | null
   address?: string | null
+  staff?: StaffSummary[]
+}
+
+type StaffSummary = {
+  id: string | null
+  name: string
+  alias: string | null
+  headline: string | null
+  avatarUrl: string | null
 }
 
 type FavoritesResult =
   | { status: 'ok'; favorites: FavoriteRecord[] }
   | { status: 'unauthorized' }
   | { status: 'error'; message: string }
+
+type TherapistFavoriteRecord = {
+  therapist_id: string
+  shop_id: string
+  created_at: string
+}
+
+type TherapistFavoritesResult =
+  | { status: 'ok'; favorites: TherapistFavoriteRecord[] }
+  | { status: 'unauthorized' }
+  | { status: 'error'; message: string }
+
+type TherapistFavoriteEntry = {
+  favorite: TherapistFavoriteRecord
+  summary: ShopSummary | null
+  staff: StaffSummary | null
+}
 
 type SiteUserResult =
   | { status: 'authenticated'; displayName: string | null }
@@ -35,8 +62,8 @@ const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
 
 const currencyFormatter = new Intl.NumberFormat('ja-JP')
 
-function serializeCookies(): string | undefined {
-  const store = cookies()
+async function serializeCookies(): Promise<string | undefined> {
+  const store = await cookies()
   const entries = store.getAll()
   if (!entries.length) {
     return undefined
@@ -79,6 +106,7 @@ async function fetchSiteUser(cookieHeader?: string): Promise<SiteUserResult> {
 
 async function fetchFavorites(cookieHeader?: string): Promise<FavoritesResult> {
   let lastError: Error | null = null
+  let sawUnauthorized = false
 
   for (const base of resolveApiBases()) {
     try {
@@ -89,7 +117,8 @@ async function fetchFavorites(cookieHeader?: string): Promise<FavoritesResult> {
       })
 
       if (res.status === 401) {
-        return { status: 'unauthorized' }
+        sawUnauthorized = true
+        continue
       }
 
       if (!res.ok) {
@@ -104,9 +133,58 @@ async function fetchFavorites(cookieHeader?: string): Promise<FavoritesResult> {
     }
   }
 
+  if (sawUnauthorized && process.env.NODE_ENV !== 'production') {
+    return { status: 'ok', favorites: [] }
+  }
+
   return {
     status: 'error',
     message: lastError?.message ?? 'お気に入りの取得中にエラーが発生しました',
+  }
+}
+
+async function fetchTherapistFavorites(cookieHeader?: string): Promise<TherapistFavoritesResult> {
+  let lastError: Error | null = null
+  const bases = resolveApiBases()
+  if (process.env.NODE_ENV !== 'production') {
+    console.info('[fetch-therapist-favorites] bases', bases)
+  }
+
+  for (const base of bases) {
+    const url = buildApiUrl(base, 'api/favorites/therapists')
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[fetch-therapist-favorites] request', { base, url })
+    }
+    try {
+      const res = await fetch(url, {
+        headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+        credentials: cookieHeader ? 'omit' : 'include',
+        cache: 'no-store',
+      })
+
+      if (res.status === 401) {
+        return { status: 'unauthorized' }
+      }
+
+      if (res.status === 404) {
+        return { status: 'ok', favorites: [] }
+      }
+
+      if (!res.ok) {
+        lastError = new Error(`セラピストお気に入りの取得に失敗しました (${res.status})`)
+        continue
+      }
+
+      const favorites = (await res.json()) as TherapistFavoriteRecord[]
+      return { status: 'ok', favorites }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('セラピストお気に入りの取得に失敗しました')
+    }
+  }
+
+  return {
+    status: 'error',
+    message: lastError?.message ?? 'セラピストお気に入りの取得中にエラーが発生しました',
   }
 }
 
@@ -124,6 +202,48 @@ async function fetchShopSummary(shopId: string, cookieHeader?: string): Promise<
       }
 
       const data = await res.json()
+      const parseId = (value: unknown): string | null => {
+        if (value == null) return null
+        const str = String(value).trim()
+        return str.length ? str : null
+      }
+      const parseText = (value: unknown): string | null => {
+        if (typeof value !== 'string') return null
+        const trimmed = value.trim()
+        return trimmed.length ? trimmed : null
+      }
+      const staff: StaffSummary[] = Array.isArray(data.staff)
+        ? (
+            data.staff as Array<{
+              id?: unknown
+              name?: unknown
+              alias?: unknown
+              headline?: unknown
+              avatar_url?: unknown
+            }>
+          )
+            .map((member) => {
+              const record = member as Record<string, unknown>
+              const name = parseText(record['name'])
+              if (!name) return null
+              const id = parseId(record['id'])
+              const alias = parseText(record['alias'])
+              const headline = parseText(record['headline'])
+              const avatarCandidate =
+                parseText(record['avatar_url']) ??
+                parseText(record['avatarUrl']) ??
+                parseText(record['photo_url']) ??
+                parseText(record['image'])
+              return {
+                id,
+                name,
+                alias,
+                headline,
+                avatarUrl: avatarCandidate,
+              }
+            })
+            .filter((entry): entry is StaffSummary => entry !== null)
+        : []
       return {
         id: data.id ?? shopId,
         name: data.name ?? '名称未設定',
@@ -132,6 +252,7 @@ async function fetchShopSummary(shopId: string, cookieHeader?: string): Promise<
         min_price: data.price_min ?? null,
         max_price: data.price_max ?? null,
         address: data.address ?? null,
+        staff,
       }
     } catch (error) {
       continue
@@ -155,23 +276,42 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function FavoritesDashboardPage() {
-  const cookieHeader = serializeCookies()
-  const [userResult, favoritesResult] = await Promise.all([
+  const cookieHeader = await serializeCookies()
+  const [userResult, favoritesResult, therapistFavoritesResult] = await Promise.all([
     fetchSiteUser(cookieHeader),
     fetchFavorites(cookieHeader),
+    fetchTherapistFavorites(cookieHeader),
   ])
 
-  if (favoritesResult.status === 'error') {
+  if (process.env.NODE_ENV !== 'production') {
+    console.info('[favorites-page]', {
+      favoritesStatus: favoritesResult.status,
+      therapistStatus: therapistFavoritesResult.status,
+      favoritesCount:
+        favoritesResult.status === 'ok' ? favoritesResult.favorites.length : null,
+      therapistFavoritesCount:
+        therapistFavoritesResult.status === 'ok' ? therapistFavoritesResult.favorites.length : null,
+    })
+  }
+
+  if (
+    favoritesResult.status === 'error' &&
+    therapistFavoritesResult.status === 'error'
+  ) {
+    const combinedMessage = [favoritesResult.message, therapistFavoritesResult.message].filter(Boolean).join(' / ')
     return (
       <main className="mx-auto max-w-4xl space-y-6 px-6 py-12">
         <h1 className="text-2xl font-semibold">マイページ</h1>
-        <p className="text-neutral-600">{favoritesResult.message}</p>
+        <p className="text-neutral-600">{combinedMessage}</p>
         <RecentlyViewedList />
       </main>
     )
   }
 
-  if (favoritesResult.status === 'unauthorized') {
+  if (
+    favoritesResult.status === 'unauthorized' ||
+    therapistFavoritesResult.status === 'unauthorized'
+  ) {
     return (
       <main className="mx-auto max-w-4xl space-y-6 px-6 py-12">
         <h1 className="text-2xl font-semibold">マイページ</h1>
@@ -194,12 +334,48 @@ export default async function FavoritesDashboardPage() {
     )
   }
 
+  const shopFavoritesError = favoritesResult.status === 'error' ? favoritesResult.message : null
+  const therapistFavoritesError =
+    therapistFavoritesResult.status === 'error' ? therapistFavoritesResult.message : null
+
+  const shopDetailMap = new Map<string, ShopSummary | null>()
+
+  const shopFavorites = favoritesResult.status === 'ok' ? favoritesResult.favorites : []
   const summaries = await Promise.all(
-    favoritesResult.favorites.map(async (favorite) => {
+    shopFavorites.map(async (favorite) => {
       const summary = await fetchShopSummary(favorite.shop_id, cookieHeader)
+      shopDetailMap.set(favorite.shop_id, summary)
       return { favorite, summary }
     }),
   )
+
+  const therapistFavorites = therapistFavoritesResult.status === 'ok' ? therapistFavoritesResult.favorites : []
+  const therapistEntries: TherapistFavoriteEntry[] = await Promise.all(
+    therapistFavorites.map(async (favorite) => {
+      if (!shopDetailMap.has(favorite.shop_id)) {
+        const detail = await fetchShopSummary(favorite.shop_id, cookieHeader)
+        shopDetailMap.set(favorite.shop_id, detail)
+      }
+      const summary = shopDetailMap.get(favorite.shop_id) ?? null
+      const targetId = favorite.therapist_id ? favorite.therapist_id.trim().toLowerCase() : ''
+      let staff: StaffSummary | null = null
+      if (summary?.staff && summary.staff.length > 0) {
+        staff =
+          summary.staff.find(
+            (member) => member.id && member.id.trim().toLowerCase() === targetId,
+          ) ?? null
+        if (!staff && summary.staff.length === 1) {
+          staff = summary.staff[0]
+        }
+      }
+      return { favorite, summary, staff }
+    }),
+  )
+  therapistEntries.sort((a, b) => {
+    const left = new Date(a.favorite.created_at).getTime()
+    const right = new Date(b.favorite.created_at).getTime()
+    return right - left
+  })
 
   const greeting = userResult.status === 'authenticated' ? userResult.displayName ?? 'ゲスト' : null
 
@@ -223,7 +399,11 @@ export default async function FavoritesDashboardPage() {
           </Link>
         </div>
 
-        {summaries.length === 0 ? (
+        {shopFavoritesError ? (
+          <div className="rounded border border-dashed border-red-200 bg-red-50 p-6 text-sm text-red-700">
+            {shopFavoritesError}
+          </div>
+        ) : summaries.length === 0 ? (
           <div className="rounded border border-dashed border-neutral-300 bg-neutral-100 p-8 text-center text-neutral-600">
             まだお気に入りの店舗がありません。検索ページから気になる店舗を追加してみてください。
           </div>
@@ -268,6 +448,71 @@ export default async function FavoritesDashboardPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+      </section>
+
+      <section aria-labelledby="therapist-favorites-heading" className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 id="therapist-favorites-heading" className="text-xl font-semibold text-neutral-900">
+            お気に入りのセラピスト
+          </h2>
+          <Link href="/search?force_samples=1" className="text-sm font-medium text-brand-primary hover:underline">
+            セラピストを探す
+          </Link>
+        </div>
+
+        {therapistFavoritesError ? (
+          <div className="rounded border border-dashed border-red-200 bg-red-50 p-6 text-sm text-red-700">
+            {therapistFavoritesError}
+          </div>
+        ) : therapistEntries.length === 0 ? (
+          <div className="rounded border border-dashed border-neutral-300 bg-neutral-100 p-8 text-center text-neutral-600">
+            まだお気に入りのセラピストがありません。検索ページで気になるスタッフを追加してみてください。
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {therapistEntries.map(({ favorite, summary, staff }) => {
+              const therapistName = staff?.name ?? 'セラピスト'
+              const alias = staff?.alias
+              const headline = staff?.headline
+              const initial = therapistName ? therapistName.slice(0, 1) : '？'
+              const href = summary ? (summary.slug ? `/profiles/${summary.slug}` : `/profiles/${summary.id}`) : null
+              return (
+                <Card key={`${favorite.therapist_id}-${favorite.created_at}`} className="space-y-3 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-200 text-lg font-semibold text-neutral-700">
+                      {initial}
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-semibold text-neutral-900">{therapistName}</h3>
+                      {alias ? <div className="text-xs text-neutral-500">{alias}</div> : null}
+                      {headline ? <p className="text-sm text-neutral-600">{headline}</p> : null}
+                    </div>
+                  </div>
+                  <div className="text-sm text-neutral-600">
+                    {summary ? (
+                      <>
+                        <span className="font-medium text-neutral-700">所属店舗: </span>
+                        {href ? (
+                          <Link href={href} className="text-brand-primary hover:underline">
+                            {summary.name}
+                          </Link>
+                        ) : (
+                          <span>{summary.name}</span>
+                        )}
+                        {summary.area ? <span className="ml-1 text-xs text-neutral-500">({summary.area})</span> : null}
+                      </>
+                    ) : (
+                      <span>所属店舗情報を取得できませんでした。</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-neutral-500">
+                    登録日時: {dateFormatter.format(new Date(favorite.created_at))}
+                  </div>
+                </Card>
+              )
+            })}
           </div>
         )}
       </section>
