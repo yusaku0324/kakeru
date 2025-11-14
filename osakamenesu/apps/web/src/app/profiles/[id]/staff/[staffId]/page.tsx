@@ -1,17 +1,15 @@
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 
 import SafeImage from '@/components/SafeImage'
+import ReservationForm from '@/components/ReservationForm'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
 import { fetchShop, type ShopDetail, type StaffSummary } from '../../page'
 import { buildStaffIdentifier, staffMatchesIdentifier, slugifyStaffIdentifier } from '@/lib/staff'
-
-const ReservationForm = dynamic(() => import('@/components/ReservationForm'), { ssr: false })
 
 function findStaff(shop: ShopDetail, staffId: string): StaffSummary | null {
   if (!staffId) return null
