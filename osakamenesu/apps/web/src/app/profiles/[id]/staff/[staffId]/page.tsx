@@ -36,8 +36,8 @@ function formatSpecialties(list?: string[] | null) {
 }
 
 type StaffPageProps = {
-  params: { id: string; staffId: string }
-  searchParams?: Record<string, string | string[] | undefined>
+  params: Promise<{ id: string; staffId: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 const dayFormatter = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
@@ -86,24 +86,27 @@ function parseBooleanParam(value?: string | string[] | null): boolean {
 }
 
 export async function generateMetadata({ params }: StaffPageProps): Promise<Metadata> {
-  const shop = await fetchShop(params.id)
-  const staff = findStaff(shop, params.staffId)
+  const resolvedParams = await params
+  const shop = await fetchShop(resolvedParams.id)
+  const staff = findStaff(shop, resolvedParams.staffId)
   const title = staff ? `${staff.name}｜${shop.name}のセラピスト` : `${shop.name}｜セラピスト`
   const description = staff?.headline || `${shop.name}に在籍するセラピストのプロフィール`
   return { title, description }
 }
 
 export default async function StaffProfilePage({ params, searchParams }: StaffPageProps) {
-  const shop = await fetchShop(params.id)
-  const staff = findStaff(shop, params.staffId)
+  const resolvedParams = await params
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const shop = await fetchShop(resolvedParams.id)
+  const staff = findStaff(shop, resolvedParams.staffId)
 
   if (!staff) {
     notFound()
   }
 
-  const allowDemoSubmission = parseBooleanParam(searchParams?.force_demo_submit ?? null)
+  const allowDemoSubmission = parseBooleanParam(resolvedSearchParams?.force_demo_submit ?? null)
 
-  const shopHref = buildShopHref(params)
+  const shopHref = buildShopHref(resolvedParams)
   const staffId = staff.id
   const specialties = formatSpecialties(staff.specialties)
   const ratingLabel = typeof staff.rating === 'number' ? `${staff.rating.toFixed(1)} / 5.0` : null
@@ -126,15 +129,15 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
     .sort((a, b) => a.date.localeCompare(b.date))
 
   const slotParamValue = (() => {
-    if (!searchParams) return undefined
-    const value = searchParams.slot
+    if (!resolvedSearchParams) return undefined
+    const value = resolvedSearchParams.slot
     if (Array.isArray(value)) return value[0]
     return value
   })()
 
   const weekParamValue = (() => {
-    if (!searchParams) return undefined
-    const value = searchParams.week
+    if (!resolvedSearchParams) return undefined
+    const value = resolvedSearchParams.week
     if (Array.isArray(value)) return value[0]
     return value
   })()
@@ -202,7 +205,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
     const urlParams = new URLSearchParams()
     if (index > 0) urlParams.set('week', String(index))
     const search = urlParams.toString()
-    return `${buildStaffHref(params.id, staff)}${search ? `?${search}` : ''}`
+    return `${buildStaffHref(resolvedParams.id, staff)}${search ? `?${search}` : ''}`
   }
 
   const buildSlotHref = (slotIso: string) => {
@@ -210,7 +213,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
     const weekParam = requestedWeekIndex > 0 ? String(requestedWeekIndex) : undefined
     if (weekParam) urlParams.set('week', weekParam)
     urlParams.set('slot', slotIso)
-    return `${buildStaffHref(params.id, staff)}?${urlParams.toString()}#reserve`
+    return `${buildStaffHref(resolvedParams.id, staff)}?${urlParams.toString()}#reserve`
   }
 
   const selectedSlotInfo = (() => {
@@ -460,7 +463,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
               {otherStaff.map((member) => (
                 <Link
                   key={member.id}
-                  href={buildStaffHref(params.id, member)}
+                  href={buildStaffHref(resolvedParams.id, member)}
                   className="flex items-center gap-3 rounded-card border border-neutral-borderLight/70 bg-neutral-surfaceAlt/60 p-3 transition hover:border-brand-primary"
                 >
                   <div className="relative h-16 w-16 overflow-hidden rounded-full bg-neutral-surface">

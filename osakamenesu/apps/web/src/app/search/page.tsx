@@ -439,11 +439,14 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
   })
 }
 
-export default async function SearchPage({ searchParams }: { searchParams: Params }) {
+export default async function SearchPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const resolvedSearchParams = await searchParams
   const forceSampleMode = parseBoolParam(
-    Array.isArray(searchParams.force_samples) ? searchParams.force_samples[0] : searchParams.force_samples,
+    Array.isArray(resolvedSearchParams.force_samples)
+      ? resolvedSearchParams.force_samples[0]
+      : resolvedSearchParams.force_samples,
   )
-  const data = forceSampleMode ? buildSampleResponse() : await fetchProfiles(searchParams)
+  const data = forceSampleMode ? buildSampleResponse() : await fetchProfiles(resolvedSearchParams)
   const { page, page_size: pageSize, total, results, facets, _error } = data
   const hits = results ?? []
   const useSampleData = forceSampleMode || hits.length === 0

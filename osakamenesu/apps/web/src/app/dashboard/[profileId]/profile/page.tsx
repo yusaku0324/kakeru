@@ -20,10 +20,11 @@ export const revalidate = 0
 export default async function DashboardShopProfilePage({
   params,
 }: {
-  params: { profileId: string }
+  params: Promise<{ profileId: string }>
 }) {
+  const { profileId } = await params
   const cookieHeader = await cookieHeaderFromStore()
-  const result = await fetchDashboardShopProfile(params.profileId, { cookieHeader })
+  const result = await fetchDashboardShopProfile(profileId, { cookieHeader })
 
   if (result.status === 'unauthorized') {
     return (
@@ -78,7 +79,7 @@ export default async function DashboardShopProfilePage({
 
   const data = result.data
 
-  const therapistResult = await fetchDashboardTherapists(params.profileId, { cookieHeader })
+  const therapistResult = await fetchDashboardTherapists(profileId, { cookieHeader })
 
   const initialTherapists = therapistResult.status === 'success' ? therapistResult.data : []
   const initialTherapistsError = (() => {
