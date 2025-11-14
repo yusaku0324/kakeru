@@ -53,6 +53,7 @@ jobs:
           ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER || '' }}
           ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS || '' }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY || '' }}
+          SKIP_E2E_SETUP: '1'
 
       - name: E2E smoke - admin dashboard save
         working-directory: apps/web
@@ -61,3 +62,4 @@ jobs:
           ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER || '' }}
           ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS || '' }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY || '' }}
+          SKIP_E2E_SETUP: '1'
