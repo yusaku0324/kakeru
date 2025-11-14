@@ -74,6 +74,9 @@ function buildNotificationJobPayload(
   }
 }
 
+type RevalidateFn = (tag: string) => void
+const callRevalidateTag: RevalidateFn = revalidateTag as unknown as RevalidateFn
+
 export async function createReservationAction(payload: CreateReservationPayload): Promise<CreateReservationResult> {
   const body = JSON.stringify(payload)
   let lastError: { status?: number; body?: any } | null = null
@@ -99,10 +102,10 @@ export async function createReservationAction(payload: CreateReservationPayload)
         const reservationRecord = json?.reservation ?? json
 
         if (payload.shop_id) {
-          revalidateTag(CACHE_TAGS.store(payload.shop_id), 'hours')
-          revalidateTag(CACHE_TAGS.stores, 'hours')
+          callRevalidateTag(CACHE_TAGS.store(payload.shop_id))
+          callRevalidateTag(CACHE_TAGS.stores)
           const dayKey = formatDateKey(payload.desired_start)
-          revalidateTag(CACHE_TAGS.slots(payload.shop_id, dayKey), 'days')
+          callRevalidateTag(CACHE_TAGS.slots(payload.shop_id, dayKey))
         }
 
         let asyncJob: AsyncJobStatus = { status: 'skipped' }

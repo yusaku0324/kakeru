@@ -9,6 +9,9 @@ export const CACHE_TAGS = {
   homeFeatured: 'home-featured',
 } as const
 
+type RevalidateFn = (tag: string) => void
+const callRevalidateTag: RevalidateFn = revalidateTag as unknown as RevalidateFn
+
 const CACHE_LIFETIME_SECONDS = {
   hours: 60 * 60,
   // スロットは最長保持が欲しいので 24 時間
@@ -24,21 +27,21 @@ export const CACHE_REVALIDATE_SECONDS = {
 } as const
 
 export function revalidateHomeFeatured() {
-  revalidateTag(CACHE_TAGS.homeFeatured, 'hours')
+  callRevalidateTag(CACHE_TAGS.homeFeatured)
 }
 
 export function revalidateStores() {
-  revalidateTag(CACHE_TAGS.stores, 'hours')
+  callRevalidateTag(CACHE_TAGS.stores)
 }
 
 export function revalidateStore(id: string) {
-  revalidateTag(CACHE_TAGS.store(id), 'hours')
+  callRevalidateTag(CACHE_TAGS.store(id))
 }
 
 export function revalidateStaff(id: string) {
-  revalidateTag(CACHE_TAGS.staff(id), 'hours')
+  callRevalidateTag(CACHE_TAGS.staff(id))
 }
 
 export function revalidateSlots(storeId: string, yyyymmdd: string) {
-  revalidateTag(CACHE_TAGS.slots(storeId, yyyymmdd), 'days')
+  callRevalidateTag(CACHE_TAGS.slots(storeId, yyyymmdd))
 }
