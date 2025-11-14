@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev --turbo -p 3000 --hostname 0.0.0.0",
-    "build": "next build --turbo",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "e2e:setup": "python ../../services/api/scripts/seed_admin_test_data.py",
