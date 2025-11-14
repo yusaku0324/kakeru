@@ -40,5 +40,5 @@ export function revalidateStaff(id: string) {
 }
 
 export function revalidateSlots(storeId: string, yyyymmdd: string) {
-  revalidateTag(CACHE_TAGS.slots(storeId, yyyymmdd), 'max')
+  revalidateTag(CACHE_TAGS.slots(storeId, yyyymmdd), 'days')
 }

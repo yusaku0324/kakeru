@@ -59,7 +59,13 @@ function HeartIcon({ filled }: { filled: boolean }) {
   )
 }
 
-export function TherapistCard({ hit }: { hit: TherapistHit }) {
+type TherapistCardProps = {
+  hit: TherapistHit
+  variant?: 'grid' | 'featured'
+  onReserve?: (hit: TherapistHit) => void
+}
+
+export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCardProps) {
   const { isFavorite, toggleFavorite, isProcessing } = useTherapistFavorites()
   const staffHref = buildStaffHref(hit)
   const shopHref = buildShopHref(hit)
@@ -70,9 +76,10 @@ export function TherapistCard({ hit }: { hit: TherapistHit }) {
   }, [hit.therapistId])
   const favorite = therapistId ? isFavorite(therapistId) : false
   const processing = therapistId ? isProcessing(therapistId) : false
+  const layoutClassName = variant === 'featured' ? 'md:grid md:grid-cols-[minmax(0,240px)_1fr]' : ''
 
   return (
-    <Card className="relative h-full" interactive data-testid="therapist-card">
+    <Card className={`relative h-full ${layoutClassName}`} interactive data-testid="therapist-card">
       <button
         type="button"
         disabled={!therapistId || processing}
@@ -157,6 +164,20 @@ export function TherapistCard({ hit }: { hit: TherapistHit }) {
           </div>
           <Badge variant="outline">セラピスト</Badge>
         </div>
+
+        {onReserve ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onReserve(hit)
+            }}
+            className="w-full rounded-badge bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
+          >
+            空き状況を問い合わせる
+          </button>
+        ) : null}
       </div>
     </Card>
   )

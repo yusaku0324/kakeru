@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { vi } from 'vitest'
+import { vi, type Mock } from 'vitest'
 
 import DashboardReservationFeed from '@/components/dashboard/DashboardReservationFeed'
 
 declare global {
-  var __fetchDashboardReservationsMock: ReturnType<typeof vi.fn> | undefined
-  var __updateDashboardReservationMock: ReturnType<typeof vi.fn> | undefined
+  var __fetchDashboardReservationsMock: Mock | undefined
+  var __updateDashboardReservationMock: Mock | undefined
 }
 
 vi.mock('@/lib/dashboard-reservations', () => {
@@ -17,8 +17,8 @@ vi.mock('@/lib/dashboard-reservations', () => {
   }
 })
 
-const mockFetchReservations = () => globalThis.__fetchDashboardReservationsMock as ReturnType<typeof vi.fn>
-const mockUpdateReservation = () => globalThis.__updateDashboardReservationMock as ReturnType<typeof vi.fn>
+const mockFetchReservations = () => globalThis.__fetchDashboardReservationsMock as Mock
+const mockUpdateReservation = () => globalThis.__updateDashboardReservationMock as Mock
 
 const replaceMock = vi.fn()
 const refreshMock = vi.fn()

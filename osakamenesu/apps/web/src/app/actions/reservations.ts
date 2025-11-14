@@ -1,6 +1,6 @@
 'use server'
 
-import { updateTag } from 'next/cache'
+import { revalidateTag } from 'next/cache'
 
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { CACHE_TAGS } from '@/lib/cache-tags'
@@ -99,10 +99,10 @@ export async function createReservationAction(payload: CreateReservationPayload)
         const reservationRecord = json?.reservation ?? json
 
         if (payload.shop_id) {
-          updateTag(CACHE_TAGS.store(payload.shop_id))
-          updateTag(CACHE_TAGS.stores)
+          revalidateTag(CACHE_TAGS.store(payload.shop_id), 'hours')
+          revalidateTag(CACHE_TAGS.stores, 'hours')
           const dayKey = formatDateKey(payload.desired_start)
-          updateTag(CACHE_TAGS.slots(payload.shop_id, dayKey))
+          revalidateTag(CACHE_TAGS.slots(payload.shop_id, dayKey), 'days')
         }
 
         let asyncJob: AsyncJobStatus = { status: 'skipped' }

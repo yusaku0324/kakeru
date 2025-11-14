@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import ReservationOverlay from '@/components/ReservationOverlay'
 import type { ReservationOverlayProps } from '@/components/ReservationOverlay'
+import type { TherapistHit } from '@/components/staff/TherapistCard'
 
-const baseHit = {
+const baseHit: TherapistHit = {
   id: 'shop-staff',
   therapistId: 'staff-1',
   staffId: 'staff-1',
@@ -22,7 +23,7 @@ const baseHit = {
   shopAreaName: '梅田・北新地',
   todayAvailable: true,
   nextAvailableAt: '2025-11-04T12:00:00+09:00',
-} as const
+}
 
 const availabilityDays = [
   {
