@@ -170,6 +170,8 @@ type StaffPreview = {
   review_count?: number | null
   avatar_url?: string | null
   specialties?: string[] | null
+  today_available?: boolean | null
+  next_available_at?: string | null
 }
 
 type Params = {
