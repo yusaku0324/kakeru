@@ -37,18 +37,21 @@ async function waitForHostname(hostname, { attempts = 30, delayMs = 1000 } = {})
   throw new Error(`[playwright] hostname not reachable: ${hostname} (${reason})`)
 }
 
+function extractHostname(raw) {
+  try {
+    const url = new URL(raw)
+    return url.hostname
+  } catch {
+    return null
+  }
+}
+
 async function waitForService(baseUrl, { path = '/api/health', attempts = 30, delayMs = 2000 } = {}) {
   const normalizedBase = baseUrl.replace(/\/$/, '')
   const target = `${normalizedBase}${path}`
-  if (/^https?:/i.test(normalizedBase)) {
-    try {
-      const hostname = new URL(normalizedBase).hostname
-      if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-        await waitForHostname(hostname, { attempts, delayMs })
-      }
-    } catch {
-      // ignore invalid URLs
-    }
+  const hostname = /^https?:/i.test(normalizedBase) ? extractHostname(normalizedBase) : null
+  if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    await waitForHostname(hostname, { attempts, delayMs })
   }
   let lastError
 
@@ -62,6 +65,14 @@ async function waitForService(baseUrl, { path = '/api/health', attempts = 30, de
       lastError = new Error(`HTTP ${response.status()}`)
     } catch (error) {
       lastError = error
+      if (hostname && error?.code === 'EAI_AGAIN') {
+        const retryAttempts = Math.max(1, Math.floor(attempts / 3))
+        try {
+          await waitForHostname(hostname, { attempts: retryAttempts, delayMs })
+        } catch (lookupError) {
+          lastError = lookupError
+        }
+      }
     } finally {
       await context.dispose()
     }
