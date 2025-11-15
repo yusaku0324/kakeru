@@ -1,23 +1,15 @@
 import { randomUUID } from 'crypto'
-import { NextRequest, NextResponse } from 'next/server'
 import { appendFile } from 'node:fs/promises'
+import { NextRequest, NextResponse } from 'next/server'
 
-const ADMIN_KEY = process.env.ADMIN_API_KEY
-const PUBLIC_BASE = process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE || process.env.NEXT_PUBLIC_API_BASE || '/api'
-const INTERNAL_BASE = process.env.OSAKAMENESU_API_INTERNAL_BASE || process.env.API_INTERNAL_BASE || 'http://osakamenesu-api:8000'
-
-function bases() {
-  return [INTERNAL_BASE, PUBLIC_BASE]
-}
+import { ADMIN_KEY, adminBases, buildAdminHeaders } from '@/app/api/admin/client'
 
 async function proxy(method: 'GET' | 'PATCH', request: NextRequest, params: { id: string }) {
   const requestLabel = `[admin-shops-bff:${method}:${params.id}:${randomUUID()}]`
   if (!ADMIN_KEY) {
     return NextResponse.json({ detail: 'admin key not configured' }, { status: 500 })
   }
-  const headers: Record<string, string> = {
-    'X-Admin-Key': ADMIN_KEY,
-  }
+  const headers: Record<string, string> = buildAdminHeaders()
   let body: string | undefined
   if (method === 'PATCH') {
     try {
@@ -40,7 +32,7 @@ async function proxy(method: 'GET' | 'PATCH', request: NextRequest, params: { id
   console.log(`${requestLabel} forwarding`, forwardPayload)
   // temporary instrumentation removed
 
-  for (const base of bases()) {
+  for (const base of adminBases()) {
     const hopStart = Date.now()
     try {
       const resp = await fetch(`${base}${targetPath}`, {

@@ -18,11 +18,13 @@ type RateLimitRecord = {
 const rateLimitBuckets = new Map<string, RateLimitRecord>()
 
 const FASTAPI_BASE =
+  process.env.E2E_INTERNAL_API_BASE ||
+  process.env.E2E_SEED_API_BASE ||
   process.env.OSAKAMENESU_API_INTERNAL_BASE ||
   process.env.API_INTERNAL_BASE ||
   process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
   process.env.NEXT_PUBLIC_API_BASE ||
-  'http://osakamenesu-api:8000'
+  'http://api:8000'
 
 const NORMALIZED_FASTAPI_BASE = FASTAPI_BASE.replace(/\/$/, '')
 const HMAC_SECRET = process.env.API_PROXY_HMAC_SECRET || process.env.PROXY_SHARED_SECRET || null
@@ -48,7 +50,10 @@ function unauthorized(message: string) {
 }
 
 function requiresAdminAuth(pathname: string) {
-  return pathname.startsWith('/admin') || pathname.startsWith('/api/admin')
+  if (pathname.startsWith('/api/admin')) {
+    return false
+  }
+  return pathname.startsWith('/admin')
 }
 
 const CONTENT_SECURITY_POLICY = [

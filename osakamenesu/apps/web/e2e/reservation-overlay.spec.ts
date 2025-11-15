@@ -6,15 +6,11 @@ test.describe('Reservation overlay interactions', () => {
       await route.fulfill({ status: 201, body: JSON.stringify({ id: 'overlay-e2e' }) })
     })
 
-    await page.goto(`${baseURL}/search?force_samples=1`)
-    await page.waitForTimeout(1000)
+    const shopId = process.env.E2E_SAMPLE_SHOP_ID || 'sample-namba-resort'
+    await page.goto(`${baseURL}/profiles/${shopId}`)
 
-    const therapistCards = page.locator('[data-testid="therapist-card"]')
-    await expect(therapistCards.first()).toBeVisible({ timeout: 10000 })
-
-    const therapistCard = therapistCards.first()
-
-    const overlayTrigger = therapistCard.getByRole('button', { name: /(の予約詳細を開く|空き状況を問い合わせる)/ })
+    const overlayTrigger = page.getByRole('button', { name: /Web予約する|空き状況を問い合わせる/ })
+    await expect(overlayTrigger).toBeVisible({ timeout: 15000 })
     await overlayTrigger.click()
 
     const overlay = page.getByRole('dialog', { name: /の予約詳細/ }).first()
@@ -23,6 +19,7 @@ test.describe('Reservation overlay interactions', () => {
     await overlay.getByRole('button', { name: '空き状況・予約' }).click()
 
     const slotButton = overlay.locator('[aria-label*="予約可"], [aria-label*="要確認"]').first()
+    await expect(slotButton).toBeVisible({ timeout: 15000 })
     await slotButton.click()
 
     await expect(overlay.getByText(/第1候補/)).toBeVisible()

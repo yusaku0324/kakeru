@@ -1,26 +1,23 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-const ADMIN_KEY = process.env.ADMIN_API_KEY || process.env.OSAKAMENESU_ADMIN_API_KEY
-const PUBLIC_BASE = process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE || process.env.NEXT_PUBLIC_API_BASE || '/api'
-const INTERNAL_BASE = process.env.OSAKAMENESU_API_INTERNAL_BASE || process.env.API_INTERNAL_BASE || 'http://osakamenesu-api:8000'
-
-function bases() {
-  return [INTERNAL_BASE, PUBLIC_BASE]
-}
+import { ADMIN_KEY, adminBases, buildAdminHeaders } from '@/app/api/admin/client'
 
 async function proxyAdminRequest(input: Request, params: { id: string }, init: RequestInit & { method: string }) {
   if (!ADMIN_KEY) {
     return NextResponse.json({ detail: 'admin key not configured' }, { status: 500 })
   }
 
-  const headers = new Headers(init.headers || {})
-  headers.set('X-Admin-Key', ADMIN_KEY)
+  const headers = new Headers(buildAdminHeaders())
+  const incoming = new Headers(init.headers || {})
+  incoming.forEach((value, key) => {
+    headers.set(key, value)
+  })
 
   const url = new URL(input.url)
   const search = url.search ? url.search : ''
 
   let lastError: any = null
-  for (const base of bases()) {
+  for (const base of adminBases()) {
     try {
       const resp = await fetch(`${base}/api/admin/shops/${params.id}/availability${search}`, {
         ...init,

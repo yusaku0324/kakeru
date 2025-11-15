@@ -100,7 +100,11 @@ async function runSeed() {
 }
 
 function resolveWebBase() {
-  const candidates = [process.env.E2E_BASE_URL, process.env.NEXT_PUBLIC_SITE_URL]
+  const candidates = [
+    process.env.E2E_INTERNAL_WEB_BASE,
+    process.env.E2E_BASE_URL,
+    process.env.NEXT_PUBLIC_SITE_URL,
+  ]
   for (const candidate of candidates) {
     if (candidate && candidate.trim()) {
       return candidate.replace(/\/$/, '')
@@ -111,6 +115,8 @@ function resolveWebBase() {
 
 function resolveApiBase() {
   const candidates = [
+    process.env.E2E_INTERNAL_API_BASE,
+    process.env.E2E_SEED_API_BASE,
     process.env.OSAKAMENESU_API_INTERNAL_BASE,
     process.env.API_INTERNAL_BASE,
     process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE,
