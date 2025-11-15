@@ -35,6 +35,9 @@ type StyleFiltersSectionProps = {
   heightMinLimit: number
   heightMaxLimit: number
   onReset: () => void
+  className?: string
+  showHeader?: boolean
+  showResetButton?: boolean
 }
 
 export function StyleFiltersSection({
@@ -58,30 +61,52 @@ export function StyleFiltersSection({
   heightMinLimit,
   heightMaxLimit,
   onReset,
+  className,
+  showHeader = true,
+  showResetButton = true,
 }: StyleFiltersSectionProps) {
+  const wrapperClass = className
+    ? className
+    : 'relative overflow-visible rounded-[32px] border border-white/45 bg-white/45 p-6 shadow-[0_24px_70px_rgba(37,99,235,0.18)] backdrop-blur'
   return (
-    <section className="relative overflow-visible rounded-[32px] border border-white/45 bg-white/45 p-6 shadow-[0_24px_70px_rgba(37,99,235,0.18)] backdrop-blur">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(147,197,253,0.2)_0%,rgba(147,197,253,0)_60%)]" />
-      <header className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#fee2f2] text-[#ec4899] shadow-[0_12px_28px_rgba(236,72,153,0.25)]">
-            ♡
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-neutral-text">外見・スタイル</p>
-            <p className="text-xs text-neutral-textMuted">バストサイズ・年齢・身長の範囲を設定できます</p>
+    <section className={wrapperClass}>
+      {!className ? (
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(147,197,253,0.2)_0%,rgba(147,197,253,0)_60%)]" />
+      ) : null}
+      {showHeader ? (
+        <header className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#fee2f2] text-[#ec4899] shadow-[0_12px_28px_rgba(236,72,153,0.25)]">
+              ♡
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-neutral-text">外見・スタイル</p>
+              <p className="text-xs text-neutral-textMuted">バストサイズ・年齢・身長の範囲を設定できます</p>
+            </div>
           </div>
+          {showResetButton ? (
+            <button
+              type="button"
+              onClick={onReset}
+              className="inline-flex items-center gap-1 rounded-full border border-white/40 bg-white/50 px-3 py-1 text-xs font-semibold text-brand-primary shadow-[0_10px_24px_rgba(37,99,235,0.15)] transition hover:border-brand-primary hover:bg-brand-primary/10"
+            >
+              リセット
+            </button>
+          ) : null}
+        </header>
+      ) : showResetButton ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onReset}
+            className="inline-flex items-center gap-1 rounded-full border border-white/40 bg-white/50 px-3 py-1 text-xs font-semibold text-brand-primary shadow-[0_10px_24px_rgba(37,99,235,0.15)] transition hover:border-brand-primary hover:bg-brand-primary/10"
+          >
+            リセット
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onReset}
-          className="inline-flex items-center gap-1 rounded-full border border-white/40 bg-white/50 px-3 py-1 text-xs font-semibold text-brand-primary shadow-[0_10px_24px_rgba(37,99,235,0.15)] transition hover:border-brand-primary hover:bg-brand-primary/10"
-        >
-          リセット
-        </button>
-      </header>
+      ) : null}
 
-      <div className="mt-6 space-y-8">
+      <div className={clsx('space-y-8', showHeader ? 'mt-6' : 'mt-0')}>
         <div className="space-y-5 rounded-[32px] border border-white/55 bg-white/75 p-6 shadow-[0_22px_60px_rgba(37,99,235,0.2)]">
           <div className="flex items-center justify-between text-sm font-semibold text-neutral-text">
             <span>バストサイズ（カップ）</span>
