@@ -2,6 +2,7 @@ const { spawnSync } = require('node:child_process')
 const crypto = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
+const dns = require('node:dns').promises
 const { request } = require('@playwright/test')
 
 async function requestWithRetry(factory, { attempts = 5, delayMs = 1000 } = {}) {
@@ -21,9 +22,34 @@ async function requestWithRetry(factory, { attempts = 5, delayMs = 1000 } = {}) 
   throw lastError
 }
 
+async function waitForHostname(hostname, { attempts = 30, delayMs = 1000 } = {}) {
+  let lastError
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      await dns.lookup(hostname)
+      return
+    } catch (error) {
+      lastError = error
+    }
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
+  }
+  const reason = lastError ? `${lastError}` : 'unknown'
+  throw new Error(`[playwright] hostname not reachable: ${hostname} (${reason})`)
+}
+
 async function waitForService(baseUrl, { path = '/api/health', attempts = 30, delayMs = 2000 } = {}) {
   const normalizedBase = baseUrl.replace(/\/$/, '')
   const target = `${normalizedBase}${path}`
+  if (/^https?:/i.test(normalizedBase)) {
+    try {
+      const hostname = new URL(normalizedBase).hostname
+      if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        await waitForHostname(hostname, { attempts, delayMs })
+      }
+    } catch {
+      // ignore invalid URLs
+    }
+  }
   let lastError
 
   for (let i = 0; i < attempts; i += 1) {
