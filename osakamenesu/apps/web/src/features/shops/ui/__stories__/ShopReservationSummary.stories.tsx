@@ -3,6 +3,7 @@
 import { useState } from 'react'
 
 import { ShopReservationSummary } from '@/features/shops/ui/ShopReservationSummary'
+import type { AvailabilityDay } from '@/features/shops/model'
 
 const INITIAL_AVAILABILITY = [
   {
