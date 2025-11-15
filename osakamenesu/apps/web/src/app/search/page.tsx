@@ -9,6 +9,7 @@ import { Section } from '@/components/ui/Section'
 import { Card } from '@/components/ui/Card'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { buildStaffIdentifier } from '@/lib/staff'
+import { toNextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { ResultsSortControl } from '@/features/search/ui/ResultsSortControl'
 import { SearchAvailableToday, type SpotlightItem } from './_components/SearchHeroSections'
 import { SearchTabs, type SearchTabValue } from './_components/SearchTabs'
@@ -152,6 +153,19 @@ const SAMPLE_RESULTS: ShopHit[] = [
   },
 ]
 
+SAMPLE_RESULTS.forEach((hit) => {
+  if (!hit.next_available_slot && hit.next_available_at) {
+    hit.next_available_slot = toNextAvailableSlotPayload(hit.next_available_at)
+  }
+  if (Array.isArray(hit.staff_preview)) {
+    hit.staff_preview.forEach((staff) => {
+      if (!staff.next_available_slot && staff.next_available_at) {
+        staff.next_available_slot = toNextAvailableSlotPayload(staff.next_available_at)
+      }
+    })
+  }
+})
+
 type FacetValue = {
   value: string
   label?: string | null
@@ -177,6 +191,10 @@ type StaffPreview = {
   specialties?: string[] | null
   today_available?: boolean | null
   next_available_at?: string | null
+  next_available_slot?: {
+    start_at: string
+    status: 'ok' | 'maybe'
+  } | null
 }
 
 type Params = {
@@ -414,7 +432,11 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
             : typeof hit.today_available === 'boolean'
             ? hit.today_available
             : null
-        const nextAvailableAt = staff.next_available_at ?? hit.next_available_at ?? null
+        const nextAvailableSlot =
+          staff.next_available_slot ??
+          hit.next_available_slot ??
+          toNextAvailableSlotPayload(staff.next_available_at) ??
+          toNextAvailableSlotPayload(hit.next_available_at)
         return {
           id: uniqueId,
           therapistId: staff.id ? String(staff.id) : null,
@@ -432,7 +454,8 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
           shopArea: hit.area,
           shopAreaName: hit.area_name ?? null,
           todayAvailable,
-          nextAvailableAt,
+          nextAvailableSlot,
+          nextAvailableAt: nextAvailableSlot?.start_at ?? null,
         } satisfies TherapistHit
       })
   })

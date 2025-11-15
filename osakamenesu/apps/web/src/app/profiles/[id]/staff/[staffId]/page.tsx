@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
+import { TherapistSchedule } from '@/features/therapist/ui/TherapistSchedule'
 import { fetchShop, type ShopDetail, type StaffSummary } from '../../page'
 import { buildStaffIdentifier, staffMatchesIdentifier, slugifyStaffIdentifier } from '@/lib/staff'
 
@@ -201,6 +202,23 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
     ? `${formatDayLabel(weekColumns[0].date)} 〜 ${formatDayLabel(weekColumns[weekColumns.length - 1].date)}`
     : null
 
+  const upcomingDays = (() => {
+    const availabilityMap = new Map(staffAvailability.map((day) => [day.date, day]))
+    const baseDate = new Date()
+    baseDate.setHours(0, 0, 0, 0)
+    return Array.from({ length: 7 }).map((_, index) => {
+      const target = new Date(baseDate.getTime())
+      target.setDate(baseDate.getDate() + index)
+      const iso = target.toISOString().slice(0, 10)
+      const existing = availabilityMap.get(iso)
+      return {
+        date: iso,
+        is_today: index === 0,
+        slots: existing?.slots ?? [],
+      }
+    })
+  })()
+
   const buildWeekHref = (index: number) => {
     const urlParams = new URLSearchParams()
     if (index > 0) urlParams.set('week', String(index))
@@ -273,6 +291,11 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
             </div>
           ) : null}
         </div>
+
+        <TherapistSchedule
+          days={upcomingDays}
+          initialSlotIso={selectedSlotInfo?.slot.start_at ?? firstOpenSlotInfo?.slot.start_at}
+        />
 
         <Section
           title="プロフィール"
@@ -351,76 +374,79 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
         </Section>
 
         {weekColumns.length ? (
-          <Section
-            title="出勤・空き枠"
-            subtitle="表示枠は店舗提供情報に基づきます"
-            className="border border-neutral-borderLight/70 bg-white/90 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/80"
-          >
-            {hasWeekNavigation && currentWeekRangeLabel ? (
-              <div className="mb-4 flex items-center justify-between text-xs text-neutral-text">
-                <div className="font-semibold">{currentWeekRangeLabel}</div>
-                <div className="flex gap-2">
-                  {requestedWeekIndex > 0 ? (
-                    <Link
-                      href={buildWeekHref(requestedWeekIndex - 1)}
-                      className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary"
-                    >
-                      前の週
-                    </Link>
-                  ) : (
-                    <span className="rounded-badge border border-neutral-borderLight/60 px-3 py-1 text-neutral-textMuted/70">前の週</span>
-                  )}
-                  {requestedWeekIndex < weeks.length - 1 ? (
-                    <Link
-                      href={buildWeekHref(requestedWeekIndex + 1)}
-                      className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary"
-                    >
-                      次の週
-                    </Link>
-                  ) : (
-                    <span className="rounded-badge border border-neutral-borderLight/60 px-3 py-1 text-neutral-textMuted/70">次の週</span>
-                  )}
+          <details className="rounded-section border border-neutral-borderLight/70 bg-white/90 p-4 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-neutral-text">
+              <span>詳細な週別スケジュールを見る</span>
+              <span className="text-xs font-normal text-neutral-textMuted">週ごとのリストを表示</span>
+            </summary>
+            <div className="mt-4 space-y-4 text-sm text-neutral-text">
+              <p className="text-xs text-neutral-textMuted">表示枠は店舗提供情報に基づきます。</p>
+              {hasWeekNavigation && currentWeekRangeLabel ? (
+                <div className="flex items-center justify-between text-xs text-neutral-text">
+                  <div className="font-semibold">{currentWeekRangeLabel}</div>
+                  <div className="flex gap-2">
+                    {requestedWeekIndex > 0 ? (
+                      <Link
+                        href={buildWeekHref(requestedWeekIndex - 1)}
+                        className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary"
+                      >
+                        前の週
+                      </Link>
+                    ) : (
+                      <span className="rounded-badge border border-neutral-borderLight/60 px-3 py-1 text-neutral-textMuted/70">前の週</span>
+                    )}
+                    {requestedWeekIndex < weeks.length - 1 ? (
+                      <Link
+                        href={buildWeekHref(requestedWeekIndex + 1)}
+                        className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary"
+                      >
+                        次の週
+                      </Link>
+                    ) : (
+                      <span className="rounded-badge border border-neutral-borderLight/60 px-3 py-1 text-neutral-textMuted/70">次の週</span>
+                    )}
+                  </div>
                 </div>
+              ) : null}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+                {weekColumns.map((day) => (
+                  <Card key={day.date} className="space-y-3 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-neutral-text">{formatDayLabel(day.date)}</div>
+                      {(day.is_today || day.date === todayIso) ? <Badge variant="brand">本日</Badge> : null}
+                    </div>
+                    <div className="space-y-2 text-sm text-neutral-text">
+                      {day.slots.map((slot, idx) => {
+                        const display = slotStatusMap[slot.status]
+                        const isSelected = selectedSlotInfo?.slot.start_at === slot.start_at
+                        return (
+                          <Link
+                            key={`${slot.start_at}-${idx}`}
+                            href={buildSlotHref(slot.start_at)}
+                            className={`flex items-center justify-between gap-3 rounded-card border px-3 py-2 transition hover:border-brand-primary hover:bg-brand-primary/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${
+                              isSelected
+                                ? 'border-brand-primary bg-brand-primary/10 text-brand-primaryDark'
+                                : 'border-neutral-borderLight/70 bg-neutral-surfaceAlt text-neutral-text'
+                            }`}
+                          >
+                            <span>
+                              {toTimeLabel(slot.start_at)}〜{toTimeLabel(slot.end_at)}
+                            </span>
+                            <span className={`text-xs font-semibold ${display.className}`}>{display.label}</span>
+                          </Link>
+                        )
+                      })}
+                      {day.slots.length === 0 ? (
+                        <div className="rounded-card border border-dashed border-neutral-borderLight/70 bg-white/60 px-3 py-6 text-center text-[11px] text-neutral-textMuted">
+                          公開された枠はありません
+                        </div>
+                      ) : null}
+                    </div>
+                  </Card>
+                ))}
               </div>
-            ) : null}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-              {weekColumns.map((day) => (
-                <Card key={day.date} className="space-y-3 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-neutral-text">{formatDayLabel(day.date)}</div>
-                    {(day.is_today || day.date === todayIso) ? <Badge variant="brand">本日</Badge> : null}
-                  </div>
-                  <div className="space-y-2 text-sm text-neutral-text">
-                    {day.slots.map((slot, idx) => {
-                      const display = slotStatusMap[slot.status]
-                      const isSelected = selectedSlotInfo?.slot.start_at === slot.start_at
-                      return (
-                        <Link
-                          key={`${slot.start_at}-${idx}`}
-                          href={buildSlotHref(slot.start_at)}
-                          className={`flex items-center justify-between gap-3 rounded-card border px-3 py-2 transition hover:border-brand-primary hover:bg-brand-primary/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${
-                            isSelected
-                              ? 'border-brand-primary bg-brand-primary/10 text-brand-primaryDark'
-                              : 'border-neutral-borderLight/70 bg-neutral-surfaceAlt text-neutral-text'
-                          }`}
-                        >
-                          <span>
-                            {toTimeLabel(slot.start_at)}〜{toTimeLabel(slot.end_at)}
-                          </span>
-                          <span className={`text-xs font-semibold ${display.className}`}>{display.label}</span>
-                        </Link>
-                      )
-                    })}
-                    {day.slots.length === 0 ? (
-                      <div className="rounded-card border border-dashed border-neutral-borderLight/70 bg-white/60 px-3 py-6 text-center text-[11px] text-neutral-textMuted">
-                        公開された枠はありません
-                      </div>
-                    ) : null}
-                  </div>
-                </Card>
-              ))}
             </div>
-          </Section>
+          </details>
         ) : null}
 
         <Card id="reserve" className="space-y-3 border border-neutral-borderLight/70 bg-white/95 p-5 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/85">

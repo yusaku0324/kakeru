@@ -6,6 +6,7 @@ import { useMemo } from 'react'
 import SafeImage from '@/components/SafeImage'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
+import { formatNextAvailableSlotLabel, toNextAvailableSlotPayload, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { useTherapistFavorites } from './TherapistFavoritesProvider'
 
 export type TherapistHit = {
@@ -25,7 +26,8 @@ export type TherapistHit = {
   shopArea: string
   shopAreaName: string | null
   todayAvailable: boolean | null
-  nextAvailableAt: string | null
+  nextAvailableSlot: NextAvailableSlotPayload | null
+  nextAvailableAt?: string | null
 }
 
 const formatter = new Intl.NumberFormat('ja-JP')
@@ -76,6 +78,8 @@ export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCar
   }, [hit.therapistId])
   const favorite = therapistId ? isFavorite(therapistId) : false
   const processing = therapistId ? isProcessing(therapistId) : false
+  const nextSlotPayload = hit.nextAvailableSlot ?? toNextAvailableSlotPayload(hit.nextAvailableAt)
+  const nextSlotLabel = formatNextAvailableSlotLabel(nextSlotPayload)
   const layoutClassName = variant === 'featured' ? 'md:grid md:grid-cols-[minmax(0,240px)_1fr]' : ''
 
   return (
@@ -138,6 +142,11 @@ export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCar
           </div>
           {hit.alias ? <p className="text-xs text-neutral-textMuted">{hit.alias}</p> : null}
           {hit.headline ? <p className="text-sm text-neutral-textMuted line-clamp-2">{hit.headline}</p> : null}
+          {nextSlotLabel ? (
+            <p className="text-xs text-neutral-textMuted">{nextSlotLabel}</p>
+          ) : hit.todayAvailable === false ? (
+            <p className="text-xs text-neutral-textMuted">本日の受付は終了しました</p>
+          ) : null}
         </div>
 
         {hit.specialties.length ? (

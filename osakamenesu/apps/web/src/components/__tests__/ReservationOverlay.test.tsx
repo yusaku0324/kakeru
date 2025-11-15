@@ -22,7 +22,11 @@ const baseHit: TherapistHit = {
   shopArea: '大阪',
   shopAreaName: '梅田・北新地',
   todayAvailable: true,
-  nextAvailableAt: '2025-11-04T12:00:00+09:00',
+  nextAvailableSlot: {
+    start_at: '2025-11-04T12:00:00+09:00',
+    status: 'ok',
+  },
+  nextAvailableAt: null,
 }
 
 const availabilityDays = [

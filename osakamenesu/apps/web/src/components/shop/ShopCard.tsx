@@ -4,6 +4,7 @@ import SafeImage from '@/components/SafeImage'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
+import { formatNextAvailableSlotLabel, toNextAvailableSlotPayload, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 
 export type Promotion = {
   label: string
@@ -30,6 +31,7 @@ export type ShopHit = {
   badges?: string[] | null
   today_available?: boolean | null
   next_available_at?: string | null
+  next_available_slot?: NextAvailableSlotPayload | null
   distance_km?: number | null
   online_reservation?: boolean | null
   updated_at?: string | null
@@ -54,6 +56,7 @@ export type ShopHit = {
     specialties?: string[] | null
     today_available?: boolean | null
     next_available_at?: string | null
+    next_available_slot?: NextAvailableSlotPayload | null
   }> | null
 }
 
@@ -76,9 +79,10 @@ function formatPriceRange(min: number, max: number) {
 
 function getAvailability(hit: ShopHit): { label: string; tone: 'success' | 'danger' | 'neutral' } | null {
   const now = new Date()
+  const referenceIso = hit.next_available_slot?.start_at ?? hit.next_available_at ?? null
 
-  if (hit.next_available_at) {
-    const at = new Date(hit.next_available_at)
+  if (referenceIso) {
+    const at = new Date(referenceIso)
     if (!Number.isNaN(at.getTime())) {
       if (at.getTime() <= now.getTime()) {
         return { label: 'ただいま案内可能', tone: 'success' }
@@ -109,6 +113,8 @@ function getProfileHref(hit: ShopHit) {
 
 export function ShopCard({ hit }: { hit: ShopHit }) {
   const availability = getAvailability(hit)
+  const nextSlotPayload = hit.next_available_slot ?? toNextAvailableSlotPayload(hit.next_available_at)
+  const nextSlotLabel = formatNextAvailableSlotLabel(nextSlotPayload)
   const distanceLabel = (() => {
     if (hit.distance_km == null) return null
     if (hit.distance_km < 0.1) return '駅チカ'
@@ -194,6 +200,12 @@ export function ShopCard({ hit }: { hit: ShopHit }) {
             {hit.online_reservation ? <Badge variant="brand">オンライン予約OK</Badge> : null}
             {hit.has_discounts ? <Badge variant="outline" className="text-xs">クーポン</Badge> : null}
             </div>
+
+            {nextSlotLabel ? (
+              <p className="text-xs text-neutral-textMuted">{nextSlotLabel}</p>
+            ) : hit.today_available === false ? (
+              <p className="text-xs text-neutral-textMuted">本日の受付は終了しました</p>
+            ) : null}
 
             {Array.isArray(hit.service_tags) && hit.service_tags.length ? (
               <div className="flex flex-wrap gap-2">

@@ -27,15 +27,14 @@ async function waitForHostname(hostname, { attempts = 30, delayMs = 1000 } = {})
   for (let i = 0; i < attempts; i += 1) {
     try {
       await dns.lookup(hostname)
-      return true
+      return
     } catch (error) {
       lastError = error
     }
     await new Promise((resolve) => setTimeout(resolve, delayMs))
   }
   const reason = lastError ? `${lastError}` : 'unknown'
-  console.warn(`[playwright] hostname not reachable (non-fatal): ${hostname} (${reason})`)
-  return false
+  throw new Error(`[playwright] hostname not reachable: ${hostname} (${reason})`)
 }
 
 function extractHostname(raw) {
@@ -52,7 +51,7 @@ async function waitForService(baseUrl, { path = '/api/health', attempts = 30, de
   const target = `${normalizedBase}${path}`
   const hostname = /^https?:/i.test(normalizedBase) ? extractHostname(normalizedBase) : null
   if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-    await waitForHostname(hostname, { attempts, delayMs })
+    await waitForHostname(hostname, { attempts: attempts * 2, delayMs })
   }
   let lastError
 
@@ -67,12 +66,13 @@ async function waitForService(baseUrl, { path = '/api/health', attempts = 30, de
     } catch (error) {
       lastError = error
       if (hostname && error?.code === 'EAI_AGAIN') {
-        const retryAttempts = Math.max(1, Math.floor(attempts / 3))
+        const retryAttempts = Math.max(5, Math.floor(attempts / 2))
         try {
           await waitForHostname(hostname, { attempts: retryAttempts, delayMs })
         } catch (lookupError) {
           lastError = lookupError
         }
+        continue
       }
     } finally {
       await context.dispose()
@@ -258,7 +258,7 @@ async function createDashboardStorage() {
   const email = process.env.E2E_TEST_DASHBOARD_EMAIL ?? 'playwright-dashboard@example.com'
   const displayName = process.env.E2E_TEST_DASHBOARD_NAME ?? 'Playwright Dashboard User'
 
-  await waitForService(webBase)
+  await waitForService(webBase, { attempts: 60 })
   await waitForService(apiBase, { path: '/healthz' })
   const requestContext = await request.newContext()
   try {

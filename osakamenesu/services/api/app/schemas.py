@@ -186,6 +186,11 @@ class FacetValue(BaseModel):
     selected: Optional[bool] = None
 
 
+class NextAvailableSlot(BaseModel):
+    start_at: datetime
+    status: Literal['ok', 'maybe']
+
+
 class ShopStaffPreview(BaseModel):
     id: Optional[str] = None
     name: str
@@ -195,6 +200,9 @@ class ShopStaffPreview(BaseModel):
     review_count: Optional[int] = None
     avatar_url: Optional[str] = None
     specialties: List[str] = Field(default_factory=list)
+    today_available: Optional[bool] = None
+    next_available_at: Optional[datetime] = None
+    next_available_slot: Optional[NextAvailableSlot] = None
 
 
 class ShopSummary(BaseModel):
@@ -221,6 +229,7 @@ class ShopSummary(BaseModel):
     badges: List[str] = Field(default_factory=list)
     today_available: Optional[bool] = None
     next_available_at: Optional[datetime] = None
+    next_available_slot: Optional[NextAvailableSlot] = None
     distance_km: Optional[float] = None
     online_reservation: Optional[bool] = None
     updated_at: Optional[datetime] = None
@@ -302,6 +311,7 @@ class StaffSummary(BaseModel):
     next_shift: Optional[StaffShift] = None
     specialties: List[str] = Field(default_factory=list)
     is_pickup: Optional[bool] = None
+    next_available_slot: Optional[NextAvailableSlot] = None
 
 
 class AvailabilitySlot(BaseModel):

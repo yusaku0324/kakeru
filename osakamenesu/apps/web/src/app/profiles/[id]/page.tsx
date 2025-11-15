@@ -402,7 +402,13 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     shopArea: shop.area,
     shopAreaName: shop.area_name ?? null,
     todayAvailable: shop.today_available ?? null,
-    nextAvailableAt: nextReservableStartIso,
+    nextAvailableSlot: nextReservableStartIso
+      ? {
+          start_at: nextReservableStartIso,
+          status: 'ok' as const,
+        }
+      : null,
+    nextAvailableAt: null,
   }
 
   const availabilityUpdatedLabel = shop.availability_calendar?.generated_at

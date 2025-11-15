@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from types import SimpleNamespace
-from typing import Any, Dict, Iterable, List, Set
+from typing import Any, Dict, Iterable, List, Set, Tuple
 from uuid import UUID
 import uuid
 import logging
@@ -23,6 +23,7 @@ from ...schemas import (
     FacetValue,
     GeoLocation,
     HighlightedReview,
+    NextAvailableSlot,
     MediaImage,
     MenuItem,
     Promotion,
@@ -496,12 +497,19 @@ def _convert_slots(slots_json: Any) -> List[AvailabilitySlot]:
             end_dt = datetime.fromisoformat(end)
         except Exception:
             continue
+        staff_uuid = None
+        staff_raw = item.get("staff_id")
+        if staff_raw is not None:
+            try:
+                staff_uuid = UUID(str(staff_raw))
+            except Exception:
+                staff_uuid = None
         slots.append(
             AvailabilitySlot(
                 start_at=start_dt,
                 end_at=end_dt,
                 status=status if status in {'open', 'tentative', 'blocked'} else 'open',
-                staff_id=item.get("staff_id"),
+                staff_id=staff_uuid,
                 menu_id=item.get("menu_id"),
             )
         )
@@ -524,6 +532,17 @@ def _uuid_from_seed(seed: str, value: str | None = None) -> UUID:
         except Exception:
             pass
     return uuid.uuid5(uuid.NAMESPACE_URL, seed)
+
+
+def _normalize_staff_uuid(value: Any) -> UUID | None:
+    if value is None:
+        return None
+    if isinstance(value, UUID):
+        return value
+    try:
+        return UUID(str(value))
+    except Exception:
+        return None
 
 
 def _normalize_menus(raw: Any, shop_id: UUID) -> List[MenuItem]:
@@ -818,6 +837,75 @@ async def _fetch_availability(
     )
 
 
+def _build_next_slot_candidate(
+    slot: AvailabilitySlot,
+    *,
+    now_utc: datetime,
+) -> tuple[datetime, NextAvailableSlot] | None:
+    status = slot.status or 'open'
+    if status not in {'open', 'tentative'}:
+        return None
+    start = slot.start_at
+    if not isinstance(start, datetime):
+        return None
+    if start.tzinfo is None:
+        comparable = start.replace(tzinfo=timezone.utc)
+    else:
+        comparable = start.astimezone(timezone.utc)
+    if comparable < now_utc:
+        return None
+    payload = NextAvailableSlot(
+        start_at=start,
+        status='ok' if status == 'open' else 'maybe',
+    )
+    return comparable, payload
+
+
+async def _fetch_next_available_slots(
+    db: AsyncSession,
+    shop_ids: List[UUID],
+    lookahead_days: int = 14,
+) -> tuple[dict[UUID, NextAvailableSlot], dict[UUID, NextAvailableSlot]]:
+    if not shop_ids:
+        return {}, {}
+    today = date.today()
+    end_date = today + timedelta(days=lookahead_days)
+    stmt = (
+        select(
+            models.Availability.profile_id,
+            models.Availability.slots_json,
+            models.Availability.date,
+        )
+        .where(models.Availability.profile_id.in_(shop_ids))
+        .where(models.Availability.date >= today)
+        .where(models.Availability.date <= end_date)
+        .order_by(models.Availability.profile_id.asc(), models.Availability.date.asc())
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+    now_utc = datetime.now(timezone.utc)
+    shop_map: dict[UUID, tuple[datetime, NextAvailableSlot]] = {}
+    staff_map: dict[UUID, tuple[datetime, NextAvailableSlot]] = {}
+    for profile_id, slots_json, _slot_date in rows:
+        slots = _convert_slots(slots_json)
+        for slot in slots:
+            candidate = _build_next_slot_candidate(slot, now_utc=now_utc)
+            if not candidate:
+                continue
+            comparable, payload = candidate
+            existing_shop = shop_map.get(profile_id)
+            if existing_shop is None or comparable < existing_shop[0]:
+                shop_map[profile_id] = (comparable, payload)
+            if slot.staff_id:
+                existing_staff = staff_map.get(slot.staff_id)
+                if existing_staff is None or comparable < existing_staff[0]:
+                    staff_map[slot.staff_id] = (comparable, payload)
+    return (
+        {shop_id: data[1] for shop_id, data in shop_map.items()},
+        {staff_id: data[1] for staff_id, data in staff_map.items()},
+    )
+
+
 async def _filter_results_by_availability(
     db: AsyncSession, shops: List[ShopSummary], target_date: date
 ) -> List[ShopSummary]:
@@ -965,6 +1053,26 @@ async def search_shops(
 
     if available_date:
         results = await _filter_results_by_availability(db, results, available_date)
+
+    if results:
+        shop_slots, staff_slots = await _fetch_next_available_slots(db, [shop.id for shop in results])
+        if shop_slots or staff_slots:
+            for shop in results:
+                slot = shop_slots.get(shop.id)
+                if slot:
+                    shop.next_available_slot = slot
+                    if shop.next_available_at is None:
+                        shop.next_available_at = slot.start_at
+                if staff_slots and shop.staff_preview:
+                    for member in shop.staff_preview:
+                        staff_uuid = _normalize_staff_uuid(member.id)
+                        if not staff_uuid:
+                            continue
+                        staff_slot = staff_slots.get(staff_uuid)
+                        if staff_slot:
+                            member.next_available_slot = staff_slot
+                            if member.next_available_at is None:
+                                member.next_available_at = staff_slot.start_at
 
     selected_facets: Dict[str, Set[str]] = {}
     if area:
@@ -1147,6 +1255,18 @@ async def get_shop_detail(shop_id: str, db: AsyncSession = Depends(get_session))
     availability = await _fetch_availability(db, profile.id)
     if availability:
         shop_summary.availability_calendar = availability
+
+    slot_map, staff_slot_map = await _fetch_next_available_slots(db, [profile.id])
+    slot = slot_map.get(profile.id)
+    if slot:
+        shop_summary.next_available_slot = slot
+        if shop_summary.next_available_at is None:
+            shop_summary.next_available_at = slot.start_at
+    if staff_slot_map and shop_summary.staff:
+        for member in shop_summary.staff:
+            staff_slot = staff_slot_map.get(member.id)
+            if staff_slot:
+                member.next_available_slot = staff_slot
 
     return shop_summary.model_dump()
 

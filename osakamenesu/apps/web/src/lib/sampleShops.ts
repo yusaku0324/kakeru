@@ -7,6 +7,12 @@ export type SampleStaff = {
   review_count?: number | null
   avatar_url?: string | null
   specialties?: string[] | null
+  today_available?: boolean | null
+  next_available_at?: string | null
+  next_available_slot?: {
+    start_at: string
+    status: 'ok' | 'maybe'
+  } | null
 }
 
 export type SampleAvailabilitySlot = {
@@ -63,6 +69,10 @@ export type SampleShop = {
   badges?: string[] | null
   today_available?: boolean | null
   next_available_at?: string | null
+  next_available_slot?: {
+    start_at: string
+    status: 'ok' | 'maybe'
+  } | null
   distance_km?: number | null
   online_reservation?: boolean | null
   service_tags?: string[] | null
