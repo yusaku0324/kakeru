@@ -1,3 +1,5 @@
+import clsx from 'clsx'
+
 import SearchFilters from '@/components/SearchFilters'
 import ShopCard, { type ShopHit } from '@/components/shop/ShopCard'
 import TherapistCard, { type TherapistHit } from '@/components/staff/TherapistCard'
@@ -7,6 +9,7 @@ import { Section } from '@/components/ui/Section'
 import { Card } from '@/components/ui/Card'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { buildStaffIdentifier } from '@/lib/staff'
+import { SearchTabs, type SearchTabValue } from './_components/SearchTabs'
 
 const SAMPLE_RESULTS: ShopHit[] = [
   {
@@ -192,6 +195,7 @@ type Params = {
   page?: string
   page_size?: string
   force_samples?: string
+  tab?: string
 }
 
 function toQueryString(p: Record<string, string | undefined>) {
@@ -441,6 +445,11 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<Params> }) {
   const resolvedSearchParams = await searchParams
+  const allowedTabs: SearchTabValue[] = ['all', 'therapists', 'shops']
+  const tabCandidate = resolvedSearchParams.tab
+  const activeTab: SearchTabValue = allowedTabs.includes((tabCandidate as SearchTabValue) || 'all')
+    ? ((tabCandidate as SearchTabValue) || 'all')
+    : 'all'
   const forceSampleMode = parseBoolParam(
     Array.isArray(resolvedSearchParams.force_samples)
       ? resolvedSearchParams.force_samples[0]
@@ -456,7 +465,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const editorialSpots = buildEditorialSpots(total)
   const displayEditorialSpots = useSampleData ? buildEditorialSpots(SAMPLE_RESULTS.length) : editorialSpots
 
-  const hasActiveFilters = Object.entries(searchParams || {}).some(
+  const hasActiveFilters = Object.entries(resolvedSearchParams || {}).some(
     ([key, value]) =>
       value !== undefined &&
       value !== null &&
@@ -469,16 +478,35 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const therapistHitsFromResults = buildTherapistHits(displayHits)
   const usingSampleTherapists = !hasActiveFilters && therapistHitsFromResults.length === 0
   const therapistHits = usingSampleTherapists ? buildTherapistHits(SAMPLE_RESULTS) : therapistHitsFromResults
-  const showTherapistSection = therapistHits.length > 0
   const therapistTotal = therapistHits.length
+  const hasTherapistResults = therapistTotal > 0
 
   const resolvedPageSize = pageSize || 12
   const resolvedPage = page || 1
-  const showShopSection = displayHits.length > 0
+  const hasShopResults = displayHits.length > 0
   const shopTotal = useSampleData ? SAMPLE_RESULTS.length : (total || 0)
-  const shopPageSize = useSampleData ? SAMPLE_RESULTS.length : resolvedPageSize
   const shopPage = useSampleData ? 1 : resolvedPage
   const shopLastPage = useSampleData ? 1 : Math.max(1, Math.ceil((total || 0) / resolvedPageSize))
+  const renderTherapistSection = hasTherapistResults && (activeTab === 'all' || activeTab === 'therapists')
+  const renderShopSection = hasShopResults && (activeTab === 'all' || activeTab === 'shops')
+  const heroShowsTherapist = activeTab === 'therapists' || (activeTab === 'all' && renderTherapistSection)
+  const heroResultCount = heroShowsTherapist ? therapistTotal : shopTotal
+  const heroResultUnit = heroShowsTherapist ? '名' : '件'
+  const isDev = process.env.NODE_ENV !== 'production'
+
+  const searchKeyword = typeof resolvedSearchParams.q === 'string' ? resolvedSearchParams.q.trim() : ''
+  const normalizedKeyword = searchKeyword.toLowerCase()
+  const heroShop =
+    activeTab === 'all' && normalizedKeyword
+      ? displayHits.find((hit) => {
+          const target = `${hit.store_name || ''} ${hit.name || ''}`.toLowerCase()
+          return target.includes(normalizedKeyword)
+        }) ?? null
+      : null
+  const prioritizedShopHits =
+    heroShop && displayHits.length
+      ? [heroShop, ...displayHits.filter((hit) => hit.id !== heroShop.id)]
+      : displayHits
 
   const areaFacetSource = facets.area ?? []
   const derivedAreaFacets: FacetValue[] = areaFacetSource.length
@@ -506,14 +534,34 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   ]
 
   const qp = (n: number) => {
-    const entries = Object.entries(searchParams || {}).filter(([, v]) => v !== undefined && v !== null)
-    const sp = new URLSearchParams(entries as [string, string][])
+    const sp = new URLSearchParams()
+    Object.entries(resolvedSearchParams || {}).forEach(([key, value]) => {
+      if (value == null || value === '') return
+      sp.set(key, String(value))
+    })
     sp.set('page', String(Math.min(Math.max(n, 1), shopLastPage)))
-    return `/search?${sp.toString()}`
+    if (activeTab === 'all') {
+      sp.delete('tab')
+    } else {
+      sp.set('tab', activeTab)
+    }
+    const query = sp.toString()
+    return query ? `/search?${query}` : '/search'
   }
 
-  const heroResultCount = showTherapistSection ? therapistTotal : shopTotal
-  const heroResultUnit = showTherapistSection ? '名' : '件'
+  const buildTabHref = (value: SearchTabValue) => {
+    const sp = new URLSearchParams()
+    Object.entries(resolvedSearchParams || {}).forEach(([key, paramValue]) => {
+      if (paramValue == null || paramValue === '' || key === 'tab') return
+      sp.set(key, String(paramValue))
+    })
+    sp.delete('page')
+    if (value !== 'all') {
+      sp.set('tab', value)
+    }
+    const query = sp.toString()
+    return query ? `/search?${query}` : '/search'
+  }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-neutral-surface">
@@ -533,11 +581,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                 大阪メンエス.com
               </span>
               <h1 className="text-3xl font-semibold tracking-tight text-neutral-text">
-                {showTherapistSection ? 'セラピストを探す' : '大阪メンエスを探す'}
+                {heroShowsTherapist ? 'セラピストを探す' : '大阪メンエスを探す'}
               </h1>
               <p className="max-w-2xl text-sm leading-relaxed text-neutral-textMuted">
                 最新の出勤情報や写メ日記、スタッフ紹介まで、メンエス選びに欲しい情報をワンストップで届けます。
-                {showTherapistSection
+                {heroShowsTherapist
                   ? ' エリアや得意な施術から、あなたにぴったりのセラピストを見つけてください。'
                   : ' 気になるエリアや料金帯を組み合わせて、ぴったりの店舗を見つけましょう。'}
               </p>
@@ -581,75 +629,51 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         ) : null}
 
         <div className="space-y-6 lg:space-y-8">
-          <SearchFilters init={searchParams} facets={facets} />
+          <SearchFilters init={resolvedSearchParams} facets={facets} />
+          <SearchTabs current={activeTab} buildHref={buildTabHref} />
+          <div id="search-results" aria-hidden className="sr-only" />
 
-          {showTherapistSection ? (
-            <TherapistFavoritesProvider>
-              <Section
-                id="therapist-results"
-                ariaLive="polite"
-                title={`セラピスト ${Intl.NumberFormat('ja-JP').format(therapistTotal)}名`}
-                subtitle="人気セラピストをピックアップ"
-                actions={<span className="text-xs text-neutral-textMuted">最新情報は毎日更新</span>}
-                className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
-              >
-                {usingSampleTherapists ? (
-                  <div className="mb-6 rounded-card border border-brand-primary/30 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
-                    API の検索結果にセラピスト情報が含まれていなかったため、参考用のサンプルセラピストを表示しています。
-                  </div>
-                ) : null}
-                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {therapistHits.map((hit) => (
-                    <TherapistCard key={hit.id} hit={hit} />
-                  ))}
-                </div>
-              </Section>
-            </TherapistFavoritesProvider>
-          ) : null}
-
-          {showShopSection ? (
+          {renderShopSection ? (
             <Section
-              id="search-results"
+              id="shop-results"
               ariaLive="polite"
-              title={`店舗検索結果 ${Intl.NumberFormat('ja-JP').format(shopTotal)}件`}
-              subtitle={`ページ ${shopPage} / ${shopLastPage}（${shopPageSize}件ずつ表示）`}
-              actions={<span className="text-xs text-neutral-textMuted">最新情報は毎日更新</span>}
+              title={`店舗 ${Intl.NumberFormat('ja-JP').format(shopTotal)}件`}
+              subtitle="気になるエリアや料金帯で検索"
+              actions={<span className="text-xs text-neutral-textMuted">PR枠・特集枠も募集中</span>}
               className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
             >
-              {useSampleData ? (
-                <div className="mb-6 rounded-card border border-brand-primary/30 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
+              {isDev && useSampleData ? (
+                <div className="mb-6 rounded-card border border-dashed border-brand-primary/40 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
                   API から検索結果を取得できなかったため、参考用のサンプル店舗を表示しています。
                 </div>
               ) : null}
-              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-6 md:grid-cols-2">
                 {(() => {
-                  type GridItem =
-                    | { kind: 'shop'; value: ShopHit }
-                    | { kind: 'spotlight'; value: SpotlightItem }
-
-                  const gridItems: GridItem[] = []
-                  const prSlots = [1, 8, 15]
-
-                  if (displayHits.length > 0) {
-                    let prIndex = 0
-                    displayHits.forEach((hit, idx) => {
-                      if (prSlots.includes(idx + 1) && prIndex < displayEditorialSpots.length) {
-                        gridItems.push({ kind: 'spotlight', value: displayEditorialSpots[prIndex] })
-                        prIndex += 1
-                      }
-                      gridItems.push({ kind: 'shop', value: hit })
-                    })
-                    while (gridItems.length < displayHits.length + displayEditorialSpots.length && prIndex < displayEditorialSpots.length) {
-                      gridItems.push({ kind: 'spotlight', value: displayEditorialSpots[prIndex] })
-                      prIndex += 1
-                    }
+                  const gridItems: Array<{ kind: 'pr'; value: SpotlightItem } | { kind: 'shop'; value: ShopHit } > = []
+                  const editorial = renderShopSection ? displayEditorialSpots : []
+                  if (editorial.length && activeTab === 'shops') {
+                    const prItems = editorial.slice(0, 2)
+                    prItems.forEach((item) => gridItems.push({ kind: 'pr', value: item }))
                   }
-
-                  const itemsToRender = gridItems.length ? gridItems : displayHits.map((hit) => ({ kind: 'shop', value: hit }))
+                  const sourceHits = prioritizedShopHits
+                  const itemsToRender = gridItems.length ? gridItems : sourceHits.map((hit) => ({ kind: 'shop', value: hit }))
 
                   return itemsToRender.map((item) =>
                     item.kind === 'shop' ? (
-                      <ShopCard key={item.value.id} hit={item.value} />
+                      <div
+                        key={item.value.id}
+                        className={clsx(
+                          'h-full',
+                          heroShop && heroShop.id === item.value.id && 'relative rounded-card ring-2 ring-brand-primary/40 md:col-span-2'
+                        )}
+                      >
+                        {heroShop && heroShop.id === item.value.id ? (
+                          <span className="absolute left-3 top-3 z-10 inline-flex items-center rounded-full bg-brand-primary px-3 py-1 text-[11px] font-semibold text-white shadow">
+                            該当店舗
+                          </span>
+                        ) : null}
+                        <ShopCard hit={item.value} />
+                      </div>
                     ) : (
                       <a key={item.value.id} href={item.value.href} className="block focus:outline-none">
                         <Card interactive className="h-full bg-gradient-to-br from-brand-primary/15 via-brand-primary/10 to-brand-secondary/15 p-6">
@@ -693,7 +717,31 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             </Section>
           ) : null}
 
-          {!showTherapistSection && !showShopSection ? (
+          {renderTherapistSection ? (
+            <TherapistFavoritesProvider>
+              <Section
+                id="therapist-results"
+                ariaLive="polite"
+                title={`セラピスト ${Intl.NumberFormat('ja-JP').format(therapistTotal)}名`}
+                subtitle="人気セラピストをピックアップ"
+                actions={<span className="text-xs text-neutral-textMuted">最新情報は毎日更新</span>}
+                className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
+              >
+                {usingSampleTherapists ? (
+                  <div className="mb-6 rounded-card border border-brand-primary/30 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
+                    API の検索結果にセラピスト情報が含まれていなかったため、参考用のサンプルセラピストを表示しています。
+                  </div>
+                ) : null}
+                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  {therapistHits.map((hit) => (
+                    <TherapistCard key={hit.id} hit={hit} />
+                  ))}
+                </div>
+              </Section>
+            </TherapistFavoritesProvider>
+          ) : null}
+
+          {!renderTherapistSection && !renderShopSection ? (
             <div className="flex flex-col items-center justify-center gap-4 rounded-card border border-dashed border-neutral-borderLight/80 bg-neutral-surfaceAlt/70 p-10 text-center text-neutral-textMuted">
               <p className="text-base font-medium text-neutral-text">一致するセラピスト・店舗が見つかりませんでした</p>
               <p className="text-sm leading-relaxed">キーワードや条件を調整すると候補が表示される場合があります。</p>

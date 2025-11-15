@@ -60,7 +60,7 @@ export function BasicSearchSection({
               type="search"
               value={keyword}
               onChange={(event) => onKeywordChange(event.target.value)}
-              placeholder="セラピスト名、店舗名で検索"
+              placeholder="店舗名・エリア名・駅名・施術キーワード など"
               className={clsx(fieldClass, 'pr-12 backdrop-blur-sm')}
             />
             <span className="pointer-events-none absolute inset-y-0 right-4 inline-flex items-center text-neutral-textMuted">

@@ -62,6 +62,7 @@ const DEFAULT_TAG = '指定なし'
 const HAIR_COLOR_OPTIONS = [DEFAULT_TAG, '黒髪', '茶髪', '明るめ', '金髪', 'ピンク', 'その他']
 const HAIR_STYLE_OPTIONS = [DEFAULT_TAG, 'ロング', 'ミディアム', 'ショート', 'ボブ', 'ポニーテール']
 const BODY_TYPE_OPTIONS = [DEFAULT_TAG, 'スレンダー', '普通', 'グラマー', 'ぽっちゃり']
+const TAB_VALUE_SET = new Set(['all', 'therapists', 'shops'])
 
 const buildHighlightStyle = (minValue: number, maxValue: number, minBound: number, maxBound: number) => {
   const range = maxBound - minBound
@@ -187,7 +188,7 @@ export default function SearchFilters({ init, facets, sticky = false, className,
   const scrollToResults = useCallback(() => {
     if (typeof window === 'undefined') return
     requestAnimationFrame(() => {
-      const el = document.getElementById('therapist-results')
+      const el = document.getElementById('search-results')
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }, [])
@@ -211,6 +212,14 @@ export default function SearchFilters({ init, facets, sticky = false, className,
     if (hairStyle && hairStyle !== DEFAULT_TAG) params.set('hair_style', hairStyle)
     if (bodyShape && bodyShape !== DEFAULT_TAG) params.set('body_shape', bodyShape)
     if (sort && sort !== 'recommended') params.set('sort', sort)
+    const currentTab = extractParam('tab') || sp.get('tab') || ''
+    if (currentTab && TAB_VALUE_SET.has(currentTab)) {
+      if (currentTab === 'all') {
+        params.delete('tab')
+      } else {
+        params.set('tab', currentTab)
+      }
+    }
     params.set('page', '1')
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`)
