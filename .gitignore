@@ -80,6 +80,7 @@ node_modules/
 **/dist/
 db_data/
 osakamenesu/apps/web/e2e/storage/
+osakamenesu/docker-compose.admin-e2e.local.yml
 
 # Browser profiles
 profiles/*/

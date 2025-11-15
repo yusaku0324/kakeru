@@ -39,8 +39,8 @@ def normalize_menus(raw: Any, shop_id: UUID) -> List[MenuItem]:
     return site_utils.normalize_shop_menus(raw, shop_id)
 
 
-def normalize_staff(raw: Any) -> List[StaffSummary]:
-    return site_utils.normalize_shop_staff(raw)
+def normalize_staff(raw: Any, shop_id: UUID) -> List[StaffSummary]:
+    return site_utils.normalize_shop_staff(raw, shop_id)
 
 
 def serialize_review(review: Any) -> ReviewItem:

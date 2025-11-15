@@ -17,7 +17,7 @@ test('therapist card navigates to staff page and reservation can be sent', async
   await expect(page).toHaveURL(/force_samples=1/)
   await page.waitForLoadState('load')
 
-  const reserveButton = page.getByRole('button', { name: /の予約詳細を開く/ }).first()
+  const reserveButton = page.getByRole('button', { name: /(の予約詳細を開く|空き状況を問い合わせる)/ }).first()
 
   await expect(reserveButton).toBeVisible({ timeout: 15000 })
   await reserveButton.click()

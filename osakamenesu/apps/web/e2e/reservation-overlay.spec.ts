@@ -14,7 +14,7 @@ test.describe('Reservation overlay interactions', () => {
 
     const therapistCard = therapistCards.first()
 
-    const overlayTrigger = therapistCard.getByRole('button', { name: /の予約詳細を開く/ })
+    const overlayTrigger = therapistCard.getByRole('button', { name: /(の予約詳細を開く|空き状況を問い合わせる)/ })
     await overlayTrigger.click()
 
     const overlay = page.getByRole('dialog', { name: /の予約詳細/ }).first()

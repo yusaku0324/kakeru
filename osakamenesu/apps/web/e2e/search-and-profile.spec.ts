@@ -5,7 +5,7 @@ test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
   await page.goto(url)
 
   // 結果ヘッダーが表示される
-  await expect(page.getByRole('heading', { name: 'セラピスト一覧' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /セラピスト(を探す|一覧)/ })).toBeVisible()
 
   // 空き状況のバッジ表示が想定どおりになっているかチェック
   const therapistCards = page.getByTestId('therapist-card')

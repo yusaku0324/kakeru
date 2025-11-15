@@ -19,49 +19,66 @@ def normalize_contact(contact_json: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def normalize_shop_menus(raw: Any, shop_id: UUID) -> List[MenuItem]:
-  if not raw:
+  if not isinstance(raw, list):
     return []
-  items = raw if isinstance(raw, list) else []
   normalized: List[MenuItem] = []
-  for item in items:
+  for idx, item in enumerate(raw):
     if not isinstance(item, dict):
       continue
-    name = (item.get("name") or "").strip()
+    name = str(item.get("name") or f"メニュー{idx + 1}").strip()
     if not name:
       continue
+    menu_id = _uuid_from_seed(f"{shop_id}:menu:{item.get('id') or item.get('name') or idx}", item.get("id"))
+    price = _safe_int(item.get("price"))
+    duration = _safe_int(item.get("duration_minutes") or item.get("duration"))
+    description = item.get("description")
+    tags_source = item.get("tags") or []
+    tags = [str(tag) for tag in tags_source if str(tag).strip()]
+    reservable_flag = item.get("is_reservable_online")
+    is_reservable_online = reservable_flag if isinstance(reservable_flag, bool) else True
+
     normalized.append(
       MenuItem(
-        id=item.get("id"),
+        id=menu_id,
         name=name,
-        price=item.get("price") or 0,
-        duration_minutes=item.get("duration_minutes"),
-        description=item.get("description"),
-        tags=item.get("tags") or [],
-        is_reservable_online=item.get("is_reservable_online"),
-      )
+        description=description,
+        duration_minutes=duration,
+        price=price if price is not None else 0,
+        currency=str(item.get("currency") or "JPY"),
+        is_reservable_online=is_reservable_online,
+        tags=tags,
+      ),
     )
   return normalized
 
 
-def normalize_shop_staff(raw: Any) -> List[StaffSummary]:
-  if not raw:
+def normalize_shop_staff(raw: Any, shop_id: UUID) -> List[StaffSummary]:
+  if not isinstance(raw, list):
     return []
-  items = raw if isinstance(raw, list) else []
   normalized: List[StaffSummary] = []
-  for item in items:
+  for idx, item in enumerate(raw):
     if not isinstance(item, dict):
       continue
-    name = (item.get("name") or "").strip()
+    name = str(item.get("name") or f"スタッフ{idx + 1}").strip()
     if not name:
       continue
+    staff_id = _uuid_from_seed(f"{shop_id}:staff:{item.get('id') or item.get('name') or idx}", item.get("id"))
+    specialties_source = item.get("specialties") or []
+    specialties = [str(tag) for tag in specialties_source if str(tag).strip()]
+    rating = _safe_float(item.get("rating"))
+    review_count = _safe_int(item.get("review_count"))
+
     normalized.append(
       StaffSummary(
-        id=item.get("id"),
+        id=staff_id,
         name=name,
         alias=item.get("alias"),
+        avatar_url=item.get("avatar_url"),
         headline=item.get("headline"),
-        specialties=item.get("specialties") or [],
-      )
+        rating=rating,
+        review_count=review_count,
+        specialties=specialties,
+      ),
     )
   return normalized
 
@@ -112,3 +129,30 @@ def serialize_staff_inputs(staff: List[StaffInput]) -> List[dict[str, Any]]:
       }
     )
   return serialized
+
+
+def _uuid_from_seed(seed: str, value: Any | None = None) -> UUID:
+  if value:
+    try:
+      return UUID(str(value))
+    except Exception:
+      pass
+  return uuid5(NAMESPACE_URL, seed)
+
+
+def _safe_int(value: Any) -> int | None:
+  try:
+    if value is None:
+      return None
+    return int(value)
+  except Exception:
+    return None
+
+
+def _safe_float(value: Any) -> float | None:
+  try:
+    if value is None:
+      return None
+    return float(value)
+  except Exception:
+    return None

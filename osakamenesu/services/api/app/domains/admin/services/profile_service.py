@@ -185,7 +185,7 @@ async def get_shop_detail(*, db: AsyncSession, shop_id: UUID) -> ShopAdminDetail
     contact_json = dict(profile.contact_json or {})
     contact = site_bridge.normalize_contact(contact_json)
     menus = site_bridge.normalize_menus(contact_json.get("menus"), profile.id)
-    staff = site_bridge.normalize_staff(contact_json.get("staff"))
+    staff = site_bridge.normalize_staff(contact_json.get("staff"), profile.id)
     service_tags = contact_json.get("service_tags") or profile.body_tags or []
 
     return ShopAdminDetail(
