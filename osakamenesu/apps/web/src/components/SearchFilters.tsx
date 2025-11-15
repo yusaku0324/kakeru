@@ -398,13 +398,13 @@ export default function SearchFilters({ init, facets, sticky = false, className,
     event.preventDefault()
     push()
   }
-  const filterSummaryText = resultSummaryLabel
-    ? resultSummaryLabel
-    : typeof resultCount === 'number'
-    ? `${numberFormatter.format(resultCount)} 名のセラピストが該当`
-    : diariesFacetCount
-    ? `写メ日記あり: ${numberFormatter.format(diariesFacetCount)} 名`
-    : '現在の検索結果に、条件を追加して絞り込めます'
+  const currentConditionText = resultSummaryLabel
+    ?? (typeof resultCount === 'number'
+        ? `現在の条件: ${numberFormatter.format(resultCount)}件ヒット`
+        : diariesFacetCount
+        ? `現在の条件: 写メ日記あり ${numberFormatter.format(diariesFacetCount)} 名`
+        : '現在の条件: すべて表示')
+  const helperText = '現在の検索結果に、条件を追加して絞り込めます。'
   return (
     <section
       className={clsx(
@@ -425,7 +425,8 @@ export default function SearchFilters({ init, facets, sticky = false, className,
           <div className="space-y-1">
             <p className="text-lg font-semibold">検索フィルター</p>
             <p className="text-sm text-neutral-textMuted">必要な条件だけを開いて設定できるよう、セクションをアコーディオンにまとめました。</p>
-            <p className="text-xs text-neutral-textMuted">{filterSummaryText}</p>
+            <p className="text-sm font-semibold text-neutral-text">{currentConditionText}</p>
+            <p className="text-xs text-neutral-textMuted">{helperText}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 text-sm">
@@ -437,16 +438,7 @@ export default function SearchFilters({ init, facets, sticky = false, className,
             >
               {showFilters ? 'フィルターを閉じる' : 'フィルターを開く'}
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={reset}
-              disabled={isPending}
-              className="inline-flex items-center gap-2 rounded-full border border-white/55 bg-white/55 px-3 py-1.5 font-semibold text-brand-primary shadow-[0_10px_28px_rgba(37,99,235,0.18)] transition hover:border-brand-primary hover:bg-brand-primary/10 disabled:opacity-60"
-            >
-              すべてクリア
-            </button>
-          )}
+          ) : null}
         </div>
       </header>
 
@@ -649,7 +641,7 @@ export default function SearchFilters({ init, facets, sticky = false, className,
         </Accordion>
 
         <footer className="flex flex-wrap items-center justify-between gap-4 rounded-[32px] border border-white/45 bg-white/45 px-6 py-4 shadow-[0_24px_70px_rgba(37,99,235,0.18)] backdrop-blur">
-          <div className="text-sm text-neutral-textMuted">{filterSummaryText}</div>
+          <div className="text-sm text-neutral-textMuted">{helperText}</div>
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
@@ -657,7 +649,7 @@ export default function SearchFilters({ init, facets, sticky = false, className,
               disabled={isPending}
               className="inline-flex items-center gap-2 rounded-full border border-white/55 bg-white/55 px-4 py-2 text-sm font-semibold text-brand-primary shadow-[0_10px_28px_rgba(37,99,235,0.18)] transition hover:border-brand-primary hover:bg-brand-primary/10 disabled:opacity-60"
             >
-              条件をクリア
+              すべてクリア
             </button>
             <button
               type="submit"

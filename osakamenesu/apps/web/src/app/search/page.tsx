@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import Link from 'next/link'
 
 import SearchFilters, { SORT_SELECT_OPTIONS } from '@/components/SearchFilters'
 import ShopCard, { type ShopHit } from '@/components/shop/ShopCard'
@@ -617,6 +618,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                   ? ' エリアや得意な施術から、あなたにぴったりのセラピストを見つけてください。'
                   : ' 気になるエリアや料金帯を組み合わせて、ぴったりの店舗を見つけましょう。'}
               </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link
+                  href="/search?tab=therapists&today=1"
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-6 py-2.5 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(37,99,235,0.26)] transition hover:from-brand-primary/90 hover:to-brand-secondary/90"
+                >
+                  本日予約できるセラピストを見る
+                </Link>
+              </div>
             </div>
             <div className="flex flex-col items-start gap-3 text-left lg:items-end lg:text-right">
               <span className="text-xs font-semibold uppercase tracking-wide text-brand-primary/80">掲載件数</span>
@@ -673,8 +682,6 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               id="shop-results"
               ariaLive="polite"
               title={`店舗（${numberFormatter.format(shopTotal)}件）`}
-              subtitle="気になるエリアや料金帯で検索"
-              actions={<span className="text-xs text-neutral-textMuted">PR枠・特集枠も募集中</span>}
               className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
             >
               {isDev && useSampleData ? (
@@ -728,8 +735,6 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                 id="therapist-results"
                 ariaLive="polite"
                 title={`セラピスト（${numberFormatter.format(therapistTotal)}名）`}
-                subtitle="人気セラピストをピックアップ"
-                actions={<span className="text-xs text-neutral-textMuted">最新情報は毎日更新</span>}
                 className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
               >
                 {usingSampleTherapists ? (
