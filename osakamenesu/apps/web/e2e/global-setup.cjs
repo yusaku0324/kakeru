@@ -20,6 +20,13 @@ async function runSeed() {
     return
   }
 
+  if (!process.env.E2E_SEED_API_BASE || !process.env.E2E_SEED_API_BASE.trim()) {
+    const resolved = resolveApiBase()
+    if (resolved) {
+      process.env.E2E_SEED_API_BASE = resolved
+    }
+  }
+
   const repoRoot = path.resolve(__dirname, '..', '..', '..')
   const scriptPath = path.resolve(repoRoot, 'services', 'api', 'scripts', 'seed_admin_test_data.py')
 
