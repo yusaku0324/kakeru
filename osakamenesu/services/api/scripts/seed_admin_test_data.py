@@ -46,6 +46,8 @@ def _resolve_api_base(explicit: Optional[str]) -> Optional[str]:
         if not candidate:
             continue
         candidate = candidate.strip()
+        if candidate and candidate[0] in "\"'" and candidate[-1] == candidate[0]:
+            candidate = candidate[1:-1].strip()
         if candidate.startswith(("http://", "https://")):
             return candidate.rstrip("/")
     return None
