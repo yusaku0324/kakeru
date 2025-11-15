@@ -4,6 +4,23 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { request } = require('@playwright/test')
 
+async function requestWithRetry(factory, { attempts = 5, delayMs = 1000 } = {}) {
+  let lastError
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await factory()
+    } catch (error) {
+      lastError = error
+      const shouldRetry = error?.code === 'ECONNREFUSED' || error?.code === 'EAI_AGAIN'
+      if (!shouldRetry || i === attempts - 1) {
+        throw error
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+  }
+  throw lastError
+}
+
 function resolvePythonCandidates() {
   if (process.env.E2E_PYTHON) {
     return [process.env.E2E_PYTHON]
@@ -173,16 +190,18 @@ async function createDashboardStorage() {
 
   const requestContext = await request.newContext()
   try {
-    const response = await requestContext.post(`${apiBase}/api/auth/test-login`, {
-      data: {
-        email,
-        display_name: displayName,
-        scope: 'dashboard',
-      },
-      headers: {
-        'X-Test-Auth-Secret': secret,
-      },
-    })
+    const response = await requestWithRetry(() =>
+      requestContext.post(`${apiBase}/api/auth/test-login`, {
+        data: {
+          email,
+          display_name: displayName,
+          scope: 'dashboard',
+        },
+        headers: {
+          'X-Test-Auth-Secret': secret,
+        },
+      }),
+    )
 
     if (!response.ok()) {
       console.warn(`[playwright] test-login API が失敗しました (${response.status()})`)
@@ -257,16 +276,18 @@ async function createSiteStorage() {
 
   const requestContext = await request.newContext()
   try {
-    const response = await requestContext.post(`${webBase}/api/auth/test-login`, {
-      data: {
-        email,
-        display_name: displayName,
-        scope: 'site',
-      },
-      headers: {
-        'X-Test-Auth-Secret': secret,
-      },
-    })
+    const response = await requestWithRetry(() =>
+      requestContext.post(`${webBase}/api/auth/test-login`, {
+        data: {
+          email,
+          display_name: displayName,
+          scope: 'site',
+        },
+        headers: {
+          'X-Test-Auth-Secret': secret,
+        },
+      }),
+    )
 
     if (!response.ok()) {
       console.warn(`[playwright] site 用 test-login API が失敗しました (${response.status()})`)
