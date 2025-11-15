@@ -87,8 +87,12 @@ docker compose logs -f osakamenesu-api osakamenesu-web
 
 ```bash
 doppler secrets download --project osakamenesu --config stg --format env > .env.admin-e2e
-docker compose -f docker-compose.admin-e2e.yml up --build --abort-on-container-exit e2e
-docker compose -f docker-compose.admin-e2e.yml down -v
+# 任意: ローカルだけでコマンドを上書きしたい場合は example をコピー
+cp -n docker-compose.admin-e2e.local.example.yml docker-compose.admin-e2e.local.yml
+docker compose -f docker-compose.admin-e2e.yml \
+  -f docker-compose.admin-e2e.local.yml \
+  up --build --abort-on-container-exit e2e
+docker compose -f docker-compose.admin-e2e.yml -f docker-compose.admin-e2e.local.yml down -v
 ```
 
 - `.env` は Docker コンテナ用のみに利用します。ホストで FastAPI/Next.js を動かすときは **必ず Doppler** を使うこと。
