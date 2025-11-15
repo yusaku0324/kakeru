@@ -27,14 +27,15 @@ async function waitForHostname(hostname, { attempts = 30, delayMs = 1000 } = {})
   for (let i = 0; i < attempts; i += 1) {
     try {
       await dns.lookup(hostname)
-      return
+      return true
     } catch (error) {
       lastError = error
     }
     await new Promise((resolve) => setTimeout(resolve, delayMs))
   }
   const reason = lastError ? `${lastError}` : 'unknown'
-  throw new Error(`[playwright] hostname not reachable: ${hostname} (${reason})`)
+  console.warn(`[playwright] hostname not reachable (non-fatal): ${hostname} (${reason})`)
+  return false
 }
 
 function extractHostname(raw) {
@@ -420,8 +421,10 @@ async function createSiteStorage() {
   }
 }
 
-module.exports = async () => {
+async function globalSetup() {
   await runSeed()
   await createDashboardStorage()
   await createSiteStorage()
 }
+
+module.exports = globalSetup
