@@ -21,6 +21,32 @@ async function requestWithRetry(factory, { attempts = 5, delayMs = 1000 } = {}) 
   throw lastError
 }
 
+async function waitForService(baseUrl, { path = '/api/health', attempts = 30, delayMs = 2000 } = {}) {
+  const normalizedBase = baseUrl.replace(/\/$/, '')
+  const target = `${normalizedBase}${path}`
+  let lastError
+
+  for (let i = 0; i < attempts; i += 1) {
+    const context = await request.newContext()
+    try {
+      const response = await context.get(target, { timeout: 1500 })
+      if (response.ok()) {
+        return
+      }
+      lastError = new Error(`HTTP ${response.status()}`)
+    } catch (error) {
+      lastError = error
+    } finally {
+      await context.dispose()
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
+  }
+
+  const reason = lastError ? `${lastError}` : 'unknown'
+  throw new Error(`[playwright] service not reachable: ${target} (${reason})`)
+}
+
 function resolvePythonCandidates() {
   if (process.env.E2E_PYTHON) {
     return [process.env.E2E_PYTHON]
@@ -188,6 +214,8 @@ async function createDashboardStorage() {
   const email = process.env.E2E_TEST_DASHBOARD_EMAIL ?? 'playwright-dashboard@example.com'
   const displayName = process.env.E2E_TEST_DASHBOARD_NAME ?? 'Playwright Dashboard User'
 
+  await waitForService(webBase)
+  await waitForService(apiBase, { path: '/healthz' })
   const requestContext = await request.newContext()
   try {
     const response = await requestWithRetry(() =>
@@ -274,6 +302,7 @@ async function createSiteStorage() {
   const email = process.env.E2E_TEST_AUTH_EMAIL ?? 'playwright-site-user@example.com'
   const displayName = process.env.E2E_TEST_AUTH_DISPLAY_NAME ?? 'Playwright Site User'
 
+  await waitForService(webBase)
   const requestContext = await request.newContext()
   try {
     const response = await requestWithRetry(() =>
