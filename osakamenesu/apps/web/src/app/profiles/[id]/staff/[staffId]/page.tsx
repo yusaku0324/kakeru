@@ -61,6 +61,13 @@ function toTimeLabel(iso: string): string {
     .replace(/^24:/, '00:')
 }
 
+function toLocalDateISO(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 function toDateTimeLocal(iso?: string | null) {
   if (!iso) return undefined
   const date = new Date(iso)
@@ -151,8 +158,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
     if (day !== 1) {
       date.setHours(-24 * (day - 1))
     }
-    const iso = date.toISOString().slice(0, 10)
-    return iso
+    return toLocalDateISO(date)
   }
 
   const weeksMap = new Map<string, typeof staffAvailability>()
@@ -168,7 +174,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
   const weeks = weekKeys.map((key) => ({ key, days: weeksMap.get(key)! }))
 
   const defaultWeekIndex = (() => {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = toLocalDateISO(new Date())
     const weekKey = startOfWeek(today)
     const index = weeks.findIndex((w) => w.key === weekKey)
     return index >= 0 ? index : 0
@@ -184,13 +190,13 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
   const currentWeek = weeks[requestedWeekIndex] ?? { key: '', days: staffAvailability }
   const displayDays = currentWeek.days
   const hasWeekNavigation = weeks.length > 1
-  const weekStartIso = currentWeek.key || displayDays[0]?.date || new Date().toISOString().slice(0, 10)
+  const weekStartIso = currentWeek.key || displayDays[0]?.date || toLocalDateISO(new Date())
   const weekStartDate = new Date(weekStartIso)
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = toLocalDateISO(new Date())
   const weekColumns = Array.from({ length: 7 }).map((_, index) => {
     const date = new Date(weekStartDate.getTime())
     date.setDate(weekStartDate.getDate() + index)
-    const iso = date.toISOString().slice(0, 10)
+    const iso = toLocalDateISO(date)
     const match = displayDays.find((day) => day.date === iso)
     if (match) return match
     return {
@@ -211,7 +217,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
     const preview = Array.from({ length: 7 }).map((_, index) => {
       const target = new Date(baseDate.getTime())
       target.setDate(baseDate.getDate() + index)
-      const iso = target.toISOString().slice(0, 10)
+      const iso = toLocalDateISO(target)
       const existing = availabilityMap.get(iso)
       return {
         date: iso,

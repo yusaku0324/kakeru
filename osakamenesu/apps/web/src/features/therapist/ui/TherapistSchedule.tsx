@@ -21,6 +21,13 @@ type TherapistScheduleDay = {
   slots: RawSlot[]
 }
 
+export type TherapistScheduleSlot = {
+  date: string
+  start: string
+  end: string
+  status: SlotStatus
+}
+
 type TimelineSlot = RawSlot & { date: string }
 
 type TherapistScheduleProps = {
@@ -55,20 +62,21 @@ function computeAvailabilityLevel(slots: RawSlot[]) {
   return 'low'
 }
 
-function findNextAvailableSlot(days: TherapistScheduleDay[]): TimelineSlot | null {
-  const now = Date.now()
+function flattenScheduleDays(days: TherapistScheduleDay[]): TherapistScheduleSlot[] {
+  const list: TherapistScheduleSlot[] = []
   for (const day of days) {
     for (const slot of day.slots) {
-      if ((slot.status === 'open' || slot.status === 'tentative') && Date.parse(slot.start_at) >= now) {
-        return { ...slot, date: day.date }
-      }
+      list.push({ date: day.date, start: slot.start_at, end: slot.end_at, status: slot.status })
     }
   }
-  for (const day of days) {
-    const fallback = day.slots.find((slot) => slot.status === 'open' || slot.status === 'tentative')
-    if (fallback) return { ...fallback, date: day.date }
-  }
-  return null
+  return list.sort((a, b) => a.start.localeCompare(b.start))
+}
+
+function findNextAvailableSlot(slots: TherapistScheduleSlot[]): TherapistScheduleSlot | null {
+  const now = Date.now()
+  const future = slots.find((slot) => (slot.status === 'open' || slot.status === 'tentative') && Date.parse(slot.start) >= now)
+  if (future) return future
+  return slots.find((slot) => slot.status === 'open' || slot.status === 'tentative') ?? null
 }
 
 export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTargetId = 'reserve' }: TherapistScheduleProps) {
@@ -78,24 +86,37 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
 
   const sourceDays = useMemo(() => (fullDays?.length ? fullDays : days), [days, fullDays])
   const previewDays = useMemo(() => (days.length ? days : sourceDays), [days, sourceDays])
+  const allSlots = useMemo(() => flattenScheduleDays(sourceDays), [sourceDays])
 
   const normalizedDays = useMemo(() => {
     return previewDays.map((day, index) => {
       const dateObj = new Date(day.date)
       const isWeekend = [0, 6].includes(dateObj.getDay())
+      const isToday = Boolean(day.is_today) || index === 0
+      const availabilityLevel = computeAvailabilityLevel(day.slots)
+      const availabilityLabel = isToday
+        ? availabilityLevel === 'none'
+          ? '本日 空きなし'
+          : '本日 空きあり'
+        : availabilityLevel === 'none'
+        ? '空きなし'
+        : availabilityLevel === 'full'
+        ? '余裕あり'
+        : '残りわずか'
       return {
         date: day.date,
-        isToday: Boolean(day.is_today) || index === 0,
+        isToday,
         isWeekend,
         label: formatDayLabel(day.date, index),
-        availabilityLevel: computeAvailabilityLevel(day.slots),
+        availabilityLevel,
+        availabilityLabel,
         slots: [...day.slots].sort((a, b) => a.start_at.localeCompare(b.start_at)),
       }
     })
   }, [previewDays])
 
-  const fallbackNextSlot = useMemo(() => findNextAvailableSlot(sourceDays), [sourceDays])
-  const hasGlobalSlots = useMemo(() => sourceDays.some((day) => day.slots.length > 0), [sourceDays])
+  const fallbackNextSlot = useMemo(() => findNextAvailableSlot(allSlots), [allSlots])
+  const hasGlobalSlots = allSlots.length > 0
   const initialDayFromSlot = useMemo(() => {
     if (initialSlotIso) {
       const match = normalizedDays.find((day) => day.slots.some((slot) => slot.start_at === initialSlotIso))
@@ -105,12 +126,12 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
   }, [fallbackNextSlot?.date, initialSlotIso, normalizedDays])
 
   const [activeDay, setActiveDay] = useState(initialDayFromSlot)
-  const [highlightedSlot, setHighlightedSlot] = useState(initialSlotIso ?? fallbackNextSlot?.start_at ?? null)
+  const [highlightedSlot, setHighlightedSlot] = useState(initialSlotIso ?? fallbackNextSlot?.start ?? null)
 
   useEffect(() => {
     setActiveDay(initialDayFromSlot)
-    setHighlightedSlot(initialSlotIso ?? fallbackNextSlot?.start_at ?? null)
-  }, [initialDayFromSlot, initialSlotIso, fallbackNextSlot?.start_at])
+    setHighlightedSlot(initialSlotIso ?? fallbackNextSlot?.start ?? null)
+  }, [initialDayFromSlot, initialSlotIso, fallbackNextSlot?.start])
 
   const activeDayData = normalizedDays.find((day) => day.date === activeDay) ?? normalizedDays[0]
   const timelineSlots: TimelineSlot[] = useMemo(() => {
@@ -131,7 +152,8 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
     if (highlightedSlotInfo) {
       return { ...highlightedSlotInfo.slot, date: highlightedSlotInfo.day.date }
     }
-    return fallbackNextSlot
+    if (!fallbackNextSlot) return null
+    return { start_at: fallbackNextSlot.start, end_at: fallbackNextSlot.end, status: fallbackNextSlot.status, date: fallbackNextSlot.date }
   }, [fallbackNextSlot, highlightedSlotInfo])
 
   const summaryLabel = summarySlot
@@ -212,9 +234,7 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
                   {day.isToday ? 'TODAY' : day.isWeekend ? 'WEEKEND' : 'DAY'}
                 </span>
                 <span className="text-sm font-semibold">{day.label}</span>
-                <span className="text-[11px] text-neutral-textMuted">
-                  {day.availabilityLevel === 'none' ? '空きなし' : day.availabilityLevel === 'full' ? '余裕あり' : '残りわずか'}
-                </span>
+                <span className="text-[11px] text-neutral-textMuted">{day.availabilityLabel}</span>
                 <span className={indicatorClass} aria-hidden />
               </button>
             )

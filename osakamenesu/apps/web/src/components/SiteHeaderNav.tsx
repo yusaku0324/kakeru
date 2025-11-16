@@ -141,6 +141,9 @@ export default function SiteHeaderNav() {
           <button type="button" onClick={() => setShowLoginOverlay(true)} className={baseButtonClass}>
             ログイン
           </button>
+          <Link href="/dashboard/login" className={baseButtonClass}>
+            店舗ログイン
+          </Link>
           <Link
             href="/dashboard/favorites"
             className={clsx(iconButtonClass, 'sm:hidden')}

@@ -105,6 +105,8 @@ services:
       TEST_AUTH_SECRET: ${TEST_AUTH_SECRET:-dev_test_auth}
       E2E_TEST_AUTH_SECRET: ${E2E_TEST_AUTH_SECRET:-dev_test_auth}
       E2E_BASE_URL: http://web:3000
+      ADMIN_WEB_HOST: web
+      ADMIN_WEB_PORT: "3000"
       E2E_SEED_API_BASE: http://api:8000
       OSAKAMENESU_API_INTERNAL_BASE: http://api:8000
       API_INTERNAL_BASE: http://api:8000

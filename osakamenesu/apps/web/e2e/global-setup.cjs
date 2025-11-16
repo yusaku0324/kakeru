@@ -5,6 +5,10 @@ const path = require('node:path')
 const dns = require('node:dns').promises
 const { request } = require('@playwright/test')
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 async function requestWithRetry(factory, { attempts = 5, delayMs = 1000 } = {}) {
   let lastError
   for (let i = 0; i < attempts; i += 1) {
@@ -22,19 +26,32 @@ async function requestWithRetry(factory, { attempts = 5, delayMs = 1000 } = {}) 
   throw lastError
 }
 
-async function waitForHostname(hostname, { attempts = 30, delayMs = 1000 } = {}) {
+async function waitForHostname(hostname, { timeoutMs = 60_000, intervalMs = 1_000, label } = {}) {
+  const deadline = Date.now() + timeoutMs
+  let attempt = 0
   let lastError
-  for (let i = 0; i < attempts; i += 1) {
+
+  while (Date.now() < deadline) {
+    attempt += 1
     try {
+      console.log(`[playwright] [waitForHostname] ${label ?? hostname} attempt ${attempt}`)
       await dns.lookup(hostname)
+      console.log(`[playwright] [waitForHostname] ${label ?? hostname} resolved`)
       return
     } catch (error) {
       lastError = error
+      console.warn(
+        `[playwright] [waitForHostname] ${label ?? hostname} attempt ${attempt} failed: ${error?.code ?? error?.message ?? error}`,
+      )
     }
-    await new Promise((resolve) => setTimeout(resolve, delayMs))
+    await delay(intervalMs)
   }
+
   const reason = lastError ? `${lastError}` : 'unknown'
-  throw new Error(`[playwright] hostname not reachable: ${hostname} (${reason})`)
+  throw new Error(
+    `[playwright] hostname not reachable: ${label ?? hostname} (${reason}). ` +
+      'This likely indicates a Docker networking / service-name issue.',
+  )
 }
 
 function extractHostname(raw) {
@@ -46,43 +63,46 @@ function extractHostname(raw) {
   }
 }
 
-async function waitForService(baseUrl, { path = '/api/health', attempts = 30, delayMs = 2000 } = {}) {
+async function waitForService(baseUrl, { path = '/api/health', timeoutMs = 60_000, intervalMs = 2_000, label } = {}) {
   const normalizedBase = baseUrl.replace(/\/$/, '')
   const target = `${normalizedBase}${path}`
   const hostname = /^https?:/i.test(normalizedBase) ? extractHostname(normalizedBase) : null
+  const serviceLabel = label ?? target
+
   if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-    await waitForHostname(hostname, { attempts: attempts * 2, delayMs })
+    await waitForHostname(hostname, { timeoutMs, intervalMs: Math.min(intervalMs, 1_000), label: hostname })
   }
+
+  const deadline = Date.now() + timeoutMs
+  let attempt = 0
   let lastError
 
-  for (let i = 0; i < attempts; i += 1) {
+  while (Date.now() < deadline) {
+    attempt += 1
+    console.log(`[playwright] [waitForService] ${serviceLabel} attempt ${attempt}`)
     const context = await request.newContext()
     try {
-      const response = await context.get(target, { timeout: 1500 })
+      const response = await context.get(target, { timeout: Math.min(5_000, intervalMs) })
       if (response.ok()) {
+        console.log(`[playwright] [waitForService] ${serviceLabel} is ready`)
         return
       }
-      lastError = new Error(`HTTP ${response.status()}`)
+      lastError = new Error(`HTTP ${response.status()} ${response.statusText()}`)
+      console.warn(`[playwright] [waitForService] ${serviceLabel} attempt ${attempt} failed: ${lastError.message}`)
     } catch (error) {
       lastError = error
-      if (hostname && error?.code === 'EAI_AGAIN') {
-        const retryAttempts = Math.max(5, Math.floor(attempts / 2))
-        try {
-          await waitForHostname(hostname, { attempts: retryAttempts, delayMs })
-        } catch (lookupError) {
-          lastError = lookupError
-        }
-        continue
-      }
+      console.warn(
+        `[playwright] [waitForService] ${serviceLabel} attempt ${attempt} error: ${error?.code ?? error?.message ?? error}`,
+      )
     } finally {
       await context.dispose()
     }
 
-    await new Promise((resolve) => setTimeout(resolve, delayMs))
+    await delay(intervalMs)
   }
 
   const reason = lastError ? `${lastError}` : 'unknown'
-  throw new Error(`[playwright] service not reachable: ${target} (${reason})`)
+  throw new Error(`[playwright] service not reachable: ${serviceLabel} (${target}) after ${attempt} attempts (${reason})`)
 }
 
 function resolvePythonCandidates() {
@@ -137,8 +157,24 @@ async function runSeed() {
   throw new Error(`[playwright] シードスクリプトの実行に失敗しました: ${errorMessage}`)
 }
 
+function resolveAdminWebHealthBase() {
+  const host = (process.env.ADMIN_WEB_HOST || '').trim()
+  const port = (process.env.ADMIN_WEB_PORT || '').trim() || '3000'
+  const protocol = (process.env.ADMIN_WEB_PROTOCOL || '').trim() || 'http'
+  if (!host) {
+    return 'http://web:3000'
+  }
+  if (host.startsWith('http://') || host.startsWith('https://')) {
+    return host
+  }
+  const portSegment = port ? `:${port}` : ''
+  return `${protocol}://${host}${portSegment}`
+}
+
 function resolveWebBase() {
+  const adminOverride = process.env.ADMIN_WEB_HOST ? resolveAdminWebHealthBase() : null
   const candidates = [
+    adminOverride,
     process.env.E2E_INTERNAL_WEB_BASE,
     process.env.E2E_BASE_URL,
     process.env.NEXT_PUBLIC_SITE_URL,
@@ -148,7 +184,7 @@ function resolveWebBase() {
       return candidate.replace(/\/$/, '')
     }
   }
-  return 'http://web:3000'
+  return resolveAdminWebHealthBase()
 }
 
 function resolveApiBase() {
@@ -251,6 +287,7 @@ async function createDashboardStorage() {
     return
   }
 
+  const adminHealthBase = resolveAdminWebHealthBase()
   const webBase = resolveWebBase()
   const apiBase = resolveApiBase()
   const storageDir = path.resolve(__dirname, 'storage')
@@ -258,7 +295,11 @@ async function createDashboardStorage() {
   const email = process.env.E2E_TEST_DASHBOARD_EMAIL ?? 'playwright-dashboard@example.com'
   const displayName = process.env.E2E_TEST_DASHBOARD_NAME ?? 'Playwright Dashboard User'
 
-  await waitForService(webBase, { attempts: 60 })
+  await waitForService(adminHealthBase, {
+    path: '/api/health',
+    label: `admin web (${adminHealthBase})`,
+    timeoutMs: 60_000,
+  })
   await waitForService(apiBase, { path: '/healthz' })
   const requestContext = await request.newContext()
   try {
