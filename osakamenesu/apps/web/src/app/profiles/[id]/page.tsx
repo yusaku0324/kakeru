@@ -14,6 +14,7 @@ import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
 import type { TherapistHit } from '@/components/staff/TherapistCard'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
+import { formatNextAvailableSlotLabel, toNextAvailableSlotPayload, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
 import ShopReservationCardClient from './ShopReservationCardClient'
 
@@ -57,6 +58,9 @@ export type StaffSummary = {
   rating?: number | null
   review_count?: number | null
   specialties?: string[] | null
+  today_available?: boolean | null
+  next_available_slot?: NextAvailableSlotPayload | null
+  next_available_at?: string | null
 }
 type AvailabilitySlot = { start_at: string; end_at: string; status: 'open' | 'tentative' | 'blocked'; staff_id?: string | null; menu_id?: string | null }
 type AvailabilityDay = { date: string; is_today?: boolean | null; slots: AvailabilitySlot[] }
@@ -87,6 +91,30 @@ type DiaryEntry = {
   photos?: string[] | null
   hashtags?: string[] | null
   published_at?: string | null
+}
+
+function deriveStaffNextSlots(sample: SampleShop): Map<string, NextAvailableSlotPayload> {
+  const staffSlots = new Map<string, NextAvailableSlotPayload>()
+  const days = sample.availability_calendar?.days ?? []
+  if (!days.length) return staffSlots
+  const nowMs = Date.now()
+
+  for (const day of days) {
+    const sortedSlots = [...day.slots].sort((a, b) => a.start_at.localeCompare(b.start_at))
+    for (const slot of sortedSlots) {
+      if (!slot.staff_id) continue
+      if (staffSlots.has(slot.staff_id)) continue
+      if (slot.status !== 'open' && slot.status !== 'tentative') continue
+      const startMs = Date.parse(slot.start_at)
+      if (!Number.isNaN(startMs) && startMs < nowMs) continue
+      staffSlots.set(slot.staff_id, {
+        start_at: slot.start_at,
+        status: slot.status === 'open' ? 'ok' : 'maybe',
+      })
+    }
+  }
+
+  return staffSlots
 }
 
 export type ShopDetail = {
@@ -147,8 +175,11 @@ function uuidFromString(input: string): string {
 }
 
 function convertSampleShop(sample: SampleShop): ShopDetail {
+  const staffNextSlots = deriveStaffNextSlots(sample)
   const staff = (sample.staff || []).map((member, index) => {
     const sourceId = member.id || `${sample.id}-staff-${index}`
+    const slotSourceId = member.id ?? sourceId
+    const slot = member.next_available_slot ?? staffNextSlots.get(slotSourceId) ?? null
     return {
       id: sourceId,
       name: member.name,
@@ -158,6 +189,9 @@ function convertSampleShop(sample: SampleShop): ShopDetail {
       rating: member.rating ?? null,
       review_count: member.review_count ?? null,
       specialties: member.specialties ?? null,
+      today_available: member.today_available ?? null,
+      next_available_slot: slot,
+      next_available_at: member.next_available_at ?? slot?.start_at ?? null,
     }
   })
 
@@ -737,44 +771,52 @@ export default async function ProfilePage({ params, searchParams }: Props) {
           className="shadow-none border border-neutral-borderLight bg-neutral-surface"
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {staff.map((member) => (
-              <Card key={member.id} className="space-y-3 p-4">
-                <div className="flex items-start gap-3">
-                  <SafeImage
-                    src={member.avatar_url || undefined}
-                    alt={`${member.name}の写真`}
-                    width={64}
-                    height={64}
-                    className="h-16 w-16 rounded-full object-cover"
-                    fallbackSrc="/images/placeholder-avatar.svg"
-                  />
-                  <div>
-                    <div className="text-base font-semibold text-neutral-text">{member.name}</div>
-                    {member.alias ? (
-                      <div className="text-xs text-neutral-textMuted">{member.alias}</div>
-                    ) : null}
-                    {member.rating ? (
-                      <div className="mt-1 flex items-center gap-2 text-xs text-neutral-textMuted">
-                        <Badge variant="outline">{member.rating.toFixed(1)}★</Badge>
-                        {member.review_count ? <span>({member.review_count}件)</span> : null}
-                      </div>
-                    ) : null}
+            {staff.map((member) => {
+              const nextSlotLabel = formatNextAvailableSlotLabel(
+                member.next_available_slot ?? toNextAvailableSlotPayload(member.next_available_at),
+              )
+              return (
+                <Card key={member.id} className="space-y-3 p-4">
+                  <div className="flex items-start gap-3">
+                    <SafeImage
+                      src={member.avatar_url || undefined}
+                      alt={`${member.name}の写真`}
+                      width={64}
+                      height={64}
+                      className="h-16 w-16 rounded-full object-cover"
+                      fallbackSrc="/images/placeholder-avatar.svg"
+                    />
+                    <div>
+                      <div className="text-base font-semibold text-neutral-text">{member.name}</div>
+                      {member.alias ? (
+                        <div className="text-xs text-neutral-textMuted">{member.alias}</div>
+                      ) : null}
+                      {member.rating ? (
+                        <div className="mt-1 flex items-center gap-2 text-xs text-neutral-textMuted">
+                          <Badge variant="outline">{member.rating.toFixed(1)}★</Badge>
+                          {member.review_count ? <span>({member.review_count}件)</span> : null}
+                        </div>
+                      ) : null}
+                      {nextSlotLabel ? (
+                        <p className="mt-1 text-xs text-neutral-textMuted">{nextSlotLabel}</p>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                {member.headline ? (
-                  <p className="text-sm leading-relaxed text-neutral-textMuted">{shorten(member.headline, 120)}</p>
-                ) : null}
-                {member.specialties?.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {member.specialties.slice(0, 6).map((tag) => (
-                      <Chip key={tag} variant="subtle">
-                        {tag}
-                      </Chip>
-                    ))}
-                  </div>
-                ) : null}
-              </Card>
-            ))}
+                  {member.headline ? (
+                    <p className="text-sm leading-relaxed text-neutral-textMuted">{shorten(member.headline, 120)}</p>
+                  ) : null}
+                  {member.specialties?.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {member.specialties.slice(0, 6).map((tag) => (
+                        <Chip key={tag} variant="subtle">
+                          {tag}
+                        </Chip>
+                      ))}
+                    </div>
+                  ) : null}
+                </Card>
+              )
+            })}
           </div>
         </Section>
       ) : null}

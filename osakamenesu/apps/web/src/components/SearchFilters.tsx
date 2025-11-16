@@ -641,7 +641,9 @@ export default function SearchFilters({ init, facets, sticky = false, className,
         </Accordion>
 
         <footer className="flex flex-wrap items-center justify-between gap-4 rounded-[32px] border border-white/45 bg-white/45 px-6 py-4 shadow-[0_24px_70px_rgba(37,99,235,0.18)] backdrop-blur">
-          <div className="text-sm text-neutral-textMuted">{helperText}</div>
+          <div className="text-sm text-neutral-textMuted" aria-live="polite">
+            {helperText}
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"

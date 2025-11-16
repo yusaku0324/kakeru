@@ -25,6 +25,7 @@ type TimelineSlot = RawSlot & { date: string }
 
 type TherapistScheduleProps = {
   days: TherapistScheduleDay[]
+  fullDays?: TherapistScheduleDay[]
   initialSlotIso?: string
   scrollTargetId?: string
 }
@@ -70,13 +71,16 @@ function findNextAvailableSlot(days: TherapistScheduleDay[]): TimelineSlot | nul
   return null
 }
 
-export function TherapistSchedule({ days, initialSlotIso, scrollTargetId = 'reserve' }: TherapistScheduleProps) {
+export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTargetId = 'reserve' }: TherapistScheduleProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
+  const sourceDays = useMemo(() => (fullDays?.length ? fullDays : days), [days, fullDays])
+  const previewDays = useMemo(() => (days.length ? days : sourceDays), [days, sourceDays])
+
   const normalizedDays = useMemo(() => {
-    return days.map((day, index) => {
+    return previewDays.map((day, index) => {
       const dateObj = new Date(day.date)
       const isWeekend = [0, 6].includes(dateObj.getDay())
       return {
@@ -88,9 +92,10 @@ export function TherapistSchedule({ days, initialSlotIso, scrollTargetId = 'rese
         slots: [...day.slots].sort((a, b) => a.start_at.localeCompare(b.start_at)),
       }
     })
-  }, [days])
+  }, [previewDays])
 
-  const fallbackNextSlot = useMemo(() => findNextAvailableSlot(days), [days])
+  const fallbackNextSlot = useMemo(() => findNextAvailableSlot(sourceDays), [sourceDays])
+  const hasGlobalSlots = useMemo(() => sourceDays.some((day) => day.slots.length > 0), [sourceDays])
   const initialDayFromSlot = useMemo(() => {
     if (initialSlotIso) {
       const match = normalizedDays.find((day) => day.slots.some((slot) => slot.start_at === initialSlotIso))
@@ -115,19 +120,26 @@ export function TherapistSchedule({ days, initialSlotIso, scrollTargetId = 'rese
 
   const highlightedSlotInfo = useMemo(() => {
     if (!highlightedSlot) return null
-    for (const day of normalizedDays) {
+    for (const day of sourceDays) {
       const slot = day.slots.find((item) => item.start_at === highlightedSlot)
       if (slot) return { slot, day }
     }
     return null
-  }, [highlightedSlot, normalizedDays])
+  }, [highlightedSlot, sourceDays])
 
-  const nextAvailableSummary = highlightedSlotInfo
+  const summarySlot: TimelineSlot | null = useMemo(() => {
+    if (highlightedSlotInfo) {
+      return { ...highlightedSlotInfo.slot, date: highlightedSlotInfo.day.date }
+    }
+    return fallbackNextSlot
+  }, [fallbackNextSlot, highlightedSlotInfo])
+
+  const summaryLabel = summarySlot
     ? `${formatDayLabel(
-        highlightedSlotInfo.day.date,
-        Math.max(0, normalizedDays.findIndex((d) => d.date === highlightedSlotInfo.day.date)),
-      )} ${formatTimeLabel(highlightedSlotInfo.slot.start_at)}〜${formatTimeLabel(highlightedSlotInfo.slot.end_at)} ${statusMeta[highlightedSlotInfo.slot.status].symbol}`
-    : '最新の空き状況は順次更新されます'
+        summarySlot.date,
+        Math.max(0, normalizedDays.findIndex((d) => d.date === summarySlot.date)),
+      )} ${formatTimeLabel(summarySlot.start_at)}〜${formatTimeLabel(summarySlot.end_at)} ${statusMeta[summarySlot.status].symbol}`
+    : '公開された枠はまだ掲載されていません'
 
   const handleSlotClick = useCallback(
     (slot: TimelineSlot) => {
@@ -158,9 +170,20 @@ export function TherapistSchedule({ days, initialSlotIso, scrollTargetId = 'rese
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">空き枠サマリー</p>
-          <p className="text-sm font-semibold text-neutral-text">次に入れる時間: {nextAvailableSummary}</p>
+          <p className="text-sm font-semibold text-neutral-text">次に入れる時間: {summaryLabel}</p>
         </div>
-        <p className="text-xs text-neutral-textMuted">タップで予約フォームへ移動します</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-neutral-textMuted">タップで予約フォームへ移動します</p>
+          {summarySlot && summarySlot.status !== 'blocked' ? (
+            <button
+              type="button"
+              onClick={() => handleSlotClick(summarySlot)}
+              className="inline-flex items-center gap-1 rounded-full border border-brand-primary/40 px-3 py-1 text-[11px] font-semibold text-brand-primary transition hover:border-brand-primary hover:text-brand-primaryDark"
+            >
+              この枠で予約フォームへ
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="mt-4 overflow-x-auto pb-2">
         <div className="flex min-w-full gap-2">
@@ -183,6 +206,7 @@ export function TherapistSchedule({ days, initialSlotIso, scrollTargetId = 'rese
                 type="button"
                 onClick={() => setActiveDay(day.date)}
                 className={chipClass}
+                aria-pressed={activeDay === day.date}
               >
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-textMuted">
                   {day.isToday ? 'TODAY' : day.isWeekend ? 'WEEKEND' : 'DAY'}
@@ -235,14 +259,20 @@ export function TherapistSchedule({ days, initialSlotIso, scrollTargetId = 'rese
                   {content}
                 </div>
               ) : (
-                <button key={slot.start_at} type="button" className={baseClass} onClick={() => handleSlotClick(slot)}>
+                <button
+                  key={slot.start_at}
+                  type="button"
+                  className={baseClass}
+                  onClick={() => handleSlotClick(slot)}
+                  aria-current={isHighlighted ? 'true' : undefined}
+                >
                   {content}
                 </button>
               )
             })
           ) : (
             <div className="rounded-2xl border border-dashed border-neutral-borderLight/70 bg-white/70 px-4 py-6 text-center text-xs text-neutral-textMuted">
-              公開された枠がありません。店舗へ直接お問い合わせください。
+              {hasGlobalSlots ? 'この日に公開されている枠はありません。他の日を選んでください。' : '公開された枠がありません。店舗へ直接お問い合わせください。'}
             </div>
           )}
         </div>

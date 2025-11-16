@@ -668,14 +668,19 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         <div className="space-y-6 lg:space-y-8">
           <SearchAvailableToday shops={availableTodayQuickList} />
 
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="min-w-[240px] flex-1">
-                <SearchTabs current={activeTab} buildHref={buildTabHref} />
-              </div>
-              <ResultsSortControl options={SORT_SELECT_OPTIONS} currentSort={currentSortValue} />
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-[240px] flex-1">
+              <SearchTabs current={activeTab} buildHref={buildTabHref} />
             </div>
-            <div id="search-results" aria-hidden className="sr-only" />
+            <ResultsSortControl options={SORT_SELECT_OPTIONS} currentSort={currentSortValue} />
+          </div>
+          {activeTab === 'all' ? (
+            <p className="text-xs font-semibold text-neutral-textMuted">
+              現在の表示: 店舗 {numberFormatter.format(shopTotal)}件 / セラピスト {numberFormatter.format(therapistTotal)}名
+            </p>
+          ) : null}
+          <div id="search-results" aria-hidden className="sr-only" />
 
             {renderShopSection ? (
             <Section

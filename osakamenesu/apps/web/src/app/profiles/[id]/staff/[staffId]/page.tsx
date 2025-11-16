@@ -110,6 +110,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
   const shopHref = buildShopHref(resolvedParams)
   const staffId = staff.id
   const specialties = formatSpecialties(staff.specialties)
+  const specialtiesLabel = specialties.length ? specialties.join(' / ') : null
   const ratingLabel = typeof staff.rating === 'number' ? `${staff.rating.toFixed(1)} / 5.0` : null
   const reviewLabel = typeof staff.review_count === 'number' ? `${staff.review_count}件のクチコミ` : null
   const contact = shop.contact || {}
@@ -201,12 +202,13 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
   const currentWeekRangeLabel = weekColumns.length
     ? `${formatDayLabel(weekColumns[0].date)} 〜 ${formatDayLabel(weekColumns[weekColumns.length - 1].date)}`
     : null
+  const hasWeekSlots = weekColumns.some((day) => day.slots.length > 0)
 
-  const upcomingDays = (() => {
+  const schedulePreviewDays = (() => {
     const availabilityMap = new Map(staffAvailability.map((day) => [day.date, day]))
     const baseDate = new Date()
     baseDate.setHours(0, 0, 0, 0)
-    return Array.from({ length: 7 }).map((_, index) => {
+    const preview = Array.from({ length: 7 }).map((_, index) => {
       const target = new Date(baseDate.getTime())
       target.setDate(baseDate.getDate() + index)
       const iso = target.toISOString().slice(0, 10)
@@ -217,6 +219,13 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
         slots: existing?.slots ?? [],
       }
     })
+    if (!preview.some((day) => day.slots.length > 0) && staffAvailability.length) {
+      const fallbackDay = staffAvailability[0]
+      if (fallbackDay && !preview.some((day) => day.date === fallbackDay.date)) {
+        preview.push(fallbackDay)
+      }
+    }
+    return preview
   })()
 
   const buildWeekHref = (index: number) => {
@@ -293,13 +302,15 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
         </div>
 
         <TherapistSchedule
-          days={upcomingDays}
+          days={schedulePreviewDays}
+          fullDays={staffAvailability}
           initialSlotIso={selectedSlotInfo?.slot.start_at ?? firstOpenSlotInfo?.slot.start_at}
+          scrollTargetId="reserve"
         />
 
         <Section
           title="プロフィール"
-          subtitle={staff.headline || `${staff.name}の施術スタイルとプロフィール情報`}
+          subtitle={specialtiesLabel ?? undefined}
           className="border border-neutral-borderLight/70 bg-white/90 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/80"
         >
           <div className="grid gap-6 md:grid-cols-[minmax(0,260px)_1fr] md:items-start">
@@ -360,14 +371,8 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
                   ) : null}
                 </div>
                 <p className="text-xs text-neutral-textMuted">
-                  店舗からの折り返しで予約が確定します。空き枠は変動するため、最新情報は直接お問い合わせください。
+                  店舗からの折り返しで予約が確定します。空き枠は変動するため、このページの空き状況を参考にしつつ、ご不明な点は直接お問い合わせください。
                 </p>
-                <Link
-                  href={`${shopHref}#reserve`}
-                  className="inline-flex w-fit items-center gap-2 rounded-badge bg-brand-primary px-3 py-1 text-xs font-semibold text-white transition hover:bg-brand-primary/90"
-                >
-                  予約フォームへ進む
-                </Link>
               </Card>
             </div>
           </div>
@@ -438,7 +443,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
                       })}
                       {day.slots.length === 0 ? (
                         <div className="rounded-card border border-dashed border-neutral-borderLight/70 bg-white/60 px-3 py-6 text-center text-[11px] text-neutral-textMuted">
-                          公開された枠はありません
+                          {hasWeekSlots ? 'この日は公開枠がありません' : '公開された枠はありません。店舗へ直接お問い合わせください。'}
                         </div>
                       ) : null}
                     </div>
@@ -516,13 +521,6 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
           </Section>
         ) : null}
 
-        <Link
-          href="#reserve"
-          className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-brand-primary px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-primary/30 transition hover:bg-brand-primary/90 md:hidden"
-        >
-          今すぐ予約する
-          <span aria-hidden>→</span>
-        </Link>
       </div>
     </main>
   )
