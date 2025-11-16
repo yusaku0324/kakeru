@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
@@ -15,17 +17,17 @@ export default function SiteLoginPage() {
         </p>
         <div className="rounded-2xl bg-neutral-50 px-4 py-3 text-xs text-neutral-600">
           店舗担当者の方は
-          <a href="/dashboard/login" className="ml-1 font-semibold text-brand-primary hover:underline">
+          <Link href="/dashboard/login" className="ml-1 font-semibold text-brand-primary hover:underline">
             店舗ダッシュボード ログイン
-          </a>
+          </Link>
           をご利用ください。
         </div>
-        <a
+        <Link
           href="/"
           className="inline-flex w-full items-center justify-center rounded-full border border-neutral-borderLight px-6 py-2 text-sm font-semibold text-neutral-text transition hover:border-brand-primary hover:text-brand-primary"
         >
           トップページに戻る
-        </a>
+        </Link>
       </div>
     </main>
   )

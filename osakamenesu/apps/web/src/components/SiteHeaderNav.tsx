@@ -158,10 +158,18 @@ export default function SiteHeaderNav() {
         </>
       )}
       {showLoginOverlay ? (
-        <div className="fixed inset-0 z-[999] flex items-start justify-center bg-neutral-950/40 pt-12 backdrop-blur-sm sm:pt-16">
-          <div className="absolute inset-0 z-0" onClick={() => setShowLoginOverlay(false)} aria-hidden="true" />
-          <div className="relative z-10 w-full max-w-5xl max-h-[88vh] overflow-y-auto rounded-[36px]">
-            <div className="pointer-events-none absolute inset-0 -z-10 rounded-[36px] bg-[radial-gradient(circle_at_top,#2563eb1a_0%,rgba(37,99,235,0)_65%),linear-gradient(180deg,#f0f8ff_0%,rgba(255,255,255,0.85)_100%)] blur-2xl" />
+        <div className="fixed inset-0 z-[999] flex min-h-screen items-center justify-center bg-slate-950/60 px-4 py-10 backdrop-blur">
+          <div
+            className="absolute inset-0"
+            onClick={() => setShowLoginOverlay(false)}
+            aria-hidden="true"
+          />
+          <div
+            className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[40px]"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="pointer-events-none absolute inset-0 -z-10 rounded-[40px] bg-[radial-gradient(circle_at_top,#eef2ff_0%,rgba(255,255,255,0)_70%),linear-gradient(180deg,#ffffff_0%,rgba(255,255,255,0.9)_100%)] blur-2xl" />
             <SiteLoginContent variant="overlay" onClose={() => setShowLoginOverlay(false)} />
           </div>
         </div>
