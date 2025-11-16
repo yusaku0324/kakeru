@@ -4,7 +4,8 @@ import SafeImage from '@/components/SafeImage'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
-import { formatNextAvailableSlotLabel, toNextAvailableSlotPayload, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
+import { nextSlotPayloadToScheduleSlot, toNextAvailableSlotPayload, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
+import { formatSlotJp } from '@/lib/schedule'
 
 export type Promotion = {
   label: string
@@ -80,7 +81,18 @@ function getProfileHref(hit: ShopHit) {
 export function ShopCard({ hit }: { hit: ShopHit }) {
   const availabilityBadge = hit.today_available ? '本日空きあり' : null
   const nextSlotPayload = hit.next_available_slot ?? toNextAvailableSlotPayload(hit.next_available_at)
-  const nextSlotLabel = formatNextAvailableSlotLabel(nextSlotPayload)
+  const nextSlotEntity = nextSlotPayload ? nextSlotPayloadToScheduleSlot(nextSlotPayload) : null
+  const formattedSlot = formatSlotJp(nextSlotEntity)
+  const nextSlotLabel = (() => {
+    if (!formattedSlot) {
+      if (hit.today_available === false) return '本日の受付は終了しました'
+      return null
+    }
+    if (hit.today_available === false) {
+      return `本日空きなし / 最短: ${formattedSlot}`
+    }
+    return `最短の空き枠: ${formattedSlot}`
+  })()
   const distanceLabel = (() => {
     if (hit.distance_km == null) return null
     if (hit.distance_km < 0.1) return '駅チカ'
@@ -166,7 +178,11 @@ export function ShopCard({ hit }: { hit: ShopHit }) {
             </div>
 
             {nextSlotLabel ? (
-              <p className="text-xs text-neutral-textMuted">{nextSlotLabel}</p>
+              <p className="text-xs text-brand-primaryDark">
+                <span className="inline-flex items-center rounded-full border border-brand-primary/20 bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold">
+                  {nextSlotLabel}
+                </span>
+              </p>
             ) : hit.today_available === false ? (
               <p className="text-xs text-neutral-textMuted">本日の受付は終了しました</p>
             ) : null}

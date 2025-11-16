@@ -19,7 +19,7 @@ export function ReservationList({ items, conflictIds, onSelect }: ReservationLis
   }
 
   return (
-    <ul className="space-y-3">
+    <ul className="space-y-3" data-testid="reservation-list">
       {items.map(reservation => {
         const statusClass = RESERVATION_STATUS_BADGES[reservation.status] ?? 'bg-neutral-200 text-neutral-700'
         const hasConflict = conflictIds.has(reservation.id)
@@ -30,8 +30,14 @@ export function ReservationList({ items, conflictIds, onSelect }: ReservationLis
               'rounded-card border border-neutral-borderLight/70 bg-white px-3 py-2 text-sm shadow-sm transition hover:border-brand-primary/40',
               hasConflict && 'border-amber-400 bg-amber-50/40',
             )}
+            data-testid="reservation-list-item"
           >
-            <button type="button" onClick={() => onSelect(reservation)} className="flex w-full flex-wrap items-center justify-between gap-3 text-left">
+            <button
+              type="button"
+              onClick={() => onSelect(reservation)}
+              className="flex w-full flex-wrap items-center justify-between gap-3 text-left"
+              data-testid="reservation-list-button"
+            >
               <div>
                 <div className="font-semibold text-neutral-text">
                   {new Date(reservation.desired_start).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })}

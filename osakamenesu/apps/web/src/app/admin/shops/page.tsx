@@ -85,7 +85,7 @@ export default function AdminShopsPage() {
           <button
             onClick={saveContent}
             className="rounded bg-blue-600 px-4 py-2 text-white shadow disabled:opacity-50"
-            disabled={loadingDetail || !canSave}
+            disabled={!canSave}
           >
             店舗情報を保存
           </button>

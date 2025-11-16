@@ -1,0 +1,6 @@
+NAME                  IMAGE                                                                            COMMAND                  SERVICE   CREATED              STATUS                        PORTS
+osakamenesu-api-1     ghcr.io/yusaku0324/osakamenesu-api:ci-e377531435db09c1d025d2c463a3e45429f9b44d   "bash start.sh"          api       About a minute ago   Up About a minute (healthy)   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+osakamenesu-db-1      postgres:15                                                                      "docker-entrypoint.s…"   db        About a minute ago   Up About a minute (healthy)   5432/tcp
+osakamenesu-meili-1   getmeili/meilisearch:v1.7                                                        "tini -- /bin/sh -c …"   meili     About a minute ago   Up About a minute             7700/tcp
+osakamenesu-redis-1   redis:7-alpine                                                                   "docker-entrypoint.s…"   redis     About a minute ago   Up About a minute             6379/tcp
+osakamenesu-web-1     ghcr.io/yusaku0324/osakamenesu-web:ci-e377531435db09c1d025d2c463a3e45429f9b44d   "docker-entrypoint.s…"   web       About a minute ago   Up About a minute (healthy)   0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp

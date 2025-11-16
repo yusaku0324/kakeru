@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { toLocalDateISO } from '@/lib/date'
+import { formatSlotJp, getNextAvailableSlot, type ScheduleSlot } from '@/lib/schedule'
 
 const dayFormatter = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
 const timeFormatter = new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -31,6 +32,8 @@ export type TherapistScheduleSlot = {
 }
 
 type TimelineSlot = TherapistScheduleSlot
+
+type TherapistScheduleSlotWithSchedule = TherapistScheduleSlot & ScheduleSlot
 
 type TherapistScheduleProps = {
   days: TherapistScheduleDay[]
@@ -64,7 +67,7 @@ function computeAvailabilityLevel(slots: TherapistScheduleSlot[]) {
   return 'low'
 }
 
-function flattenScheduleDays(days: TherapistScheduleDay[]): TherapistScheduleSlot[] {
+function flattenScheduleDays(days: TherapistScheduleDay[]): TherapistScheduleSlotWithSchedule[] {
   return days
     .flatMap((day) =>
       day.slots.map((slot) => ({
@@ -72,17 +75,11 @@ function flattenScheduleDays(days: TherapistScheduleDay[]): TherapistScheduleSlo
         start: slot.start_at,
         end: slot.end_at,
         status: slot.status,
+        start_at: slot.start_at,
+        end_at: slot.end_at,
       })),
     )
     .sort((a, b) => a.start.localeCompare(b.start))
-}
-
-function findNextAvailableSlot(slots: TherapistScheduleSlot[], nowMs = Date.now()): TherapistScheduleSlot | null {
-  const future = slots.find(
-    (slot) => (slot.status === 'open' || slot.status === 'tentative') && Date.parse(slot.start) >= nowMs,
-  )
-  if (future) return future
-  return slots.find((slot) => slot.status === 'open' || slot.status === 'tentative') ?? null
 }
 
 export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTargetId = 'reserve' }: TherapistScheduleProps) {
@@ -128,7 +125,7 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
     })
   }, [previewDays, todayIso, tomorrowIso])
 
-  const fallbackNextSlot = useMemo(() => findNextAvailableSlot(allSlots, now.getTime()), [allSlots, now])
+  const fallbackNextSlot = useMemo(() => getNextAvailableSlot(allSlots, { now }), [allSlots, now])
   const hasGlobalSlots = allSlots.length > 0
   const initialDayFromSlot = useMemo(() => {
     if (initialSlotIso) {
@@ -154,12 +151,13 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
     return allSlots.find((slot) => slot.start === highlightedSlot) ?? null
   }, [allSlots, highlightedSlot])
 
-  const summarySlot: TherapistScheduleSlot | null = highlightedSlotInfo ?? fallbackNextSlot
+  const summarySlot: TherapistScheduleSlotWithSchedule | null = highlightedSlotInfo ?? fallbackNextSlot
 
+  const summaryBaseLabel = summarySlot ? formatSlotJp(summarySlot, { now }) : null
   const summaryLabel = summarySlot
-    ? `${formatDayLabel(summarySlot.date, todayIso, tomorrowIso)} ${formatTimeLabel(summarySlot.start)}〜${formatTimeLabel(
-        summarySlot.end,
-      )} ${statusMeta[summarySlot.status].symbol}`
+    ? `${summaryBaseLabel ?? `${formatDayLabel(summarySlot.date, todayIso, tomorrowIso)} ${formatTimeLabel(
+        summarySlot.start,
+      )}〜`} ${statusMeta[summarySlot.status].symbol}`.trim()
     : '公開された枠はまだ掲載されていません'
 
   const handleSlotClick = useCallback(

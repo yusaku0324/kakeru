@@ -1,39 +1,33 @@
+import { formatSlotJp, type ScheduleSlot } from './schedule'
+
 export type NextAvailableSlotPayload = {
   start_at: string
+  end_at?: string | null
   status: 'ok' | 'maybe'
-}
-
-const dayLabelFormatter = new Intl.DateTimeFormat('ja-JP', {
-  month: 'numeric',
-  day: 'numeric',
-  weekday: 'short',
-})
-
-const timeLabelFormatter = new Intl.DateTimeFormat('ja-JP', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-})
-
-function normalizeDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
 }
 
 export function formatNextAvailableSlotLabel(
   slot: NextAvailableSlotPayload | null | undefined,
   options: { fallbackLabel?: string; now?: Date } = {},
 ): string | null {
-  if (!slot?.start_at) return options.fallbackLabel ?? null
-  const start = new Date(slot.start_at)
-  if (Number.isNaN(start.getTime())) return options.fallbackLabel ?? null
-  const now = options.now ?? new Date()
-  const dayDiff = Math.round((normalizeDay(start) - normalizeDay(now)) / (24 * 60 * 60 * 1000))
-  const prefix = dayDiff === 0 ? '本日' : dayDiff === 1 ? '明日' : dayLabelFormatter.format(start)
-  const timeLabel = timeLabelFormatter.format(start)
-  return `最短の空き枠: ${prefix} ${timeLabel}〜`
+  const scheduleSlot = nextSlotPayloadToScheduleSlot(slot)
+  const formatted = scheduleSlot ? formatSlotJp(scheduleSlot, { now: options.now, fallbackLabel: options.fallbackLabel }) : null
+  return formatted ? `最短の空き枠: ${formatted}` : options.fallbackLabel ?? null
 }
 
-export function toNextAvailableSlotPayload(value: string | null | undefined): NextAvailableSlotPayload | null {
+export function toNextAvailableSlotPayload(
+  value: string | null | undefined,
+  status: NextAvailableSlotPayload['status'] = 'ok',
+): NextAvailableSlotPayload | null {
   if (!value) return null
-  return { start_at: value, status: 'ok' }
+  return { start_at: value, end_at: null, status }
+}
+
+export function nextSlotPayloadToScheduleSlot(slot: NextAvailableSlotPayload | null | undefined): ScheduleSlot | null {
+  if (!slot?.start_at) return null
+  return {
+    start_at: slot.start_at,
+    end_at: slot.end_at ?? slot.start_at,
+    status: slot.status === 'maybe' ? 'tentative' : 'open',
+  }
 }

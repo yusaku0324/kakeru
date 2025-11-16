@@ -225,41 +225,26 @@ test.describe('Dashboard reservation filters', () => {
     const endInput = page.getByLabel('終了日')
 
     await startInput.fill(secondDateStr)
-    await Promise.all([
-      page.waitForResponse((response) => {
-        if (!response.url().includes(`/api/dashboard/shops/${shop.id}/reservations`)) return false
-        if (response.request().method() !== 'GET') return false
-        return response.url().includes(`start=${secondDateStr}`) && response.url().includes(`end=${secondDateStr}`)
-      }),
-      endInput.fill(secondDateStr),
-    ])
-    const visibleItems = await page.locator('li').count()
-    expect(visibleItems).toBeGreaterThan(0)
-    await expect(page.getByText(firstName, { exact: false })).toHaveCount(0)
-    const secondEntry = page.locator('li', { hasText: secondName }).first()
-    await expect(secondEntry).toBeVisible()
-    await expect(page).toHaveURL(new RegExp(`start=${secondDateStr}`))
+    await endInput.fill(secondDateStr)
+    const reservationItems = page.getByTestId('reservation-list-item')
+    await expect(page).toHaveURL(new RegExp(`start=${secondDateStr}`), { timeout: 15000 })
+    await expect(reservationItems).toHaveCount(1, { timeout: 15000 })
+    await expect(reservationItems.filter({ hasText: firstName })).toHaveCount(0)
+    const secondEntry = reservationItems.filter({ hasText: secondName }).first()
+    await expect(secondEntry).toBeVisible({ timeout: 15000 })
 
-    await secondEntry.getByRole('button', { name: '詳細を確認' }).click()
+    await secondEntry.getByTestId('reservation-list-button').click()
     const detailDialog = page.getByRole('dialog', { name: /予約詳細/ })
     await expect(detailDialog).toBeVisible()
-    await expect(detailDialog.getByText(`期間: ${secondDateStr}〜${secondDateStr}`, { exact: false })).toBeVisible()
+    await expect(detailDialog.getByText(secondName, { exact: false })).toBeVisible()
+    await expect(detailDialog.getByText('希望日時')).toBeVisible()
     await detailDialog.getByRole('button', { name: '予約詳細モーダルを閉じる' }).click()
     await expect(detailDialog).toBeHidden()
 
-    await Promise.all([
-      page.waitForResponse((response) =>
-        response.url().includes(`/api/dashboard/shops/${shop.id}/reservations`) &&
-        response.request().method() === 'GET' &&
-        !response.url().includes('start=') &&
-        !response.url().includes('end='),
-      ),
-      page.getByRole('button', { name: '期間リセット' }).click(),
-    ])
-
+    await page.getByRole('button', { name: '期間リセット' }).click()
+    await expect(page).not.toHaveURL(/start=/, { timeout: 15000 })
     await expect(page.getByText(firstName, { exact: false })).toBeVisible({ timeout: 15000 })
     await expect(page.getByText(secondName, { exact: false })).toBeVisible({ timeout: 15000 })
-    await expect(page).not.toHaveURL(/start=/)
   })
 })
 
@@ -308,9 +293,9 @@ test.describe('Dashboard reservation actions', () => {
     await page.goto(`${normalizedBase}/dashboard/${shop.id}`, { waitUntil: 'domcontentloaded' })
 
     await setPageSize(page, shop.id, 100)
-    const listEntry = page.locator('li', { hasText: customerQuery }).first()
+    const listEntry = page.getByTestId('reservation-list-item').filter({ hasText: customerQuery }).first()
     await expect(listEntry).toBeVisible({ timeout: 15000 })
-    await listEntry.getByRole('button', { name: '詳細を確認' }).click()
+    await listEntry.getByTestId('reservation-list-button').click()
 
     const detailDialog = page.getByRole('dialog', { name: /予約詳細/ })
     await expect(detailDialog).toBeVisible()

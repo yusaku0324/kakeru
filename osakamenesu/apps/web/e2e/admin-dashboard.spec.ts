@@ -79,6 +79,7 @@ async function openFirstShop(page: Page) {
   await titleLocator.waitFor({ state: 'visible', timeout: 30000 })
   await page.getByRole('button', { name: firstShop.name, exact: false }).first().click()
   await expect(page.getByTestId('shop-address')).toBeVisible()
+  await expect(page.getByRole('button', { name: '店舗情報を保存' })).toBeEnabled({ timeout: 30000 })
   return firstShop
 }
 
@@ -205,21 +206,31 @@ test.describe('Admin dashboard', () => {
     const addressForTest = `${NEW_ADDRESS}-${Date.now()}`
 
     await addressInput.fill(addressForTest)
-    await page.getByRole('button', { name: '店舗情報を保存' }).click()
-    const saveResponse = await page.waitForResponse(
+    const saveResponsePromise = page.waitForResponse(
       (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
+    const detailReloadAfterSave = page.waitForResponse(
+      (response) => response.url().includes(`/api/admin/shops/${shop.id}`) && response.request().method() === 'GET',
+    )
+    await page.getByRole('button', { name: '店舗情報を保存' }).click()
+    const saveResponse = await saveResponsePromise
     expect(saveResponse.ok()).toBeTruthy()
+    await detailReloadAfterSave
     await reopenShop(page, shop.name)
     addressInput = page.getByTestId('shop-address')
     await expect.poll(async () => await addressInput.inputValue(), { timeout: 20000 }).toBe(addressForTest)
 
     await addressInput.fill(originalAddress)
-    await page.getByRole('button', { name: '店舗情報を保存' }).click()
-    const revertResponse = await page.waitForResponse(
+    const revertResponsePromise = page.waitForResponse(
       (response) => response.url().includes('/api/admin/shops/') && response.request().method() === 'PATCH',
     )
+    const detailReloadAfterRevert = page.waitForResponse(
+      (response) => response.url().includes(`/api/admin/shops/${shop.id}`) && response.request().method() === 'GET',
+    )
+    await page.getByRole('button', { name: '店舗情報を保存' }).click()
+    const revertResponse = await revertResponsePromise
     expect(revertResponse.ok()).toBeTruthy()
+    await detailReloadAfterRevert
     await reopenShop(page, shop.name)
     addressInput = page.getByTestId('shop-address')
     await expect.poll(async () => await addressInput.inputValue(), { timeout: 20000 }).toBe(originalAddress)

@@ -288,9 +288,7 @@ async function ensureAuthenticated(context: BrowserContext, page: Page, baseURL:
   throw new Error(lastErrorMessage ?? 'test-login API が利用できませんでした')
 }
 
-const AREA_QUERY = '/?force_samples=1'
-const THERAPIST_NAME = '葵'
-const THERAPIST_ID = '11111111-1111-1111-8888-111111111111'
+const AREA_QUERY = '/search?tab=therapists&force_samples=1'
 const FORCE_REAL_MODE = (process.env.FAVORITES_E2E_MODE || '').toLowerCase() === 'real'
 const resolvedFavoritesMode = (
   process.env.FAVORITES_API_MODE ||
@@ -359,25 +357,12 @@ test.describe('お気に入り（実API）', () => {
     const normalizedBase = normalizeBaseURL(baseURL)
     const areaUrl = IS_MOCK_MODE ? `${normalizedBase}/test/favorites` : `${normalizedBase}${AREA_QUERY}`
 
-    if (!IS_MOCK_MODE) {
-      await page.request.delete(`/api/favorites/therapists/${encodeURIComponent(THERAPIST_ID)}`).catch(() => null)
-    }
-
     await page.goto(areaUrl, { waitUntil: 'domcontentloaded' })
 
     await waitForTherapistCard(page)
 
-    const locateCard = () =>
-      IS_MOCK_MODE
-        ? page.locator('[data-testid="test-therapist-card-wrapper"] [data-testid="therapist-card"]').first()
-        : page
-            .getByTestId('therapist-card')
-            .filter({ has: page.locator(`[data-therapist-id="${THERAPIST_ID}"]`) })
-            .first()
-    const locateToggle = () =>
-      IS_MOCK_MODE
-        ? locateCard().getByRole('button', { name: /お気に入り/ })
-        : locateCard().locator(`[data-therapist-id="${THERAPIST_ID}"]`).first()
+    const { therapistId, therapistName } = await resolveTherapistTarget(page)
+    const locateToggle = () => buildFavoriteToggleLocator(page, therapistId)
     const waitForToggleState = async (state: 'true' | 'false') => {
       await expect
         .poll(async () => {
@@ -397,7 +382,24 @@ test.describe('お気に入り（実API）', () => {
         .toBe(state)
     }
 
-    await expect(locateCard()).toBeVisible()
+    const revertIfNeeded = async () => {
+      const initialState = await locateToggle().getAttribute('aria-pressed')
+      if (initialState === 'true') {
+        await Promise.all([
+          page
+            .waitForResponse((response) =>
+              IS_MOCK_MODE
+                ? true
+                : response.url().includes('/api/favorites/therapists') && response.request().method() === 'DELETE',
+            )
+            .catch(() => null),
+          locateToggle().click(),
+        ])
+        await waitForToggleState('false')
+      }
+    }
+
+    await revertIfNeeded()
     await waitForToggleState('false')
 
     await Promise.all([
@@ -409,10 +411,10 @@ test.describe('お気に入り（実API）', () => {
     await waitForToggleState('true')
 
     await page.goto(`${normalizedBase}/dashboard/favorites`, { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading', { name: THERAPIST_NAME })).toBeVisible()
+    await expect(page.getByRole('heading', { name: therapistName, exact: false })).toBeVisible()
 
     await page.goto(areaUrl, { waitUntil: 'domcontentloaded' })
-    await waitForTherapistCard(page)
+    await waitForTherapistCard(page, { therapistId })
     await waitForToggleState('true')
 
     await Promise.all([
@@ -425,12 +427,12 @@ test.describe('お気に入り（実API）', () => {
 
     await page.goto(`${normalizedBase}/dashboard/favorites`, { waitUntil: 'domcontentloaded' })
     const emptyState = page.getByText(/まだお気に入りの店舗がありません/)
-    await expect(emptyState.or(page.getByRole('heading', { name: THERAPIST_NAME })).first()).toBeVisible({
+    await expect(emptyState.or(page.getByRole('heading', { name: therapistName, exact: false })).first()).toBeVisible({
       timeout: 15000,
     })
   })
 })
-async function waitForTherapistCard(page: Page) {
+async function waitForTherapistCard(page: Page, options: { therapistId?: string | null } = {}) {
   const currentUrl = page.url()
   const isTestPage = IS_MOCK_MODE && currentUrl.includes('/test/favorites')
 
@@ -451,7 +453,34 @@ async function waitForTherapistCard(page: Page) {
       )
     }
   } else {
-    const toggleButton = page.locator(`[data-therapist-id="${THERAPIST_ID}"]`).first()
-    await expect(toggleButton).toBeVisible({ timeout: 15000 })
+    if (options.therapistId) {
+      await expect(buildFavoriteToggleLocator(page, options.therapistId)).toBeVisible({ timeout: 15000 })
+    } else {
+      await expect(page.getByTestId('therapist-card').first()).toBeVisible({ timeout: 15000 })
+    }
   }
+}
+
+function buildFavoriteToggleLocator(page: Page, therapistId: string | null) {
+  if (therapistId) {
+    return page.locator(`[data-testid="therapist-favorite-toggle"][data-therapist-id="${therapistId}"]`).first()
+  }
+  return page.getByTestId('therapist-favorite-toggle').first()
+}
+
+async function resolveTherapistTarget(page: Page) {
+  if (IS_MOCK_MODE && page.url().includes('/test/favorites')) {
+    const mockCard = page.locator('[data-testid="test-therapist-card-wrapper"] [data-testid="therapist-card"]').first()
+    await expect(mockCard).toBeVisible({ timeout: 15000 })
+    const headingText = ((await mockCard.getByRole('heading').first().innerText()) ?? '').trim() || 'セラピスト'
+    return { therapistId: null, therapistName: headingText }
+  }
+
+  const card = page.getByTestId('therapist-card').first()
+  await expect(card).toBeVisible({ timeout: 15000 })
+  const toggle = card.getByTestId('therapist-favorite-toggle').first()
+  await expect(toggle).toBeVisible({ timeout: 15000 })
+  const therapistId = (await toggle.getAttribute('data-therapist-id'))?.trim() ?? null
+  const headingText = ((await card.getByRole('heading').first().innerText()) ?? '').trim() || 'セラピスト'
+  return { therapistId, therapistName: headingText }
 }

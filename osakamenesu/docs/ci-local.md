@@ -1,6 +1,6 @@
 # CI ローカル実行ガイド
 
-`pnpm ci:local` は GitHub Actions の admin-e2e ジョブを手元で再現するためのコマンドです。Doppler の `stg_ci_local` 設定を読み込み、CI と同じ `docker-compose.admin-e2e.yml` にローカル専用の `docker-compose.admin-e2e.override.yml` を重ねてスタック（db / meili / redis / api / web）を起動し、その後 CI と同一オプションの `docker compose up --no-deps --abort-on-container-exit --exit-code-from e2e --no-build e2e` を走らせます。
+`pnpm ci:local` は GitHub Actions の admin-e2e ジョブを手元で再現するためのコマンドです。Doppler の `stg_ci_local` 設定を読み込み、Compose に `.env.admin-e2e` を `--env-file` で渡したうえで CI と同じ `docker-compose.admin-e2e.yml` にローカル専用の `docker-compose.admin-e2e.override.yml` を重ねてスタック（db / meili / redis / api / web）を起動し、その後 CI と同一オプションの `docker compose up --no-deps --abort-on-container-exit --exit-code-from e2e --no-build e2e` を走らせます。
 
 ```bash
 pnpm ci:local

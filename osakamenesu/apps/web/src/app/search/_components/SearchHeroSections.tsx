@@ -1,7 +1,8 @@
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import type { ShopHit } from '@/components/shop/ShopCard'
-import { formatNextAvailableSlotLabel, toNextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
+import { nextSlotPayloadToScheduleSlot, toNextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
+import { formatSlotJp } from '@/lib/schedule'
 
 export type SpotlightItem = {
   id: string
@@ -79,9 +80,17 @@ export function SearchAvailableToday({ shops }: SearchAvailableTodayProps) {
             const href = shop.slug ? `/shops/${shop.slug}` : `/shops/${shop.id}`
             const tags = Array.isArray(shop.service_tags) ? shop.service_tags.filter(Boolean).slice(0, 2) : []
             const nextSlotPayload = shop.next_available_slot ?? toNextAvailableSlotPayload(shop.next_available_at)
-            const nextSlotLabel =
-              formatNextAvailableSlotLabel(nextSlotPayload) ??
-              (shop.today_available === false ? '本日の受付は終了しました' : '最短の空き枠: 情報確認中')
+            const nextSlotEntity = nextSlotPayload ? nextSlotPayloadToScheduleSlot(nextSlotPayload) : null
+            const formattedSlot = formatSlotJp(nextSlotEntity)
+            const nextSlotLabel = (() => {
+              if (!formattedSlot) {
+                return shop.today_available === false ? '本日の受付は終了しました' : '最短の空き枠: 情報確認中'
+              }
+              if (shop.today_available === false) {
+                return `本日空きなし / 最短: ${formattedSlot}`
+              }
+              return `最短の空き枠: ${formattedSlot}`
+            })()
             return (
               <a
                 key={shop.id}

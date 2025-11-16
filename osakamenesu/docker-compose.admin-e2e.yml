@@ -127,6 +127,8 @@ services:
       CI: "1"
     volumes:
       - .:/workspace
+      - admin-e2e-web-node-modules:/workspace/apps/web/node_modules
+      - admin-e2e-web-pnpm-store:/workspace/apps/web/.pnpm-store
     depends_on:
       web:
         condition: service_healthy
@@ -141,3 +143,7 @@ services:
 networks:
   admin-e2e:
     driver: bridge
+
+volumes:
+  admin-e2e-web-node-modules:
+  admin-e2e-web-pnpm-store:

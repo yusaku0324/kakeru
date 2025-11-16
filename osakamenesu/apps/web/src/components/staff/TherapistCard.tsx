@@ -6,7 +6,12 @@ import { useMemo } from 'react'
 import SafeImage from '@/components/SafeImage'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
-import { formatNextAvailableSlotLabel, toNextAvailableSlotPayload, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
+import {
+  nextSlotPayloadToScheduleSlot,
+  toNextAvailableSlotPayload,
+  type NextAvailableSlotPayload,
+} from '@/lib/nextAvailableSlot'
+import { formatSlotJp } from '@/lib/schedule'
 import { useTherapistFavorites } from './TherapistFavoritesProvider'
 
 export type TherapistHit = {
@@ -78,8 +83,20 @@ export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCar
   }, [hit.therapistId])
   const favorite = therapistId ? isFavorite(therapistId) : false
   const processing = therapistId ? isProcessing(therapistId) : false
+  const dataTherapistId = therapistId ?? hit.staffId ?? null
   const nextSlotPayload = hit.nextAvailableSlot ?? toNextAvailableSlotPayload(hit.nextAvailableAt)
-  const nextSlotLabel = formatNextAvailableSlotLabel(nextSlotPayload)
+  const nextSlotEntity = nextSlotPayload ? nextSlotPayloadToScheduleSlot(nextSlotPayload) : null
+  const formattedSlot = formatSlotJp(nextSlotEntity)
+  const nextSlotLabel = (() => {
+    if (!formattedSlot) {
+      if (hit.todayAvailable === false) return '本日の受付は終了しました'
+      return null
+    }
+    if (hit.todayAvailable === false) {
+      return `本日空きなし / 最短: ${formattedSlot}`
+    }
+    return `最短の空き枠: ${formattedSlot}`
+  })()
   const layoutClassName = variant === 'featured' ? 'md:grid md:grid-cols-[minmax(0,240px)_1fr]' : ''
 
   return (
@@ -100,6 +117,8 @@ export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCar
         className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-neutral-borderLight bg-white/90 text-brand-primary shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary ${
           favorite ? 'text-red-500' : ''
         } ${processing ? 'opacity-60' : 'hover:bg-white'}`}
+        data-testid="therapist-favorite-toggle"
+        data-therapist-id={dataTherapistId ?? undefined}
       >
         <HeartIcon filled={favorite} />
         <span className="sr-only">{favorite ? 'お気に入りから削除' : 'お気に入りに追加'}</span>
@@ -143,7 +162,11 @@ export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCar
           {hit.alias ? <p className="text-xs text-neutral-textMuted">{hit.alias}</p> : null}
           {hit.headline ? <p className="text-sm text-neutral-textMuted line-clamp-2">{hit.headline}</p> : null}
           {nextSlotLabel ? (
-            <p className="text-xs text-neutral-textMuted">{nextSlotLabel}</p>
+            <p className="text-xs text-brand-primaryDark">
+              <span className="inline-flex items-center rounded-full border border-brand-primary/20 bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold">
+                {nextSlotLabel}
+              </span>
+            </p>
           ) : hit.todayAvailable === false ? (
             <p className="text-xs text-neutral-textMuted">本日の受付は終了しました</p>
           ) : null}

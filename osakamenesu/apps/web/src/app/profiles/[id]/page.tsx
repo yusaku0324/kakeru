@@ -14,7 +14,12 @@ import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
 import type { TherapistHit } from '@/components/staff/TherapistCard'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
-import { formatNextAvailableSlotLabel, toNextAvailableSlotPayload, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
+import {
+  nextSlotPayloadToScheduleSlot,
+  toNextAvailableSlotPayload,
+  type NextAvailableSlotPayload,
+} from '@/lib/nextAvailableSlot'
+import { formatSlotJp } from '@/lib/schedule'
 import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
 import { sampleShopToDetail } from '@/lib/sampleShopAdapters'
 import ShopReservationCardClient from './ShopReservationCardClient'
@@ -666,9 +671,15 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {staff.map((member) => {
-              const nextSlotLabel = formatNextAvailableSlotLabel(
+              const nextSlotEntity = nextSlotPayloadToScheduleSlot(
                 member.next_available_slot ?? toNextAvailableSlotPayload(member.next_available_at),
               )
+              const formattedSlot = formatSlotJp(nextSlotEntity)
+              const nextSlotLabel = formattedSlot
+                ? member.today_available === false
+                  ? `本日空きなし / 最短: ${formattedSlot}`
+                  : `最短の空き枠: ${formattedSlot}`
+                : null
               return (
                 <Card key={member.id} className="space-y-3 p-4">
                   <div className="flex items-start gap-3">
