@@ -25,7 +25,10 @@ export default function DashboardLoginPage() {
         <p className="text-xs font-semibold uppercase tracking-widest text-brand-primary">OSAKAMENESU DASHBOARD</p>
         <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-900">店舗ダッシュボード ログイン</h1>
         <p className="mt-3 text-sm text-neutral-600">
-          掲載情報の更新、予約管理、PR枠の申請まで、このダッシュボードから行えます。登録済みのメールアドレスにマジックリンクを送るだけで、安全にログインできます。
+          掲載情報の更新、予約管理、PR枠の申請までを行う店舗担当者専用のログインページです。登録済みの店舗メールアドレスにマジックリンクを送るだけで、安全にログインできます。
+        </p>
+        <p className="text-xs text-neutral-500">
+          ※お気に入りの閲覧や一般ユーザー向けログインは <Link href="/auth/login" className="font-semibold text-brand-primary hover:underline">こちら</Link>
         </p>
       </section>
 

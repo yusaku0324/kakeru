@@ -12,6 +12,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    networks:
+      - admin-e2e
 
   meili:
     image: getmeili/meilisearch:v1.7
@@ -22,12 +24,16 @@ services:
       MEILI_ENV: development
     expose:
       - "7700"
+    networks:
+      - admin-e2e
 
   redis:
     image: redis:7-alpine
     env_file:
       - .env.admin-e2e
     command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - admin-e2e
 
   api:
     platform: ${COMPOSE_PLATFORM:-linux/amd64}
@@ -60,6 +66,8 @@ services:
       timeout: 2s
       retries: 50
       start_period: 180s
+    networks:
+      - admin-e2e
 
   web:
     platform: ${COMPOSE_PLATFORM:-linux/amd64}
@@ -94,6 +102,10 @@ services:
       timeout: 2s
       retries: 40
       start_period: 90s
+    networks:
+      admin-e2e:
+        aliases:
+          - web
 
   e2e:
     image: ${ADMIN_E2E_IMAGE:-ghcr.io/yusaku0324/osakamenesu-e2e-runner:latest}
@@ -120,3 +132,9 @@ services:
       web:
         condition: service_healthy
     command: ["bash", "/workspace/scripts/run_admin_e2e.sh"]
+    networks:
+      - admin-e2e
+
+networks:
+  admin-e2e:
+    driver: bridge

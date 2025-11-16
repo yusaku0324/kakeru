@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
+import { toLocalDateISO } from '@/lib/date'
+
 const dayFormatter = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
 const timeFormatter = new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
 
@@ -28,7 +30,7 @@ export type TherapistScheduleSlot = {
   status: SlotStatus
 }
 
-type TimelineSlot = RawSlot & { date: string }
+type TimelineSlot = TherapistScheduleSlot
 
 type TherapistScheduleProps = {
   days: TherapistScheduleDay[]
@@ -43,9 +45,9 @@ const statusMeta: Record<SlotStatus, { label: string; symbol: string; color: str
   blocked: { label: '× 満席', symbol: '×', color: 'text-neutral-textMuted' },
 }
 
-function formatDayLabel(date: string, index: number) {
-  if (index === 0) return '今日'
-  if (index === 1) return '明日'
+function formatDayLabel(date: string, todayIso: string, tomorrowIso: string) {
+  if (date === todayIso) return '今日'
+  if (date === tomorrowIso) return '明日'
   return dayFormatter.format(new Date(date))
 }
 
@@ -55,7 +57,7 @@ function formatTimeLabel(iso: string) {
   return timeFormatter.format(parsed).replace(/^24:/, '00:')
 }
 
-function computeAvailabilityLevel(slots: RawSlot[]) {
+function computeAvailabilityLevel(slots: TherapistScheduleSlot[]) {
   const openOrTentative = slots.filter((slot) => slot.status === 'open' || slot.status === 'tentative').length
   if (slots.length === 0 || openOrTentative === 0) return 'none'
   if (openOrTentative >= 2) return 'full'
@@ -63,18 +65,22 @@ function computeAvailabilityLevel(slots: RawSlot[]) {
 }
 
 function flattenScheduleDays(days: TherapistScheduleDay[]): TherapistScheduleSlot[] {
-  const list: TherapistScheduleSlot[] = []
-  for (const day of days) {
-    for (const slot of day.slots) {
-      list.push({ date: day.date, start: slot.start_at, end: slot.end_at, status: slot.status })
-    }
-  }
-  return list.sort((a, b) => a.start.localeCompare(b.start))
+  return days
+    .flatMap((day) =>
+      day.slots.map((slot) => ({
+        date: day.date,
+        start: slot.start_at,
+        end: slot.end_at,
+        status: slot.status,
+      })),
+    )
+    .sort((a, b) => a.start.localeCompare(b.start))
 }
 
-function findNextAvailableSlot(slots: TherapistScheduleSlot[]): TherapistScheduleSlot | null {
-  const now = Date.now()
-  const future = slots.find((slot) => (slot.status === 'open' || slot.status === 'tentative') && Date.parse(slot.start) >= now)
+function findNextAvailableSlot(slots: TherapistScheduleSlot[], nowMs = Date.now()): TherapistScheduleSlot | null {
+  const future = slots.find(
+    (slot) => (slot.status === 'open' || slot.status === 'tentative') && Date.parse(slot.start) >= nowMs,
+  )
   if (future) return future
   return slots.find((slot) => slot.status === 'open' || slot.status === 'tentative') ?? null
 }
@@ -87,13 +93,18 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
   const sourceDays = useMemo(() => (fullDays?.length ? fullDays : days), [days, fullDays])
   const previewDays = useMemo(() => (days.length ? days : sourceDays), [days, sourceDays])
   const allSlots = useMemo(() => flattenScheduleDays(sourceDays), [sourceDays])
+  const todayIso = toLocalDateISO(new Date())
+  const tomorrowIso = toLocalDateISO(new Date(Date.now() + 24 * 60 * 60 * 1000))
 
   const normalizedDays = useMemo(() => {
-    return previewDays.map((day, index) => {
+    return previewDays.map((day) => {
       const dateObj = new Date(day.date)
       const isWeekend = [0, 6].includes(dateObj.getDay())
-      const isToday = Boolean(day.is_today) || index === 0
-      const availabilityLevel = computeAvailabilityLevel(day.slots)
+      const isToday = Boolean(day.is_today) || day.date === todayIso
+      const slots = [...day.slots]
+        .map((slot) => ({ date: day.date, start: slot.start_at, end: slot.end_at, status: slot.status }))
+        .sort((a, b) => a.start.localeCompare(b.start))
+      const availabilityLevel = computeAvailabilityLevel(slots)
       const availabilityLabel = isToday
         ? availabilityLevel === 'none'
           ? '本日 空きなし'
@@ -107,19 +118,19 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
         date: day.date,
         isToday,
         isWeekend,
-        label: formatDayLabel(day.date, index),
+        label: formatDayLabel(day.date, todayIso, tomorrowIso),
         availabilityLevel,
         availabilityLabel,
-        slots: [...day.slots].sort((a, b) => a.start_at.localeCompare(b.start_at)),
+        slots,
       }
     })
-  }, [previewDays])
+  }, [previewDays, todayIso, tomorrowIso])
 
   const fallbackNextSlot = useMemo(() => findNextAvailableSlot(allSlots), [allSlots])
   const hasGlobalSlots = allSlots.length > 0
   const initialDayFromSlot = useMemo(() => {
     if (initialSlotIso) {
-      const match = normalizedDays.find((day) => day.slots.some((slot) => slot.start_at === initialSlotIso))
+      const match = normalizedDays.find((day) => day.slots.some((slot) => slot.start === initialSlotIso))
       if (match) return match.date
     }
     return fallbackNextSlot?.date ?? normalizedDays[0]?.date ?? ''
@@ -134,43 +145,29 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
   }, [initialDayFromSlot, initialSlotIso, fallbackNextSlot?.start])
 
   const activeDayData = normalizedDays.find((day) => day.date === activeDay) ?? normalizedDays[0]
-  const timelineSlots: TimelineSlot[] = useMemo(() => {
-    if (!activeDayData) return []
-    return activeDayData.slots.map((slot) => ({ ...slot, date: activeDayData.date }))
-  }, [activeDayData])
+  const timelineSlots: TimelineSlot[] = useMemo(() => (activeDayData ? activeDayData.slots : []), [activeDayData])
 
   const highlightedSlotInfo = useMemo(() => {
     if (!highlightedSlot) return null
-    for (const day of sourceDays) {
-      const slot = day.slots.find((item) => item.start_at === highlightedSlot)
-      if (slot) return { slot, day }
-    }
-    return null
-  }, [highlightedSlot, sourceDays])
+    return allSlots.find((slot) => slot.start === highlightedSlot) ?? null
+  }, [allSlots, highlightedSlot])
 
-  const summarySlot: TimelineSlot | null = useMemo(() => {
-    if (highlightedSlotInfo) {
-      return { ...highlightedSlotInfo.slot, date: highlightedSlotInfo.day.date }
-    }
-    if (!fallbackNextSlot) return null
-    return { start_at: fallbackNextSlot.start, end_at: fallbackNextSlot.end, status: fallbackNextSlot.status, date: fallbackNextSlot.date }
-  }, [fallbackNextSlot, highlightedSlotInfo])
+  const summarySlot: TherapistScheduleSlot | null = highlightedSlotInfo ?? fallbackNextSlot
 
   const summaryLabel = summarySlot
-    ? `${formatDayLabel(
-        summarySlot.date,
-        Math.max(0, normalizedDays.findIndex((d) => d.date === summarySlot.date)),
-      )} ${formatTimeLabel(summarySlot.start_at)}〜${formatTimeLabel(summarySlot.end_at)} ${statusMeta[summarySlot.status].symbol}`
+    ? `${formatDayLabel(summarySlot.date, todayIso, tomorrowIso)} ${formatTimeLabel(summarySlot.start)}〜${formatTimeLabel(
+        summarySlot.end,
+      )} ${statusMeta[summarySlot.status].symbol}`
     : '公開された枠はまだ掲載されていません'
 
   const handleSlotClick = useCallback(
     (slot: TimelineSlot) => {
       if (slot.status === 'blocked') return
       setActiveDay(slot.date)
-      setHighlightedSlot(slot.start_at)
+      setHighlightedSlot(slot.start)
       if (pathname) {
         const params = new URLSearchParams(searchParams?.toString() ?? '')
-        params.set('slot', slot.start_at)
+        params.set('slot', slot.start)
         const qs = params.toString()
         const url = qs ? `${pathname}?${qs}` : pathname
         router.replace(`${url}#${scrollTargetId}`, { scroll: false })
@@ -244,12 +241,7 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
 
       <div className="mt-6 space-y-3">
         <div className="flex items-center justify-between text-xs text-neutral-textMuted">
-          <span>
-            {formatDayLabel(
-              activeDayData?.date || normalizedDays[0].date,
-              Math.max(0, normalizedDays.findIndex((day) => day.date === activeDayData?.date)),
-            )}
-          </span>
+          <span>{formatDayLabel(activeDayData?.date || normalizedDays[0].date, todayIso, tomorrowIso)}</span>
           <span>空き枠をタップして予約へ</span>
         </div>
         <div className="relative space-y-3 border-l border-dashed border-neutral-borderLight/70 pl-6">
@@ -257,7 +249,7 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
             timelineSlots.map((slot) => {
               const meta = statusMeta[slot.status]
               const isDisabled = slot.status === 'blocked'
-              const isHighlighted = highlightedSlot === slot.start_at
+              const isHighlighted = highlightedSlot === slot.start
               const baseClass = clsx(
                 'flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary',
                 isDisabled
@@ -268,19 +260,19 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
               const content = (
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="font-semibold text-neutral-text">{formatTimeLabel(slot.start_at)}〜{formatTimeLabel(slot.end_at)}</div>
+                    <div className="font-semibold text-neutral-text">{formatTimeLabel(slot.start)}〜{formatTimeLabel(slot.end)}</div>
                     <div className="text-[11px] text-neutral-textMuted">{meta.label}</div>
                   </div>
                   <span className={clsx('text-base font-bold', meta.color)}>{meta.symbol}</span>
                 </div>
               )
               return isDisabled ? (
-                <div key={slot.start_at} className={baseClass}>
+                <div key={slot.start} className={baseClass}>
                   {content}
                 </div>
               ) : (
                 <button
-                  key={slot.start_at}
+                  key={slot.start}
                   type="button"
                   className={baseClass}
                   onClick={() => handleSlotClick(slot)}

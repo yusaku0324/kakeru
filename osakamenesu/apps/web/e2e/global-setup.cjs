@@ -5,6 +5,10 @@ const path = require('node:path')
 const dns = require('node:dns').promises
 const { request } = require('@playwright/test')
 
+const ADMIN_WEB_HOST = (process.env.ADMIN_WEB_HOST || 'web').trim() || 'web'
+const ADMIN_WEB_PORT = (process.env.ADMIN_WEB_PORT || '3000').trim() || '3000'
+const ADMIN_WEB_PROTOCOL = (process.env.ADMIN_WEB_PROTOCOL || 'http').trim() || 'http'
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -158,21 +162,15 @@ async function runSeed() {
 }
 
 function resolveAdminWebHealthBase() {
-  const host = (process.env.ADMIN_WEB_HOST || '').trim()
-  const port = (process.env.ADMIN_WEB_PORT || '').trim() || '3000'
-  const protocol = (process.env.ADMIN_WEB_PROTOCOL || '').trim() || 'http'
-  if (!host) {
-    return 'http://web:3000'
+  if (/^https?:\/\//i.test(ADMIN_WEB_HOST)) {
+    return ADMIN_WEB_HOST.replace(/\/$/, '')
   }
-  if (host.startsWith('http://') || host.startsWith('https://')) {
-    return host
-  }
-  const portSegment = port ? `:${port}` : ''
-  return `${protocol}://${host}${portSegment}`
+  const portSegment = ADMIN_WEB_PORT ? `:${ADMIN_WEB_PORT}` : ''
+  return `${ADMIN_WEB_PROTOCOL}://${ADMIN_WEB_HOST}${portSegment}`
 }
 
 function resolveWebBase() {
-  const adminOverride = process.env.ADMIN_WEB_HOST ? resolveAdminWebHealthBase() : null
+  const adminOverride = ADMIN_WEB_HOST ? resolveAdminWebHealthBase() : null
   const candidates = [
     adminOverride,
     process.env.E2E_INTERNAL_WEB_BASE,
@@ -295,6 +293,7 @@ async function createDashboardStorage() {
   const email = process.env.E2E_TEST_DASHBOARD_EMAIL ?? 'playwright-dashboard@example.com'
   const displayName = process.env.E2E_TEST_DASHBOARD_NAME ?? 'Playwright Dashboard User'
 
+  console.log(`[playwright] admin web host=${ADMIN_WEB_HOST} port=${ADMIN_WEB_PORT}`)
   await waitForService(adminHealthBase, {
     path: '/api/health',
     label: `admin web (${adminHealthBase})`,

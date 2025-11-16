@@ -142,7 +142,7 @@ export default function SiteHeaderNav() {
             ログイン
           </button>
           <Link href="/dashboard/login" className={baseButtonClass}>
-            店舗ログイン
+            店舗ダッシュボード
           </Link>
           <Link
             href="/dashboard/favorites"

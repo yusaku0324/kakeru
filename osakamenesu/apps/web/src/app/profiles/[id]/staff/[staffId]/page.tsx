@@ -9,8 +9,9 @@ import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
 import { TherapistSchedule } from '@/features/therapist/ui/TherapistSchedule'
-import { fetchShop, type ShopDetail, type StaffSummary } from '../../page'
 import { buildStaffIdentifier, staffMatchesIdentifier, slugifyStaffIdentifier } from '@/lib/staff'
+import { toLocalDateISO } from '@/lib/date'
+import { fetchShop, type ShopDetail, type StaffSummary } from '../../page'
 
 function findStaff(shop: ShopDetail, staffId: string): StaffSummary | null {
   if (!staffId) return null
@@ -44,6 +45,12 @@ type StaffPageProps = {
 const dayFormatter = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
 
 function formatDayLabel(dateStr: string): string {
+  const iso = toLocalDateISO(new Date(dateStr))
+  if (!iso) return dateStr
+  const todayIso = toLocalDateISO(new Date())
+  const tomorrowIso = toLocalDateISO(new Date(Date.now() + 24 * 60 * 60 * 1000))
+  if (iso === todayIso) return '今日'
+  if (iso === tomorrowIso) return '明日'
   const date = new Date(dateStr)
   if (Number.isNaN(date.getTime())) return dateStr
   return dayFormatter.format(date)
@@ -59,13 +66,6 @@ function toTimeLabel(iso: string): string {
       hour12: false,
     })
     .replace(/^24:/, '00:')
-}
-
-function toLocalDateISO(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
 }
 
 function toDateTimeLocal(iso?: string | null) {
@@ -214,6 +214,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
     const availabilityMap = new Map(staffAvailability.map((day) => [day.date, day]))
     const baseDate = new Date()
     baseDate.setHours(0, 0, 0, 0)
+    const todayIso = toLocalDateISO(baseDate)
     const preview = Array.from({ length: 7 }).map((_, index) => {
       const target = new Date(baseDate.getTime())
       target.setDate(baseDate.getDate() + index)
@@ -221,7 +222,7 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
       const existing = availabilityMap.get(iso)
       return {
         date: iso,
-        is_today: index === 0,
+        is_today: iso === todayIso,
         slots: existing?.slots ?? [],
       }
     })
