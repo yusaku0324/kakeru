@@ -92,6 +92,10 @@ services:
     command: ["npm", "run", "dev"]
     depends_on:
       - osakamenesu-api
+    networks:
+      default:
+        aliases:
+          - web
 
 volumes:
   osakamenesu-db-data: {}

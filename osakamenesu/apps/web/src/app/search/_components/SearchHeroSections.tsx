@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import type { ShopHit } from '@/components/shop/ShopCard'
+import { formatNextAvailableSlotLabel, toNextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 
 export type SpotlightItem = {
   id: string
@@ -59,19 +60,6 @@ type SearchAvailableTodayProps = {
 const quickChipClass =
   'inline-flex items-center gap-1 rounded-full border border-white/60 bg-white/80 px-2 py-0.5 text-[11px] font-semibold text-neutral-text'
 
-const timeFormatter = new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit' })
-
-function formatAvailability(hit: ShopHit) {
-  if (hit.today_available) return 'すぐ案内可'
-  if (hit.next_available_at) {
-    const date = new Date(hit.next_available_at)
-    if (!Number.isNaN(date.getTime())) {
-      return `${timeFormatter.format(date)}〜`
-    }
-  }
-  return '空き状況を確認'
-}
-
 export function SearchAvailableToday({ shops }: SearchAvailableTodayProps) {
   const items = shops.slice(0, 4)
   return (
@@ -90,6 +78,10 @@ export function SearchAvailableToday({ shops }: SearchAvailableTodayProps) {
           {items.map((shop) => {
             const href = shop.slug ? `/shops/${shop.slug}` : `/shops/${shop.id}`
             const tags = Array.isArray(shop.service_tags) ? shop.service_tags.filter(Boolean).slice(0, 2) : []
+            const nextSlotPayload = shop.next_available_slot ?? toNextAvailableSlotPayload(shop.next_available_at)
+            const nextSlotLabel =
+              formatNextAvailableSlotLabel(nextSlotPayload) ??
+              (shop.today_available === false ? '本日の受付は終了しました' : '最短の空き枠: 情報確認中')
             return (
               <a
                 key={shop.id}
@@ -108,10 +100,10 @@ export function SearchAvailableToday({ shops }: SearchAvailableTodayProps) {
                       ))}
                     </div>
                   ) : null}
+                  <p className="mt-2 text-xs font-semibold text-brand-primary">{nextSlotLabel}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1 text-xs text-brand-primary">
                   <Badge variant="brand" className="text-[10px]">{shop.today_available ? '本日空きあり' : '要確認'}</Badge>
-                  <span className="font-semibold">{formatAvailability(shop)}</span>
                 </div>
               </a>
             )
@@ -125,4 +117,3 @@ export function SearchAvailableToday({ shops }: SearchAvailableTodayProps) {
     </section>
   )
 }
-

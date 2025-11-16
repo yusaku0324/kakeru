@@ -66,44 +66,10 @@ const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
   day: 'numeric',
   weekday: 'short',
 })
-const timeFormatter = new Intl.DateTimeFormat('ja-JP', {
-  hour: '2-digit',
-  minute: '2-digit',
-})
-
 function formatPriceRange(min: number, max: number) {
   if (!min && !max) return '料金情報なし'
   if (min === max) return `¥${formatter.format(min)}`
   return `¥${formatter.format(min)} 〜 ¥${formatter.format(Math.max(min, max))}`
-}
-
-function getAvailability(hit: ShopHit): { label: string; tone: 'success' | 'danger' | 'neutral' } | null {
-  const now = new Date()
-  const referenceIso = hit.next_available_slot?.start_at ?? hit.next_available_at ?? null
-
-  if (referenceIso) {
-    const at = new Date(referenceIso)
-    if (!Number.isNaN(at.getTime())) {
-      if (at.getTime() <= now.getTime()) {
-        return { label: 'ただいま案内可能', tone: 'success' }
-      }
-
-      const sameDay =
-        at.getFullYear() === now.getFullYear() &&
-        at.getMonth() === now.getMonth() &&
-        at.getDate() === now.getDate()
-      const timeLabel = timeFormatter.format(at)
-      if (sameDay) {
-        return { label: `最短 ${timeLabel}〜`, tone: 'success' }
-      }
-      return { label: `${dateFormatter.format(at)} ${timeLabel}〜`, tone: 'neutral' }
-    }
-  }
-
-  if (hit.today_available) {
-    return { label: '本日空きあり', tone: 'success' }
-  }
-  return null
 }
 
 function getProfileHref(hit: ShopHit) {
@@ -112,7 +78,7 @@ function getProfileHref(hit: ShopHit) {
 }
 
 export function ShopCard({ hit }: { hit: ShopHit }) {
-  const availability = getAvailability(hit)
+  const availabilityBadge = hit.today_available ? '本日空きあり' : null
   const nextSlotPayload = hit.next_available_slot ?? toNextAvailableSlotPayload(hit.next_available_at)
   const nextSlotLabel = formatNextAvailableSlotLabel(nextSlotPayload)
   const distanceLabel = (() => {
@@ -169,9 +135,7 @@ export function ShopCard({ hit }: { hit: ShopHit }) {
                 <h3 className="text-lg font-semibold tracking-tight text-neutral-text group-hover:text-brand-primary">
                   {hit.name}
                 </h3>
-                {availability ? (
-                  <Badge variant={availability.tone === 'success' ? 'success' : 'neutral'}>{availability.label}</Badge>
-                ) : null}
+                {availabilityBadge ? <Badge variant="success">{availabilityBadge}</Badge> : null}
               </div>
               {hit.store_name ? (
                 <p className="text-sm text-neutral-textMuted">{hit.store_name}</p>
