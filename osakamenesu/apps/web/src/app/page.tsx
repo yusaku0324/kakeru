@@ -74,7 +74,7 @@ export default function HomePage() {
               </span>
               <h1 className="text-3xl font-semibold tracking-tight text-neutral-text">セラピストを探す</h1>
               <p className="max-w-3xl text-sm leading-relaxed text-neutral-textMuted">
-                最新の出勤情報や写メ日記、スタッフ紹介まで、メンエス選びに欲しい情報をワンストップで届けます。エリアや得意な施術から、あなたにぴったりのセラピストを見つけてください。
+                出勤予定や写メ日記、在籍スタッフの雰囲気まで、大阪のメンエス情報をここでまとめてチェックできます。エリアや得意な施術、今日の気分に合わせて、会いに行きたいセラピストを気軽に探してみてください。
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link

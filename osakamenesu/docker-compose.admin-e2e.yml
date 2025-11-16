@@ -132,6 +132,8 @@ services:
       web:
         condition: service_healthy
     command: ["bash", "/workspace/scripts/run_admin_e2e.sh"]
+    links:
+      - web
     networks:
       - admin-e2e
 

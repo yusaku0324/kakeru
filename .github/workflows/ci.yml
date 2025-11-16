@@ -546,11 +546,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Smoke check web health
-        working-directory: osakamenesu
-        run: |
-          curl -fsS http://localhost:3000/ > /dev/null
-
       - name: Teardown admin e2e stack
         if: always()
         working-directory: osakamenesu

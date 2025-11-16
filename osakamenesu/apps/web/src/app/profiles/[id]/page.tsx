@@ -16,6 +16,7 @@ import type { TherapistHit } from '@/components/staff/TherapistCard'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { formatNextAvailableSlotLabel, toNextAvailableSlotPayload, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
+import { sampleShopToDetail } from '@/lib/sampleShopAdapters'
 import ShopReservationCardClient from './ShopReservationCardClient'
 
 type Props = {
@@ -93,30 +94,6 @@ type DiaryEntry = {
   published_at?: string | null
 }
 
-function deriveStaffNextSlots(sample: SampleShop): Map<string, NextAvailableSlotPayload> {
-  const staffSlots = new Map<string, NextAvailableSlotPayload>()
-  const days = sample.availability_calendar?.days ?? []
-  if (!days.length) return staffSlots
-  const nowMs = Date.now()
-
-  for (const day of days) {
-    const sortedSlots = [...day.slots].sort((a, b) => a.start_at.localeCompare(b.start_at))
-    for (const slot of sortedSlots) {
-      if (!slot.staff_id) continue
-      if (staffSlots.has(slot.staff_id)) continue
-      if (slot.status !== 'open' && slot.status !== 'tentative') continue
-      const startMs = Date.parse(slot.start_at)
-      if (!Number.isNaN(startMs) && startMs < nowMs) continue
-      staffSlots.set(slot.staff_id, {
-        start_at: slot.start_at,
-        status: slot.status === 'open' ? 'ok' : 'maybe',
-      })
-    }
-  }
-
-  return staffSlots
-}
-
 export type ShopDetail = {
   id: string
   slug?: string | null
@@ -163,7 +140,7 @@ async function fetchShop(id: string, preferApi = false): Promise<ShopDetail> {
 
   const fallback = SAMPLE_SHOPS.find((shop) => shop.id === id || shop.slug === id)
   if (fallback) {
-    return convertSampleShop(fallback)
+    return sampleShopToDetail(fallback)
   }
 
   notFound()
@@ -172,89 +149,6 @@ async function fetchShop(id: string, preferApi = false): Promise<ShopDetail> {
 function uuidFromString(input: string): string {
   const hash = createHash('sha1').update(input).digest('hex')
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`
-}
-
-function convertSampleShop(sample: SampleShop): ShopDetail {
-  const staffNextSlots = deriveStaffNextSlots(sample)
-  const staff = (sample.staff || []).map((member, index) => {
-    const sourceId = member.id || `${sample.id}-staff-${index}`
-    const slotSourceId = member.id ?? sourceId
-    const slot = member.next_available_slot ?? staffNextSlots.get(slotSourceId) ?? null
-    return {
-      id: sourceId,
-      name: member.name,
-      alias: member.alias ?? null,
-      avatar_url: member.avatar_url ?? null,
-      headline: member.headline ?? null,
-      rating: member.rating ?? null,
-      review_count: member.review_count ?? null,
-      specialties: member.specialties ?? null,
-      today_available: member.today_available ?? null,
-      next_available_slot: slot,
-      next_available_at: member.next_available_at ?? slot?.start_at ?? null,
-    }
-  })
-
-  const staffIdMap = new Map<string, string>()
-  staff.forEach((member, index) => {
-    const sourceId = sample.staff?.[index]?.id || `${sample.id}-staff-${index}`
-    staffIdMap.set(sourceId, member.id)
-  })
-
-  const availability_calendar = sample.availability_calendar
-    ? {
-        shop_id: sample.id,
-        generated_at: sample.availability_calendar.generated_at,
-        days: sample.availability_calendar.days.map((day) => ({
-          date: day.date,
-          is_today: day.is_today ?? null,
-          slots: day.slots.map((slot) => ({
-            start_at: slot.start_at,
-            end_at: slot.end_at,
-            status: slot.status,
-            staff_id: slot.staff_id ? staffIdMap.get(slot.staff_id) || slot.staff_id : null,
-            menu_id: slot.menu_id ?? null,
-          })),
-        })),
-      }
-    : null
-
-  return {
-    id: sample.id,
-    slug: sample.slug ?? sample.id,
-    name: sample.name,
-    area: sample.area,
-    area_name: sample.area_name ?? null,
-    min_price: sample.min_price,
-    max_price: sample.max_price,
-    description: sample.description ?? null,
-    catch_copy: sample.catch_copy ?? null,
-    photos: sample.photos?.map((photo) => ({ url: photo.url })) ?? null,
-    contact: sample.contact ?? null,
-    menus: sample.menus?.map((menu, index) => ({
-      id: menu.id || uuidFromString(`menu:${sample.id}:${index}`),
-      name: menu.name,
-      description: menu.description ?? null,
-      duration_minutes: menu.duration_minutes ?? null,
-      price: menu.price,
-      currency: 'JPY',
-      is_reservable_online: true,
-      tags: menu.tags ?? null,
-    })) ?? null,
-    staff,
-    availability_calendar,
-    badges: sample.badges ?? null,
-    today_available: sample.today_available ?? null,
-    service_tags: sample.service_tags ?? null,
-    metadata: sample.metadata ?? null,
-    store_name: sample.store_name ?? null,
-    promotions: sample.promotions ?? null,
-    ranking_reason: sample.ranking_reason ?? null,
-    reviews: sample.reviews ?? null,
-    diary_count: sample.diary_count ?? null,
-    has_diaries: sample.has_diaries ?? null,
-    diaries: sample.diaries ?? null,
-  }
 }
 
 const formatYen = (n: number) => `¥${Number(n).toLocaleString('ja-JP')}`

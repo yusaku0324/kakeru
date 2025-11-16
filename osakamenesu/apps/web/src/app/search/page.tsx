@@ -613,10 +613,10 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                 {heroShowsTherapist ? 'セラピストを探す' : '大阪メンエスを探す'}
               </h1>
               <p className="max-w-2xl text-sm leading-relaxed text-neutral-textMuted">
-                最新の出勤情報や写メ日記、スタッフ紹介まで、メンエス選びに欲しい情報をワンストップで届けます。
+                出勤予定や写メ日記、在籍スタッフの空気感まで、大阪のメンエス情報をここでまとめてチェックできます。
                 {heroShowsTherapist
-                  ? ' エリアや得意な施術から、あなたにぴったりのセラピストを見つけてください。'
-                  : ' 気になるエリアや料金帯を組み合わせて、ぴったりの店舗を見つけましょう。'}
+                  ? ' エリアや得意な施術、今日の気分に合わせて、会いに行きたいセラピストを探してみてください。'
+                  : ' 予算やエリア、こだわり条件を組み合わせて、自分に合う店舗を見つけてください。'}
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link
