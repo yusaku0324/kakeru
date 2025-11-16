@@ -92,10 +92,11 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
 
   const sourceDays = useMemo(() => (fullDays?.length ? fullDays : days), [days, fullDays])
   const previewDays = useMemo(() => (days.length ? days : sourceDays), [days, sourceDays])
+  const now = useMemo(() => new Date(), [])
   const allSlots = useMemo(() => flattenScheduleDays(sourceDays), [sourceDays])
-  const todayIso = toLocalDateISO(new Date())
-  const tomorrowIso = toLocalDateISO(new Date(Date.now() + 24 * 60 * 60 * 1000))
-  const todayDisplayLabel = dayFormatter.format(new Date())
+  const todayIso = toLocalDateISO(now)
+  const tomorrowIso = toLocalDateISO(new Date(now.getTime() + 24 * 60 * 60 * 1000))
+  const todayDisplayLabel = dayFormatter.format(now)
 
   const normalizedDays = useMemo(() => {
     return previewDays.map((day) => {
@@ -127,7 +128,7 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
     })
   }, [previewDays, todayIso, tomorrowIso])
 
-  const fallbackNextSlot = useMemo(() => findNextAvailableSlot(allSlots), [allSlots])
+  const fallbackNextSlot = useMemo(() => findNextAvailableSlot(allSlots, now.getTime()), [allSlots, now])
   const hasGlobalSlots = allSlots.length > 0
   const initialDayFromSlot = useMemo(() => {
     if (initialSlotIso) {

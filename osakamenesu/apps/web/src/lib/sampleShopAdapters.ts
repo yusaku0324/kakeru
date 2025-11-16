@@ -7,6 +7,39 @@ import type { SampleShop } from './sampleShops'
 
 const priceFormatter = new Intl.NumberFormat('ja-JP')
 
+const SAMPLE_REBASE_SOURCE = new Date('2025-10-07T00:00:00+09:00')
+const SAMPLE_REBASE_TARGET = (() => {
+  const base = new Date()
+  base.setHours(0, 0, 0, 0)
+  return base
+})()
+
+function rebaseDate(original: Date) {
+  const diff = original.getTime() - SAMPLE_REBASE_SOURCE.getTime()
+  return new Date(SAMPLE_REBASE_TARGET.getTime() + diff)
+}
+
+function rebaseIsoDate(value?: string | null): string | null | undefined {
+  if (!value) return value
+  const parsed = new Date(`${value}T00:00:00+09:00`)
+  if (Number.isNaN(parsed.getTime())) return value
+  return rebaseDate(parsed).toISOString().slice(0, 10)
+}
+
+function rebaseIsoDateTime(value?: string | null): string | null | undefined {
+  if (!value) return value
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return rebaseDate(parsed).toISOString()
+}
+
+function rebaseNextSlot(slot?: SampleNextSlot | null): SampleNextSlot | null {
+  if (!slot) return null
+  const rebasedStart = rebaseIsoDateTime(slot.start_at)
+  if (!rebasedStart) return slot
+  return { ...slot, start_at: rebasedStart }
+}
+
 type PriceBandDefinition = {
   key: string
   lower: number
@@ -244,6 +277,10 @@ export function sampleShopToHit(sample: SampleShop): ShopHit {
           const originalId = member.id ?? null
           const previewId = member.id || uuidFromString(`staff:${sample.id}:${index}`)
           const staffSlot = originalId ? staffSlots.get(originalId) ?? null : null
+          const mergedSlot = member.next_available_slot ?? staffSlot ?? null
+          const rebasedSlot = rebaseNextSlot(mergedSlot)
+          const nextAvailableAt =
+            rebaseIsoDateTime(member.next_available_at ?? staffSlot?.start_at ?? null) ?? member.next_available_at ?? staffSlot?.start_at ?? null
           return {
             id: previewId,
             name: member.name,
@@ -254,16 +291,18 @@ export function sampleShopToHit(sample: SampleShop): ShopHit {
             avatar_url: member.avatar_url ?? null,
             specialties: member.specialties ?? null,
             today_available: member.today_available ?? null,
-            next_available_slot: member.next_available_slot ?? staffSlot ?? null,
-            next_available_at: member.next_available_at ?? staffSlot?.start_at ?? null,
+            next_available_slot: rebasedSlot,
+            next_available_at: nextAvailableAt,
           }
         })
     : null
 
   const hasPromotions = sample.has_promotions ?? Boolean(sample.promotions?.length)
   const promotionCount = sample.promotion_count ?? sample.promotions?.length ?? 0
-  const shopSlot = sample.next_available_slot ?? computedShopSlot ?? null
-  const nextAvailableAt = sample.next_available_at ?? shopSlot?.start_at ?? null
+  const rawShopSlot = sample.next_available_slot ?? computedShopSlot ?? null
+  const shopSlot = rebaseNextSlot(rawShopSlot)
+  const nextAvailableAt =
+    rebaseIsoDateTime(sample.next_available_at ?? rawShopSlot?.start_at ?? null) ?? sample.next_available_at ?? rawShopSlot?.start_at ?? null
 
   return {
     id: sample.id,
@@ -308,6 +347,7 @@ export function sampleShopToDetail(sample: SampleShop): ShopDetail {
     ? sample.staff.map((member, index) => {
         const staffId = member.id || uuidFromString(`staff:${sample.id}:${index}`)
         const staffSlot = member.id ? detailStaffSlots.get(member.id) ?? null : null
+        const mergedSlot = member.next_available_slot ?? staffSlot ?? null
         return {
           id: staffId,
           name: member.name,
@@ -317,7 +357,7 @@ export function sampleShopToDetail(sample: SampleShop): ShopDetail {
           rating: member.rating ?? null,
           review_count: member.review_count ?? null,
           specialties: member.specialties ?? null,
-          next_available_slot: member.next_available_slot ?? staffSlot ?? null,
+          next_available_slot: rebaseNextSlot(mergedSlot),
         }
       })
     : null
@@ -331,13 +371,13 @@ export function sampleShopToDetail(sample: SampleShop): ShopDetail {
   const availability_calendar: AvailabilityCalendar | null = sample.availability_calendar
     ? {
         shop_id: sample.id,
-        generated_at: sample.availability_calendar.generated_at,
+        generated_at: rebaseIsoDateTime(sample.availability_calendar.generated_at) ?? sample.availability_calendar.generated_at,
         days: sample.availability_calendar.days.map((day, dayIndex) => ({
-          date: day.date,
+          date: rebaseIsoDate(day.date) ?? day.date,
           is_today: day.is_today ?? null,
           slots: day.slots.map((slot, slotIndex) => ({
-            start_at: slot.start_at,
-            end_at: slot.end_at,
+            start_at: rebaseIsoDateTime(slot.start_at) ?? slot.start_at,
+            end_at: rebaseIsoDateTime(slot.end_at) ?? slot.end_at,
             status: slot.status,
             staff_id: slot.staff_id ? staffIdMap.get(slot.staff_id) || slot.staff_id : null,
             menu_id: slot.menu_id || uuidFromString(`menu:${sample.id}:${dayIndex}:${slotIndex}`),
@@ -384,7 +424,7 @@ export function sampleShopToDetail(sample: SampleShop): ShopDetail {
       }))
     : null
 
-  const detailShopSlot = sample.next_available_slot ?? detailComputedSlot ?? null
+  const detailShopSlot = rebaseNextSlot(sample.next_available_slot ?? detailComputedSlot ?? null)
 
   const photos = Array.isArray(sample.photos)
     ? sample.photos.map((photo) => ({
@@ -416,7 +456,12 @@ export function sampleShopToDetail(sample: SampleShop): ShopDetail {
     metadata: {
       updated_at: sample.updated_at ?? null,
       distance_km: sample.distance_km ?? null,
-      next_available_at: sample.next_available_at ?? detailShopSlot?.start_at ?? null,
+      next_available_at:
+        rebaseIsoDateTime(sample.next_available_at ?? detailComputedSlot?.start_at ?? null) ??
+        sample.next_available_at ??
+        detailComputedSlot?.start_at ??
+        detailShopSlot?.start_at ??
+        null,
     },
     store_name: sample.store_name ?? null,
     promotions: sample.promotions ?? null,
