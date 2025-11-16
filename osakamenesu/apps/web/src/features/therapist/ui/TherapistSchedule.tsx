@@ -95,6 +95,7 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
   const allSlots = useMemo(() => flattenScheduleDays(sourceDays), [sourceDays])
   const todayIso = toLocalDateISO(new Date())
   const tomorrowIso = toLocalDateISO(new Date(Date.now() + 24 * 60 * 60 * 1000))
+  const todayDisplayLabel = dayFormatter.format(new Date())
 
   const normalizedDays = useMemo(() => {
     return previewDays.map((day) => {
@@ -187,10 +188,11 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
   return (
     <section className="rounded-section border border-neutral-borderLight/70 bg-white/90 p-6 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/80">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">空き枠サマリー</p>
-          <p className="text-sm font-semibold text-neutral-text">次に入れる時間: {summaryLabel}</p>
-        </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">空き枠サマリー</p>
+        <p className="text-sm font-semibold text-neutral-text">次に入れる時間: {summaryLabel}</p>
+        <p className="text-[11px] text-neutral-textMuted">本日: {todayDisplayLabel}</p>
+      </div>
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs text-neutral-textMuted">タップで予約フォームへ移動します</p>
           {summarySlot && summarySlot.status !== 'blocked' ? (
@@ -227,10 +229,7 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
                 className={chipClass}
                 aria-pressed={activeDay === day.date}
               >
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-textMuted">
-                  {day.isToday ? 'TODAY' : day.isWeekend ? 'WEEKEND' : 'DAY'}
-                </span>
-                <span className="text-sm font-semibold">{day.label}</span>
+                <span className="text-sm font-semibold text-neutral-text">{day.label}</span>
                 <span className="text-[11px] text-neutral-textMuted">{day.availabilityLabel}</span>
                 <span className={indicatorClass} aria-hidden />
               </button>
