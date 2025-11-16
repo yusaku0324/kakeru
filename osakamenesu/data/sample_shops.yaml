@@ -7,8 +7,8 @@ shops:
     tags: [清楚, スレンダー]
     badges: [人気No.1]
     photos:
-      - https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1100&q=80
-      - https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1100&q=80
+      - /images/demo-shop-1.svg
+      - /images/demo-shop-2.svg
     description: |
       完全個室のラグジュアリー空間で、厳選セラピストが極上の癒しをご提供します。
       梅田駅より徒歩3分、深夜帯も受付中。
@@ -27,14 +27,14 @@ shops:
         body: |
           本日は13時と18時に空きがございます。ご予約お待ちしています♪
         photos:
-          - https://images.unsplash.com/photo-1523419409543-0c1df022bdd7?auto=format&fit=crop&w=900&q=80
+          - /images/demo-shop-3.svg
         hashtags: [みなみ, 本日空き]
         published_at: 2024-06-09T21:00:00+09:00
       - title: 新作オイルのご紹介
         body: |
           さらっとした質感で夏にぴったりのシトラス系オイルを導入しました。ぜひ体験してください！
         photos:
-          - https://images.unsplash.com/photo-1556228578-8c89e6adf883?auto=format&fit=crop&w=900&q=80
+          - /images/demo-shop-2.svg
         hashtags: [オイル, 夏キャンペーン]
         published_at: 2024-06-08T18:30:00+09:00
     contact:
@@ -85,7 +85,7 @@ shops:
     service_type: dispatch
     tags: [明るい, お姉さん]
     photos:
-      - https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1100&q=80
+      - /images/demo-shop-3.svg
     description: ふらっと立ち寄れるアットホームな癒し空間。
     promotions:
       - label: 20時までのご来店でドリンクサービス

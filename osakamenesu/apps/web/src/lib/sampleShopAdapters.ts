@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 
 import type { ShopHit } from '@/components/shop/ShopCard'
+import type { NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 
 import type { SampleShop } from './sampleShops'
 
@@ -124,6 +125,7 @@ export type ShopDetail = {
   availability_calendar?: AvailabilityCalendar | null
   badges?: string[] | null
   today_available?: boolean | null
+  next_available_slot?: NextAvailableSlotPayload | null
   service_tags?: string[] | null
   metadata?: Record<string, unknown> | null
   store_name?: string | null
@@ -133,6 +135,44 @@ export type ShopDetail = {
   diary_count?: number | null
   has_diaries?: boolean | null
   diaries?: DiaryEntry[] | null
+}
+
+type SampleNextSlot = NextAvailableSlotPayload
+
+function normalizeSlotStatus(status: 'open' | 'tentative' | 'blocked'): SampleNextSlot['status'] | null {
+  if (status === 'open') return 'ok'
+  if (status === 'tentative') return 'maybe'
+  return null
+}
+
+function computeSampleNextSlots(sample: SampleShop): { shopSlot: SampleNextSlot | null; staffSlots: Map<string, SampleNextSlot> } {
+  const staffSlots = new Map<string, SampleNextSlot>()
+  let computedShopSlot: { ts: number; slot: SampleNextSlot } | null = null
+  const calendar = sample.availability_calendar
+  if (!calendar?.days?.length) {
+    return { shopSlot: null, staffSlots }
+  }
+  const now = Date.now()
+  for (const day of calendar.days) {
+    const slots = Array.isArray(day.slots) ? day.slots : []
+    for (const slot of slots) {
+      const normalizedStatus = normalizeSlotStatus(slot.status)
+      if (!normalizedStatus) continue
+      const ts = Date.parse(slot.start_at)
+      if (Number.isNaN(ts) || ts < now) continue
+      const payload: SampleNextSlot = { start_at: slot.start_at, status: normalizedStatus }
+      if (!computedShopSlot || ts < computedShopSlot.ts) {
+        computedShopSlot = { ts, slot: payload }
+      }
+      if (slot.staff_id) {
+        const existing = staffSlots.get(slot.staff_id)
+        if (!existing || Date.parse(existing.start_at) > ts) {
+          staffSlots.set(slot.staff_id, payload)
+        }
+      }
+    }
+  }
+  return { shopSlot: computedShopSlot?.slot ?? null, staffSlots }
 }
 
 function uuidFromString(input: string): string {
@@ -195,24 +235,35 @@ function fallbackPriceBandLabel(sample: SampleShop): string | null {
 export function sampleShopToHit(sample: SampleShop): ShopHit {
   const { key: priceBandKey, label: computedPriceBandLabel } = computePriceBand(sample)
   const priceBandLabel = computedPriceBandLabel ?? fallbackPriceBandLabel(sample)
+  const { shopSlot: computedShopSlot, staffSlots } = computeSampleNextSlots(sample)
   const staffPreview = Array.isArray(sample.staff)
     ? sample.staff
         .filter((member) => Boolean(member?.name))
         .slice(0, 3)
-        .map((member) => ({
-          id: member.id,
-          name: member.name,
-          alias: member.alias ?? null,
-          headline: member.headline ?? null,
-          rating: member.rating ?? null,
-          review_count: member.review_count ?? null,
-          avatar_url: member.avatar_url ?? null,
-          specialties: member.specialties ?? null,
-        }))
+        .map((member, index) => {
+          const originalId = member.id ?? null
+          const previewId = member.id || uuidFromString(`staff:${sample.id}:${index}`)
+          const staffSlot = originalId ? staffSlots.get(originalId) ?? null : null
+          return {
+            id: previewId,
+            name: member.name,
+            alias: member.alias ?? null,
+            headline: member.headline ?? null,
+            rating: member.rating ?? null,
+            review_count: member.review_count ?? null,
+            avatar_url: member.avatar_url ?? null,
+            specialties: member.specialties ?? null,
+            today_available: member.today_available ?? null,
+            next_available_slot: member.next_available_slot ?? staffSlot ?? null,
+            next_available_at: member.next_available_at ?? staffSlot?.start_at ?? null,
+          }
+        })
     : null
 
   const hasPromotions = sample.has_promotions ?? Boolean(sample.promotions?.length)
   const promotionCount = sample.promotion_count ?? sample.promotions?.length ?? 0
+  const shopSlot = sample.next_available_slot ?? computedShopSlot ?? null
+  const nextAvailableAt = sample.next_available_at ?? shopSlot?.start_at ?? null
 
   return {
     id: sample.id,
@@ -231,7 +282,8 @@ export function sampleShopToHit(sample: SampleShop): ShopHit {
     lead_image_url: sample.photos?.[0]?.url ?? null,
     badges: sample.badges ?? null,
     today_available: sample.today_available ?? null,
-    next_available_at: sample.next_available_at ?? null,
+    next_available_at: nextAvailableAt,
+    next_available_slot: shopSlot,
     distance_km: sample.distance_km ?? null,
     online_reservation:
       sample.online_reservation ??
@@ -251,17 +303,23 @@ export function sampleShopToHit(sample: SampleShop): ShopHit {
 }
 
 export function sampleShopToDetail(sample: SampleShop): ShopDetail {
+  const { shopSlot: detailComputedSlot, staffSlots: detailStaffSlots } = computeSampleNextSlots(sample)
   const staff: StaffSummary[] | null = Array.isArray(sample.staff)
-    ? sample.staff.map((member, index) => ({
-        id: member.id || uuidFromString(`staff:${sample.id}:${index}`),
-        name: member.name,
-        alias: member.alias ?? null,
-        avatar_url: member.avatar_url ?? null,
-        headline: member.headline ?? null,
-        rating: member.rating ?? null,
-        review_count: member.review_count ?? null,
-        specialties: member.specialties ?? null,
-      }))
+    ? sample.staff.map((member, index) => {
+        const staffId = member.id || uuidFromString(`staff:${sample.id}:${index}`)
+        const staffSlot = member.id ? detailStaffSlots.get(member.id) ?? null : null
+        return {
+          id: staffId,
+          name: member.name,
+          alias: member.alias ?? null,
+          avatar_url: member.avatar_url ?? null,
+          headline: member.headline ?? null,
+          rating: member.rating ?? null,
+          review_count: member.review_count ?? null,
+          specialties: member.specialties ?? null,
+          next_available_slot: member.next_available_slot ?? staffSlot ?? null,
+        }
+      })
     : null
 
   const staffIdMap = new Map<string, string>()
@@ -326,6 +384,8 @@ export function sampleShopToDetail(sample: SampleShop): ShopDetail {
       }))
     : null
 
+  const detailShopSlot = sample.next_available_slot ?? detailComputedSlot ?? null
+
   const photos = Array.isArray(sample.photos)
     ? sample.photos.map((photo) => ({
         url: photo.url,
@@ -351,11 +411,12 @@ export function sampleShopToDetail(sample: SampleShop): ShopDetail {
     availability_calendar,
     badges: sample.badges ?? null,
     today_available: sample.today_available ?? null,
+    next_available_slot: detailShopSlot,
     service_tags: sample.service_tags ?? null,
     metadata: {
       updated_at: sample.updated_at ?? null,
       distance_km: sample.distance_km ?? null,
-      next_available_at: sample.next_available_at ?? null,
+      next_available_at: sample.next_available_at ?? detailShopSlot?.start_at ?? null,
     },
     store_name: sample.store_name ?? null,
     promotions: sample.promotions ?? null,

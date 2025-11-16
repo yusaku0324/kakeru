@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-label="Sample spa room">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ecfccb" />
+      <stop offset="100%" stop-color="#bae6fd" />
+    </linearGradient>
+    <linearGradient id="table" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fcd34d" />
+      <stop offset="100%" stop-color="#fb923c" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="900" fill="url(#bg2)" />
+  <rect x="200" y="380" width="800" height="260" rx="60" fill="url(#table)" />
+  <rect x="220" y="420" width="760" height="180" rx="50" fill="#fef9c3" />
+  <circle cx="960" cy="220" r="90" fill="#fcd34d" />
+  <circle cx="240" cy="220" r="70" fill="#86efac" />
+  <rect x="460" y="160" width="220" height="140" rx="32" fill="#ffffff" opacity="0.8" />
+</svg>

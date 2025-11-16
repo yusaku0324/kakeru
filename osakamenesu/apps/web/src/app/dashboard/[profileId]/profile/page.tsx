@@ -5,8 +5,8 @@ import { ShopProfileEditor } from './ShopProfileEditor'
 import { fetchDashboardShopProfile } from '@/lib/dashboard-shops'
 import { fetchDashboardTherapists } from '@/lib/dashboard-therapists'
 
-function cookieHeaderFromStore(): string | undefined {
-  const store = cookies()
+async function cookieHeaderFromStore(): Promise<string | undefined> {
+  const store = await cookies()
   const entries = store.getAll()
   if (!entries.length) {
     return undefined
@@ -20,10 +20,11 @@ export const revalidate = 0
 export default async function DashboardShopProfilePage({
   params,
 }: {
-  params: { profileId: string }
+  params: Promise<{ profileId: string }>
 }) {
-  const cookieHeader = cookieHeaderFromStore()
-  const result = await fetchDashboardShopProfile(params.profileId, { cookieHeader })
+  const { profileId } = await params
+  const cookieHeader = await cookieHeaderFromStore()
+  const result = await fetchDashboardShopProfile(profileId, { cookieHeader })
 
   if (result.status === 'unauthorized') {
     return (
@@ -78,7 +79,7 @@ export default async function DashboardShopProfilePage({
 
   const data = result.data
 
-  const therapistResult = await fetchDashboardTherapists(params.profileId, { cookieHeader })
+  const therapistResult = await fetchDashboardTherapists(profileId, { cookieHeader })
 
   const initialTherapists = therapistResult.status === 'success' ? therapistResult.data : []
   const initialTherapistsError = (() => {

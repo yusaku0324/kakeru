@@ -65,3 +65,14 @@ mise run fix_quarantine -- path/to/dir
 - `scripts/dev_magic_link.sh` でマジックリンクの URL を取得できます。
 
 これらのツールを導入したら、`docs/local-helper-scripts.md` も参照してください。
+
+## 7. Docker での API/DB ワークフロー
+
+- `docker compose` でバックエンドを起動するときは、API コンテナが **必ず** `postgresql+asyncpg://app:app@osakamenesu-db:5432/osaka_menesu` に接続するようにしてください。ホスト側の `DATABASE_URL` などが上書きしないよう `docker-compose.yml` の値をそのまま使います。
+- Alembic が存在しないリビジョンで止まった場合（例: `Can't locate revision identified by 'xxxx'`）は、ローカル DB をリセットします。**注意: これによりローカルのデータはすべて失われます。**
+  ```bash
+  docker compose down
+  docker volume rm osakamenesu_osakamenesu-db-data
+  docker compose up osakamenesu-db osakamenesu-redis osakamenesu-meili osakamenesu-api
+  ```
+  新しい空の DB に対して、コンテナ起動時に `alembic upgrade head` が再実行されます。

@@ -1,12 +1,15 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 
+import DashboardReservationFeed from '@/features/reservations/ui/DashboardReservationFeed'
+import DashboardReservationDaySummary from '@/features/reservations/ui/DashboardReservationDaySummary'
 import { Card } from '@/components/ui/Card'
 import { fetchDashboardShopProfile } from '@/lib/dashboard-shops'
 
-function cookieHeaderFromStore(): string | undefined {
-  const store = cookies()
+async function cookieHeaderFromStore(): Promise<string | undefined> {
+  const store = await cookies()
   const entries = store.getAll()
+  console.log('[DashboardHomePage] cookies entries', entries.length)
   if (!entries.length) {
     return undefined
   }
@@ -19,10 +22,11 @@ export const revalidate = 0
 export default async function DashboardHomePage({
   params,
 }: {
-  params: { profileId: string }
+  params: Promise<{ profileId: string }>
 }) {
-  const cookieHeader = cookieHeaderFromStore()
-  const result = await fetchDashboardShopProfile(params.profileId, { cookieHeader })
+  const { profileId } = await params
+  const cookieHeader = await cookieHeaderFromStore()
+  const result = await fetchDashboardShopProfile(profileId, { cookieHeader })
 
   if (result.status === 'unauthorized') {
     return (
@@ -128,6 +132,10 @@ export default async function DashboardHomePage({
           </div>
         </Card>
       </section>
-    </main>
-  )
+
+      <DashboardReservationDaySummary profileId={data.id} />
+
+      <DashboardReservationFeed profileId={data.id} slug={data.slug} className="border-none shadow-none p-0" />
+   </main>
+ )
 }

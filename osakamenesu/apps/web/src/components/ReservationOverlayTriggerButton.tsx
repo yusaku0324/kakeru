@@ -9,14 +9,17 @@ import { openReservationOverlay } from './reservationOverlayBus'
 type OverlayPayload = Omit<ReservationOverlayProps, 'onClose'>
 
 type ReservationOverlayTriggerButtonProps = React.ComponentPropsWithoutRef<'button'> & {
-  overlay: OverlayPayload
+  overlay?: OverlayPayload
+  payload?: OverlayPayload
   defaultStart?: string | null
   defaultDurationMinutes?: number | null
   hitOverride?: OverlayPayload['hit']
 }
 
 const ReservationOverlayTriggerButton = forwardRef<HTMLButtonElement, ReservationOverlayTriggerButtonProps>(
-  ({ overlay, defaultStart, defaultDurationMinutes, hitOverride, onClick, type, ...rest }, ref) => (
+  ({ overlay: overlayProp, payload, defaultStart, defaultDurationMinutes, hitOverride, onClick, type, ...rest }, ref) => {
+    const overlay = payload ?? overlayProp
+    return (
     <button
       {...rest}
       ref={ref}
@@ -24,6 +27,11 @@ const ReservationOverlayTriggerButton = forwardRef<HTMLButtonElement, Reservatio
       onClick={(event) => {
         if (onClick) onClick(event)
         if (event.defaultPrevented) return
+
+        if (!overlay) {
+          console.warn('[ReservationOverlayTriggerButton] overlay payload is missing')
+          return
+        }
 
         const payload: OverlayPayload = {
           ...overlay,
@@ -38,7 +46,8 @@ const ReservationOverlayTriggerButton = forwardRef<HTMLButtonElement, Reservatio
         openReservationOverlay(payload)
       }}
     />
-  ),
+    )
+  },
 )
 
 ReservationOverlayTriggerButton.displayName = 'ReservationOverlayTriggerButton'

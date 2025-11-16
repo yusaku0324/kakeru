@@ -5,7 +5,7 @@ from typing import Optional, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ... import models
@@ -13,6 +13,7 @@ from ...db import get_session
 from ...schemas import (
     Reservation as ReservationSchema,
     ReservationCreateRequest,
+    ReservationPreferredSlot,
     ReservationStatusEvent,
     ReservationUpdateRequest,
 )
@@ -34,6 +35,16 @@ def _reservation_to_schema(reservation: models.Reservation) -> ReservationSchema
             note=event.note,
         )
         for event in sorted(reservation.status_events, key=lambda e: e.changed_at)
+    ]
+    preferred_slots = [
+        ReservationPreferredSlot(
+            id=slot.id,
+            desired_start=slot.desired_start,
+            desired_end=slot.desired_end,
+            status=slot.status,  # type: ignore[arg-type]
+            created_at=slot.created_at,
+        )
+        for slot in sorted(getattr(reservation, "preferred_slots", []), key=lambda s: s.desired_start)
     ]
 
     customer = {
@@ -60,7 +71,21 @@ def _reservation_to_schema(reservation: models.Reservation) -> ReservationSchema
         marketing_opt_in=reservation.marketing_opt_in,
         created_at=reservation.created_at,
         updated_at=reservation.updated_at,
+        preferred_slots=preferred_slots,
     )
+
+
+@router.delete("")
+async def delete_reservations(
+    shop_id: UUID,
+    db: AsyncSession = Depends(get_session),
+    _: None = Depends(require_admin),
+) -> dict[str, int]:
+    stmt = delete(models.Reservation).where(models.Reservation.shop_id == shop_id)
+    result = await db.execute(stmt)
+    await db.commit()
+    deleted = result.rowcount or 0
+    return {"deleted": deleted}
 
 
 async def _ensure_shop(db: AsyncSession, shop_id: UUID) -> models.Profile:
@@ -173,10 +198,19 @@ async def create_reservation(
     )
     reservation.status_events.append(status_event)
 
+    if payload.preferred_slots:
+        for slot in payload.preferred_slots:
+            reservation.preferred_slots.append(
+                models.ReservationPreferredSlot(
+                    desired_start=slot.desired_start,
+                    desired_end=slot.desired_end,
+                    status=slot.status,
+                )
+            )
+
     db.add(reservation)
-    await db.commit()
-    await db.refresh(reservation)
-    await db.refresh(reservation, attribute_names=["status_events"])
+    await db.flush()
+    await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
 
     channels_config = await _resolve_notification_channels(db, reservation.shop_id, reservation.status)
 
@@ -215,6 +249,7 @@ async def create_reservation(
     )
     await enqueue_reservation_notification(db, notification)
     await db.commit()
+    await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
 
     return _reservation_to_schema(reservation).model_dump()
 
@@ -277,7 +312,7 @@ async def update_reservation(
 
     await db.commit()
     await db.refresh(reservation)
-    await db.refresh(reservation, attribute_names=["status_events"])
+    await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
 
     if status_changed:
         shop = await _ensure_shop(db, reservation.shop_id)

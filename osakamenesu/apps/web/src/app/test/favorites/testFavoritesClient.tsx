@@ -20,7 +20,11 @@ const sampleTherapist: TherapistHit = {
   shopArea: '京橋',
   shopAreaName: '京橋',
   todayAvailable: true,
-  nextAvailableAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+  nextAvailableSlot: {
+    start_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+    status: 'ok',
+  },
+  nextAvailableAt: null,
 }
 
 export default function TestFavoritesClient() {

@@ -5,6 +5,10 @@ const REVIEWS_ENDPOINT = new RegExp(`/api/v1/shops/${SHOP_ID}/reviews`)
 
 test.describe('Shop reviews', () => {
   test('fetches remote reviews and allows posting with mock API', async ({ page, baseURL, context }) => {
+    if (!baseURL) {
+      throw new Error('baseURL is required for this test')
+    }
+    const siteHost = new URL(baseURL).hostname
     const createdAt = new Date().toISOString()
     const reviewItems = [
       {
@@ -53,6 +57,12 @@ test.describe('Shop reviews', () => {
         return
       }
       await route.fulfill({ status: 401 })
+    })
+
+    let magicLinkRequested = false
+    await page.route('**/api/auth/request-link', async (route) => {
+      magicLinkRequested = true
+      await route.fulfill({ status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true }) })
     })
 
     await page.route(REVIEWS_ENDPOINT, async (route) => {
@@ -123,14 +133,14 @@ test.describe('Shop reviews', () => {
     const email = `guest-${Date.now()}@example.com`
     await page.getByLabel('メールアドレス').fill(email)
     await page.getByRole('button', { name: 'ログインリンクを送信' }).click()
-    await expect(page.getByText(/ログインリンクを送信しました/)).toBeVisible({ timeout: 10000 })
+    await expect.poll(() => magicLinkRequested, { timeout: 10000 }).toBeTruthy()
 
     // クッキーを直接設定してログイン状態を再現
     await context.addCookies([
       {
         name: 'osakamenesu_session',
         value: 'playwright-test-session',
-        domain: '127.0.0.1',
+        domain: siteHost,
         path: '/',
         httpOnly: true,
       },

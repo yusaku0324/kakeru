@@ -64,11 +64,12 @@ async function forwardDelete(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { therapistId: string } },
+  context: { params: Promise<{ therapistId: string }> },
 ): Promise<NextResponse> {
+  const { therapistId } = await context.params
   if (isMockFavoritesMode()) {
     const favorites = readMockFavorites(req)
-    removeMockFavorite(favorites, params.therapistId)
+    removeMockFavorite(favorites, therapistId)
     const response = new NextResponse(null, { status: 204 })
     writeMockFavorites(response, favorites)
     return response
@@ -79,7 +80,7 @@ export async function DELETE(
   }
 
   try {
-    const response = await forwardDelete(req, params.therapistId)
+    const response = await forwardDelete(req, therapistId)
     if (shouldFallbackForStatus(response.status)) {
       return response
     }

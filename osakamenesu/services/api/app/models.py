@@ -21,6 +21,7 @@ TherapistStatus = Enum('draft', 'published', 'archived', name='therapist_status'
 # bust_tag はマイグレーション互換性のため VARCHAR で運用
 ServiceType = Enum('store', 'dispatch', name='service_type')
 ReservationStatus = Enum('pending', 'confirmed', 'declined', 'cancelled', 'expired', name='reservation_status')
+ReservationSlotStatus = Enum('open', 'tentative', 'blocked', name='reservation_slot_status')
 RESERVATION_NOTIFICATION_CHANNEL_KEYS = ('email', 'slack', 'line', 'log')
 RESERVATION_NOTIFICATION_STATUS_KEYS = ('pending', 'in_progress', 'succeeded', 'failed', 'cancelled')
 RESERVATION_NOTIFICATION_ATTEMPT_STATUS_KEYS = ('success', 'failure')
@@ -352,6 +353,7 @@ class Reservation(Base):
     customer_remark: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
+    reminder_scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
     status_events: Mapped[list['ReservationStatusEvent']] = relationship(
         back_populates='reservation', cascade='all, delete-orphan', order_by='ReservationStatusEvent.changed_at'
@@ -362,6 +364,11 @@ class Reservation(Base):
         order_by='ReservationNotificationDelivery.created_at',
     )
     user: Mapped[User | None] = relationship(back_populates='reservations')
+    preferred_slots: Mapped[list['ReservationPreferredSlot']] = relationship(
+        back_populates='reservation',
+        cascade='all, delete-orphan',
+        order_by='ReservationPreferredSlot.desired_start',
+    )
 
 
 class ReservationStatusEvent(Base):
@@ -377,6 +384,21 @@ class ReservationStatusEvent(Base):
     note: Mapped[str | None] = mapped_column(Text)
 
     reservation: Mapped['Reservation'] = relationship(back_populates='status_events')
+
+
+class ReservationPreferredSlot(Base):
+    __tablename__ = 'reservation_preferred_slots'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    reservation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey('reservations.id', ondelete='CASCADE'), index=True
+    )
+    desired_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    desired_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(ReservationSlotStatus, nullable=False, default='open', index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+
+    reservation: Mapped['Reservation'] = relationship(back_populates='preferred_slots')
 
 
 class ReservationNotificationChannelOption(Base):

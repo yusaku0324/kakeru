@@ -5,9 +5,14 @@ import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Section } from '@/components/ui/Section'
 
-export default function ThankYouPage({ searchParams }: { searchParams: { reservation?: string; shop?: string } }) {
-  const reservationId = searchParams.reservation || ''
-  const shopId = searchParams.shop || ''
+export default async function ThankYouPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reservation?: string; shop?: string }>
+}) {
+  const resolvedSearchParams = await searchParams
+  const reservationId = resolvedSearchParams.reservation || ''
+  const shopId = resolvedSearchParams.shop || ''
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-10 text-center">

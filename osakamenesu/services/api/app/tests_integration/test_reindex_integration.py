@@ -113,6 +113,7 @@ async def _create_profile() -> models.Profile:
 
     async with SessionLocal() as session:
         session.add(profile)
+        await session.flush()
         session.add(availability)
         session.add(outlink)
         session.add(review)

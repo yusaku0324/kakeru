@@ -4,10 +4,12 @@ import logging
 from datetime import UTC, datetime, timedelta
 from importlib import import_module
 from typing import Optional
+import sys
 
 from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
@@ -20,9 +22,22 @@ from ...utils.email import MailNotConfiguredError, send_email_async
 logger = logging.getLogger("app.auth")
 
 
+def _settings_candidates():
+    seen: set[int] = set()
+    primaries = [globals().get("settings"), getattr(import_module("app.settings"), "settings", None)]
+    for candidate in primaries:
+        if candidate is not None and id(candidate) not in seen:
+            seen.add(id(candidate))
+            yield candidate
+    for module in list(sys.modules.values()):
+        candidate = getattr(module, "settings", None)
+        if candidate is not None and id(candidate) not in seen:
+            seen.add(id(candidate))
+            yield candidate
+
+
 def _resolve_settings():
-    module = import_module("app.settings")
-    return getattr(module, "settings")
+    return next(_settings_candidates(), settings)
 
 
 def _ip_from_request(request: Request) -> Optional[str]:
@@ -36,34 +51,29 @@ def _hash_ip(ip: Optional[str]) -> Optional[str]:
 
 
 def _session_cookie_names(scope: str | None = None) -> list[str]:
-    resolved = _resolve_settings()
     names: list[str] = []
-    if scope == "dashboard":
-        candidates = [
-            getattr(resolved, "dashboard_session_cookie_name", None),
-            getattr(settings, "dashboard_session_cookie_name", None),
-        ]
-    elif scope == "site":
-        candidates = [
-            getattr(resolved, "site_session_cookie_name", None),
-            getattr(settings, "site_session_cookie_name", None),
-        ]
-    else:
-        candidates = [
-            getattr(resolved, "dashboard_session_cookie_name", None),
-            getattr(resolved, "site_session_cookie_name", None),
-            getattr(settings, "dashboard_session_cookie_name", None),
-            getattr(settings, "site_session_cookie_name", None),
-        ]
 
-    for name in candidates:
-        if name and name not in names:
-            names.append(name)
+    def _append(value: str | None) -> None:
+        if value and value not in names:
+            names.append(value)
 
-    if scope in (None, "dashboard"):
-        legacy = getattr(settings, "auth_session_cookie_name", None)
-        if legacy and legacy not in names:
-            names.append(legacy)
+    for candidate in _settings_candidates():
+        if scope == "dashboard":
+            _append(getattr(candidate, "dashboard_session_cookie_name", None))
+        elif scope == "site":
+            _append(getattr(candidate, "site_session_cookie_name", None))
+        else:
+            _append(getattr(candidate, "dashboard_session_cookie_name", None))
+            _append(getattr(candidate, "site_session_cookie_name", None))
+
+        if scope in (None, "dashboard"):
+            _append(getattr(candidate, "auth_session_cookie_name", None))
+
+    if not names:
+        if scope == "site":
+            names.append("osakamenesu_session")
+        else:
+            names.append("osakamenesu_session")
     return names
 
 
@@ -317,8 +327,13 @@ class AuthMagicLinkService:
         if not user:
             user = models.User(email=email, display_name=display_name)
             db.add(user)
-            await db.flush()
-        elif display_name and user.display_name != display_name:
+            try:
+                await db.flush()
+            except IntegrityError:
+                await db.rollback()
+                result = await db.execute(stmt)
+                user = result.scalar_one()
+        if display_name and user.display_name != display_name:
             user.display_name = display_name
 
         now = datetime.now(UTC)

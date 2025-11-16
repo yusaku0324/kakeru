@@ -10,8 +10,8 @@ const INTERNAL_API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
   '/api'
 
-function serializeCookieHeader(): string | undefined {
-  const store = cookies()
+async function serializeCookieHeader(): Promise<string | undefined> {
+  const store = await cookies()
   const entries = store.getAll()
   if (!entries.length) {
     return undefined
@@ -25,7 +25,7 @@ type DashboardResolveResult =
   | { status: 'empty' }
 
 async function resolveFirstDashboardShopId(): Promise<DashboardResolveResult> {
-  const cookieHeader = serializeCookieHeader()
+  const cookieHeader = await serializeCookieHeader()
   const url = buildApiUrl(INTERNAL_API_BASE, 'api/dashboard/shops?limit=1')
 
   try {

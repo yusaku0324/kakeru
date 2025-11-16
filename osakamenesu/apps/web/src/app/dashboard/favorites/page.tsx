@@ -62,8 +62,8 @@ const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
 
 const currencyFormatter = new Intl.NumberFormat('ja-JP')
 
-function serializeCookies(): string | undefined {
-  const store = cookies()
+async function serializeCookies(): Promise<string | undefined> {
+  const store = await cookies()
   const entries = store.getAll()
   if (!entries.length) {
     return undefined
@@ -276,7 +276,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function FavoritesDashboardPage() {
-  const cookieHeader = serializeCookies()
+  const cookieHeader = await serializeCookies()
   const [userResult, favoritesResult, therapistFavoritesResult] = await Promise.all([
     fetchSiteUser(cookieHeader),
     fetchFavorites(cookieHeader),

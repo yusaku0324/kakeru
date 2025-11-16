@@ -6,7 +6,7 @@
       "ES2022",
       "DOM"
     ],
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "noEmit": true,
@@ -15,6 +15,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@proxy": [
+        "./proxy"
       ]
     },
     "allowJs": true,
@@ -31,8 +34,9 @@
   "include": [
     "next-env.d.ts",
     "src/**/*",
-    "src/middleware.ts",
-    ".next/types/**/*.ts"
+    "src/proxy.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

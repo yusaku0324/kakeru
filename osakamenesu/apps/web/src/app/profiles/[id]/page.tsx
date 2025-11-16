@@ -1,7 +1,8 @@
-import Image from 'next/image'
 import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
 import type { Metadata } from 'next'
 import { createHash } from 'crypto'
+import SafeImage from '@/components/SafeImage'
 import Gallery from '@/components/Gallery'
 import RecentlyViewedRecorder from '@/components/RecentlyViewedRecorder'
 import type { ReservationOverlayProps } from '@/components/ReservationOverlay'
@@ -13,10 +14,16 @@ import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
 import type { TherapistHit } from '@/components/staff/TherapistCard'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
+import { formatNextAvailableSlotLabel, toNextAvailableSlotPayload, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
 import ShopReservationCardClient from './ShopReservationCardClient'
 
-type Props = { params: { id: string }; searchParams?: Record<string, string | string[] | undefined> }
+type Props = {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+const SITE_SESSION_COOKIE = process.env.SITE_SESSION_COOKIE_NAME || 'osakamenesu_session'
 
 type MediaImage = { url: string; kind?: string | null; caption?: string | null }
 type Contact = {
@@ -51,6 +58,9 @@ export type StaffSummary = {
   rating?: number | null
   review_count?: number | null
   specialties?: string[] | null
+  today_available?: boolean | null
+  next_available_slot?: NextAvailableSlotPayload | null
+  next_available_at?: string | null
 }
 type AvailabilitySlot = { start_at: string; end_at: string; status: 'open' | 'tentative' | 'blocked'; staff_id?: string | null; menu_id?: string | null }
 type AvailabilityDay = { date: string; is_today?: boolean | null; slots: AvailabilitySlot[] }
@@ -83,6 +93,30 @@ type DiaryEntry = {
   published_at?: string | null
 }
 
+function deriveStaffNextSlots(sample: SampleShop): Map<string, NextAvailableSlotPayload> {
+  const staffSlots = new Map<string, NextAvailableSlotPayload>()
+  const days = sample.availability_calendar?.days ?? []
+  if (!days.length) return staffSlots
+  const nowMs = Date.now()
+
+  for (const day of days) {
+    const sortedSlots = [...day.slots].sort((a, b) => a.start_at.localeCompare(b.start_at))
+    for (const slot of sortedSlots) {
+      if (!slot.staff_id) continue
+      if (staffSlots.has(slot.staff_id)) continue
+      if (slot.status !== 'open' && slot.status !== 'tentative') continue
+      const startMs = Date.parse(slot.start_at)
+      if (!Number.isNaN(startMs) && startMs < nowMs) continue
+      staffSlots.set(slot.staff_id, {
+        start_at: slot.start_at,
+        status: slot.status === 'open' ? 'ok' : 'maybe',
+      })
+    }
+  }
+
+  return staffSlots
+}
+
 export type ShopDetail = {
   id: string
   slug?: string | null
@@ -111,22 +145,26 @@ export type ShopDetail = {
   diaries?: DiaryEntry[] | null
 }
 
-async function fetchShop(id: string): Promise<ShopDetail> {
-  const targets = resolveApiBases()
-  const endpoint = `/api/v1/shops/${id}`
-
-  for (const base of targets) {
-    try {
-      const r = await fetch(buildApiUrl(base, endpoint), { cache: 'no-store' })
-      if (r.ok) return (await r.json()) as ShopDetail
-      if (r.status === 404) continue
-    } catch (error) {
-      // try next base
+async function fetchShop(id: string, preferApi = false): Promise<ShopDetail> {
+  if (preferApi) {
+    const targets = resolveApiBases()
+    const endpoint = `/api/v1/shops/${id}`
+    for (const base of targets) {
+      try {
+        const response = await fetch(buildApiUrl(base, endpoint), { cache: 'no-store' })
+        if (response.ok) {
+          return (await response.json()) as ShopDetail
+        }
+      } catch {
+        // try next base
+      }
     }
   }
 
   const fallback = SAMPLE_SHOPS.find((shop) => shop.id === id || shop.slug === id)
-  if (fallback) return convertSampleShop(fallback)
+  if (fallback) {
+    return convertSampleShop(fallback)
+  }
 
   notFound()
 }
@@ -137,8 +175,11 @@ function uuidFromString(input: string): string {
 }
 
 function convertSampleShop(sample: SampleShop): ShopDetail {
+  const staffNextSlots = deriveStaffNextSlots(sample)
   const staff = (sample.staff || []).map((member, index) => {
     const sourceId = member.id || `${sample.id}-staff-${index}`
+    const slotSourceId = member.id ?? sourceId
+    const slot = member.next_available_slot ?? staffNextSlots.get(slotSourceId) ?? null
     return {
       id: sourceId,
       name: member.name,
@@ -148,6 +189,9 @@ function convertSampleShop(sample: SampleShop): ShopDetail {
       rating: member.rating ?? null,
       review_count: member.review_count ?? null,
       specialties: member.specialties ?? null,
+      today_available: member.today_available ?? null,
+      next_available_slot: slot,
+      next_available_at: member.next_available_at ?? slot?.start_at ?? null,
     }
   })
 
@@ -292,7 +336,13 @@ function formatDayLabel(dateStr: string): string {
 }
 
 export default async function ProfilePage({ params, searchParams }: Props) {
-  const shop = await fetchShop(params.id)
+  const [resolvedParams, resolvedSearchParams = {}] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve(undefined),
+  ])
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get(SITE_SESSION_COOKIE)
+  const shop = await fetchShop(resolvedParams.id, Boolean(sessionCookie))
   const photos = uniquePhotos(shop.photos)
   const badges = shop.badges || []
   const contact = shop.contact || {}
@@ -302,8 +352,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const staff = Array.isArray(shop.staff) ? shop.staff : []
   const availability = shop.availability_calendar?.days || []
   const slotParamValue = (() => {
-    if (!searchParams) return undefined
-    const value = searchParams.slot
+    const value = resolvedSearchParams.slot
     if (Array.isArray(value)) return value[0]
     return value
   })()
@@ -324,8 +373,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     return null
   })()
 
-  const forceReviewsFetch = parseBooleanParam(searchParams?.force_reviews ?? null)
-  const allowDemoSubmission = parseBooleanParam(searchParams?.force_demo_submit ?? null)
+  const forceReviewsFetch = parseBooleanParam(resolvedSearchParams.force_reviews ?? null)
+  const allowDemoSubmission = parseBooleanParam(resolvedSearchParams.force_demo_submit ?? null)
 
   const firstOpenSlot = (() => {
     for (const day of availability) {
@@ -387,7 +436,13 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     shopArea: shop.area,
     shopAreaName: shop.area_name ?? null,
     todayAvailable: shop.today_available ?? null,
-    nextAvailableAt: nextReservableStartIso,
+    nextAvailableSlot: nextReservableStartIso
+      ? {
+          start_at: nextReservableStartIso,
+          status: 'ok' as const,
+        }
+      : null,
+    nextAvailableAt: null,
   }
 
   const availabilityUpdatedLabel = shop.availability_calendar?.generated_at
@@ -610,7 +665,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                       </div>
                       {diary.photos?.length ? (
                         <div className="relative aspect-[4/3] overflow-hidden rounded-card bg-neutral-surfaceAlt">
-                          <Image
+                          <SafeImage
                             src={diary.photos[0]}
                             alt={diary.title || '写メ日記'}
                             fill
@@ -716,49 +771,52 @@ export default async function ProfilePage({ params, searchParams }: Props) {
           className="shadow-none border border-neutral-borderLight bg-neutral-surface"
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {staff.map((member) => (
-              <Card key={member.id} className="space-y-3 p-4">
-                <div className="flex items-start gap-3">
-                  {member.avatar_url ? (
-                    <Image
-                      src={member.avatar_url}
+            {staff.map((member) => {
+              const nextSlotLabel = formatNextAvailableSlotLabel(
+                member.next_available_slot ?? toNextAvailableSlotPayload(member.next_available_at),
+              )
+              return (
+                <Card key={member.id} className="space-y-3 p-4">
+                  <div className="flex items-start gap-3">
+                    <SafeImage
+                      src={member.avatar_url || undefined}
                       alt={`${member.name}の写真`}
                       width={64}
                       height={64}
                       className="h-16 w-16 rounded-full object-cover"
+                      fallbackSrc="/images/placeholder-avatar.svg"
                     />
-                  ) : (
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-neutral-surfaceAlt text-xs text-neutral-textMuted">
-                      NO PHOTO
+                    <div>
+                      <div className="text-base font-semibold text-neutral-text">{member.name}</div>
+                      {member.alias ? (
+                        <div className="text-xs text-neutral-textMuted">{member.alias}</div>
+                      ) : null}
+                      {member.rating ? (
+                        <div className="mt-1 flex items-center gap-2 text-xs text-neutral-textMuted">
+                          <Badge variant="outline">{member.rating.toFixed(1)}★</Badge>
+                          {member.review_count ? <span>({member.review_count}件)</span> : null}
+                        </div>
+                      ) : null}
+                      {nextSlotLabel ? (
+                        <p className="mt-1 text-xs text-neutral-textMuted">{nextSlotLabel}</p>
+                      ) : null}
                     </div>
-                  )}
-                  <div>
-                    <div className="text-base font-semibold text-neutral-text">{member.name}</div>
-                    {member.alias ? (
-                      <div className="text-xs text-neutral-textMuted">{member.alias}</div>
-                    ) : null}
-                    {member.rating ? (
-                      <div className="mt-1 flex items-center gap-2 text-xs text-neutral-textMuted">
-                        <Badge variant="outline">{member.rating.toFixed(1)}★</Badge>
-                        {member.review_count ? <span>({member.review_count}件)</span> : null}
-                      </div>
-                    ) : null}
                   </div>
-                </div>
-                {member.headline ? (
-                  <p className="text-sm leading-relaxed text-neutral-textMuted">{shorten(member.headline, 120)}</p>
-                ) : null}
-                {member.specialties?.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {member.specialties.slice(0, 6).map((tag) => (
-                      <Chip key={tag} variant="subtle">
-                        {tag}
-                      </Chip>
-                    ))}
-                  </div>
-                ) : null}
-              </Card>
-            ))}
+                  {member.headline ? (
+                    <p className="text-sm leading-relaxed text-neutral-textMuted">{shorten(member.headline, 120)}</p>
+                  ) : null}
+                  {member.specialties?.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {member.specialties.slice(0, 6).map((tag) => (
+                        <Chip key={tag} variant="subtle">
+                          {tag}
+                        </Chip>
+                      ))}
+                    </div>
+                  ) : null}
+                </Card>
+              )
+            })}
           </div>
         </Section>
       ) : null}
@@ -839,7 +897,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const shop = await fetchShop(params.id)
+  const { id } = await params
+  const shop = await fetchShop(id, false)
   const title = `${shop.name} - 大阪メンエス.com`
   const descParts = [shop.area, `${formatYen(shop.min_price)}〜${formatYen(shop.max_price)}`]
   if (shop.catch_copy) descParts.unshift(shop.catch_copy)

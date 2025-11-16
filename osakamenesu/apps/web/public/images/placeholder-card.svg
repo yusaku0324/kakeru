@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" role="img" aria-label="Placeholder">
+  <defs>
+    <linearGradient id="cardGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#dbeafe" />
+      <stop offset="50%" stop-color="#c7d2fe" />
+      <stop offset="100%" stop-color="#bfdbfe" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a5b4fc" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+  </defs>
+  <rect width="600" height="450" rx="32" fill="url(#cardGradient)" />
+  <circle cx="120" cy="140" r="58" fill="url(#accent)" opacity="0.9" />
+  <rect x="210" y="90" width="280" height="28" rx="14" fill="white" opacity="0.9" />
+  <rect x="210" y="140" width="240" height="18" rx="9" fill="white" opacity="0.7" />
+  <rect x="60" y="240" width="480" height="120" rx="24" fill="white" opacity="0.8" />
+  <rect x="90" y="270" width="420" height="20" rx="10" fill="#c7d2fe" opacity="0.9" />
+  <rect x="90" y="302" width="320" height="16" rx="8" fill="#dbeafe" />
+</svg>

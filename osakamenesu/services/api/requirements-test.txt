@@ -1,9 +1,0 @@
--r requirements.txt
-pytest
-pytest-anyio
-pytest-xdist
-httpx
-trio
-aiosqlite
-mypy
-ruff

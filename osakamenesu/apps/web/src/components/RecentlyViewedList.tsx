@@ -1,9 +1,9 @@
 "use client"
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import SafeImage from '@/components/SafeImage'
 import { Card } from '@/components/ui/Card'
 import { RECENTLY_VIEWED_STORAGE_KEY, RECENTLY_VIEWED_UPDATE_EVENT } from './RecentlyViewedRecorder'
 
@@ -110,7 +110,7 @@ export default function RecentlyViewedList({ className }: Props) {
                 <Link href={href} className="group block h-full">
                   <div className="relative h-40 w-full overflow-hidden bg-neutral-100">
                     {item.imageUrl ? (
-                      <Image
+                      <SafeImage
                         src={item.imageUrl}
                         alt={`${item.name}の写真`}
                         fill

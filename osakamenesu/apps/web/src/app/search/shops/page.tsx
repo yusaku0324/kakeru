@@ -23,18 +23,21 @@ import {
 
 const numberFormatter = new Intl.NumberFormat('ja-JP')
 
-export default async function ShopSearchPage({ searchParams }: { searchParams: Params }) {
+export default async function ShopSearchPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const resolvedSearchParams = await searchParams
   const forceSampleMode = parseBoolParam(
-    Array.isArray(searchParams.force_samples) ? searchParams.force_samples[0] : searchParams.force_samples,
+    Array.isArray(resolvedSearchParams.force_samples)
+      ? resolvedSearchParams.force_samples[0]
+      : resolvedSearchParams.force_samples,
   )
 
-  const data = forceSampleMode ? buildSampleResponse(searchParams) : await fetchSearchResults(searchParams)
+  const data = forceSampleMode ? buildSampleResponse(resolvedSearchParams) : await fetchSearchResults(resolvedSearchParams)
   const { results, facets, _error, page, page_size: pageSize, total } = data
   const hits = results ?? []
   const hasHits = hits.length > 0
 
   const sampleFallbackAllowed = !hasHits
-  const displayHits = hasHits ? hits : applyClientFilters(searchParams, SAMPLE_RESULTS)
+  const displayHits = hasHits ? hits : applyClientFilters(resolvedSearchParams, SAMPLE_RESULTS)
   const shopTotal = hasHits ? total : displayHits.length
   const resolvedPageSize = hasHits ? pageSize || 12 : displayHits.length || 12
   const resolvedPage = hasHits ? page || 1 : 1
