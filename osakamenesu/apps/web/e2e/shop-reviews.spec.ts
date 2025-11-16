@@ -130,6 +130,10 @@ test.describe('Shop reviews', () => {
     await page.getByRole('link', { name: 'ログインページへ' }).click()
     await page.waitForURL('**/auth/login')
 
+    // ログイン画面では右上の「ログイン」ボタンからオーバーレイを開く仕様に変更されたため、
+    // Playwright でも同じ操作を再現してからメールアドレス入力を行う。
+    await page.getByRole('button', { name: 'ログイン' }).first().click()
+
     const email = `guest-${Date.now()}@example.com`
     await page.getByLabel('メールアドレス').fill(email)
     await page.getByRole('button', { name: 'ログインリンクを送信' }).click()
