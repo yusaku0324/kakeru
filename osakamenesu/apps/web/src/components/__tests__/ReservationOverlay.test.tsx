@@ -26,7 +26,6 @@ const baseHit: TherapistHit = {
     start_at: '2025-11-04T12:00:00+09:00',
     status: 'ok',
   },
-  nextAvailableAt: null,
 }
 
 const availabilityDays = [

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
-from ....schemas import ReviewCreateRequest
+from ...schemas import ReviewCreateRequest
 from .services.shop.search_service import ShopSearchService
 from .services.shop.diary_service import ShopDiaryService
 from .services.shop_services import (

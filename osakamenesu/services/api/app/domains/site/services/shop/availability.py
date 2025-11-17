@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
-from typing import Any, Iterable, List, Tuple, Dict
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, Iterable, List, Tuple
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models
+from app.utils.datetime import ensure_jst_datetime, now_jst, parse_jst_isoformat
 from app.schemas import (
     AvailabilityCalendar,
     AvailabilityDay,
@@ -34,8 +35,18 @@ def convert_slots(slots_json: Any) -> List[AvailabilitySlot]:
         if not (start and end):
             continue
         try:
-            start_dt = datetime.fromisoformat(start)
-            end_dt = datetime.fromisoformat(end)
+            if isinstance(start, str):
+                start_dt = parse_jst_isoformat(start)
+            elif isinstance(start, datetime):
+                start_dt = ensure_jst_datetime(start)
+            else:
+                continue
+            if isinstance(end, str):
+                end_dt = parse_jst_isoformat(end)
+            elif isinstance(end, datetime):
+                end_dt = ensure_jst_datetime(end)
+            else:
+                continue
         except Exception:
             continue
         staff_uuid = None
@@ -88,7 +99,7 @@ async def fetch_availability(
         return None
 
     days: List[AvailabilityDay] = []
-    today = date.today()
+    today = now_jst().date()
     for record in records:
         slots = convert_slots(record.slots_json)
         days.append(
@@ -100,7 +111,7 @@ async def fetch_availability(
         )
     return AvailabilityCalendar(
         shop_id=shop_id,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=now_jst(),
         days=days,
     )
 
@@ -108,7 +119,7 @@ async def fetch_availability(
 def _build_next_slot_candidate(
     slot: AvailabilitySlot,
     *,
-    now_utc: datetime,
+    now_jst_value: datetime,
 ) -> Tuple[datetime, NextAvailableSlot] | None:
     status = slot.status or "open"
     if status not in {"open", "tentative"}:
@@ -116,14 +127,11 @@ def _build_next_slot_candidate(
     start = slot.start_at
     if not isinstance(start, datetime):
         return None
-    if start.tzinfo is None:
-        comparable = start.replace(tzinfo=timezone.utc)
-    else:
-        comparable = start.astimezone(timezone.utc)
-    if comparable < now_utc:
+    comparable = ensure_jst_datetime(start)
+    if comparable < now_jst_value:
         return None
     payload = NextAvailableSlot(
-        start_at=start,
+        start_at=comparable,
         status="ok" if status == "open" else "maybe",
     )
     return comparable, payload
@@ -136,7 +144,7 @@ async def fetch_next_available_slots(
 ) -> tuple[dict[UUID, NextAvailableSlot], dict[UUID, NextAvailableSlot]]:
     if not shop_ids:
         return {}, {}
-    today = date.today()
+    today = now_jst().date()
     end_date = today + timedelta(days=lookahead_days)
     stmt = (
         select(
@@ -151,13 +159,13 @@ async def fetch_next_available_slots(
     )
     result = await db.execute(stmt)
     rows = result.all()
-    now_utc = datetime.now(timezone.utc)
+    now_value = now_jst()
     shop_map: dict[UUID, tuple[datetime, NextAvailableSlot]] = {}
     staff_map: dict[UUID, tuple[datetime, NextAvailableSlot]] = {}
     for profile_id, slots_json, _slot_date in rows:
         slots = convert_slots(slots_json)
         for slot in slots:
-            candidate = _build_next_slot_candidate(slot, now_utc=now_utc)
+            candidate = _build_next_slot_candidate(slot, now_jst_value=now_value)
             if not candidate:
                 continue
             comparable, payload = candidate

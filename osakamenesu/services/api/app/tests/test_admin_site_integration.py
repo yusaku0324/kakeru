@@ -29,7 +29,7 @@ TODO: 管理APIを実際に叩いて name や availability を更新 → 公開A
 import os
 import sys
 import uuid
-from datetime import UTC, date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any, Dict
 
@@ -116,6 +116,7 @@ from app.schemas import (  # type: ignore  # noqa: E402
 from app.domains.site import shops as site_shops  # type: ignore  # noqa: E402
 from app.domains.site.services import shop_services  # type: ignore  # noqa: E402
 from app.domains.site.services.shop import search_service as search_module  # type: ignore  # noqa: E402
+from app.utils.datetime import JST, now_jst
 
 
 class _SessionStub:
@@ -129,7 +130,7 @@ class _SessionStub:
 
 
 def _build_profile_fixture() -> models.Profile:
-    now = datetime.now(UTC)
+    now = now_jst()
     profile = models.Profile(
         id=uuid.uuid4(),
         slug="relax-admin",
@@ -228,9 +229,7 @@ def _build_availability(
     profile_id: uuid.UUID,
 ) -> tuple[AvailabilityCalendar, NextAvailableSlot, AvailabilitySlot]:
     slot_date = date.today()
-    slot_start = datetime.combine(
-        slot_date, time(hour=6, minute=0, tzinfo=timezone.utc)
-    )
+    slot_start = datetime.combine(slot_date, time(hour=6, minute=0, tzinfo=JST))
     slot_end = slot_start + timedelta(hours=1)
     staff_id = uuid.uuid4()
     menu_id = uuid.uuid4()
@@ -243,7 +242,7 @@ def _build_availability(
     )
     calendar = AvailabilityCalendar(
         shop_id=profile_id,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=now_jst(),
         days=[
             AvailabilityDay(
                 date=slot_date,
@@ -340,7 +339,7 @@ def _build_search_hits(profile: models.Profile) -> Dict[str, Any]:
                 "has_promotions": True,
                 "has_discounts": True,
                 "today": True,
-                "updated_at": datetime.now().timestamp(),
+                "updated_at": now_jst().timestamp(),
             }
         ],
         "estimatedTotalHits": 1,

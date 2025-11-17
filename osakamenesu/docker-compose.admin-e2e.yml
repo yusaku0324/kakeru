@@ -7,6 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-app}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
       POSTGRES_DB: app
+      TZ: Asia/Tokyo
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-app}"]
       interval: 5s
@@ -50,6 +51,7 @@ services:
       TEST_AUTH_SECRET: ${TEST_AUTH_SECRET:-dev_test_auth}
       E2E_TEST_AUTH_SECRET: ${E2E_TEST_AUTH_SECRET:-dev_test_auth}
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
+      TZ: Asia/Tokyo
     depends_on:
       db:
         condition: service_healthy
@@ -90,6 +92,7 @@ services:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
       NEXT_PUBLIC_MEILI_HOST: http://meili:7700
       NEXT_PUBLIC_MEILI_API_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
+      TZ: Asia/Tokyo
     ports:
       - "3000:3000"
     depends_on:
@@ -125,6 +128,7 @@ services:
       ADMIN_BASIC_USER: ${ADMIN_BASIC_USER:-admin}
       ADMIN_BASIC_PASS: ${ADMIN_BASIC_PASS:-password}
       CI: "1"
+      TZ: Asia/Tokyo
     volumes:
       - .:/workspace
       - admin-e2e-web-node-modules:/workspace/apps/web/node_modules

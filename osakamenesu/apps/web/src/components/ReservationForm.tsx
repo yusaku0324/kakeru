@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 
+import { formatDatetimeLocal, toZonedDayjs } from '@/lib/timezone'
+
 import ReservationContactBar from './ReservationContactBar'
 import { ToastContainer, useToast } from './useToast'
 
@@ -51,16 +53,10 @@ type FormErrors = Partial<Record<'name' | 'phone' | 'email' | 'desiredStart', st
 const PROFILE_STORAGE_KEY = 'reservation.profile.v1'
 const MINUTES_OPTIONS = [60, 90, 120, 150, 180]
 
-function buildIsoLocal(date: Date) {
-  const tzOffset = date.getTimezoneOffset() * 60000
-  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16)
-}
-
 function nextHourIsoLocal(minutesAhead = 120) {
-  const now = new Date()
-  now.setMinutes(now.getMinutes() + minutesAhead)
-  now.setSeconds(0, 0)
-  return buildIsoLocal(now)
+  const candidate = toZonedDayjs().add(minutesAhead, 'minute').second(0).millisecond(0)
+  const formatted = formatDatetimeLocal(candidate)
+  return formatted || ''
 }
 
 function loadStoredProfile(): StoredProfile | null {

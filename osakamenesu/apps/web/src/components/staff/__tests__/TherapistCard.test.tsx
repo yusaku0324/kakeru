@@ -56,7 +56,6 @@ const BASE_HIT: TherapistHit = {
     start_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     status: 'ok',
   },
-  nextAvailableAt: null,
 }
 
 describe('TherapistCard favorite button', () => {

@@ -24,7 +24,6 @@ const sampleTherapist: TherapistHit = {
     start_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     status: 'ok',
   },
-  nextAvailableAt: null,
 }
 
 export default function TestFavoritesClient() {

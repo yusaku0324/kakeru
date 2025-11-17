@@ -2,7 +2,8 @@
 FROM python:3.12-slim AS api-base
 WORKDIR /app
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_DEFAULT_TIMEOUT=100
+    PIP_DEFAULT_TIMEOUT=100 \
+    TZ=Asia/Tokyo
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl wget ca-certificates \
     && rm -rf /var/lib/apt/lists/*

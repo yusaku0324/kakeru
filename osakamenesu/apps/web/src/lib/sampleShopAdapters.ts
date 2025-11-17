@@ -4,33 +4,34 @@ import type { ShopHit } from '@/components/shop/ShopCard'
 import type { NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 
 import type { SampleShop } from './sampleShops'
+import { formatZonedIso, toZonedDayjs, type Dayjs } from '@/lib/timezone'
 
 const priceFormatter = new Intl.NumberFormat('ja-JP')
 
-const SAMPLE_REBASE_SOURCE = new Date('2025-10-07T00:00:00+09:00')
-const SAMPLE_REBASE_TARGET = (() => {
-  const base = new Date()
-  base.setHours(0, 0, 0, 0)
-  return base
-})()
+const SAMPLE_REBASE_SOURCE = toZonedDayjs('2025-10-07T00:00:00').startOf('day')
+const SAMPLE_REBASE_TARGET = toZonedDayjs().startOf('day')
 
-function rebaseDate(original: Date) {
-  const diff = original.getTime() - SAMPLE_REBASE_SOURCE.getTime()
-  return new Date(SAMPLE_REBASE_TARGET.getTime() + diff)
+function rebaseDate(original: Dayjs | string | Date): Dayjs {
+  const base = toZonedDayjs(original)
+  if (!base.isValid()) return base
+  const diff = base.valueOf() - SAMPLE_REBASE_SOURCE.valueOf()
+  return SAMPLE_REBASE_TARGET.add(diff, 'millisecond')
 }
 
 function rebaseIsoDate(value?: string | null): string | null | undefined {
   if (!value) return value
-  const parsed = new Date(`${value}T00:00:00+09:00`)
-  if (Number.isNaN(parsed.getTime())) return value
-  return rebaseDate(parsed).toISOString().slice(0, 10)
+  const parsed = toZonedDayjs(`${value}T00:00:00`)
+  if (!parsed.isValid()) return value
+  const rebased = rebaseDate(parsed)
+  return rebased.isValid() ? rebased.format('YYYY-MM-DD') : value
 }
 
 function rebaseIsoDateTime(value?: string | null): string | null | undefined {
   if (!value) return value
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return rebaseDate(parsed).toISOString()
+  const parsed = toZonedDayjs(value)
+  if (!parsed.isValid()) return value
+  const rebased = rebaseDate(parsed)
+  return rebased.isValid() ? formatZonedIso(rebased) : value
 }
 
 function rebaseNextSlot(slot?: SampleNextSlot | null): SampleNextSlot | null {

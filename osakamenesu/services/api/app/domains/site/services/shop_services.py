@@ -31,6 +31,7 @@ from ....schemas import (
     DiarySnippet,
 )
 from ....utils.profiles import compute_review_summary, normalize_review_aspects
+from ....utils.datetime import now_jst
 from .shop.availability import (
     fetch_availability as _fetch_availability,
     get_next_available_slot as _get_next_available_slot,
@@ -267,7 +268,7 @@ async def _get_shop_detail_impl(
     if profile is None:
         raise ShopNotFoundError("shop not found")
 
-    reference_day = today or date.today()
+    reference_day = today or now_jst().date()
 
     contact_info = _build_contact_info(profile)
     location = GeoLocation(
@@ -438,7 +439,7 @@ async def _get_shop_availability_impl(
 ) -> AvailabilityCalendar:
     await _ensure_shop_exists(db, shop_id)
 
-    start = date_from or date.today()
+    start = date_from or now_jst().date()
     end = date_to or start
     if end < start:
         end = start

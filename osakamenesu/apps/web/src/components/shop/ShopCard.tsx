@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
 import { nextSlotPayloadToScheduleSlot, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { formatSlotJp } from '@/lib/schedule'
+import { toZonedDate } from '@/lib/timezone'
 
 export type Promotion = {
   label: string
@@ -66,6 +67,7 @@ const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
   month: 'short',
   day: 'numeric',
   weekday: 'short',
+  timeZone: 'Asia/Tokyo',
 })
 function formatPriceRange(min: number, max: number) {
   if (!min && !max) return '料金情報なし'
@@ -101,7 +103,7 @@ export function ShopCard({ hit }: { hit: ShopHit }) {
 
   const updatedLabel = (() => {
     if (!hit.updated_at) return null
-    const dt = new Date(hit.updated_at)
+    const dt = toZonedDate(hit.updated_at)
     if (Number.isNaN(dt.getTime())) return null
     return `更新 ${dateFormatter.format(dt)}`
   })()

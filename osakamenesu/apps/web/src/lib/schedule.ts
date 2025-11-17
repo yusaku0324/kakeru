@@ -1,11 +1,6 @@
-import dayjsLib, { type ConfigType, type Dayjs } from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+import { TOKYO_TZ, toZonedDayjs, type DayjsInput, type Dayjs } from '@/lib/timezone'
 
-dayjsLib.extend(utc)
-dayjsLib.extend(timezone)
-
-const DEFAULT_TZ = 'Asia/Tokyo'
+const DEFAULT_TZ = TOKYO_TZ
 
 const dayLabelFormatter = new Intl.DateTimeFormat('ja-JP', {
   month: 'numeric',
@@ -29,8 +24,6 @@ export type ScheduleSlot = {
   status: ScheduleSlotStatus
 }
 
-type DayjsInput = ConfigType
-
 type NormalizedSlot<T extends ScheduleSlot> = {
   raw: T
   start: Dayjs
@@ -38,9 +31,7 @@ type NormalizedSlot<T extends ScheduleSlot> = {
 }
 
 function toTimezone(value?: DayjsInput, timezone: string = DEFAULT_TZ): Dayjs {
-  const base = value != null ? dayjsLib(value) : dayjsLib()
-  const valid = base.isValid() ? base : dayjsLib()
-  return valid.tz(timezone)
+  return toZonedDayjs(value, timezone)
 }
 
 function normalizeSlot<T extends ScheduleSlot>(

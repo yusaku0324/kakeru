@@ -4,7 +4,9 @@ from datetime import date, datetime, UTC
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, text
+from sqlalchemy.exc import OperationalError
+import anyio
 
 from app import models
 from app.db import SessionLocal
@@ -16,7 +18,24 @@ from app.settings import settings
 os.environ.setdefault("ANYIO_BACKEND", "asyncio")
 
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration]
+
+
+def _ensure_local_db_available() -> None:
+    async def _ping() -> None:
+        try:
+            async with SessionLocal() as session:
+                await session.execute(text("SELECT 1"))
+        except OperationalError as exc:  # pragma: no cover - network path
+            raise RuntimeError("postgres unavailable") from exc
+
+    try:
+        anyio.run(_ping)
+    except Exception as exc:  # pragma: no cover - skip condition
+        pytestmark.append(pytest.mark.skip(reason=f"requires local Postgres: {exc}"))
+
+
+_ensure_local_db_available()
 
 
 async def _reset_database() -> None:
@@ -103,7 +122,7 @@ async def _create_profile() -> models.Profile:
     review = models.Review(
         id=uuid.uuid4(),
         profile_id=profile.id,
-        status='published',
+        status="published",
         score=5,
         title="極上の癒し",
         body="接客が非常に丁寧でリピート決定",
@@ -122,7 +141,7 @@ async def _create_profile() -> models.Profile:
     return profile
 
 
-@pytest.mark.anyio('asyncio')
+@pytest.mark.anyio("asyncio")
 async def test_reindex_all_end_to_end(anyio_backend_name: str) -> None:
     if anyio_backend_name != "asyncio":
         pytest.skip("test requires asyncio backend")
@@ -147,7 +166,10 @@ async def test_reindex_all_end_to_end(anyio_backend_name: str) -> None:
         assert payload["total"] >= 1
         first = payload["results"][0]
         assert first["id"] == str(profile.id)
-        assert any(promo["label"] == "朝割キャンペーン" for promo in first.get("promotions", []))
+        assert any(
+            promo["label"] == "朝割キャンペーン"
+            for promo in first.get("promotions", [])
+        )
         assert first.get("rating") == pytest.approx(5.0)
         assert first.get("ranking_reason") == "編集部ピックアップ"
 

@@ -18,6 +18,7 @@ import {
   updateAdminShopContent,
   upsertShopAvailability,
 } from '@/features/shops/infra/adminShopsApi'
+import { formatDatetimeLocal, formatZonedIso, toZonedDayjs } from '@/lib/timezone'
 
 const SERVICE_TYPES: Array<'store' | 'dispatch'> = ['store', 'dispatch']
 
@@ -42,16 +43,14 @@ function createEmptyForm(): ShopFormState {
 
 function toLocalIso(value?: string | null) {
   if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  const offset = date.getTimezoneOffset() * 60000
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
+  const formatted = formatDatetimeLocal(value)
+  return formatted || ''
 }
 
 function fromLocalIso(value: string) {
   if (!value) return value
-  const date = new Date(value)
-  return date.toISOString()
+  const normalized = formatZonedIso(value)
+  return normalized || value
 }
 
 function mapDetailToForm(detail: ShopDetail | null): ShopFormState {
@@ -326,7 +325,7 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
   )
 
   const addAvailabilityDay = useCallback(() => {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = formatZonedIso().slice(0, 10)
     setAvailability((prev) => [...prev, { date: today, slots: [] }])
   }, [])
 
@@ -340,17 +339,22 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
     setAvailability((prev) =>
       prev.map((day, idx) =>
         idx === dayIndex
-          ? {
-              ...day,
-              slots: [
-                ...day.slots,
-                {
-                  start_at: toLocalIso(new Date().toISOString()),
-                  end_at: toLocalIso(new Date(Date.now() + 60 * 60 * 1000).toISOString()),
-                  status: 'open',
-                },
-              ],
-            }
+          ? (() => {
+              const now = toZonedDayjs()
+              const startIso = formatZonedIso(now)
+              const endIso = formatZonedIso(now.add(60, 'minute'))
+              return {
+                ...day,
+                slots: [
+                  ...day.slots,
+                  {
+                    start_at: toLocalIso(startIso),
+                    end_at: toLocalIso(endIso),
+                    status: 'open',
+                  },
+                ],
+              }
+            })()
           : day,
       ),
     )

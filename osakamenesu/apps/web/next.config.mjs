@@ -1,3 +1,7 @@
+if (!process.env.TZ) {
+  process.env.TZ = 'Asia/Tokyo'
+}
+
 const INTERNAL_API_BASE =
   process.env.OSAKAMENESU_API_INTERNAL_BASE ||
   process.env.API_INTERNAL_BASE ||

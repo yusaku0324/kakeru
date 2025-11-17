@@ -18,6 +18,7 @@ import { nextSlotPayloadToScheduleSlot, type NextAvailableSlotPayload } from '@/
 import { formatSlotJp } from '@/lib/schedule'
 import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
 import { sampleShopToDetail } from '@/lib/sampleShopAdapters'
+import { TOKYO_TZ, formatDatetimeLocal, formatZonedIso, toZonedDayjs, toZonedDate } from '@/lib/timezone'
 import ShopReservationCardClient from './ShopReservationCardClient'
 
 type Props = {
@@ -163,6 +164,14 @@ const dayFormatter = new Intl.DateTimeFormat('ja-JP', {
   month: 'numeric',
   day: 'numeric',
   weekday: 'short',
+  timeZone: TOKYO_TZ,
+})
+
+const timeFormatter = new Intl.DateTimeFormat('ja-JP', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+  timeZone: TOKYO_TZ,
 })
 
 function uniquePhotos(photos?: MediaImage[] | null): string[] {
@@ -193,30 +202,22 @@ function parseBooleanParam(value?: string | string[] | null): boolean {
 
 function toDateTimeLocal(iso?: string | null) {
   if (!iso) return undefined
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return undefined
-  const tzOffset = date.getTimezoneOffset() * 60000
-  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16)
+  const formatted = formatDatetimeLocal(iso)
+  return formatted || undefined
 }
 
 function toTimeLabel(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return iso.slice(11, 16)
-  return date
-    .toLocaleTimeString('ja-JP', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-    .replace(/^24:/, '00:')
+  const zoned = toZonedDayjs(iso)
+  if (!zoned.isValid()) return iso.slice(11, 16)
+  return timeFormatter.format(zoned.toDate()).replace(/^24:/, '00:')
 }
 
 function formatWaitLabel(startIso?: string | null) {
   if (!startIso) return null
-  const target = new Date(startIso)
-  if (Number.isNaN(target.getTime())) return null
-  const now = new Date()
-  const diffMs = target.getTime() - now.getTime()
+  const target = toZonedDayjs(startIso)
+  if (!target.isValid()) return null
+  const now = toZonedDayjs()
+  const diffMs = target.valueOf() - now.valueOf()
   if (diffMs <= 0) return 'まもなく'
   const totalMinutes = Math.round(diffMs / 60_000)
   if (totalMinutes < 60) return `約${totalMinutes}分後`
@@ -235,9 +236,9 @@ function formatWaitLabel(startIso?: string | null) {
 }
 
 function formatDayLabel(dateStr: string): string {
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return dateStr
-  return dayFormatter.format(date)
+  const zoned = toZonedDate(dateStr)
+  if (Number.isNaN(zoned.getTime())) return dateStr
+  return dayFormatter.format(zoned)
 }
 
 export default async function ProfilePage({ params, searchParams }: Props) {
@@ -268,13 +269,13 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const diaries = Array.isArray(shop.diaries) ? shop.diaries : []
   const selectedSlot = (() => {
     if (!slotParamValue) return null
-    const target = Date.parse(slotParamValue)
-    if (Number.isNaN(target)) return null
+    const target = toZonedDayjs(slotParamValue)
+    if (!target.isValid()) return null
     for (const day of availability) {
       if (!day?.slots) continue
       for (const slot of day.slots) {
-        const start = Date.parse(slot.start_at)
-        if (!Number.isNaN(start) && Math.abs(start - target) < 60_000) {
+        const start = toZonedDayjs(slot.start_at)
+        if (start.isValid() && Math.abs(start.valueOf() - target.valueOf()) < 60_000) {
           return slot
         }
       }
@@ -302,10 +303,10 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const defaultDurationMinutes = (() => {
     const slot = selectedSlot || firstOpenSlot
     if (!slot) return undefined
-    const start = new Date(slot.start_at)
-    const end = new Date(slot.end_at)
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return undefined
-    const diff = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000))
+    const start = toZonedDayjs(slot.start_at)
+    const end = toZonedDayjs(slot.end_at)
+    if (!start.isValid() || !end.isValid()) return undefined
+    const diff = Math.max(0, Math.round(end.diff(start, 'minute', true)))
     return diff || undefined
   })()
 
@@ -383,7 +384,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     profilePricing: overlayPricingLabel,
     availabilityDays: availability,
   } satisfies Omit<ReservationOverlayProps, 'onClose'>
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = formatZonedIso().slice(0, 10)
   const todayAvailability = availability.find((day) => day.date === todayIso) || null
   const todaySlots = todayAvailability?.slots || []
   const upcomingOpenToday = todaySlots.filter((slot) => slot.status === 'open')

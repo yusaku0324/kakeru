@@ -11,7 +11,6 @@ function loadServerBases(): ServerBases {
   if (cachedServerBases) {
     return cachedServerBases
   }
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { getServerConfig } = require('./server-config') as typeof import('./server-config')
   const config = getServerConfig()
   cachedServerBases = {

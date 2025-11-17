@@ -2,7 +2,7 @@ import os
 import sys
 import types
 import uuid
-from datetime import date, datetime, UTC, timedelta, timezone
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -94,6 +94,7 @@ from app.domains.site.services.shop_services import (  # type: ignore  # noqa: E
     ShopNotFoundError,
     AvailabilityNotFoundError,
 )
+from app.utils.datetime import now_jst
 
 
 class _StubSession:
@@ -107,7 +108,7 @@ class _StubSession:
 
 
 def _example_profile() -> models.Profile:
-    now = datetime.now(UTC)
+    now = now_jst()
     profile = models.Profile(
         id=uuid.uuid4(),
         slug="shop-a",
@@ -192,15 +193,15 @@ async def test_get_shop_detail_impl_maps_profile(monkeypatch):
 
     calendar = AvailabilityCalendar(
         shop_id=profile.id,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=now_jst(),
         days=[
             AvailabilityDay(
                 date=today,
                 is_today=True,
                 slots=[
                     AvailabilitySlot(
-                        start_at=datetime.now(timezone.utc),
-                        end_at=datetime.now(timezone.utc) + timedelta(hours=1),
+                        start_at=now_jst(),
+                        end_at=now_jst() + timedelta(hours=1),
                         status="open",
                     )
                 ],
@@ -213,7 +214,7 @@ async def test_get_shop_detail_impl_maps_profile(monkeypatch):
         return calendar
 
     next_slot = NextAvailableSlot(
-        start_at=datetime.now(timezone.utc) + timedelta(hours=2),
+        start_at=now_jst() + timedelta(hours=2),
         status="ok",
     )
 
@@ -259,15 +260,15 @@ async def test_get_shop_availability_impl_returns_calendar(monkeypatch):
         captured["end"] = end_date
         return AvailabilityCalendar(
             shop_id=shop_id,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=now_jst(),
             days=[
                 AvailabilityDay(
                     date=start_date,
                     is_today=True,
                     slots=[
                         AvailabilitySlot(
-                            start_at=datetime.now(timezone.utc),
-                            end_at=datetime.now(timezone.utc) + timedelta(hours=1),
+                            start_at=now_jst(),
+                            end_at=now_jst() + timedelta(hours=1),
                             status="open",
                         )
                     ],
@@ -313,7 +314,7 @@ async def test_get_shop_availability_impl_no_slots(monkeypatch):
 async def test_search_and_detail_share_next_slot(monkeypatch):
     profile = _example_profile()
     slot = NextAvailableSlot(
-        start_at=datetime.now(timezone.utc) + timedelta(hours=4),
+        start_at=now_jst() + timedelta(hours=4),
         status="ok",
     )
 
@@ -323,7 +324,7 @@ async def test_search_and_detail_share_next_slot(monkeypatch):
     async def fake_fetch_availability(db, shop_id, start_date=None, end_date=None):
         return AvailabilityCalendar(
             shop_id=shop_id,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=now_jst(),
             days=[],
         )
 
@@ -399,7 +400,7 @@ async def test_router_get_shop_detail_returns_value(monkeypatch):
         next_available_slot=None,
         distance_km=None,
         online_reservation=None,
-        updated_at=datetime.now(UTC),
+        updated_at=now_jst(),
         ranking_reason=None,
         promotions=[],
         price_band=None,
@@ -456,7 +457,7 @@ async def test_router_get_shop_availability_returns_calendar(monkeypatch):
     shop_id = uuid.uuid4()
     calendar = AvailabilityCalendar(
         shop_id=shop_id,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=now_jst(),
         days=[],
     )
 

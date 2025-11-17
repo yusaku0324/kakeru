@@ -8,7 +8,6 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from zoneinfo import ZoneInfo
 
 from .... import models
 from ....meili import index_bulk, index_profile, purge_all
@@ -32,6 +31,12 @@ from ....schemas import (
     ShopAdminSummary,
     StaffSummary,
 )
+from ....utils.datetime import (
+    JST,
+    ensure_jst_datetime,
+    isoformat_jst,
+    now_jst,
+)
 from ....utils.profiles import build_profile_doc, normalize_review_aspects
 from ....utils.slug import slugify
 from .audit import AdminAuditContext, record_change
@@ -39,7 +44,6 @@ from .errors import AdminServiceError
 from . import site_bridge
 
 logger = logging.getLogger("app.admin.profile_service")
-JST = ZoneInfo("Asia/Tokyo")
 
 
 class ProfileServiceError(AdminServiceError):
@@ -109,7 +113,7 @@ async def create_single_availability(
         profile_id=profile.id,
         date=date_value,
         slots_json=slots_json or {},
-        is_today=date_value == datetime.now(JST).date(),
+        is_today=date_value == now_jst().date(),
     )
     db.add(availability)
     await db.commit()
@@ -121,7 +125,7 @@ async def create_availability_bulk(
     *, db: AsyncSession, payload: List[AvailabilityCreate]
 ) -> List[str]:
     created: List[str] = []
-    today = datetime.now(JST).date()
+    today = now_jst().date()
     for item in payload:
         profile = await db.get(models.Profile, item.profile_id)
         if not profile:
@@ -433,13 +437,13 @@ async def upsert_availability(
     before_slots = avail.slots_json if avail else None
     if avail:
         avail.slots_json = slots_json
-        avail.is_today = payload.date == datetime.now(JST).date()
+        avail.is_today = payload.date == now_jst().date()
     else:
         avail = models.Availability(
             profile_id=shop_id,
             date=payload.date,
             slots_json=slots_json,
-            is_today=payload.date == datetime.now(JST).date(),
+            is_today=payload.date == now_jst().date(),
         )
         db.add(avail)
 
@@ -502,7 +506,7 @@ async def _reindex_profile_contact(
 async def _build_profile_document(
     *, db: AsyncSession, profile: models.Profile
 ) -> dict[str, Any]:
-    today = datetime.now(JST).date()
+    today = now_jst().date()
     res_today = await db.execute(
         select(func.count())
         .select_from(models.Availability)
@@ -531,8 +535,8 @@ def _slots_to_json(slots: List[AvailabilitySlotIn] | None) -> dict | None:
     return {
         "slots": [
             {
-                "start_at": slot.start_at.isoformat(),
-                "end_at": slot.end_at.isoformat(),
+                "start_at": isoformat_jst(slot.start_at),
+                "end_at": isoformat_jst(slot.end_at),
                 "status": slot.status,
                 "staff_id": str(slot.staff_id) if slot.staff_id else None,
                 "menu_id": str(slot.menu_id) if slot.menu_id else None,
@@ -629,14 +633,14 @@ async def _upsert_bulk_availability(
         existing = (await db.execute(stmt)).scalar_one_or_none()
         if existing:
             existing.slots_json = slots_json
-            existing.is_today = entry.date == datetime.now(JST).date()
+            existing.is_today = entry.date == now_jst().date()
         else:
             db.add(
                 models.Availability(
                     profile_id=profile.id,
                     date=entry.date,
                     slots_json=slots_json,
-                    is_today=entry.date == datetime.now(JST).date(),
+                    is_today=entry.date == now_jst().date(),
                 )
             )
         summary.availability_upserts += 1

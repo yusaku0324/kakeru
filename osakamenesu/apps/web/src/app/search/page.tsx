@@ -463,7 +463,6 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
           shopAreaName: hit.area_name ?? null,
           todayAvailable,
           nextAvailableSlot,
-          nextAvailableAt: nextAvailableSlot?.start_at ?? null,
         } satisfies TherapistHit
       })
   })

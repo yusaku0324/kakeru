@@ -22,11 +22,15 @@ for key in [
 ]:
     os.environ.pop(key, None)
 
+from app.settings import Settings as RealSettings  # noqa: E402, isort:skip
+
+
 dummy_settings_module = types.ModuleType("app.settings")
 
 
-class _DummySettings:
+class _DummySettings(RealSettings):
     def __init__(self) -> None:
+        super().__init__()
         self.proxy_shared_secret = "unit-test-secret"
 
 
@@ -84,7 +88,9 @@ def sign(secret: str, payload: str) -> str:
 
 @pytest.fixture(autouse=True)
 def ensure_secret(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(proxy_settings, "proxy_shared_secret", "unit-test-secret", raising=False)
+    monkeypatch.setattr(
+        proxy_settings, "proxy_shared_secret", "unit-test-secret", raising=False
+    )
 
 
 def test_verify_signature_success():
@@ -107,7 +113,9 @@ def test_verify_signature_with_query():
         SIGNATURE_HEADER: signature,
         TIMESTAMP_HEADER: timestamp,
     }
-    request = make_request(path="/api/line/ping", query_string="mode=test", headers=headers)
+    request = make_request(
+        path="/api/line/ping", query_string="mode=test", headers=headers
+    )
     verify_proxy_signature(request)
 
 
