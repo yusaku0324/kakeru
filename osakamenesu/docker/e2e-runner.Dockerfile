@@ -14,3 +14,12 @@ COPY package.json pnpm-lock.yaml ./
 COPY apps ./apps
 RUN --mount=type=cache,target=/pnpm-store pnpm install --frozen-lockfile
 COPY . .
+RUN if command -v apt-get >/dev/null 2>&1; then \
+        apt-get update && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata && \
+        rm -rf /var/lib/apt/lists/*; \
+    elif command -v apk >/dev/null 2>&1; then \
+        apk add --no-cache tzdata; \
+    else \
+        echo "tzdata install not implemented for base image" >&2 && exit 1; \
+    fi

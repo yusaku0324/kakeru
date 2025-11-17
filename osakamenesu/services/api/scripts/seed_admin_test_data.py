@@ -28,6 +28,8 @@ from zoneinfo import ZoneInfo
 
 PLAYWRIGHT_SHOP_SLUG = "playwright-seed-shop"
 DEFAULT_TIMEOUT = 30
+# NOTE: ZoneInfo("Asia/Tokyo") stays as-is; tzdata is supplied by the
+# admin e2e runner container, so no script-level fallback is necessary.
 JST = ZoneInfo("Asia/Tokyo")
 
 
