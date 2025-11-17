@@ -4,8 +4,7 @@ import clsx from 'clsx'
 import ReservationForm from '@/components/ReservationForm'
 import type { AvailabilityStatus } from '@/components/calendar/types'
 
-import { ReservationAvailabilitySection } from './ReservationAvailabilitySection'
-import { SelectedSlotList } from './SelectedSlotList'
+import { ReservationAvailabilitySection, SelectedSlotList } from './sections'
 import type { ReservationOverlayProps } from '../ReservationOverlay'
 import type { ReservationOverlayState } from './useReservationOverlayState'
 

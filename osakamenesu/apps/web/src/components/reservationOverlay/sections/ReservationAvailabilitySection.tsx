@@ -6,7 +6,7 @@ import {
 } from '@/components/calendar/AvailabilityPickerDesktop'
 import { AvailabilityPickerMobile } from '@/components/calendar/AvailabilityPickerMobile'
 
-import type { NormalizedDay, NormalizedSlot } from './types'
+import type { NormalizedDay, NormalizedSlot } from '../types'
 
 type LegendItem = {
   key: string

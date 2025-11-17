@@ -4,7 +4,9 @@ import clsx from 'clsx'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
+import { useHeroImages } from '@/hooks/useHeroImages'
 import { ReservationHeroCard } from '@/components/reservation/ReservationHeroCard'
+import type { ReservationContactItem } from '@/components/reservation/ReservationInfoCard'
 import { type TherapistHit } from '@/components/staff/TherapistCard'
 import { parsePricingText } from '@/utils/pricing'
 import ReservationOverlayBooking from './reservationOverlay/ReservationOverlayBooking'
@@ -55,8 +57,6 @@ export default function ReservationOverlay({
   useBodyScrollLock(true)
 
   const [activeTab, setActiveTab] = useState<OverlayTab>('profile')
-  const [heroIndex, setHeroIndex] = useState(0)
-
   const fallbackMeta = FALLBACK_STAFF_META[hit.name] ?? null
 
   const reservationState = useReservationOverlayState({
@@ -66,12 +66,18 @@ export default function ReservationOverlay({
   })
   const { ensureSelection, openForm, closeForm, formOpen } = reservationState
 
+  const { heroImages, heroIndex, showNextHero, showPrevHero } = useHeroImages({
+    gallery,
+    fallbackGallery: fallbackMeta?.gallery,
+    avatar: hit.avatarUrl,
+  })
+
   const specialties = useMemo(
     () => (Array.isArray(hit.specialties) ? hit.specialties.filter(Boolean).slice(0, 6) : []),
     [hit.specialties],
   )
 
-  const contactItems = useMemo(
+  const contactItems = useMemo<ReservationContactItem[]>(
     () => [
       {
         key: 'tel',
@@ -88,24 +94,6 @@ export default function ReservationOverlay({
     ],
     [lineId, tel],
   )
-
-  const heroImages = useMemo(() => {
-    const sources: string[] = []
-    const seen = new Set<string>()
-    const push = (src?: string | null) => {
-      if (!src || seen.has(src)) return
-      seen.add(src)
-      sources.push(src)
-    }
-    if (Array.isArray(gallery)) gallery.forEach((src) => push(src))
-    if (Array.isArray(fallbackMeta?.gallery)) fallbackMeta.gallery.forEach((src) => push(src))
-    push(hit.avatarUrl)
-    return sources.length ? sources : [null]
-  }, [gallery, fallbackMeta?.gallery, hit.avatarUrl])
-
-  useEffect(() => {
-    if (heroIndex >= heroImages.length) setHeroIndex(0)
-  }, [heroImages.length, heroIndex])
 
   const handleClose = useCallback(() => {
     closeForm()
@@ -214,10 +202,8 @@ export default function ReservationOverlay({
                     name={hit.name}
                     images={heroImages}
                     activeIndex={heroIndex}
-                    onPrev={() =>
-                      setHeroIndex((prev) => (prev - 1 + heroImages.length) % heroImages.length)
-                    }
-                    onNext={() => setHeroIndex((prev) => (prev + 1) % heroImages.length)}
+                    onPrev={showPrevHero}
+                    onNext={showNextHero}
                     rating={hit.rating}
                     reviewCount={hit.reviewCount}
                   />

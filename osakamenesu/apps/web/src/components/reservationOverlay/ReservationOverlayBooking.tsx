@@ -5,11 +5,14 @@ import { AVAILABILITY_STATUS_META, type AvailabilityStatus } from '@/components/
 import type { TherapistHit } from '@/components/staff/TherapistCard'
 
 import type { ReservationOverlayProps } from '../ReservationOverlay'
-import { ReservationAvailabilitySection } from './ReservationAvailabilitySection'
 import { ReservationBookingModal } from './ReservationBookingModal'
-import { ReservationContactList, type ReservationContactItem } from './ReservationContactList'
-import { ReservationScheduleHeader } from './ReservationScheduleHeader'
-import { SelectedSlotList } from './SelectedSlotList'
+import {
+  ReservationAvailabilitySection,
+  ReservationScheduleHeader,
+  ReservationContactList,
+  SelectedSlotList,
+  type ReservationContactItem,
+} from './sections'
 import type { ReservationOverlayState } from './useReservationOverlayState'
 
 type ReservationOverlayBookingProps = {

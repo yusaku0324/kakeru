@@ -13,7 +13,7 @@ import {
 import type { SelectedSlot } from '@/components/calendar/AvailabilityPickerDesktop'
 import type { AvailabilityStatus } from '@/components/calendar/types'
 
-import { formatLocalDate, toIsoWithOffset } from '@/utils/date'
+import { formatLocalDate, getJaFormatter, toIsoWithOffset } from '@/utils/date'
 import type { ReservationOverlayProps } from '../ReservationOverlay'
 import type { NormalizedDay, NormalizedSlot } from './types'
 import { buildTimelineTimes, calculateSchedulePages } from './utils'
@@ -70,27 +70,8 @@ export function useReservationOverlayState({
   const [schedulePage, setSchedulePage] = useState(0)
   const [selectedSlots, setSelectedSlots] = useState<SelectedSlot[]>([])
 
-  const dayFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat('ja-JP', {
-        month: 'numeric',
-        day: 'numeric',
-        weekday: 'short',
-        timeZone: 'Asia/Tokyo',
-      }),
-    [],
-  )
-
-  const timeFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat('ja-JP', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Tokyo',
-      }),
-    [],
-  )
+  const dayFormatter = getJaFormatter('day')
+  const timeFormatter = getJaFormatter('time')
 
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), [])
 

@@ -59,7 +59,11 @@ web-unit:
 
 # Bring up admin E2E stack (db/api/web) via docker compose
 admin-e2e-up:
-	docker compose -f docker-compose.admin-e2e.yml up -d db meili redis api web
+	ADMIN_API_IMAGE=osakamenesu-api:local \
+	ADMIN_WEB_IMAGE=osakamenesu-web:local \
+	COMPOSE_PLATFORM=linux/amd64 \
+	COMPOSE_PULL_POLICY=never \
+	  docker compose -f docker-compose.admin-e2e.yml up -d db meili redis api web
 
 # Tear down admin E2E stack
 admin-e2e-down:

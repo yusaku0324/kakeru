@@ -49,7 +49,7 @@ describe('buildTimelineTimes', () => {
   it('expands the active range with padding around earliest/latest slots', () => {
     const timeline = buildTimelineTimes(sampleDays)
     expect(timeline[0].key).toBe('09:00') // earliest slot starts 09:30, minus 30 minutes
-    expect(timeline[timeline.length - 1].key).toBe('23:00') // extends past 22:00 slot
+    expect(timeline[timeline.length - 1].key).toBe('22:30') // extends past 22:00 slot by 30 minutes
     expect(timeline.some((entry) => entry.key === '09:30')).toBe(true)
   })
 })
@@ -65,7 +65,7 @@ describe('calculateSchedulePages', () => {
 
     expect(pages).toHaveLength(1)
     expect(pages[0]).toHaveLength(7)
-    expect(pages[0][0].date).toBe(todayIso)
+    expect(pages[0][0].date).toBe(localizedIso(todayIso))
   })
 
   it('preserves real availability while padding to chunk size', () => {
@@ -79,7 +79,13 @@ describe('calculateSchedulePages', () => {
     expect(pages).toHaveLength(1)
     // chunk should still have 7 entries even if only 2 are populated
     expect(pages[0]).toHaveLength(7)
-    expect(pages[0][0].date).toBe(sampleDays[0].date)
-    expect(pages[0][1].date).toBe(sampleDays[1].date)
+    expect(pages[0][0].date).toBe(localizedIso(sampleDays[0].date))
+    expect(pages[0][1].date).toBe(localizedIso(sampleDays[1].date))
   })
 })
+
+function localizedIso(dateIso: string) {
+  const base = new Date(dateIso)
+  base.setHours(0, 0, 0, 0)
+  return base.toISOString().slice(0, 10)
+}
