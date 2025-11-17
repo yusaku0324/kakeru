@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import Link from 'next/link'
 import { Suspense, useEffect, useState } from 'react'
@@ -50,7 +50,9 @@ function AuthCompleteContent() {
         }
 
         const data = await res.json().catch(() => undefined)
-        const scope = (data && typeof data.scope === 'string' ? data.scope : 'site') as 'dashboard' | 'site'
+        const scope = (data && typeof data.scope === 'string' ? data.scope : 'site') as
+          | 'dashboard'
+          | 'site'
 
         let redirectTarget = '/'
         let redirectLabel = 'トップ'
@@ -67,7 +69,9 @@ function AuthCompleteContent() {
             })
 
             if (listRes.ok) {
-              const listData = await listRes.json().catch(() => undefined) as { shops?: Array<{ id?: string }> } | undefined
+              const listData = (await listRes.json().catch(() => undefined)) as
+                | { shops?: Array<{ id?: string }> }
+                | undefined
               const first = listData?.shops?.[0]
               if (first?.id) {
                 redirectTarget = `/dashboard/${first.id}`

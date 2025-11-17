@@ -100,7 +100,7 @@ export type DashboardTherapistPhotoUploadResult =
 function createRequestInit(
   method: string,
   options?: DashboardShopRequestOptions,
-  body?: unknown
+  body?: unknown,
 ): RequestInit {
   const headers: Record<string, string> = {}
   if (options?.cookieHeader) {
@@ -137,7 +137,7 @@ function createRequestInit(
 async function requestJson<T>(
   path: string,
   init: RequestInit,
-  successStatuses: number[]
+  successStatuses: number[],
 ): Promise<{ response: Response; data?: T }> {
   let lastError: { status: string; message?: string } | null = null
 
@@ -148,8 +148,7 @@ async function requestJson<T>(
       if (successStatuses.includes(res.status)) {
         let data: T | undefined
         const shouldParseJson =
-          res.status !== 204 &&
-          (res.headers.get('content-type')?.includes('json') ?? false)
+          res.status !== 204 && (res.headers.get('content-type')?.includes('json') ?? false)
         if (shouldParseJson) {
           data = (await res.json()) as T
         }
@@ -159,7 +158,9 @@ async function requestJson<T>(
       if ([401, 403, 404, 409, 413, 415, 422].includes(res.status)) {
         let data: T | undefined
         const shouldParseJson =
-          res.headers.get('content-type')?.includes('json') || res.status === 413 || res.status === 415
+          res.headers.get('content-type')?.includes('json') ||
+          res.status === 413 ||
+          res.status === 415
         if (shouldParseJson) {
           data = (await res.json()) as T
         }
@@ -178,10 +179,12 @@ async function requestJson<T>(
     }
   }
 
-  throw lastError ?? {
-    status: 'error',
-    message: 'API リクエストが完了しませんでした',
-  }
+  throw (
+    lastError ?? {
+      status: 'error',
+      message: 'API リクエストが完了しませんでした',
+    }
+  )
 }
 
 function toSummary(detail: DashboardTherapistDetail): DashboardTherapistSummary {
@@ -205,13 +208,13 @@ export function summarizeTherapist(detail: DashboardTherapistDetail): DashboardT
 
 export async function fetchDashboardTherapists(
   profileId: string,
-  options?: DashboardShopRequestOptions
+  options?: DashboardShopRequestOptions,
 ): Promise<DashboardTherapistListResult> {
   try {
     const { response, data } = await requestJson<DashboardTherapistSummary[]>(
       `api/dashboard/shops/${profileId}/therapists`,
       createRequestInit('GET', options),
-      [200]
+      [200],
     )
 
     switch (response.status) {
@@ -246,13 +249,13 @@ export async function fetchDashboardTherapists(
 export async function fetchDashboardTherapist(
   profileId: string,
   therapistId: string,
-  options?: DashboardShopRequestOptions
+  options?: DashboardShopRequestOptions,
 ): Promise<DashboardTherapistMutationResult> {
   try {
     const { response, data } = await requestJson<DashboardTherapistDetail>(
       `api/dashboard/shops/${profileId}/therapists/${therapistId}`,
       createRequestInit('GET', options),
-      [200]
+      [200],
     )
 
     switch (response.status) {
@@ -287,13 +290,13 @@ export async function fetchDashboardTherapist(
 export async function createDashboardTherapist(
   profileId: string,
   payload: DashboardTherapistCreatePayload,
-  options?: DashboardShopRequestOptions
+  options?: DashboardShopRequestOptions,
 ): Promise<DashboardTherapistMutationResult> {
   try {
     const { response, data } = await requestJson<DashboardTherapistDetail>(
       `api/dashboard/shops/${profileId}/therapists`,
       createRequestInit('POST', options, payload),
-      [201]
+      [201],
     )
 
     switch (response.status) {
@@ -329,13 +332,13 @@ export async function updateDashboardTherapist(
   profileId: string,
   therapistId: string,
   payload: DashboardTherapistUpdatePayload,
-  options?: DashboardShopRequestOptions
+  options?: DashboardShopRequestOptions,
 ): Promise<DashboardTherapistMutationResult> {
   try {
     const { response, data } = await requestJson<DashboardTherapistDetail>(
       `api/dashboard/shops/${profileId}/therapists/${therapistId}`,
       createRequestInit('PATCH', options, payload),
-      [200]
+      [200],
     )
 
     switch (response.status) {
@@ -374,13 +377,13 @@ export async function updateDashboardTherapist(
 export async function deleteDashboardTherapist(
   profileId: string,
   therapistId: string,
-  options?: DashboardShopRequestOptions
+  options?: DashboardShopRequestOptions,
 ): Promise<DashboardTherapistDeleteResult> {
   try {
     const { response } = await requestJson<undefined>(
       `api/dashboard/shops/${profileId}/therapists/${therapistId}`,
       createRequestInit('DELETE', options),
-      [204]
+      [204],
     )
 
     switch (response.status) {
@@ -412,7 +415,7 @@ export async function deleteDashboardTherapist(
 export async function uploadDashboardTherapistPhoto(
   profileId: string,
   file: File,
-  options?: DashboardShopRequestOptions
+  options?: DashboardShopRequestOptions,
 ): Promise<DashboardTherapistPhotoUploadResult> {
   const formData = new FormData()
   formData.append('file', file)
@@ -421,7 +424,7 @@ export async function uploadDashboardTherapistPhoto(
     const { response, data } = await requestJson<DashboardTherapistPhotoUploadResponse>(
       `api/dashboard/shops/${profileId}/therapists/photos/upload`,
       createRequestInit('POST', options, formData),
-      [201]
+      [201],
     )
 
     switch (response.status) {
@@ -464,13 +467,13 @@ export async function uploadDashboardTherapistPhoto(
 export async function reorderDashboardTherapists(
   profileId: string,
   payload: DashboardTherapistReorderPayload,
-  options?: DashboardShopRequestOptions
+  options?: DashboardShopRequestOptions,
 ): Promise<DashboardTherapistListResult> {
   try {
     const { response, data } = await requestJson<DashboardTherapistSummary[]>(
       `api/dashboard/shops/${profileId}/therapists:reorder`,
       createRequestInit('POST', options, payload),
-      [200]
+      [200],
     )
 
     switch (response.status) {

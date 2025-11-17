@@ -7,8 +7,16 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toLocalDateISO } from '@/lib/date'
 import { formatSlotJp, getNextAvailableSlot, type ScheduleSlot } from '@/lib/schedule'
 
-const dayFormatter = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
-const timeFormatter = new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
+const dayFormatter = new Intl.DateTimeFormat('ja-JP', {
+  month: 'numeric',
+  day: 'numeric',
+  weekday: 'short',
+})
+const timeFormatter = new Intl.DateTimeFormat('ja-JP', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
 
 type SlotStatus = 'open' | 'tentative' | 'blocked'
 
@@ -61,7 +69,9 @@ function formatTimeLabel(iso: string) {
 }
 
 function computeAvailabilityLevel(slots: TherapistScheduleSlot[]) {
-  const openOrTentative = slots.filter((slot) => slot.status === 'open' || slot.status === 'tentative').length
+  const openOrTentative = slots.filter(
+    (slot) => slot.status === 'open' || slot.status === 'tentative',
+  ).length
   if (slots.length === 0 || openOrTentative === 0) return 'none'
   if (openOrTentative >= 2) return 'full'
   return 'low'
@@ -82,7 +92,12 @@ function flattenScheduleDays(days: TherapistScheduleDay[]): TherapistScheduleSlo
     .sort((a, b) => a.start.localeCompare(b.start))
 }
 
-export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTargetId = 'reserve' }: TherapistScheduleProps) {
+export function TherapistSchedule({
+  days,
+  fullDays,
+  initialSlotIso,
+  scrollTargetId = 'reserve',
+}: TherapistScheduleProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -101,7 +116,12 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
       const isWeekend = [0, 6].includes(dateObj.getDay())
       const isToday = Boolean(day.is_today) || day.date === todayIso
       const slots = [...day.slots]
-        .map((slot) => ({ date: day.date, start: slot.start_at, end: slot.end_at, status: slot.status }))
+        .map((slot) => ({
+          date: day.date,
+          start: slot.start_at,
+          end: slot.end_at,
+          status: slot.status,
+        }))
         .sort((a, b) => a.start.localeCompare(b.start))
       const availabilityLevel = computeAvailabilityLevel(slots)
       const availabilityLabel = isToday
@@ -109,10 +129,10 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
           ? '本日 空きなし'
           : '本日 空きあり'
         : availabilityLevel === 'none'
-        ? '空きなし'
-        : availabilityLevel === 'full'
-        ? '余裕あり'
-        : '残りわずか'
+          ? '空きなし'
+          : availabilityLevel === 'full'
+            ? '余裕あり'
+            : '残りわずか'
       return {
         date: day.date,
         isToday,
@@ -129,14 +149,18 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
   const hasGlobalSlots = allSlots.length > 0
   const initialDayFromSlot = useMemo(() => {
     if (initialSlotIso) {
-      const match = normalizedDays.find((day) => day.slots.some((slot) => slot.start === initialSlotIso))
+      const match = normalizedDays.find((day) =>
+        day.slots.some((slot) => slot.start === initialSlotIso),
+      )
       if (match) return match.date
     }
     return fallbackNextSlot?.date ?? normalizedDays[0]?.date ?? ''
   }, [fallbackNextSlot?.date, initialSlotIso, normalizedDays])
 
   const [activeDay, setActiveDay] = useState(initialDayFromSlot)
-  const [highlightedSlot, setHighlightedSlot] = useState(initialSlotIso ?? fallbackNextSlot?.start ?? null)
+  const [highlightedSlot, setHighlightedSlot] = useState(
+    initialSlotIso ?? fallbackNextSlot?.start ?? null,
+  )
 
   useEffect(() => {
     setActiveDay(initialDayFromSlot)
@@ -144,20 +168,27 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
   }, [initialDayFromSlot, initialSlotIso, fallbackNextSlot?.start])
 
   const activeDayData = normalizedDays.find((day) => day.date === activeDay) ?? normalizedDays[0]
-  const timelineSlots: TimelineSlot[] = useMemo(() => (activeDayData ? activeDayData.slots : []), [activeDayData])
+  const timelineSlots: TimelineSlot[] = useMemo(
+    () => (activeDayData ? activeDayData.slots : []),
+    [activeDayData],
+  )
 
   const highlightedSlotInfo = useMemo(() => {
     if (!highlightedSlot) return null
     return allSlots.find((slot) => slot.start === highlightedSlot) ?? null
   }, [allSlots, highlightedSlot])
 
-  const summarySlot: TherapistScheduleSlotWithSchedule | null = highlightedSlotInfo ?? fallbackNextSlot
+  const summarySlot: TherapistScheduleSlotWithSchedule | null =
+    highlightedSlotInfo ?? fallbackNextSlot
 
   const summaryBaseLabel = summarySlot ? formatSlotJp(summarySlot, { now }) : null
   const summaryLabel = summarySlot
-    ? `${summaryBaseLabel ?? `${formatDayLabel(summarySlot.date, todayIso, tomorrowIso)} ${formatTimeLabel(
-        summarySlot.start,
-      )}〜`} ${statusMeta[summarySlot.status].symbol}`.trim()
+    ? `${
+        summaryBaseLabel ??
+        `${formatDayLabel(summarySlot.date, todayIso, tomorrowIso)} ${formatTimeLabel(
+          summarySlot.start,
+        )}〜`
+      } ${statusMeta[summarySlot.status].symbol}`.trim()
     : '公開された枠はまだ掲載されていません'
 
   const handleSlotClick = useCallback(
@@ -187,11 +218,13 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
   return (
     <section className="rounded-section border border-neutral-borderLight/70 bg-white/90 p-6 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/80">
       <div className="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">空き枠サマリー</p>
-        <p className="text-sm font-semibold text-neutral-text">次に入れる時間: {summaryLabel}</p>
-        <p className="text-[11px] text-neutral-textMuted">本日: {todayDisplayLabel}</p>
-      </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">
+            空き枠サマリー
+          </p>
+          <p className="text-sm font-semibold text-neutral-text">次に入れる時間: {summaryLabel}</p>
+          <p className="text-[11px] text-neutral-textMuted">本日: {todayDisplayLabel}</p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs text-neutral-textMuted">タップで予約フォームへ移動します</p>
           {summarySlot && summarySlot.status !== 'blocked' ? (
@@ -239,7 +272,9 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
 
       <div className="mt-6 space-y-3">
         <div className="flex items-center justify-between text-xs text-neutral-textMuted">
-          <span>{formatDayLabel(activeDayData?.date || normalizedDays[0].date, todayIso, tomorrowIso)}</span>
+          <span>
+            {formatDayLabel(activeDayData?.date || normalizedDays[0].date, todayIso, tomorrowIso)}
+          </span>
           <span>空き枠をタップして予約へ</span>
         </div>
         <div className="relative space-y-3 border-l border-dashed border-neutral-borderLight/70 pl-6">
@@ -253,12 +288,16 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
                 isDisabled
                   ? 'cursor-not-allowed border-neutral-borderLight/60 bg-neutral-surfaceAlt/60 text-neutral-textMuted'
                   : 'cursor-pointer border-neutral-borderLight bg-white text-neutral-text hover:border-brand-primary hover:bg-brand-primary/5',
-                isHighlighted && !isDisabled && 'border-brand-primary bg-brand-primary/10 shadow-[0_15px_35px_rgba(59,130,246,0.18)]',
+                isHighlighted &&
+                  !isDisabled &&
+                  'border-brand-primary bg-brand-primary/10 shadow-[0_15px_35px_rgba(59,130,246,0.18)]',
               )
               const content = (
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="font-semibold text-neutral-text">{formatTimeLabel(slot.start)}〜{formatTimeLabel(slot.end)}</div>
+                    <div className="font-semibold text-neutral-text">
+                      {formatTimeLabel(slot.start)}〜{formatTimeLabel(slot.end)}
+                    </div>
                     <div className="text-[11px] text-neutral-textMuted">{meta.label}</div>
                   </div>
                   <span className={clsx('text-base font-bold', meta.color)}>{meta.symbol}</span>
@@ -282,7 +321,9 @@ export function TherapistSchedule({ days, fullDays, initialSlotIso, scrollTarget
             })
           ) : (
             <div className="rounded-2xl border border-dashed border-neutral-borderLight/70 bg-white/70 px-4 py-6 text-center text-xs text-neutral-textMuted">
-              {hasGlobalSlots ? 'この日に公開されている枠はありません。他の日を選んでください。' : '公開された枠がありません。店舗へ直接お問い合わせください。'}
+              {hasGlobalSlots
+                ? 'この日に公開されている枠はありません。他の日を選んでください。'
+                : '公開された枠がありません。店舗へ直接お問い合わせください。'}
             </div>
           )}
         </div>

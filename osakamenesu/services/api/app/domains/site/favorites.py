@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -22,6 +21,10 @@ router = APIRouter(prefix="/api/favorites", tags=["favorites"])
 _service = FavoritesService()
 
 
+def _handle_favorites_error(error: FavoritesService.Error):
+    raise HTTPException(status_code=error.status_code, detail=error.detail)
+
+
 @router.get("", response_model=list[FavoriteItem])
 async def list_favorites(
     user: models.User = Depends(require_site_user),
@@ -36,7 +39,10 @@ async def add_favorite(
     user: models.User = Depends(require_site_user),
     db: AsyncSession = Depends(get_session),
 ):
-    return await _service.add_favorite(payload=payload, user=user, db=db)
+    try:
+        return await _service.add_favorite(payload=payload, user=user, db=db)
+    except FavoritesService.Error as error:
+        _handle_favorites_error(error)
 
 
 @router.delete("/{shop_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -57,13 +63,20 @@ async def list_therapist_favorites(
     return await _service.list_therapist_favorites(user=user, db=db)
 
 
-@router.post("/therapists", status_code=status.HTTP_201_CREATED, response_model=TherapistFavoriteItem)
+@router.post(
+    "/therapists",
+    status_code=status.HTTP_201_CREATED,
+    response_model=TherapistFavoriteItem,
+)
 async def add_therapist_favorite(
     payload: TherapistFavoriteCreate,
     user: models.User = Depends(require_site_user),
     db: AsyncSession = Depends(get_session),
 ):
-    return await _service.add_therapist_favorite(payload=payload, user=user, db=db)
+    try:
+        return await _service.add_therapist_favorite(payload=payload, user=user, db=db)
+    except FavoritesService.Error as error:
+        _handle_favorites_error(error)
 
 
 @router.delete("/therapists/{therapist_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -72,13 +85,14 @@ async def remove_therapist_favorite(
     user: models.User = Depends(require_site_user),
     db: AsyncSession = Depends(get_session),
 ):
-    await _service.remove_therapist_favorite(therapist_id=therapist_id, user=user, db=db)
+    await _service.remove_therapist_favorite(
+        therapist_id=therapist_id, user=user, db=db
+    )
     return None
 
 
 __all__ = [
     "router",
-    "HTTPException",
     "FavoritesService",
     "list_favorites",
     "add_favorite",

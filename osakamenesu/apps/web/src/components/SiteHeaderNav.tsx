@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import clsx from 'clsx'
 import Link from 'next/link'
@@ -39,8 +39,8 @@ export default function SiteHeaderNav() {
             typeof data?.display_name === 'string' && data.display_name.trim()
               ? data.display_name.trim()
               : typeof data?.email === 'string'
-              ? data.email
-              : null
+                ? data.email
+                : null
           setState({ status: 'authenticated', displayName })
           return
         }
@@ -107,9 +107,12 @@ export default function SiteHeaderNav() {
     }
   }, [showLoginOverlay])
 
-  const baseButtonClass = 'inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-2 text-sm font-semibold text-neutral-text transition hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary/40 disabled:opacity-60'
-  const iconButtonClass = 'inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/60 bg-white/80 text-neutral-text transition hover:border-brand-primary hover:bg-brand-primary/10 hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary/40'
-  const gradientButtonClass = 'inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-primary/30 transition hover:from-brand-primary/90 hover:to-brand-secondary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70'
+  const baseButtonClass =
+    'inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-2 text-sm font-semibold text-neutral-text transition hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary/40 disabled:opacity-60'
+  const iconButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/60 bg-white/80 text-neutral-text transition hover:border-brand-primary hover:bg-brand-primary/10 hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary/40'
+  const gradientButtonClass =
+    'inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-primary/30 transition hover:from-brand-primary/90 hover:to-brand-secondary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70'
 
   return (
     <nav aria-label="サイトナビゲーション" className="flex items-center gap-3 text-sm font-medium">
@@ -128,17 +131,29 @@ export default function SiteHeaderNav() {
           >
             <FavoriteHeartIcon filled={false} className="h-5 w-5" />
           </Link>
-          <Link href="/dashboard/favorites" className={clsx(gradientButtonClass, 'hidden sm:inline-flex')}>
+          <Link
+            href="/dashboard/favorites"
+            className={clsx(gradientButtonClass, 'hidden sm:inline-flex')}
+          >
             <FavoriteHeartIcon filled={false} className="h-4 w-4 text-white" />
             お気に入り
           </Link>
-          <button type="button" onClick={handleLogout} disabled={isLoggingOut} className={baseButtonClass}>
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className={baseButtonClass}
+          >
             {isLoggingOut ? 'ログアウト中…' : 'ログアウト'}
           </button>
         </>
       ) : (
         <>
-          <button type="button" onClick={() => setShowLoginOverlay(true)} className={baseButtonClass}>
+          <button
+            type="button"
+            onClick={() => setShowLoginOverlay(true)}
+            className={baseButtonClass}
+          >
             ログイン
           </button>
           <Link href="/dashboard/login" className={baseButtonClass}>
@@ -151,7 +166,10 @@ export default function SiteHeaderNav() {
           >
             <FavoriteHeartIcon filled={false} className="h-5 w-5" />
           </Link>
-          <Link href="/dashboard/favorites" className={clsx(gradientButtonClass, 'hidden sm:inline-flex')}>
+          <Link
+            href="/dashboard/favorites"
+            className={clsx(gradientButtonClass, 'hidden sm:inline-flex')}
+          >
             <FavoriteHeartIcon filled={false} className="h-4 w-4 text-white" />
             お気に入り
           </Link>

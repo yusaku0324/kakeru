@@ -39,9 +39,7 @@ describe('TherapistFavoritesProvider', () => {
   it('loads existing favorites on mount', async () => {
     const fetchMock = vi.fn()
     fetchMock.mockResolvedValueOnce(
-      jsonResponse([
-        { therapist_id: 't-1', shop_id: 's-1', created_at: '2024-01-01T00:00:00Z' },
-      ])
+      jsonResponse([{ therapist_id: 't-1', shop_id: 's-1', created_at: '2024-01-01T00:00:00Z' }]),
     )
     global.fetch = fetchMock
 
@@ -62,8 +60,8 @@ describe('TherapistFavoritesProvider', () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         { therapist_id: 't-2', shop_id: 's-2', created_at: '2024-02-02T10:00:00Z' },
-        { status: 201 }
-      )
+        { status: 201 },
+      ),
     )
     global.fetch = fetchMock
 
@@ -84,7 +82,9 @@ describe('TherapistFavoritesProvider', () => {
   it('removes a favorite via toggleFavorite', async () => {
     const fetchMock = vi.fn()
     fetchMock.mockResolvedValueOnce(
-      jsonResponse([{ therapist_id: 't-remove', shop_id: 's-9', created_at: '2024-03-03T09:00:00Z' }])
+      jsonResponse([
+        { therapist_id: 't-remove', shop_id: 's-9', created_at: '2024-03-03T09:00:00Z' },
+      ]),
     )
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
     global.fetch = fetchMock

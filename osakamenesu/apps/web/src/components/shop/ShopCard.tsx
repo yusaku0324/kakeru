@@ -4,7 +4,7 @@ import SafeImage from '@/components/SafeImage'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
-import { nextSlotPayloadToScheduleSlot, toNextAvailableSlotPayload, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
+import { nextSlotPayloadToScheduleSlot, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { formatSlotJp } from '@/lib/schedule'
 
 export type Promotion = {
@@ -80,7 +80,7 @@ function getProfileHref(hit: ShopHit) {
 
 export function ShopCard({ hit }: { hit: ShopHit }) {
   const availabilityBadge = hit.today_available ? '本日空きあり' : null
-  const nextSlotPayload = hit.next_available_slot ?? toNextAvailableSlotPayload(hit.next_available_at)
+  const nextSlotPayload = hit.next_available_slot ?? null
   const nextSlotEntity = nextSlotPayload ? nextSlotPayloadToScheduleSlot(nextSlotPayload) : null
   const formattedSlot = formatSlotJp(nextSlotEntity)
   const nextSlotLabel = (() => {
@@ -110,7 +110,11 @@ export function ShopCard({ hit }: { hit: ShopHit }) {
     ? hit.promotions.find((promo) => promo && promo.label)
     : undefined
   const promotionLabel = primaryPromotion?.label || (hit.has_promotions ? '特典あり' : null)
-  const additionalPromotionCount = Math.max((hit.promotion_count ?? (primaryPromotion ? hit.promotions?.length ?? 1 : 0)) - (primaryPromotion ? 1 : 0), 0)
+  const additionalPromotionCount = Math.max(
+    (hit.promotion_count ?? (primaryPromotion ? (hit.promotions?.length ?? 1) : 0)) -
+      (primaryPromotion ? 1 : 0),
+    0,
+  )
 
   return (
     <Link href={getProfileHref(hit)} className="block focus:outline-none" prefetch>
@@ -141,55 +145,67 @@ export function ShopCard({ hit }: { hit: ShopHit }) {
           ) : null}
         </div>
 
-          <div className="space-y-3 p-4">
-            <div>
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="text-lg font-semibold tracking-tight text-neutral-text group-hover:text-brand-primary">
-                  {hit.name}
-                </h3>
-                {availabilityBadge ? <Badge variant="success">{availabilityBadge}</Badge> : null}
-              </div>
-              {hit.store_name ? (
-                <p className="text-sm text-neutral-textMuted">{hit.store_name}</p>
-              ) : null}
-              <p className="text-sm text-neutral-textMuted">
-                {hit.area_name || hit.area}
-                {hit.address ? `｜${hit.address}` : ''}
-              </p>
-              {hit.ranking_reason ? (
-                <p className="mt-1 text-xs text-neutral-textMuted line-clamp-2">{hit.ranking_reason}</p>
-              ) : null}
+        <div className="space-y-3 p-4">
+          <div>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-lg font-semibold tracking-tight text-neutral-text group-hover:text-brand-primary">
+                {hit.name}
+              </h3>
+              {availabilityBadge ? <Badge variant="success">{availabilityBadge}</Badge> : null}
             </div>
+            {hit.store_name ? (
+              <p className="text-sm text-neutral-textMuted">{hit.store_name}</p>
+            ) : null}
+            <p className="text-sm text-neutral-textMuted">
+              {hit.area_name || hit.area}
+              {hit.address ? `｜${hit.address}` : ''}
+            </p>
+            {hit.ranking_reason ? (
+              <p className="mt-1 text-xs text-neutral-textMuted line-clamp-2">
+                {hit.ranking_reason}
+              </p>
+            ) : null}
+          </div>
 
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="font-semibold text-brand-primaryDark">{formatPriceRange(hit.min_price, hit.max_price)}</span>
-              {hit.price_band_label ? (
-                <span className="text-xs text-neutral-textMuted">{hit.price_band_label}</span>
-              ) : null}
-              {hit.rating ? (
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="font-semibold text-brand-primaryDark">
+              {formatPriceRange(hit.min_price, hit.max_price)}
+            </span>
+            {hit.price_band_label ? (
+              <span className="text-xs text-neutral-textMuted">{hit.price_band_label}</span>
+            ) : null}
+            {hit.rating ? (
               <span className="flex items-center gap-1 text-neutral-text">
-                <span aria-hidden className="text-amber-400">★</span>
+                <span aria-hidden className="text-amber-400">
+                  ★
+                </span>
                 <span className="font-semibold">{hit.rating.toFixed(1)}</span>
-                {hit.review_count ? <span className="text-xs text-neutral-textMuted">({hit.review_count}件)</span> : null}
+                {hit.review_count ? (
+                  <span className="text-xs text-neutral-textMuted">({hit.review_count}件)</span>
+                ) : null}
               </span>
             ) : null}
             {hit.online_reservation ? <Badge variant="brand">オンライン予約OK</Badge> : null}
-            {hit.has_discounts ? <Badge variant="outline" className="text-xs">クーポン</Badge> : null}
-            </div>
-
-            {nextSlotLabel ? (
-              <p className="text-xs text-brand-primaryDark">
-                <span className="inline-flex items-center rounded-full border border-brand-primary/20 bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold">
-                  {nextSlotLabel}
-                </span>
-              </p>
-            ) : hit.today_available === false ? (
-              <p className="text-xs text-neutral-textMuted">本日の受付は終了しました</p>
+            {hit.has_discounts ? (
+              <Badge variant="outline" className="text-xs">
+                クーポン
+              </Badge>
             ) : null}
+          </div>
 
-            {Array.isArray(hit.service_tags) && hit.service_tags.length ? (
-              <div className="flex flex-wrap gap-2">
-                {hit.service_tags.slice(0, 4).map((tag) => (
+          {nextSlotLabel ? (
+            <p className="text-xs text-brand-primaryDark">
+              <span className="inline-flex items-center rounded-full border border-brand-primary/20 bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold">
+                {nextSlotLabel}
+              </span>
+            </p>
+          ) : hit.today_available === false ? (
+            <p className="text-xs text-neutral-textMuted">本日の受付は終了しました</p>
+          ) : null}
+
+          {Array.isArray(hit.service_tags) && hit.service_tags.length ? (
+            <div className="flex flex-wrap gap-2">
+              {hit.service_tags.slice(0, 4).map((tag) => (
                 <span
                   key={tag}
                   className="inline-flex items-center rounded-badge border border-neutral-borderLight bg-neutral-surfaceAlt px-2 py-0.5 text-[12px] text-neutral-text"

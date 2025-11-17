@@ -1,0 +1,11 @@
+node_modules
+.next
+storybook-static
+test-results
+e2e-output
+public/fonts
+build-storybook.log
+chromatic*.log
+coverage
+dist
+pnp.cjs

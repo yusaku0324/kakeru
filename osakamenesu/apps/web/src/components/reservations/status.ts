@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 export const RESERVATION_STATUS_LABELS: Record<string, string> = {
   pending: '承認待ち',

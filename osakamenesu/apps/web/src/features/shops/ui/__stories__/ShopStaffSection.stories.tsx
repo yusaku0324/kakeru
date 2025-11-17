@@ -29,15 +29,17 @@ function ShopStaffSectionPreview() {
       <ShopStaffSection
         staff={members}
         onUpdateStaff={(index, patch) =>
-          setMembers(prev => prev.map((member, idx) => (idx === index ? { ...member, ...patch } : member)))
+          setMembers((prev) =>
+            prev.map((member, idx) => (idx === index ? { ...member, ...patch } : member)),
+          )
         }
         onAddStaff={() =>
-          setMembers(prev => [
+          setMembers((prev) => [
             ...prev,
             { id: `staff-${Date.now()}`, name: '', alias: '', headline: '', specialties: [] },
           ])
         }
-        onRemoveStaff={index => setMembers(prev => prev.filter((_, idx) => idx !== index))}
+        onRemoveStaff={(index) => setMembers((prev) => prev.filter((_, idx) => idx !== index))}
       />
     </div>
   )

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import clsx from 'clsx'
 import Link from 'next/link'
@@ -102,19 +102,26 @@ export function SiteLoginContent({ variant, onClose }: SiteLoginContentProps) {
         <div className="flex items-center justify-between text-sm">
           <h2 className="text-base font-semibold text-neutral-text">よくあるご質問</h2>
           {variant === 'overlay' ? (
-            <Link href="/auth/login" className="text-xs font-semibold text-brand-primary transition hover:text-brand-primary/80">
+            <Link
+              href="/auth/login"
+              className="text-xs font-semibold text-brand-primary transition hover:text-brand-primary/80"
+            >
               ログインページに移動 →
             </Link>
           ) : null}
         </div>
         <ul className="grid gap-2 text-neutral-textMuted">
           <li>
-            <span className="font-semibold text-neutral-text">Q. マジックリンクはどれくらい有効ですか？</span>
+            <span className="font-semibold text-neutral-text">
+              Q. マジックリンクはどれくらい有効ですか？
+            </span>
             <p>リンクの有効期限は送信から数分間です。同じブラウザで開いてください。</p>
           </li>
           <li>
             <span className="font-semibold text-neutral-text">Q. ログイン履歴は残りますか？</span>
-            <p>一定期間アクセスが無い場合は自動的にログアウトされます。お気に入りは再ログインで復元されます。</p>
+            <p>
+              一定期間アクセスが無い場合は自動的にログアウトされます。お気に入りは再ログインで復元されます。
+            </p>
           </li>
         </ul>
       </section>

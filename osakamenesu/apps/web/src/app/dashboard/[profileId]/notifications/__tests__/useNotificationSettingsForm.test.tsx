@@ -10,7 +10,9 @@ const { updateMock, testMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/dashboard-notifications', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/dashboard-notifications')>('@/lib/dashboard-notifications')
+  const actual = await vi.importActual<typeof import('@/lib/dashboard-notifications')>(
+    '@/lib/dashboard-notifications',
+  )
   return {
     ...actual,
     updateDashboardNotificationSettings: updateMock,

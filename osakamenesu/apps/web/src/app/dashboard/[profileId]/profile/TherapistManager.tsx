@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { ChangeEvent, FormEvent, KeyboardEvent, useMemo, useState } from 'react'
 
@@ -104,10 +104,17 @@ function detailToForm(detail: DashboardTherapistDetail): TherapistFormValues {
 }
 
 function toErrorMessage(
-  result: DashboardTherapistListResult | DashboardTherapistMutationResult | DashboardTherapistDeleteResult,
-  fallback: string
+  result:
+    | DashboardTherapistListResult
+    | DashboardTherapistMutationResult
+    | DashboardTherapistDeleteResult,
+  fallback: string,
 ): string {
-  if ('message' in result && typeof result.message === 'string' && result.message.trim().length > 0) {
+  if (
+    'message' in result &&
+    typeof result.message === 'string' &&
+    result.message.trim().length > 0
+  ) {
     return result.message
   }
   return fallback
@@ -245,7 +252,10 @@ export function TherapistPhotoField({
           まだ写真が登録されていません。画像ファイルをアップロードするか、URL を追加してください。
         </p>
       )}
-      <form className="flex flex-col gap-2 sm:flex-row sm:items-center" onSubmit={handleManualSubmit}>
+      <form
+        className="flex flex-col gap-2 sm:flex-row sm:items-center"
+        onSubmit={handleManualSubmit}
+      >
         <input
           type="url"
           value={manualUrl}
@@ -268,7 +278,9 @@ export function TherapistPhotoField({
 }
 
 export function TherapistManager({ profileId, initialItems, initialError, onToast }: Props) {
-  const [therapists, setTherapists] = useState<DashboardTherapistSummary[]>(sortTherapists(initialItems))
+  const [therapists, setTherapists] = useState<DashboardTherapistSummary[]>(
+    sortTherapists(initialItems),
+  )
   const [error, setError] = useState<string | null>(initialError ?? null)
   const [formState, setFormState] = useState<TherapistFormState | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -325,7 +337,10 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
     setIsUploadingPhoto(false)
   }
 
-  function handleValuesChange<T extends keyof TherapistFormValues>(key: T, value: TherapistFormValues[T]) {
+  function handleValuesChange<T extends keyof TherapistFormValues>(
+    key: T,
+    value: TherapistFormValues[T],
+  ) {
     setFormState((prev) => {
       if (!prev) return prev
       return {
@@ -416,7 +431,8 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
             break
           }
           case 'unsupported_media_type': {
-            const message = '対応していないファイル形式です。PNG / JPG / WEBP / GIF を利用してください。'
+            const message =
+              '対応していないファイル形式です。PNG / JPG / WEBP / GIF を利用してください。'
             setPhotoUploadError(message)
             onToast('error', message)
             break
@@ -437,7 +453,8 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
             break
           }
           default: {
-            const message = result.message ?? 'アップロードに失敗しました。時間をおいて再試行してください。'
+            const message =
+              result.message ?? 'アップロードに失敗しました。時間をおいて再試行してください。'
             setPhotoUploadError(message)
             onToast('error', message)
           }
@@ -466,7 +483,7 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
     const payloadSpecialties = parseCommaSeparated(values.specialties)
     const payloadQualifications = parseCommaSeparated(values.qualifications)
     const sanitizedPhotoUrls = Array.from(
-      new Set(values.photoUrls.map((url) => url.trim()).filter((url) => url.length > 0))
+      new Set(values.photoUrls.map((url) => url.trim()).filter((url) => url.length > 0)),
     )
 
     const experienceYears = values.experienceYears.trim()
@@ -516,9 +533,9 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
           setTherapists((prev) =>
             sortTherapists(
               prev.map((item) =>
-                item.id === result.data.id ? summarizeTherapist(result.data) : item
-              )
-            )
+                item.id === result.data.id ? summarizeTherapist(result.data) : item,
+              ),
+            ),
           )
           setError(null)
           onToast('success', 'セラピスト情報を更新しました。')
@@ -559,7 +576,10 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
     }
   }
 
-  async function persistOrder(next: DashboardTherapistSummary[], previous: DashboardTherapistSummary[]) {
+  async function persistOrder(
+    next: DashboardTherapistSummary[],
+    previous: DashboardTherapistSummary[],
+  ) {
     const payload = {
       items: next.map((item, index) => ({
         therapist_id: item.id,
@@ -602,7 +622,7 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
         value: value as DashboardTherapistSummary['status'],
         label,
       })),
-    []
+    [],
   )
 
   return (
@@ -658,7 +678,9 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
                       />
                     ))}
                     {therapist.photo_urls.length > 3 ? (
-                      <span className="text-xs text-neutral-500">+{therapist.photo_urls.length - 3}</span>
+                      <span className="text-xs text-neutral-500">
+                        +{therapist.photo_urls.length - 3}
+                      </span>
                     ) : null}
                   </div>
                 ) : (
@@ -708,7 +730,10 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
       </div>
 
       {formState ? (
-        <form className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4" onSubmit={handleSubmit}>
+        <form
+          className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4"
+          onSubmit={handleSubmit}
+        >
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-neutral-800">
               {formState.mode === 'create' ? 'セラピストを追加' : 'セラピストを編集'}
@@ -785,9 +810,7 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
               />
             </label>
           </div>
-          <div
-            className={`grid gap-3 ${formState.mode === 'edit' ? 'md:grid-cols-2' : ''}`.trim()}
-          >
+          <div className={`grid gap-3 ${formState.mode === 'edit' ? 'md:grid-cols-2' : ''}`.trim()}>
             <label className="space-y-1">
               <span className="text-xs font-semibold text-neutral-600">経験年数</span>
               <input
@@ -805,7 +828,10 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
                 <select
                   value={formState.values.status}
                   onChange={(event) =>
-                    handleValuesChange('status', event.target.value as DashboardTherapistSummary['status'])
+                    handleValuesChange(
+                      'status',
+                      event.target.value as DashboardTherapistSummary['status'],
+                    )
                   }
                   className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
                 >

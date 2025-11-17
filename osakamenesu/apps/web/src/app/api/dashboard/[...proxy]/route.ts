@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const INTERNAL_API_BASE =
-  process.env.OSAKAMENESU_API_INTERNAL_BASE ||
-  process.env.API_INTERNAL_BASE ||
-  process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE ||
-  'http://osakamenesu-api:8000'
+import { resolveInternalApiBase } from '@/lib/server-config'
 
-const normalizeBase = (base: string) => base.replace(/\/$/, '')
+const normalizeBase = (base: string) => base.replace(/\/+$/, '')
 
 type RouteContext = { params: Promise<{ proxy?: string[] }> }
 
@@ -15,7 +10,7 @@ async function forward(request: NextRequest, context: RouteContext) {
   const params = await context.params
   const proxySegments = params.proxy ?? []
   const targetPath = proxySegments.join('/')
-  const base = normalizeBase(INTERNAL_API_BASE)
+  const base = normalizeBase(resolveInternalApiBase())
   const targetUrl = `${base}/api/dashboard/${targetPath}${request.nextUrl.search}`
 
   const headers = new Headers(request.headers)

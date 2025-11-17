@@ -97,6 +97,34 @@ services:
         aliases:
           - web
 
+  osakamenesu-notifications:
+    build: ./services/api
+    container_name: osakamenesu_notifications
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-osaka_menesu}
+      POSTGRES_HOST: ${POSTGRES_HOST:-osakamenesu-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      DATABASE_URL: postgresql+asyncpg://app:app@osakamenesu-db:5432/osaka_menesu
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_meili_master_key}
+      MEILI_HOST: ${MEILI_HOST:-http://osakamenesu-meili:7700}
+      RATE_LIMIT_REDIS_URL: ${RATE_LIMIT_REDIS_URL:-redis://osakamenesu-redis:6379/0}
+      RATE_LIMIT_NAMESPACE: ${RATE_LIMIT_NAMESPACE:-osakamenesu_outlinks}
+      RATE_LIMIT_REDIS_ERROR_COOLDOWN: ${RATE_LIMIT_REDIS_ERROR_COOLDOWN:-30}
+      API_INTERNAL_BASE: ${API_INTERNAL_BASE:-http://osakamenesu-api:8000}
+    command: ["python", "-m", "app.scripts.notifications_worker"]
+    volumes:
+      - ./services/api:/app
+    depends_on:
+      osakamenesu-db:
+        condition: service_healthy
+      osakamenesu-redis:
+        condition: service_started
+      osakamenesu-meili:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   osakamenesu-db-data: {}
   osakamenesu-redis-data: {}

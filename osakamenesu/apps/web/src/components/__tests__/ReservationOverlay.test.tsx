@@ -34,15 +34,27 @@ const availabilityDays = [
     date: '2025-11-04',
     is_today: true,
     slots: [
-      { start_at: '2025-11-04T12:00:00+09:00', end_at: '2025-11-04T12:30:00+09:00', status: 'open' as const },
-      { start_at: '2025-11-04T13:00:00+09:00', end_at: '2025-11-04T13:30:00+09:00', status: 'tentative' as const },
+      {
+        start_at: '2025-11-04T12:00:00+09:00',
+        end_at: '2025-11-04T12:30:00+09:00',
+        status: 'open' as const,
+      },
+      {
+        start_at: '2025-11-04T13:00:00+09:00',
+        end_at: '2025-11-04T13:30:00+09:00',
+        status: 'tentative' as const,
+      },
     ],
   },
   {
     date: '2025-11-05',
     is_today: false,
     slots: [
-      { start_at: '2025-11-05T10:00:00+09:00', end_at: '2025-11-05T10:30:00+09:00', status: 'open' as const },
+      {
+        start_at: '2025-11-05T10:00:00+09:00',
+        end_at: '2025-11-05T10:30:00+09:00',
+        status: 'open' as const,
+      },
     ],
   },
 ] satisfies NonNullable<ReservationOverlayProps['availabilityDays']>
@@ -63,7 +75,9 @@ describe('ReservationOverlay schedule selection', () => {
     const detailOverlay = await screen.findByRole('dialog', { name: /りなの予約詳細/ })
     fireEvent.click(within(detailOverlay).getByRole('button', { name: '空き状況・予約' }))
 
-    const scheduleButtons = await within(detailOverlay).findAllByRole('button', { name: /11\/4.*13:00/ })
+    const scheduleButtons = await within(detailOverlay).findAllByRole('button', {
+      name: /11\/4.*13:00/,
+    })
     fireEvent.click(scheduleButtons[0])
 
     const candidateBadges = await within(detailOverlay).findAllByText(/第\d候補/)

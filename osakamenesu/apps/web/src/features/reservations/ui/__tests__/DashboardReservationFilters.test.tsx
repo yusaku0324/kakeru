@@ -34,16 +34,24 @@ describe('DashboardReservationFilters', () => {
   it('renders selectors and dispatches callbacks', () => {
     render(<DashboardReservationFilters {...defaultProps} />)
 
-    fireEvent.change(screen.getByLabelText('ステータス'), { target: { value: STATUS_OPTIONS[1].value } })
+    fireEvent.change(screen.getByLabelText('ステータス'), {
+      target: { value: STATUS_OPTIONS[1].value },
+    })
     expect(defaultProps.onStatusChange).toHaveBeenCalledWith(STATUS_OPTIONS[1].value)
 
-    fireEvent.change(screen.getByLabelText('並び替え'), { target: { value: SORT_OPTIONS[1].value } })
+    fireEvent.change(screen.getByLabelText('並び替え'), {
+      target: { value: SORT_OPTIONS[1].value },
+    })
     expect(defaultProps.onSortChange).toHaveBeenCalledWith(SORT_OPTIONS[1].value)
 
-    fireEvent.change(screen.getByLabelText('順序'), { target: { value: DIRECTION_OPTIONS[1].value } })
+    fireEvent.change(screen.getByLabelText('順序'), {
+      target: { value: DIRECTION_OPTIONS[1].value },
+    })
     expect(defaultProps.onDirectionChange).toHaveBeenCalledWith(DIRECTION_OPTIONS[1].value)
 
-    fireEvent.change(screen.getByLabelText('表示件数'), { target: { value: `${PAGE_SIZE_OPTIONS[1]}` } })
+    fireEvent.change(screen.getByLabelText('表示件数'), {
+      target: { value: `${PAGE_SIZE_OPTIONS[1]}` },
+    })
     expect(defaultProps.onLimitChange).toHaveBeenCalledWith(PAGE_SIZE_OPTIONS[1])
   })
 

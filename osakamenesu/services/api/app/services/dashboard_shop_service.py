@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import uuid
 from datetime import datetime
+from http import HTTPStatus
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,13 +35,22 @@ DEFAULT_BUST_TAG = "UNSPECIFIED"
 ALLOWED_PROFILE_STATUSES = {"draft", "published", "hidden"}
 
 
+class DashboardShopError(Exception):
+    def __init__(self, status_code: int, detail: Any) -> None:
+        super().__init__(str(detail))
+        self.status_code = status_code
+        self.detail = detail
+
+
 class DashboardShopService:
     """Encapsulates dashboard shop profile operations."""
 
     def __init__(self, *, indexer=index_profile) -> None:
         self._indexer = indexer
 
-    async def list_shops(self, *, limit: int, db: AsyncSession) -> DashboardShopListResponse:
+    async def list_shops(
+        self, *, limit: int, db: AsyncSession
+    ) -> DashboardShopListResponse:
         limit_value = max(1, min(limit, 100))
         stmt = (
             select(models.Profile)
@@ -64,7 +74,7 @@ class DashboardShopService:
     async def create_profile(
         self,
         *,
-        request: Request,
+        request: Any,
         payload: DashboardShopProfileCreatePayload,
         db: AsyncSession,
         user: models.User,
@@ -73,30 +83,33 @@ class DashboardShopService:
     ) -> DashboardShopProfileResponse:
         name = strip_or_none(payload.name)
         if not name:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"field": "name", "message": "店舗名を入力してください。"},
+            raise DashboardShopError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                {"field": "name", "message": "店舗名を入力してください。"},
             )
         area = strip_or_none(payload.area)
         if not area:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"field": "area", "message": "エリアを入力してください。"},
+            raise DashboardShopError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                {"field": "area", "message": "エリアを入力してください。"},
             )
 
         try:
             price_min = max(0, int(payload.price_min))
             price_max = max(0, int(payload.price_max))
         except Exception as exc:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"field": "price", "message": "料金は数値で入力してください。"},
+            raise DashboardShopError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                {"field": "price", "message": "料金は数値で入力してください。"},
             ) from exc
 
         if price_max < price_min:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"field": "price_max", "message": "料金の上限は下限以上に設定してください。"},
+            raise DashboardShopError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                {
+                    "field": "price_max",
+                    "message": "料金の上限は下限以上に設定してください。",
+                },
             )
 
         service_type = strip_or_none(payload.service_type) or "store"
@@ -165,7 +178,7 @@ class DashboardShopService:
     async def update_profile(
         self,
         *,
-        request: Request,
+        request: Any,
         profile_id: UUID,
         payload: DashboardShopProfileUpdatePayload,
         db: AsyncSession,
@@ -179,9 +192,9 @@ class DashboardShopService:
         incoming_updated_at = ensure_aware_datetime(payload.updated_at)
         if incoming_updated_at != current_updated_at:
             current = self.serialize_profile(profile)
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail={"current": current.model_dump()},
+            raise DashboardShopError(
+                HTTPStatus.CONFLICT,
+                {"current": current.model_dump()},
             )
 
         before_state = self.serialize_profile(profile).model_dump()
@@ -218,9 +231,9 @@ class DashboardShopService:
                     )
                 )
                 if conflict.scalar_one_or_none():
-                    raise HTTPException(
-                        status.HTTP_400_BAD_REQUEST,
-                        detail="slug_already_exists",
+                    raise DashboardShopError(
+                        HTTPStatus.BAD_REQUEST,
+                        "slug_already_exists",
                     )
                 profile.slug = candidate
             else:
@@ -229,9 +242,9 @@ class DashboardShopService:
         if payload.status is not None:
             status_value = strip_or_none(payload.status)
             if not status_value or status_value.lower() not in ALLOWED_PROFILE_STATUSES:
-                raise HTTPException(
-                    status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail={"field": "status", "message": "ステータスの指定が不正です。"},
+                raise DashboardShopError(
+                    HTTPStatus.UNPROCESSABLE_ENTITY,
+                    {"field": "status", "message": "ステータスの指定が不正です。"},
                 )
             profile.status = status_value.lower()
 
@@ -240,7 +253,9 @@ class DashboardShopService:
             self._update_contact_json(contact_json, payload.contact)
 
         if payload.description is not None:
-            self._update_optional_field(contact_json, "description", payload.description)
+            self._update_optional_field(
+                contact_json, "description", payload.description
+            )
 
         if payload.catch_copy is not None:
             self._update_optional_field(contact_json, "catch_copy", payload.catch_copy)
@@ -282,13 +297,17 @@ class DashboardShopService:
         )
         return response
 
-    async def get_profile(self, *, db: AsyncSession, profile_id: UUID) -> models.Profile:
+    async def get_profile(
+        self, *, db: AsyncSession, profile_id: UUID
+    ) -> models.Profile:
         profile = await db.get(models.Profile, profile_id)
         if not profile:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="profile_not_found")
+            raise DashboardShopError(HTTPStatus.NOT_FOUND, "profile_not_found")
         return profile
 
-    def extract_contact(self, contact_json: Dict[str, Any] | None) -> Optional[DashboardShopContact]:
+    def extract_contact(
+        self, contact_json: Dict[str, Any] | None
+    ) -> Optional[DashboardShopContact]:
         if not isinstance(contact_json, dict):
             return None
         phone = contact_json.get("phone") or contact_json.get("tel")
@@ -326,7 +345,9 @@ class DashboardShopService:
             tags = []
             raw_tags = entry.get("tags") or []
             if isinstance(raw_tags, list):
-                tags = [tag for tag in sanitize_strings([str(item) for item in raw_tags])]
+                tags = [
+                    tag for tag in sanitize_strings([str(item) for item in raw_tags])
+                ]
             items.append(
                 DashboardShopMenu(
                     id=str(entry.get("id")) if entry.get("id") else None,
@@ -355,7 +376,9 @@ class DashboardShopService:
             if isinstance(raw_specialties, list):
                 specialties = [
                     cleaned
-                    for cleaned in (strip_or_none(str(item)) for item in raw_specialties)
+                    for cleaned in (
+                        strip_or_none(str(item)) for item in raw_specialties
+                    )
                     if cleaned
                 ]
             members.append(
@@ -369,7 +392,9 @@ class DashboardShopService:
             )
         return members
 
-    def serialize_profile(self, profile: models.Profile) -> DashboardShopProfileResponse:
+    def serialize_profile(
+        self, profile: models.Profile
+    ) -> DashboardShopProfileResponse:
         contact_json = profile.contact_json or {}
         contact = self.extract_contact(contact_json)
         menus = self.extract_menus(contact_json.get("menus"))
@@ -413,7 +438,9 @@ class DashboardShopService:
     ) -> None:
         await self._record_change(request, db, target_id, action, before, after)
 
-    def update_contact_json(self, contact_json: Dict[str, Any], contact: Optional[DashboardShopContact]) -> None:
+    def update_contact_json(
+        self, contact_json: Dict[str, Any], contact: Optional[DashboardShopContact]
+    ) -> None:
         self._update_contact_json(contact_json, contact)
 
     def sanitize_service_tags(self, raw: Optional[List[str]]) -> List[str]:
@@ -422,10 +449,14 @@ class DashboardShopService:
     def sanitize_photos(self, raw: Optional[List[str]]) -> List[str]:
         return self._sanitize_photos(raw)
 
-    def menus_to_contact_json(self, items: List[DashboardShopMenu]) -> List[Dict[str, Any]]:
+    def menus_to_contact_json(
+        self, items: List[DashboardShopMenu]
+    ) -> List[Dict[str, Any]]:
         return self._menus_to_contact_json(items)
 
-    def staff_to_contact_json(self, items: List[DashboardShopStaff]) -> List[Dict[str, Any]]:
+    def staff_to_contact_json(
+        self, items: List[DashboardShopStaff]
+    ) -> List[Dict[str, Any]]:
         return self._staff_to_contact_json(items)
 
     # Internal helpers -------------------------------------------------
@@ -545,7 +576,9 @@ class DashboardShopService:
                 photos.append(cleaned)
         return photos
 
-    def _menus_to_contact_json(self, items: List[DashboardShopMenu]) -> List[Dict[str, Any]]:
+    def _menus_to_contact_json(
+        self, items: List[DashboardShopMenu]
+    ) -> List[Dict[str, Any]]:
         payload: List[Dict[str, Any]] = []
         for item in items:
             name = strip_or_none(item.name)
@@ -577,7 +610,9 @@ class DashboardShopService:
             )
         return payload
 
-    def _staff_to_contact_json(self, items: List[DashboardShopStaff]) -> List[Dict[str, Any]]:
+    def _staff_to_contact_json(
+        self, items: List[DashboardShopStaff]
+    ) -> List[Dict[str, Any]]:
         payload: List[Dict[str, Any]] = []
         for member in items:
             name = strip_or_none(member.name)
@@ -595,7 +630,9 @@ class DashboardShopService:
             )
         return payload
 
-    def _update_optional_field(self, contact_json: Dict[str, Any], key: str, value: Optional[str]) -> None:
+    def _update_optional_field(
+        self, contact_json: Dict[str, Any], key: str, value: Optional[str]
+    ) -> None:
         if value:
             contact_json[key] = value
         else:
@@ -604,6 +641,7 @@ class DashboardShopService:
 
 __all__ = [
     "DashboardShopService",
+    "DashboardShopError",
     "DEFAULT_BUST_TAG",
     "ALLOWED_PROFILE_STATUSES",
 ]

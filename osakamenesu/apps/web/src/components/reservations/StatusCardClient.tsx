@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import ReservationStatusCard from './StatusCard'
 import { useLatestReservation } from './useLatestReservation'
@@ -11,5 +11,12 @@ type Props = {
 
 export default function ReservationStatusCardClient({ shopId, slug, className }: Props) {
   const snapshot = useLatestReservation(shopId, slug)
-  return <ReservationStatusCard shopId={shopId} slug={slug ?? undefined} snapshot={snapshot} className={className} />
+  return (
+    <ReservationStatusCard
+      shopId={shopId}
+      slug={slug ?? undefined}
+      snapshot={snapshot}
+      className={className}
+    />
+  )
 }

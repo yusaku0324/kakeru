@@ -1,11 +1,13 @@
-"use client"
+'use client'
 
 import Image, { type ImageProps } from 'next/image'
 import { useCallback, useEffect, useState } from 'react'
 
 const DEFAULT_PLACEHOLDER = '/images/placeholder-card.svg'
 
-function isMeaningfulString(value: ImageProps['src'] | null | undefined): value is ImageProps['src'] {
+function isMeaningfulString(
+  value: ImageProps['src'] | null | undefined,
+): value is ImageProps['src'] {
   if (value == null) return false
   if (typeof value === 'string') {
     return value.trim().length > 0
@@ -13,7 +15,10 @@ function isMeaningfulString(value: ImageProps['src'] | null | undefined): value 
   return true
 }
 
-function sanitizeSrc(value: ImageProps['src'] | null | undefined, fallback?: ImageProps['src'] | null) {
+function sanitizeSrc(
+  value: ImageProps['src'] | null | undefined,
+  fallback?: ImageProps['src'] | null,
+) {
   if (typeof value === 'string' && /^https?:\/\//.test(value)) {
     return fallback && isMeaningfulString(fallback) ? fallback : null
   }

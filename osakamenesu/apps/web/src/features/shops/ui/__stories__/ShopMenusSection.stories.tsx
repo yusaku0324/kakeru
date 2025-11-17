@@ -33,10 +33,12 @@ function ShopMenusSectionPreview() {
       <ShopMenusSection
         menus={menus}
         onUpdateMenu={(index, patch) =>
-          setMenus(prev => prev.map((menu, idx) => (idx === index ? { ...menu, ...patch } : menu)))
+          setMenus((prev) =>
+            prev.map((menu, idx) => (idx === index ? { ...menu, ...patch } : menu)),
+          )
         }
         onAddMenu={() =>
-          setMenus(prev => [
+          setMenus((prev) => [
             ...prev,
             {
               id: `menu-${Date.now()}`,
@@ -49,7 +51,7 @@ function ShopMenusSectionPreview() {
             },
           ])
         }
-        onRemoveMenu={index => setMenus(prev => prev.filter((_, idx) => idx !== index))}
+        onRemoveMenu={(index) => setMenus((prev) => prev.filter((_, idx) => idx !== index))}
       />
     </div>
   )

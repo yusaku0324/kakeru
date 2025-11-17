@@ -25,7 +25,9 @@ const devServerCommand = `npx next dev -p ${port} --hostname 127.0.0.1`
 const webServerCommand = isCI ? prodServerCommand : devServerCommand
 
 if (!(adminUser && adminPass)) {
-  console.warn('[playwright] ADMIN_BASIC_USER / ADMIN_BASIC_PASS が設定されていないため、管理画面テストは認証エラーになります')
+  console.warn(
+    '[playwright] ADMIN_BASIC_USER / ADMIN_BASIC_PASS が設定されていないため、管理画面テストは認証エラーになります',
+  )
 }
 
 export default defineConfig({
@@ -39,12 +41,13 @@ export default defineConfig({
     baseURL: resolvedBaseURL,
     trace: 'retain-on-failure',
     headless: true,
-    httpCredentials: adminUser && adminPass
-      ? {
-          username: adminUser,
-          password: adminPass,
-        }
-      : undefined,
+    httpCredentials:
+      adminUser && adminPass
+        ? {
+            username: adminUser,
+            password: adminPass,
+          }
+        : undefined,
     extraHTTPHeaders: {},
   },
   webServer: process.env.E2E_BASE_URL

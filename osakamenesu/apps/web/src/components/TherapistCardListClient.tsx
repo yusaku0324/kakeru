@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import TherapistCard, { type TherapistHit } from '@/components/staff/TherapistCard'
 
@@ -10,7 +10,11 @@ type TherapistCardListClientProps = {
   variant?: 'grid' | 'featured'
 }
 
-export function TherapistCardListClient({ therapists, className, variant = 'grid' }: TherapistCardListClientProps) {
+export function TherapistCardListClient({
+  therapists,
+  className,
+  variant = 'grid',
+}: TherapistCardListClientProps) {
   return (
     <div className={className}>
       {therapists.map((hit) => (

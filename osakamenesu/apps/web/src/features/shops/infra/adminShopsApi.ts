@@ -1,4 +1,11 @@
-import type { AvailabilityDay, ContactInfo, MenuItem, ShopDetail, ShopSummary, StaffItem } from '@/features/shops/model'
+import type {
+  AvailabilityDay,
+  ContactInfo,
+  MenuItem,
+  ShopDetail,
+  ShopSummary,
+  StaffItem,
+} from '@/features/shops/model'
 
 async function jsonFetch<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const resp = await fetch(input, init)
@@ -37,7 +44,7 @@ export type ShopContentPayload = {
 }
 
 export async function updateAdminShopContent(id: string, payload: ShopContentPayload) {
-  await jsonFetch(`/api/admin/shops/${id}/content`, {
+  await jsonFetch(`/api/admin/shops/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

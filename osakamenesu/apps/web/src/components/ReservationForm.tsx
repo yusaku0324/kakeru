@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
@@ -15,8 +15,18 @@ type ReservationFormProps = {
   defaultDurationMinutes?: number | null
   staffId?: string | null
   allowDemoSubmission?: boolean
-  selectedSlots?: Array<{ startAt: string; endAt: string; date: string; status: 'open' | 'tentative' }>
-  courseOptions?: Array<{ id: string; label: string; durationMinutes?: number | null; priceLabel?: string | null }>
+  selectedSlots?: Array<{
+    startAt: string
+    endAt: string
+    date: string
+    status: 'open' | 'tentative'
+  }>
+  courseOptions?: Array<{
+    id: string
+    label: string
+    durationMinutes?: number | null
+    priceLabel?: string | null
+  }>
 }
 
 type FormState = {
@@ -102,7 +112,8 @@ export default function ReservationForm({
   courseOptions = [],
 }: ReservationFormProps) {
   const initialStart = defaultStart || nextHourIsoLocal(180)
-  const initialDuration = defaultDurationMinutes && defaultDurationMinutes > 0 ? defaultDurationMinutes : 60
+  const initialDuration =
+    defaultDurationMinutes && defaultDurationMinutes > 0 ? defaultDurationMinutes : 60
 
   const [form, setForm] = useState<FormState>({
     name: '',
@@ -181,7 +192,9 @@ export default function ReservationForm({
         return next
       })
     } else if (defaultStart) {
-      setForm((prev) => (prev.desiredStart === defaultStart ? prev : { ...prev, desiredStart: defaultStart }))
+      setForm((prev) =>
+        prev.desiredStart === defaultStart ? prev : { ...prev, desiredStart: defaultStart },
+      )
       setErrors((prev) => {
         if (!prev.desiredStart) return prev
         const next = { ...prev }
@@ -204,7 +217,9 @@ export default function ReservationForm({
       if (prev.courseId && courseOptions.some((course) => course.id === prev.courseId)) {
         const matched = courseOptions.find((course) => course.id === prev.courseId)
         const nextDuration = matched?.durationMinutes ?? prev.durationMinutes
-        return nextDuration === prev.durationMinutes ? prev : { ...prev, durationMinutes: nextDuration }
+        return nextDuration === prev.durationMinutes
+          ? prev
+          : { ...prev, durationMinutes: nextDuration }
       }
       const first = courseOptions[0]
       return {
@@ -326,24 +341,40 @@ export default function ReservationForm({
     const endIso = new Date(end.getTime()).toISOString()
     const courseLabel = selectedCourse?.label ?? null
     const coursePrice = selectedCourse?.priceLabel ?? null
-    const courseLine = courseLabel ? `${courseLabel}${coursePrice ? `（${coursePrice}）` : ''}` : null
-    const preferredSlotSummary = Array.isArray(selectedSlots) && selectedSlots.length
-      ? selectedSlots
-          .map((slot, index) => {
-            const slotStart = new Date(slot.startAt)
-            const slotEnd = new Date(slot.endAt)
-            const dateLabel = slotStart.toLocaleDateString('ja-JP', {
-              month: 'numeric',
-              day: 'numeric',
-              weekday: 'short',
-            })
-            const startTime = slotStart.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
-            const endTime = slotEnd.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
-            const statusLabel = slot.status === 'open' ? '◎ 予約可' : slot.status === 'tentative' ? '△ 要確認' : '× 予約不可'
-            return `第${index + 1}候補: ${dateLabel} ${startTime}〜${endTime} (${statusLabel})`
-          })
-          .join('\n')
+    const courseLine = courseLabel
+      ? `${courseLabel}${coursePrice ? `（${coursePrice}）` : ''}`
       : null
+    const preferredSlotSummary =
+      Array.isArray(selectedSlots) && selectedSlots.length
+        ? selectedSlots
+            .map((slot, index) => {
+              const slotStart = new Date(slot.startAt)
+              const slotEnd = new Date(slot.endAt)
+              const dateLabel = slotStart.toLocaleDateString('ja-JP', {
+                month: 'numeric',
+                day: 'numeric',
+                weekday: 'short',
+              })
+              const startTime = slotStart.toLocaleTimeString('ja-JP', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              })
+              const endTime = slotEnd.toLocaleTimeString('ja-JP', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              })
+              const statusLabel =
+                slot.status === 'open'
+                  ? '◎ 予約可'
+                  : slot.status === 'tentative'
+                    ? '△ 要確認'
+                    : '× 予約不可'
+              return `第${index + 1}候補: ${dateLabel} ${startTime}〜${endTime} (${statusLabel})`
+            })
+            .join('\n')
+        : null
     const noteParts = [
       courseLine ? `希望コース: ${courseLine}` : null,
       preferredSlotSummary ? `希望日時候補:\n${preferredSlotSummary}` : null,
@@ -397,7 +428,10 @@ export default function ReservationForm({
           const errorMessage = (() => {
             if (typeof data?.detail === 'string') return data.detail
             if (Array.isArray(data?.detail)) {
-              return data.detail.map((item: any) => item?.msg).filter(Boolean).join('\n')
+              return data.detail
+                .map((item: any) => item?.msg)
+                .filter(Boolean)
+                .join('\n')
             }
             if (data?.detail?.msg) return data.detail.msg
             return '予約の送信に失敗しました。しばらくしてから再度お試しください。'
@@ -494,18 +528,33 @@ export default function ReservationForm({
     <div className="space-y-6">
       {Array.isArray(selectedSlots) && selectedSlots.length ? (
         <div className="rounded-[20px] border border-brand-primary/30 bg-brand-primary/5 px-4 py-3 text-sm text-brand-primary">
-          <div className="text-xs font-semibold">フォーム送信時に以下の候補枠を店舗へ共有します</div>
+          <div className="text-xs font-semibold">
+            フォーム送信時に以下の候補枠を店舗へ共有します
+          </div>
           <ul className="mt-2 space-y-1 text-xs">
             {selectedSlots.map((slot, index) => {
               const start = new Date(slot.startAt)
               const end = new Date(slot.endAt)
               return (
                 <li key={slot.startAt}>
-                  {index + 1}. {start.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })}
-                  {' '}
-                  {start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })}〜
-                  {end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })}（
-                  {slot.status === 'open' ? '即予約可' : '要確認'}）
+                  {index + 1}.{' '}
+                  {start.toLocaleDateString('ja-JP', {
+                    month: 'numeric',
+                    day: 'numeric',
+                    weekday: 'short',
+                  })}{' '}
+                  {start.toLocaleTimeString('ja-JP', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                  })}
+                  〜
+                  {end.toLocaleTimeString('ja-JP', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                  })}
+                  （{slot.status === 'open' ? '即予約可' : '要確認'}）
                 </li>
               )
             })}
@@ -613,13 +662,17 @@ export default function ReservationForm({
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm font-semibold">{course.label}</span>
                       {course.priceLabel ? (
-                        <span className={`text-sm font-semibold ${isSelected ? 'text-white' : 'text-brand-primary'}`}>
+                        <span
+                          className={`text-sm font-semibold ${isSelected ? 'text-white' : 'text-brand-primary'}`}
+                        >
                           {course.priceLabel}
                         </span>
                       ) : null}
                     </div>
                     {durationLabel ? (
-                      <div className={`mt-2 text-xs ${isSelected ? 'text-white/80' : 'text-neutral-textMuted'}`}>
+                      <div
+                        className={`mt-2 text-xs ${isSelected ? 'text-white/80' : 'text-neutral-textMuted'}`}
+                      >
                         所要目安 {durationLabel}
                       </div>
                     ) : null}
@@ -715,7 +768,9 @@ export default function ReservationForm({
                 {copyState === 'copied' ? 'コピーしました' : 'コピーする'}
               </button>
             </div>
-            <pre className="whitespace-pre-wrap text-xs leading-relaxed text-neutral-textMuted">{summaryText}</pre>
+            <pre className="whitespace-pre-wrap text-xs leading-relaxed text-neutral-textMuted">
+              {summaryText}
+            </pre>
           </div>
         ) : null}
 

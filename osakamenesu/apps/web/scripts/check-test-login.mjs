@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import 'dotenv/config'
 
-const base = process.env.OSAKAMENESU_API_INTERNAL_BASE || process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE || 'http://127.0.0.1:8000'
+const base =
+  process.env.OSAKAMENESU_API_INTERNAL_BASE ||
+  process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
+  'http://127.0.0.1:8000'
 const secret = process.env.E2E_TEST_AUTH_SECRET || process.env.TEST_AUTH_SECRET
 
 if (!secret) {

@@ -10,13 +10,29 @@ describe('SafeImage', () => {
   })
 
   it('falls back to placeholder when src is missing', () => {
-    render(<SafeImage src={null} alt="デモ" width={80} height={60} fallbackSrc="/images/placeholder-card.svg" />)
+    render(
+      <SafeImage
+        src={null}
+        alt="デモ"
+        width={80}
+        height={60}
+        fallbackSrc="/images/placeholder-card.svg"
+      />,
+    )
     const img = screen.getByAltText('デモ')
     expect(img).toHaveAttribute('src', '/images/placeholder-card.svg')
   })
 
   it('switches to fallback when load error fires', () => {
-    render(<SafeImage src="/images/invalid.png" alt="デモ" width={80} height={60} fallbackSrc="/images/demo-shop-2.svg" />)
+    render(
+      <SafeImage
+        src="/images/invalid.png"
+        alt="デモ"
+        width={80}
+        height={60}
+        fallbackSrc="/images/demo-shop-2.svg"
+      />,
+    )
     const img = screen.getByAltText('デモ')
     fireEvent.error(img)
     expect(img).toHaveAttribute('src', '/images/demo-shop-2.svg')

@@ -2,23 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { CSRF_HEADER_NAME } from '@/lib/csrf'
 import { generateCsrfToken, setCsrfCookie } from '@/lib/csrf.server'
+import { resolveInternalApiBase } from '@/lib/server-config'
 import { SESSION_COOKIE_NAME, sessionCookieOptions } from '@/lib/session'
 
-const API_BASE =
-  process.env.OSAKAMENESU_API_INTERNAL_BASE ||
-  process.env.API_INTERNAL_BASE ||
-  process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE
-
-function ensureApiBase(): string {
-  if (!API_BASE) {
-    throw new Error('API base URL is not configured for auth proxy')
-  }
-  return API_BASE.replace(/\/+$/, '')
-}
-
 function buildBackendUrl(path: string): string {
-  const base = ensureApiBase()
+  const base = resolveInternalApiBase().replace(/\/+$/, '')
   const normalized = path.startsWith('/') ? path : `/${path}`
   return `${base}${normalized}`
 }

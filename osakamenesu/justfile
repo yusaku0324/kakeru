@@ -21,3 +21,25 @@ ops-dev-check:
 	curl -sS http://127.0.0.1:8000/api/ops/queue | jq
 	curl -sS http://127.0.0.1:8000/api/ops/outbox | jq
 	curl -sS http://127.0.0.1:8000/api/ops/slots | jq
+
+# Surface oversized modules / hotspots for early refactor triage
+architecture-check:
+	python tools/architecture_check.py
+
+# Ensure generated artifacts aren't accidentally tracked
+check-artifacts:
+	python tools/check_artifacts.py
+
+# Detect import cycles within services/api/app
+check-cycles:
+	python tools/check_cycles.py
+
+# Run all architecture guard checks
+check-all:
+	python tools/architecture_check.py
+	python tools/check_artifacts.py
+	python tools/check_cycles.py
+
+# Ensure current shell is running under `doppler run -- ...`
+require-doppler:
+	python tools/require_doppler_env.py

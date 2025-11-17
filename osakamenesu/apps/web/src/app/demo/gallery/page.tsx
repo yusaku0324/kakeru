@@ -19,7 +19,9 @@ export default function GalleryDemoPage() {
         </Link>
       </header>
       <Gallery photos={photos} altBase="Demo" />
-      <p className="text-sm text-slate-600">サムネ/ドットのクリック、スワイプ/フリックでの移動、LQIP表示を確認できます。</p>
+      <p className="text-sm text-slate-600">
+        サムネ/ドットのクリック、スワイプ/フリックでの移動、LQIP表示を確認できます。
+      </p>
     </main>
   )
 }

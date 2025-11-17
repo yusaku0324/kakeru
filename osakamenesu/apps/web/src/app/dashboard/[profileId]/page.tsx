@@ -36,7 +36,10 @@ export default async function DashboardHomePage({
           ダッシュボードを表示するにはログインが必要です。ログインページからマジックリンクを送信し、メール経由でログインした後にこのページを再読み込みしてください。
         </p>
         <div className="flex flex-wrap gap-3">
-          <Link href="/dashboard/login" className="inline-flex rounded bg-black px-4 py-2 text-sm font-medium text-white">
+          <Link
+            href="/dashboard/login"
+            className="inline-flex rounded bg-black px-4 py-2 text-sm font-medium text-white"
+          >
             ログインページへ
           </Link>
           <Link
@@ -85,7 +88,9 @@ export default async function DashboardHomePage({
     <main className="mx-auto max-w-5xl space-y-8 px-6 py-12">
       <header className="space-y-2">
         <p className="text-sm text-neutral-500">プロフィール ID: {data.id}</p>
-        <h1 className="text-3xl font-semibold tracking-tight">{data.name || '店舗ダッシュボード'}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          {data.name || '店舗ダッシュボード'}
+        </h1>
         <p className="text-sm text-neutral-600">
           店舗ページの情報管理や予約通知の設定をまとめて行えます。右のメニューから編集したい項目を選んでください。
         </p>
@@ -121,7 +126,8 @@ export default async function DashboardHomePage({
           <div className="space-y-2">
             <h2 className="text-xl font-semibold text-neutral-900">予約通知の設定</h2>
             <p className="text-sm text-neutral-600">
-              予約リクエスト受信時に通知を送るメール / LINE / Slack などのチャネルを管理します。宛先のテスト送信も可能です。
+              予約リクエスト受信時に通知を送るメール / LINE / Slack
+              などのチャネルを管理します。宛先のテスト送信も可能です。
             </p>
             <Link
               href={`/dashboard/${data.id}/notifications`}
@@ -135,7 +141,11 @@ export default async function DashboardHomePage({
 
       <DashboardReservationDaySummary profileId={data.id} />
 
-      <DashboardReservationFeed profileId={data.id} slug={data.slug} className="border-none shadow-none p-0" />
-   </main>
- )
+      <DashboardReservationFeed
+        profileId={data.id}
+        slug={data.slug}
+        className="border-none shadow-none p-0"
+      />
+    </main>
+  )
 }

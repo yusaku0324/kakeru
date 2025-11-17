@@ -43,7 +43,10 @@ function parseSetCookieHeaders(setCookieValues: string[], origin: URL): CookieIn
   const nowSeconds = Math.floor(Date.now() / 1000)
   return setCookieValues
     .map((raw) => {
-      const segments = raw.split(';').map((segment) => segment.trim()).filter(Boolean)
+      const segments = raw
+        .split(';')
+        .map((segment) => segment.trim())
+        .filter(Boolean)
       if (!segments.length) return null
       const [nameValue, ...attributes] = segments
       const separatorIndex = nameValue.indexOf('=')
@@ -85,7 +88,8 @@ function parseSetCookieHeaders(setCookieValues: string[], origin: URL): CookieIn
             break
           case 'samesite':
             if (attrValue) {
-              const normalized = attrValue.charAt(0).toUpperCase() + attrValue.slice(1).toLowerCase()
+              const normalized =
+                attrValue.charAt(0).toUpperCase() + attrValue.slice(1).toLowerCase()
               if (normalized === 'Lax' || normalized === 'Strict' || normalized === 'None') {
                 cookie.sameSite = normalized
               }
@@ -117,7 +121,11 @@ function parseSetCookieHeaders(setCookieValues: string[], origin: URL): CookieIn
     .filter((cookie): cookie is CookieInput => Boolean(cookie))
 }
 
-async function syncSessionWithNextApp(context: BrowserContext, baseURL: string, cookies: CookieInput[]) {
+async function syncSessionWithNextApp(
+  context: BrowserContext,
+  baseURL: string,
+  cookies: CookieInput[],
+) {
   const sessionCookie = cookies.find((cookie) => cookie.name === 'osakamenesu_session')
   if (!sessionCookie) {
     return
@@ -149,8 +157,9 @@ export async function ensureDashboardAuthenticated(
   if (existingCookies.some((cookie) => cookie.name === 'osakamenesu_session')) {
     return
   }
-  const secretCandidates = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET]
-    .filter((value): value is string => Boolean(value && value.trim()))
+  const secretCandidates = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET].filter(
+    (value): value is string => Boolean(value && value.trim()),
+  )
 
   if (!secretCandidates.length) {
     throw new SkipTestError('E2E_TEST_AUTH_SECRET もしくは TEST_AUTH_SECRET が設定されていません')

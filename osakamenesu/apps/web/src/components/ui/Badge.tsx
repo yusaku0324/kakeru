@@ -28,7 +28,9 @@ export function Badge({ children, className, variant = 'neutral', leadingIcon }:
         className,
       )}
     >
-      {leadingIcon ? <span className="grid place-items-center text-[10px]">{leadingIcon}</span> : null}
+      {leadingIcon ? (
+        <span className="grid place-items-center text-[10px]">{leadingIcon}</span>
+      ) : null}
       <span>{children}</span>
     </span>
   )

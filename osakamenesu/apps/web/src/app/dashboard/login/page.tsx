@@ -22,20 +22,29 @@ export default function DashboardLoginPage() {
   return (
     <main className="mx-auto max-w-4xl space-y-10 px-6 py-16">
       <section className="rounded-3xl border border-white/30 bg-white/80 p-8 text-center shadow-[0_30px_80px_rgba(15,23,42,0.12)] backdrop-blur supports-[backdrop-filter]:bg-white/70">
-        <p className="text-xs font-semibold uppercase tracking-widest text-brand-primary">OSAKAMENESU DASHBOARD</p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-900">店舗ダッシュボード ログイン</h1>
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-primary">
+          OSAKAMENESU DASHBOARD
+        </p>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-900">
+          店舗ダッシュボード ログイン
+        </h1>
         <p className="mt-3 text-sm leading-relaxed text-neutral-600">
           掲載情報の更新、予約管理、PR枠の申請までを行う店舗担当者専用のログインページです。登録済みの店舗メールアドレスにマジックリンクを送るだけで、安全にログインできます。
         </p>
         <p className="text-xs text-neutral-500">
-          ※お気に入りの閲覧や一般ユーザー向けログインは <Link href="/auth/login" className="font-semibold text-brand-primary hover:underline">こちら</Link>
+          ※お気に入りの閲覧や一般ユーザー向けログインは{' '}
+          <Link href="/auth/login" className="font-semibold text-brand-primary hover:underline">
+            こちら
+          </Link>
         </p>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)]">
         <Card className="space-y-6 border-brand-primary/30 bg-white/90 p-6 shadow-lg shadow-brand-primary/10">
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-neutral-900">メールでログインリンクを受け取る</h2>
+            <h2 className="text-xl font-semibold text-neutral-900">
+              メールでログインリンクを受け取る
+            </h2>
             <p className="text-xs leading-relaxed text-neutral-600">
               登録済みの店舗アドレス宛にマジックリンクをお送りします。同じブラウザでリンクを開くとログインが完了します。
             </p>
@@ -58,7 +67,9 @@ export default function DashboardLoginPage() {
           <ul className="space-y-2 text-xs text-neutral-600">
             {BENEFITS.map((item) => (
               <li key={item} className="flex items-start gap-2">
-                <span aria-hidden className="mt-0.5 text-brand-primary">✓</span>
+                <span aria-hidden className="mt-0.5 text-brand-primary">
+                  ✓
+                </span>
                 <span>{item}</span>
               </li>
             ))}
@@ -75,7 +86,9 @@ export default function DashboardLoginPage() {
           <ul className="space-y-2 text-xs text-neutral-600">
             {TROUBLESHOOTING.map((item) => (
               <li key={item} className="flex items-start gap-2">
-                <span aria-hidden className="mt-0.5 text-neutral-400">•</span>
+                <span aria-hidden className="mt-0.5 text-neutral-400">
+                  •
+                </span>
                 <span>{item}</span>
               </li>
             ))}

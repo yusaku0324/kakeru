@@ -11,12 +11,14 @@ const dayLabelFormatter = new Intl.DateTimeFormat('ja-JP', {
   month: 'numeric',
   day: 'numeric',
   weekday: 'short',
+  timeZone: DEFAULT_TZ,
 })
 
 const timeLabelFormatter = new Intl.DateTimeFormat('ja-JP', {
   hour: '2-digit',
   minute: '2-digit',
   hour12: false,
+  timeZone: DEFAULT_TZ,
 })
 
 export type ScheduleSlotStatus = 'open' | 'tentative' | 'blocked'
@@ -41,7 +43,10 @@ function toTimezone(value?: DayjsInput, timezone: string = DEFAULT_TZ): Dayjs {
   return valid.tz(timezone)
 }
 
-function normalizeSlot<T extends ScheduleSlot>(slot: T, timezone: string): NormalizedSlot<T> | null {
+function normalizeSlot<T extends ScheduleSlot>(
+  slot: T,
+  timezone: string,
+): NormalizedSlot<T> | null {
   const start = toTimezone(slot.start_at, timezone)
   const end = toTimezone(slot.end_at || slot.start_at, timezone)
   if (!start.isValid() || !end.isValid()) return null
@@ -92,7 +97,9 @@ export function summarizeSlotAvailability<T extends ScheduleSlot>(
   const hasTodayAvailability = normalized.some(({ start }) => start.isSame(now, 'day'))
   const sorted = normalized.sort((a, b) => a.start.valueOf() - b.start.valueOf())
   const nextSlot = sorted[0]?.raw ?? null
-  const nextLabel = nextSlot ? formatSlotJp(nextSlot, { now: now.toDate(), timezone }) : fallbackLabel
+  const nextLabel = nextSlot
+    ? formatSlotJp(nextSlot, { now: now.toDate(), timezone })
+    : fallbackLabel
 
   return {
     nextSlot,
@@ -112,7 +119,8 @@ export function formatSlotJp<T extends ScheduleSlot>(
   if (!start.isValid()) return options.fallbackLabel ?? null
   const now = toTimezone(options.now, timezone)
   const dayDiff = start.startOf('day').diff(now.startOf('day'), 'day')
-  const prefix = dayDiff === 0 ? '本日' : dayDiff === 1 ? '明日' : dayLabelFormatter.format(start.toDate())
+  const prefix =
+    dayDiff === 0 ? '本日' : dayDiff === 1 ? '明日' : dayLabelFormatter.format(start.toDate())
   const timeLabel = timeLabelFormatter.format(start.toDate())
   return `${prefix} ${timeLabel}〜`
 }

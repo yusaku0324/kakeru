@@ -22,6 +22,7 @@ from ....schemas import (
 from ....services.dashboard_shop_service import (
     ALLOWED_PROFILE_STATUSES,
     DEFAULT_BUST_TAG,
+    DashboardShopError,
     DashboardShopService,
 )
 
@@ -42,6 +43,10 @@ _sanitize_photos = _service.sanitize_photos
 _menus_to_contact_json = _service.menus_to_contact_json
 _staff_to_contact_json = _service.staff_to_contact_json
 _get_profile = _service.get_profile
+
+
+def _handle_dashboard_error(error: DashboardShopError):
+    raise HTTPException(status_code=error.status_code, detail=error.detail)
 
 
 @router.get("/shops", response_model=DashboardShopListResponse)
@@ -65,7 +70,12 @@ async def create_dashboard_shop_profile(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> DashboardShopProfileResponse:
-    return await _service.create_profile(request=request, payload=payload, db=db, user=user)
+    try:
+        return await _service.create_profile(
+            request=request, payload=payload, db=db, user=user
+        )
+    except DashboardShopError as error:
+        _handle_dashboard_error(error)
 
 
 @router.get("/shops/{profile_id}/profile", response_model=DashboardShopProfileResponse)
@@ -75,7 +85,10 @@ async def get_dashboard_shop_profile(
     user: models.User = Depends(require_dashboard_user),
 ) -> DashboardShopProfileResponse:
     _ = user
-    return await _service.get_profile_response(profile_id=profile_id, db=db)
+    try:
+        return await _service.get_profile_response(profile_id=profile_id, db=db)
+    except DashboardShopError as error:
+        _handle_dashboard_error(error)
 
 
 @router.put("/shops/{profile_id}/profile", response_model=DashboardShopProfileResponse)
@@ -86,15 +99,18 @@ async def update_dashboard_shop_profile(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> DashboardShopProfileResponse:
-    return await _service.update_profile(
-        request=request,
-        profile_id=profile_id,
-        payload=payload,
-        db=db,
-        user=user,
-        reindex=_reindex_profile,
-        recorder=_record_change,
-    )
+    try:
+        return await _service.update_profile(
+            request=request,
+            profile_id=profile_id,
+            payload=payload,
+            db=db,
+            user=user,
+            reindex=_reindex_profile,
+            recorder=_record_change,
+        )
+    except DashboardShopError as error:
+        _handle_dashboard_error(error)
 
 
 __all__ = [

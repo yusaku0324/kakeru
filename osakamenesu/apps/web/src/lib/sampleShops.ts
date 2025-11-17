@@ -80,7 +80,11 @@ export type SampleShop = {
   has_promotions?: boolean | null
   promotion_count?: number | null
   has_discounts?: boolean | null
-  promotions?: Array<{ label: string; description?: string | null; expires_at?: string | null }> | null
+  promotions?: Array<{
+    label: string
+    description?: string | null
+    expires_at?: string | null
+  }> | null
   ranking_reason?: string | null
   updated_at?: string | null
   reviews?: {
@@ -120,12 +124,10 @@ export const SAMPLE_SHOPS: SampleShop[] = [
     area_name: '難波/日本橋',
     min_price: 11000,
     max_price: 18000,
-    description: 'リゾートのような完全個室空間で、丁寧なリンパケアが人気のメンエス。21時以降のビジネス利用も多数。',
+    description:
+      'リゾートのような完全個室空間で、丁寧なリンパケアが人気のメンエス。21時以降のビジネス利用も多数。',
     catch_copy: 'リゾートホテルを思わせる完全個室で極上の癒し体験を。',
-    photos: [
-      { url: '/images/demo-shop-1.svg' },
-      { url: '/images/demo-shop-2.svg' },
-    ],
+    photos: [{ url: '/images/demo-shop-1.svg' }, { url: '/images/demo-shop-2.svg' }],
     contact: {
       phone: '066-100-1234',
       line_id: '@namba-resort',
@@ -316,9 +318,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
     badges: ['人気店', '駅チカ'],
     today_available: true,
     service_tags: ['個室', '日本人セラピスト', 'ペアルーム対応'],
-    promotions: [
-      { label: '新人割 ¥1,000OFF', expires_at: '2025-12-31' },
-    ],
+    promotions: [{ label: '新人割 ¥1,000OFF', expires_at: '2025-12-31' }],
     ranking_reason: '口コミ評価4.7★。アロマ×リンパケアで全身リフレッシュ。',
     reviews: {
       average_score: 4.7,

@@ -2,7 +2,11 @@ import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 
 import { sessionCookieOptions } from '@/lib/session'
-import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, validateCsrfToken as baseValidateCsrfToken } from './csrf'
+import {
+  CSRF_COOKIE_NAME,
+  CSRF_HEADER_NAME,
+  validateCsrfToken as baseValidateCsrfToken,
+} from './csrf'
 
 export function generateCsrfToken(): string {
   return crypto.randomUUID().replace(/-/g, '')

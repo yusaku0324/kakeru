@@ -9,11 +9,15 @@ declare global {
 }
 
 vi.mock('@/lib/dashboard-reservations', () => {
-  globalThis.__fetchDashboardReservationsMock = globalThis.__fetchDashboardReservationsMock ?? vi.fn()
-  globalThis.__updateDashboardReservationMock = globalThis.__updateDashboardReservationMock ?? vi.fn()
+  globalThis.__fetchDashboardReservationsMock =
+    globalThis.__fetchDashboardReservationsMock ?? vi.fn()
+  globalThis.__updateDashboardReservationMock =
+    globalThis.__updateDashboardReservationMock ?? vi.fn()
   return {
-    fetchDashboardReservations: (...args: unknown[]) => globalThis.__fetchDashboardReservationsMock!(...args),
-    updateDashboardReservation: (...args: unknown[]) => globalThis.__updateDashboardReservationMock!(...args),
+    fetchDashboardReservations: (...args: unknown[]) =>
+      globalThis.__fetchDashboardReservationsMock!(...args),
+    updateDashboardReservation: (...args: unknown[]) =>
+      globalThis.__updateDashboardReservationMock!(...args),
   }
 })
 
@@ -109,14 +113,20 @@ describe('DashboardReservationFeed pagination', () => {
 
     await screen.findByText('Customer Two')
     expect(mockFetchReservations()).toHaveBeenCalledTimes(2)
-    expect(mockFetchReservations().mock.calls[1][1]).toMatchObject({ cursor: 'cursor-next', cursorDirection: 'forward' })
+    expect(mockFetchReservations().mock.calls[1][1]).toMatchObject({
+      cursor: 'cursor-next',
+      cursorDirection: 'forward',
+    })
 
     const loadPreviousButton = await screen.findByRole('button', { name: '新しい予約を読み込む' })
     fireEvent.click(loadPreviousButton)
 
     await screen.findByText('Customer Zero')
     expect(mockFetchReservations()).toHaveBeenCalledTimes(3)
-    expect(mockFetchReservations().mock.calls[2][1]).toMatchObject({ cursor: 'cursor-prev', cursorDirection: 'backward' })
+    expect(mockFetchReservations().mock.calls[2][1]).toMatchObject({
+      cursor: 'cursor-prev',
+      cursorDirection: 'backward',
+    })
 
     const customerEntries = screen.getAllByText(/Customer/)
     expect(customerEntries[0]).toHaveTextContent('Customer Zero')
@@ -152,6 +162,8 @@ describe('DashboardReservationFeed pagination', () => {
     expect(mockFetchReservations().mock.calls[1][1]).toMatchObject({ limit: 50 })
     expect(replaceMock).toHaveBeenCalled()
     expect(replaceMock.mock.calls[0][0]).toContain('limit=50')
-    expect(sessionStorage.getItem('dashboard:reservation-feed:filters:profile-2')).toContain('"limit":50')
+    expect(sessionStorage.getItem('dashboard:reservation-feed:filters:profile-2')).toContain(
+      '"limit":50',
+    )
   })
 })

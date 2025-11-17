@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -20,13 +20,16 @@ export default function Gallery({ photos, altBase }: Props) {
   const [index, setIndex] = useState(0)
   const count = photos.length
 
-  const goTo = useCallback((i: number) => {
-    const el = viewRef.current
-    if (!el) return
-    const w = el.clientWidth
-    const clamped = Math.max(0, Math.min(count - 1, i))
-    el.scrollTo({ left: clamped * w, behavior: 'smooth' })
-  }, [count])
+  const goTo = useCallback(
+    (i: number) => {
+      const el = viewRef.current
+      if (!el) return
+      const w = el.clientWidth
+      const clamped = Math.max(0, Math.min(count - 1, i))
+      el.scrollTo({ left: clamped * w, behavior: 'smooth' })
+    },
+    [count],
+  )
 
   // sync index when scrolling
   useEffect(() => {
@@ -76,11 +79,11 @@ export default function Gallery({ photos, altBase }: Props) {
       const dt = Math.max(1, lastT - startT)
       const v = dx / dt // px per ms
       const current = Math.round(el.scrollLeft / w)
-      const target = Math.abs(dx) > 40 && Math.abs(v) > 0.3
-        ? current + (dx < 0 ? 1 : -1)
-        : current
+      const target = Math.abs(dx) > 40 && Math.abs(v) > 0.3 ? current + (dx < 0 ? 1 : -1) : current
       goTo(target)
-      try { el.releasePointerCapture(e.pointerId) } catch {}
+      try {
+        el.releasePointerCapture(e.pointerId)
+      } catch {}
     }
     el.addEventListener('pointerdown', onPointerDown)
     el.addEventListener('pointermove', onPointerMove)
@@ -95,9 +98,7 @@ export default function Gallery({ photos, altBase }: Props) {
   }, [goTo])
 
   if (count === 0) {
-    return (
-      <div className="relative aspect-[4/3] bg-gray-100" />
-    )
+    return <div className="relative aspect-[4/3] bg-gray-100" />
   }
 
   return (
@@ -109,19 +110,36 @@ export default function Gallery({ photos, altBase }: Props) {
             key={i}
             onClick={() => goTo(i)}
             data-testid="gallery-thumb"
-            data-active={i===index}
-            className={`relative w-24 aspect-[4/3] shrink-0 rounded overflow-hidden ring-1 ${i===index?'ring-slate-900':'ring-slate-200'}`}
+            data-active={i === index}
+            className={`relative w-24 aspect-[4/3] shrink-0 rounded overflow-hidden ring-1 ${i === index ? 'ring-slate-900' : 'ring-slate-200'}`}
           >
-            <SafeImage src={src} alt={`${altBase} thumbnail ${i + 1}`} fill sizes="96px" placeholder="blur" blurDataURL={BLUR_SVG} className="object-cover" />
+            <SafeImage
+              src={src}
+              alt={`${altBase} thumbnail ${i + 1}`}
+              fill
+              sizes="96px"
+              placeholder="blur"
+              blurDataURL={BLUR_SVG}
+              className="object-cover"
+            />
           </button>
         ))}
       </div>
 
       {/* main slider + dots + mobile thumbnails */}
       <div className="space-y-2">
-        <div ref={viewRef} data-testid="gallery-view" className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth rounded">
+        <div
+          ref={viewRef}
+          data-testid="gallery-view"
+          className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth rounded"
+        >
           {photos.map((src, i) => (
-            <div key={i} data-testid="gallery-slide" data-index={i} className="shrink-0 w-full snap-center">
+            <div
+              key={i}
+              data-testid="gallery-slide"
+              data-index={i}
+              className="shrink-0 w-full snap-center"
+            >
               <div className="relative aspect-[4/3] bg-gray-100">
                 <SafeImage
                   src={src}
@@ -145,7 +163,7 @@ export default function Gallery({ photos, altBase }: Props) {
               aria-label={`go to ${i + 1}`}
               onClick={() => goTo(i)}
               data-testid="gallery-dot"
-              data-active={i===index}
+              data-active={i === index}
               className={`h-2 w-2 rounded-full ${i === index ? 'bg-slate-900' : 'bg-slate-300'}`}
             />
           ))}
@@ -154,11 +172,25 @@ export default function Gallery({ photos, altBase }: Props) {
         {/* thumbnails on mobile (horizontal) */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar md:hidden">
           {photos.map((src, i) => (
-            <button key={i} onClick={() => goTo(i)} data-testid="gallery-thumb" data-active={i===index} className={`relative h-16 w-20 shrink-0 rounded overflow-hidden ring-1 ${i===index?'ring-slate-900':'ring-slate-200'}`}>
-              <SafeImage src={src} alt={`${altBase} thumbnail ${i + 1}`} fill sizes="80px" placeholder="blur" blurDataURL={BLUR_SVG} className="object-cover" />
-          </button>
-        ))}
-      </div>
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              data-testid="gallery-thumb"
+              data-active={i === index}
+              className={`relative h-16 w-20 shrink-0 rounded overflow-hidden ring-1 ${i === index ? 'ring-slate-900' : 'ring-slate-200'}`}
+            >
+              <SafeImage
+                src={src}
+                alt={`${altBase} thumbnail ${i + 1}`}
+                fill
+                sizes="80px"
+                placeholder="blur"
+                blurDataURL={BLUR_SVG}
+                className="object-cover"
+              />
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )

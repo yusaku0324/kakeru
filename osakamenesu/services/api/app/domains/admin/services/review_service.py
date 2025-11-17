@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+from http import HTTPStatus
 from typing import Optional
 from uuid import UUID
 
-from fastapi import HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .... import models
 from ....schemas import ReviewItem, ReviewListResponse, ReviewModerationRequest
 from . import site_bridge
-from .audit import record_change
+from .audit import AdminAuditContext, record_change
+from .errors import AdminServiceError
+
+
+class ReviewServiceError(AdminServiceError):
+    """Domain-level exception for review moderation flows."""
 
 
 async def list_reviews(
@@ -29,19 +34,21 @@ async def list_reviews(
     total = await db.scalar(count_stmt) or 0
     offset = (page - 1) * page_size
     reviews = await db.scalars(stmt.offset(offset).limit(page_size))
-    return ReviewListResponse(total=int(total), items=[site_bridge.serialize_review(r) for r in reviews])
+    return ReviewListResponse(
+        total=int(total), items=[site_bridge.serialize_review(r) for r in reviews]
+    )
 
 
 async def update_review_status(
     *,
-    request: Request,
+    audit_context: AdminAuditContext | None,
     db: AsyncSession,
     review_id: UUID,
     payload: ReviewModerationRequest,
 ) -> ReviewItem:
     review = await db.get(models.Review, review_id)
     if not review:
-        raise HTTPException(status_code=404, detail="review not found")
+        raise ReviewServiceError(HTTPStatus.NOT_FOUND, detail="review not found")
 
     before = site_bridge.serialize_review(review).model_dump()
     review.status = payload.status
@@ -51,8 +58,8 @@ async def update_review_status(
 
     serialized = site_bridge.serialize_review(review)
     await record_change(
-        request,
         db,
+        context=audit_context,
         target_type="review",
         target_id=review.id,
         action="moderate",

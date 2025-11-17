@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import clsx from 'clsx'
 import {
@@ -81,7 +81,9 @@ export function StyleFiltersSection({
             </span>
             <div>
               <p className="text-sm font-semibold text-neutral-text">外見・スタイル</p>
-              <p className="text-xs text-neutral-textMuted">バストサイズ・年齢・身長の範囲を設定できます</p>
+              <p className="text-xs text-neutral-textMuted">
+                バストサイズ・年齢・身長の範囲を設定できます
+              </p>
             </div>
           </div>
           {showResetButton ? (
@@ -228,7 +230,13 @@ const percentStyle = (value: number) => `${clampPercent(value)}%`
 
 const hexToRgba = (hex: string, alpha: number) => {
   const raw = hex.replace('#', '')
-  const normalized = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw
+  const normalized =
+    raw.length === 3
+      ? raw
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : raw
   if (normalized.length !== 6) return `rgba(59,130,246,${alpha})`
   const r = Number.parseInt(normalized.slice(0, 2), 16)
   const g = Number.parseInt(normalized.slice(2, 4), 16)
@@ -251,10 +259,7 @@ export function DualSlider({
   const trackRef = useRef<HTMLDivElement | null>(null)
   const [activeIndex, setActiveIndex] = useState<0 | 1>(0)
 
-  const clampValue = useCallback(
-    (value: number) => Math.min(Math.max(value, min), max),
-    [min, max],
-  )
+  const clampValue = useCallback((value: number) => Math.min(Math.max(value, min), max), [min, max])
 
   const valueFromClientX = useCallback(
     (clientX: number) => {
@@ -268,33 +273,29 @@ export function DualSlider({
     [clampValue, max, min, step],
   )
 
-  const handlePointer =
-    (handle: 0 | 1) =>
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      event.preventDefault()
-      const value = valueFromClientX(event.clientX)
-      if (value == null) return
-      setActiveIndex(handle)
-      if (handle === 0) {
-        onChange(value, Math.max(value, maxValue))
-      } else {
-        onChange(Math.min(value, minValue), value)
-      }
-      event.currentTarget.setPointerCapture(event.pointerId)
+  const handlePointer = (handle: 0 | 1) => (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    const value = valueFromClientX(event.clientX)
+    if (value == null) return
+    setActiveIndex(handle)
+    if (handle === 0) {
+      onChange(value, Math.max(value, maxValue))
+    } else {
+      onChange(Math.min(value, minValue), value)
     }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
 
-  const handleMove =
-    (handle: 0 | 1) =>
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
-      const value = valueFromClientX(event.clientX)
-      if (value == null) return
-      if (handle === 0) {
-        onChange(value, Math.max(value, maxValue))
-      } else {
-        onChange(Math.min(value, minValue), value)
-      }
+  const handleMove = (handle: 0 | 1) => (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+    const value = valueFromClientX(event.clientX)
+    if (value == null) return
+    if (handle === 0) {
+      onChange(value, Math.max(value, maxValue))
+    } else {
+      onChange(Math.min(value, minValue), value)
     }
+  }
 
   const handlePointerEnd = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -302,20 +303,18 @@ export function DualSlider({
     }
   }
 
-  const handleKey =
-    (handle: 0 | 1) =>
-    (event: KeyboardEvent<HTMLButtonElement>) => {
-      let delta = 0
-      if (event.key === 'ArrowRight' || event.key === 'ArrowUp') delta = step
-      else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') delta = -step
-      else if (event.key === 'Home') delta = handle === 0 ? min - minValue : min - maxValue
-      else if (event.key === 'End') delta = handle === 0 ? max - minValue : max - maxValue
-      if (delta === 0) return
-      event.preventDefault()
-      if (handle === 0) onChange(clampValue(minValue + delta), maxValue)
-      else onChange(minValue, clampValue(maxValue + delta))
-      setActiveIndex(handle)
-    }
+  const handleKey = (handle: 0 | 1) => (event: KeyboardEvent<HTMLButtonElement>) => {
+    let delta = 0
+    if (event.key === 'ArrowRight' || event.key === 'ArrowUp') delta = step
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') delta = -step
+    else if (event.key === 'Home') delta = handle === 0 ? min - minValue : min - maxValue
+    else if (event.key === 'End') delta = handle === 0 ? max - minValue : max - maxValue
+    if (delta === 0) return
+    event.preventDefault()
+    if (handle === 0) onChange(clampValue(minValue + delta), maxValue)
+    else onChange(minValue, clampValue(maxValue + delta))
+    setActiveIndex(handle)
+  }
 
   const minPercent = percentStyle(((minValue - min) / (max - min)) * 100)
   const maxPercent = percentStyle(((maxValue - min) / (max - min)) * 100)
@@ -363,10 +362,7 @@ export function DualSlider({
             boxShadow: `0 12px 32px ${hexToRgba(accentColor, 0.4)}, 0 0 0 6px ${hexToRgba(accentColor, 0.22)}`,
           }}
         >
-          <span
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ background: accentColor }}
-          />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: accentColor }} />
         </span>
       </button>
       <button
@@ -391,10 +387,7 @@ export function DualSlider({
             boxShadow: `0 12px 32px ${hexToRgba(accentColor, 0.4)}, 0 0 0 6px ${hexToRgba(accentColor, 0.22)}`,
           }}
         >
-          <span
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ background: accentColor }}
-          />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: accentColor }} />
         </span>
       </button>
     </div>

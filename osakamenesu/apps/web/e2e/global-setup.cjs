@@ -67,14 +67,21 @@ function extractHostname(raw) {
   }
 }
 
-async function waitForService(baseUrl, { path = '/api/health', timeoutMs = 60_000, intervalMs = 2_000, label } = {}) {
+async function waitForService(
+  baseUrl,
+  { path = '/api/health', timeoutMs = 60_000, intervalMs = 2_000, label } = {},
+) {
   const normalizedBase = baseUrl.replace(/\/$/, '')
   const target = `${normalizedBase}${path}`
   const hostname = /^https?:/i.test(normalizedBase) ? extractHostname(normalizedBase) : null
   const serviceLabel = label ?? target
 
   if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-    await waitForHostname(hostname, { timeoutMs, intervalMs: Math.min(intervalMs, 1_000), label: hostname })
+    await waitForHostname(hostname, {
+      timeoutMs,
+      intervalMs: Math.min(intervalMs, 1_000),
+      label: hostname,
+    })
   }
 
   const deadline = Date.now() + timeoutMs
@@ -92,7 +99,9 @@ async function waitForService(baseUrl, { path = '/api/health', timeoutMs = 60_00
         return
       }
       lastError = new Error(`HTTP ${response.status()} ${response.statusText()}`)
-      console.warn(`[playwright] [waitForService] ${serviceLabel} attempt ${attempt} failed: ${lastError.message}`)
+      console.warn(
+        `[playwright] [waitForService] ${serviceLabel} attempt ${attempt} failed: ${lastError.message}`,
+      )
     } catch (error) {
       lastError = error
       console.warn(
@@ -106,7 +115,9 @@ async function waitForService(baseUrl, { path = '/api/health', timeoutMs = 60_00
   }
 
   const reason = lastError ? `${lastError}` : 'unknown'
-  throw new Error(`[playwright] service not reachable: ${serviceLabel} (${target}) after ${attempt} attempts (${reason})`)
+  throw new Error(
+    `[playwright] service not reachable: ${serviceLabel} (${target}) after ${attempt} attempts (${reason})`,
+  )
 }
 
 function resolvePythonCandidates() {
@@ -136,7 +147,9 @@ async function runSeed() {
   const scriptPath = path.resolve(repoRoot, 'services', 'api', 'scripts', 'seed_admin_test_data.py')
 
   if (!fs.existsSync(scriptPath)) {
-    console.warn(`[playwright] シードスクリプトが見つかりませんでした (${scriptPath})。処理をスキップします。`)
+    console.warn(
+      `[playwright] シードスクリプトが見つかりませんでした (${scriptPath})。処理をスキップします。`,
+    )
     return
   }
 
@@ -207,7 +220,10 @@ function parseSetCookieHeaders(setCookieValues, origin) {
   const nowSeconds = Math.floor(Date.now() / 1000)
   return setCookieValues
     .map((raw) => {
-      const segments = raw.split(';').map((segment) => segment.trim()).filter(Boolean)
+      const segments = raw
+        .split(';')
+        .map((segment) => segment.trim())
+        .filter(Boolean)
       if (!segments.length) return null
       const [nameValue, ...attributes] = segments
       const separatorIndex = nameValue.indexOf('=')
@@ -245,7 +261,8 @@ function parseSetCookieHeaders(setCookieValues, origin) {
             break
           case 'samesite':
             if (attrValue) {
-              const normalized = attrValue.charAt(0).toUpperCase() + attrValue.slice(1).toLowerCase()
+              const normalized =
+                attrValue.charAt(0).toUpperCase() + attrValue.slice(1).toLowerCase()
               if (['Lax', 'Strict', 'None'].includes(normalized)) {
                 cookie.sameSite = normalized
               }
@@ -275,13 +292,19 @@ function parseSetCookieHeaders(setCookieValues, origin) {
 
 async function createDashboardStorage() {
   if (process.env.SKIP_DASHBOARD_STORAGE === '1') {
-    console.warn('[playwright] SKIP_DASHBOARD_STORAGE=1 が設定されているためストレージ生成をスキップします')
+    console.warn(
+      '[playwright] SKIP_DASHBOARD_STORAGE=1 が設定されているためストレージ生成をスキップします',
+    )
     return
   }
 
-  const secret = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET].find((value) => value && value.trim())
+  const secret = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET].find(
+    (value) => value && value.trim(),
+  )
   if (!secret) {
-    console.warn('[playwright] テスト用シークレットが未設定のため dashboard storage を生成できません')
+    console.warn(
+      '[playwright] テスト用シークレットが未設定のため dashboard storage を生成できません',
+    )
     return
   }
 
@@ -292,6 +315,7 @@ async function createDashboardStorage() {
   const storagePath = path.resolve(storageDir, 'dashboard.json')
   const email = process.env.E2E_TEST_DASHBOARD_EMAIL ?? 'playwright-dashboard@example.com'
   const displayName = process.env.E2E_TEST_DASHBOARD_NAME ?? 'Playwright Dashboard User'
+  const webHost = new URL(webBase).hostname
 
   console.log(`[playwright] admin web host=${ADMIN_WEB_HOST} port=${ADMIN_WEB_PORT}`)
   await waitForService(adminHealthBase, {
@@ -335,18 +359,23 @@ async function createDashboardStorage() {
       console.warn('[playwright] Cookie 解析に失敗しました')
       return
     }
-
-    parsedCookies.push({
+    const cookiesForStorage = parsedCookies.map((cookie) => {
+      if (!cookie.domain || cookie.domain === 'test_auth_secret_local') {
+        return { ...cookie, domain: webHost }
+      }
+      return cookie
+    })
+    cookiesForStorage.push({
       name: 'osakamenesu_csrf',
       value: crypto.randomBytes(16).toString('hex'),
-      domain: new URL(webBase).hostname,
+      domain: webHost,
       path: '/',
       httpOnly: false,
       secure: webBase.startsWith('https://'),
     })
 
     const storageState = {
-      cookies: parsedCookies.map((cookie) => ({
+      cookies: cookiesForStorage.map((cookie) => ({
         name: cookie.name,
         value: cookie.value,
         domain: cookie.domain,
@@ -370,11 +399,15 @@ async function createDashboardStorage() {
 
 async function createSiteStorage() {
   if (process.env.SKIP_SITE_STORAGE === '1') {
-    console.warn('[playwright] SKIP_SITE_STORAGE=1 が設定されているためサイト用ストレージ生成をスキップします')
+    console.warn(
+      '[playwright] SKIP_SITE_STORAGE=1 が設定されているためサイト用ストレージ生成をスキップします',
+    )
     return
   }
 
-  const secret = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET].find((value) => value && value.trim())
+  const secret = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET].find(
+    (value) => value && value.trim(),
+  )
   if (!secret) {
     console.warn('[playwright] テスト用シークレットが未設定のため site storage を生成できません')
     return
@@ -385,6 +418,7 @@ async function createSiteStorage() {
   const storagePath = path.resolve(storageDir, 'site.json')
   const email = process.env.E2E_TEST_AUTH_EMAIL ?? 'playwright-site-user@example.com'
   const displayName = process.env.E2E_TEST_AUTH_DISPLAY_NAME ?? 'Playwright Site User'
+  const webHost = new URL(webBase).hostname
 
   await waitForService(webBase)
   const requestContext = await request.newContext()
@@ -422,17 +456,20 @@ async function createSiteStorage() {
       console.warn('[playwright] site Cookie 解析に失敗しました')
       return
     }
-    const hostname = new URL(webBase).hostname
-    const cookiesForStorage = parsedCookies.map((cookie) => ({
-      ...cookie,
-      domain: hostname,
-      secure: webBase.startsWith('https://'),
-    }))
+    const cookiesForStorage = parsedCookies.map((cookie) => {
+      const domain =
+        !cookie.domain || cookie.domain === 'test_auth_secret_local' ? webHost : cookie.domain
+      return {
+        ...cookie,
+        domain,
+        secure: webBase.startsWith('https://'),
+      }
+    })
 
     cookiesForStorage.push({
       name: 'osakamenesu_csrf',
       value: crypto.randomBytes(16).toString('hex'),
-      domain: hostname,
+      domain: webHost,
       path: '/',
       httpOnly: false,
       secure: webBase.startsWith('https://'),

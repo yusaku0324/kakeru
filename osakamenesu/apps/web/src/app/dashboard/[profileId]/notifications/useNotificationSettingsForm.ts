@@ -55,7 +55,10 @@ const SERVER_FIELD_MAP: Record<string, keyof FieldErrors> = {
   slack: 'slack',
 }
 
-export function mapServerValidationErrors(detail: unknown): { fieldErrors: FieldErrors; message?: string } {
+export function mapServerValidationErrors(detail: unknown): {
+  fieldErrors: FieldErrors
+  message?: string
+} {
   const fieldErrors: FieldErrors = {}
   const messages: string[] = []
 
@@ -291,7 +294,8 @@ export function useNotificationSettingsForm(
             })
             return
           case 'validation_error': {
-            const { fieldErrors: serverErrors, message: validationMessage } = mapServerValidationErrors(result.detail)
+            const { fieldErrors: serverErrors, message: validationMessage } =
+              mapServerValidationErrors(result.detail)
             setFieldErrors(serverErrors)
             setMessage({ type: 'error', text: validationMessage ?? '入力内容を確認してください。' })
             return
@@ -299,7 +303,9 @@ export function useNotificationSettingsForm(
           case 'error':
             setMessage({
               type: 'error',
-              text: result.message ?? '処理中にエラーが発生しました。しばらくしてから再度お試しください。',
+              text:
+                result.message ??
+                '処理中にエラーが発生しました。しばらくしてから再度お試しください。',
             })
             return
           default:
@@ -490,8 +496,4 @@ export function useNotificationSettingsForm(
   }
 }
 
-export type {
-  MessageState,
-  RunWithValidationResult,
-  FormState,
-}
+export type { MessageState, RunWithValidationResult, FormState }

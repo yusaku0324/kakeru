@@ -81,7 +81,9 @@ export function ReservationHeroCard({
           <span aria-hidden>★</span>
           {typeof rating === 'number' ? rating.toFixed(1) : '評価準備中'}
           {reviewCount ? (
-            <span className="text-[11px] font-medium text-neutral-textMuted">口コミ {reviewCount}</span>
+            <span className="text-[11px] font-medium text-neutral-textMuted">
+              口コミ {reviewCount}
+            </span>
           ) : null}
         </div>
       </div>

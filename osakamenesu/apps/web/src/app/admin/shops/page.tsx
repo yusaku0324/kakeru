@@ -1,4 +1,6 @@
-"use client"
+'use client'
+
+import { useEffect, useState } from 'react'
 
 import { ToastContainer, useToast } from '@/components/useToast'
 import { ShopDetailForm } from '@/features/shops/ui/ShopDetailForm'
@@ -10,13 +12,29 @@ import { ShopStaffSection } from '@/features/shops/ui/ShopStaffSection'
 import { useAdminShopsController } from '@/features/shops/usecases/useAdminShopsController'
 
 export default function AdminShopsPage() {
+  const [isHydrated, setIsHydrated] = useState(false)
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
   const { toasts, push, remove } = useToast()
   const { state, actions } = useAdminShopsController({
-    onError: message => push('error', message),
-    onSuccess: message => push('success', message),
+    onError: (message) => push('error', message),
+    onSuccess: (message) => push('success', message),
   })
 
-  const { shops, selectedId, isCreating, detail, form, availability, loadingDetail, serviceTypes, tagDraft, canSave } = state
+  const {
+    shops,
+    selectedId,
+    isCreating,
+    detail,
+    form,
+    availability,
+    loadingDetail,
+    serviceTypes,
+    tagDraft,
+    canSave,
+  } = state
   const {
     selectShop,
     startCreate,
@@ -44,6 +62,10 @@ export default function AdminShopsPage() {
     setTagDraft: setTagDraftValue,
   } = actions
 
+  if (!isHydrated) {
+    return null
+  }
+
   if (!detail || (!selectedId && !isCreating)) {
     return (
       <main className="mx-auto max-w-5xl space-y-4 p-4">
@@ -62,44 +84,76 @@ export default function AdminShopsPage() {
         店舗管理
       </h1>
       <div className="flex flex-wrap items-start gap-4">
-        <ShopList shops={shops} selectedId={selectedId} isCreating={isCreating} onSelectShop={selectShop} onCreateShop={startCreate} />
+        <ShopList
+          shops={shops}
+          selectedId={selectedId}
+          isCreating={isCreating}
+          onSelectShop={selectShop}
+          onCreateShop={startCreate}
+        />
 
-        <section className="flex-1 space-y-6">
-          <ShopDetailForm
-            form={form}
-            serviceTypes={serviceTypes}
-            tagDraft={tagDraft}
-            onChangeField={updateForm}
-            onUpdateContact={updateContact}
-            onTagDraftChange={setTagDraftValue}
-            onAddServiceTag={addServiceTag}
-            onRemoveServiceTag={removeServiceTag}
-          />
+        <section className="flex-1 space-y-6" aria-busy={loadingDetail}>
+          {loadingDetail ? (
+            <div
+              className="rounded border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500"
+              data-testid="shop-loading"
+            >
+              店舗情報を読み込み中です…
+            </div>
+          ) : (
+            <>
+              <ShopDetailForm
+                form={form}
+                serviceTypes={serviceTypes}
+                tagDraft={tagDraft}
+                onChangeField={updateForm}
+                onUpdateContact={updateContact}
+                onTagDraftChange={setTagDraftValue}
+                onAddServiceTag={addServiceTag}
+                onRemoveServiceTag={removeServiceTag}
+              />
 
-          <ShopPhotosSection photos={form.photos} onUpdatePhoto={updatePhoto} onAddPhoto={addPhoto} onRemovePhoto={removePhoto} />
+              <ShopPhotosSection
+                photos={form.photos}
+                onUpdatePhoto={updatePhoto}
+                onAddPhoto={addPhoto}
+                onRemovePhoto={removePhoto}
+              />
 
-          <ShopMenusSection menus={form.menus} onUpdateMenu={updateMenu} onAddMenu={addMenu} onRemoveMenu={removeMenu} />
+              <ShopMenusSection
+                menus={form.menus}
+                onUpdateMenu={updateMenu}
+                onAddMenu={addMenu}
+                onRemoveMenu={removeMenu}
+              />
 
-          <ShopStaffSection staff={form.staff} onUpdateStaff={updateStaff} onAddStaff={addStaff} onRemoveStaff={removeStaff} />
+              <ShopStaffSection
+                staff={form.staff}
+                onUpdateStaff={updateStaff}
+                onAddStaff={addStaff}
+                onRemoveStaff={removeStaff}
+              />
 
-          <button
-            onClick={saveContent}
-            className="rounded bg-blue-600 px-4 py-2 text-white shadow disabled:opacity-50"
-            disabled={!canSave}
-          >
-            店舗情報を保存
-          </button>
+              <button
+                onClick={saveContent}
+                className="rounded bg-blue-600 px-4 py-2 text-white shadow disabled:opacity-50"
+                disabled={!canSave || loadingDetail}
+              >
+                店舗情報を保存
+              </button>
 
-          <ShopReservationSummary
-            availability={availability}
-            onAddDay={addAvailabilityDay}
-            onDeleteDay={deleteAvailabilityDay}
-            onUpdateDate={updateAvailabilityDate}
-            onAddSlot={addSlot}
-            onUpdateSlot={updateSlot}
-            onRemoveSlot={removeSlot}
-            onSaveDay={saveAvailability}
-          />
+              <ShopReservationSummary
+                availability={availability}
+                onAddDay={addAvailabilityDay}
+                onDeleteDay={deleteAvailabilityDay}
+                onUpdateDate={updateAvailabilityDate}
+                onAddSlot={addSlot}
+                onUpdateSlot={updateSlot}
+                onRemoveSlot={removeSlot}
+                onSaveDay={saveAvailability}
+              />
+            </>
+          )}
         </section>
       </div>
 

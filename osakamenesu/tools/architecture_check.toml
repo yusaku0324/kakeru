@@ -1,0 +1,151 @@
+# Default config for tools/architecture_check.py
+
+[defaults]
+max_lines = 600
+extensions = [".py", ".ts", ".tsx"]
+include = [
+  "services/api",
+  "apps/web/src",
+]
+exclude = [
+  "**/node_modules/**",
+  "**/.next/**",
+  "**/.git/**",
+  "**/.pnpm-store/**",
+  "**/.pytest_cache/**",
+  "**/__pycache__/**",
+]
+hotspot_depth = 3
+summary_limit = 20
+
+[[allowlist]]
+path = "apps/web/src/components/ReservationOverlay.tsx"
+max_lines = 1433
+reason = "Legacy reservation overlay"
+
+[[allowlist]]
+path = "services/api/app/schemas.py"
+max_lines = 1018
+reason = "Monolithic schema module"
+
+[[allowlist]]
+path = "apps/web/src/app/profiles/[id]/page.tsx"
+max_lines = 918
+reason = "Profiles page composition"
+
+[[allowlist]]
+path = "apps/web/src/app/dashboard/[profileId]/profile/TherapistManager.tsx"
+max_lines = 909
+reason = "Dashboard therapist manager"
+
+[[allowlist]]
+path = "apps/web/src/app/search/page.tsx"
+max_lines = 886
+reason = "Search page composition"
+
+[[allowlist]]
+path = "apps/web/src/app/dashboard/[profileId]/profile/ShopProfileEditor.tsx"
+max_lines = 846
+reason = "Dashboard shop editor"
+
+[[allowlist]]
+path = "apps/web/src/components/ReservationForm.tsx"
+max_lines = 827
+reason = "Reservation form"
+
+[[allowlist]]
+path = "apps/web/src/features/reservations/usecases/useDashboardReservationFeedState.ts"
+max_lines = 798
+reason = "Dashboard reservation feed hook"
+
+[[allowlist]]
+path = "apps/web/src/components/SearchFilters.tsx"
+max_lines = 765
+reason = "Search filters UI"
+
+[[allowlist]]
+path = "apps/web/src/components/ShopReviews.tsx"
+max_lines = 744
+reason = "Shop reviews block"
+
+[[allowlist]]
+path = "services/api/app/utils/profiles.py"
+max_lines = 656
+reason = "Profile utils"
+
+[[allowlist]]
+path = "services/api/app/services/dashboard_shop_service.py"
+max_lines = 637
+reason = "Dashboard shop service"
+
+[[import_rules]]
+name = "service-layer-no-fastapi"
+include = [
+  "services/api/app/services/*.py",
+  "services/api/app/services/**/*.py",
+  "services/api/app/domains/*/service.py",
+  "services/api/app/domains/*/*/service.py",
+  "services/api/app/domains/*/services/*.py",
+  "services/api/app/domains/*/services/**/*.py",
+  "services/api/app/domains/*/*/services/*.py",
+  "services/api/app/domains/*/*/services/**/*.py",
+]
+disallow = ["fastapi"]
+
+  [[import_rules.allow]]
+  path = "services/api/app/services/dashboard_shop_service.py"
+  reason = "Legacy service still throwing HTTPException"
+
+  [[import_rules.allow]]
+  path = "services/api/app/domains/site/service.py"
+  reason = "Favorites service still raises HTTP errors"
+
+  [[import_rules.allow]]
+  path = "services/api/app/domains/dashboard/therapists/service.py"
+  reason = "Therapist service coupled to FastAPI"
+
+  [[import_rules.allow]]
+  path = "services/api/app/domains/admin/services/audit.py"
+  reason = "Audit helper uses Request"
+
+  [[import_rules.allow]]
+  path = "services/api/app/domains/admin/services/profile_service.py"
+  reason = "Profile service still returning HTTP errors"
+
+  [[import_rules.allow]]
+  path = "services/api/app/domains/admin/services/reservation_service.py"
+  reason = "Reservation admin service coupled to FastAPI"
+
+  [[import_rules.allow]]
+  path = "services/api/app/domains/admin/services/review_service.py"
+  reason = "Review service still tied to FastAPI"
+
+  [[import_rules.allow]]
+  path = "services/api/app/domains/auth/service.py"
+  reason = "Auth service still produces HTTP responses"
+
+[[import_rules]]
+name = "dashboard-slice-no-site"
+include = [
+  "services/api/app/domains/dashboard/**/*.py",
+]
+disallow = ["services.api.app.domains.site"]
+
+  [[import_rules.allow]]
+  path = "services/api/app/domains/dashboard/shops/router.py"
+  reason = "Routes still access site shop helpers"
+
+  [[import_rules.allow]]
+  path = "services/api/app/domains/dashboard/therapists/router.py"
+  reason = "Therapist routes reuse site models"
+
+[[import_rules]]
+name = "admin-slice-no-dashboard"
+include = [
+  "services/api/app/domains/admin/**/*.py",
+]
+disallow = ["services.api.app.domains.dashboard"]
+
+  [[import_rules.allow]]
+  path = "services/api/app/domains/admin/services/profile_service.py"
+  reason = "Admin profile service still reaches dashboard"

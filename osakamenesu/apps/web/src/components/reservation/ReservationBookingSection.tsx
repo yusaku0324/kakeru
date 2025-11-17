@@ -3,9 +3,16 @@
 import clsx from 'clsx'
 import { Dispatch, SetStateAction, useMemo } from 'react'
 
-import { AvailabilityPickerDesktop, type SelectedSlot } from '@/components/calendar/AvailabilityPickerDesktop'
+import {
+  AvailabilityPickerDesktop,
+  type SelectedSlot,
+} from '@/components/calendar/AvailabilityPickerDesktop'
 import { AvailabilityPickerMobile } from '@/components/calendar/AvailabilityPickerMobile'
-import { AVAILABILITY_STATUS_META, type AvailabilityStatus, type CalendarTime } from '@/components/calendar/types'
+import {
+  AVAILABILITY_STATUS_META,
+  type AvailabilityStatus,
+  type CalendarTime,
+} from '@/components/calendar/types'
 
 type NormalizedSlot = {
   start_at: string
@@ -81,11 +88,17 @@ export function ReservationBookingSection({
                 </span>
                 <div className="font-semibold">
                   {dayFormatter.format(new Date(slot.date))}{' '}
-                  {timeFormatter.format(new Date(slot.startAt))}〜{timeFormatter.format(new Date(slot.endAt))}
+                  {timeFormatter.format(new Date(slot.startAt))}〜
+                  {timeFormatter.format(new Date(slot.endAt))}
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className={clsx('inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold', badgeClass)}>
+                <span
+                  className={clsx(
+                    'inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold',
+                    badgeClass,
+                  )}
+                >
                   <span aria-hidden>{meta.icon}</span>
                   {meta.label}
                 </span>
@@ -135,7 +148,9 @@ export function ReservationBookingSection({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h3 className="text-base font-semibold">希望日時を選択</h3>
-            <p className="text-xs text-neutral-textMuted">最大3枠まで候補を追加できます。◯をタップしてください。</p>
+            <p className="text-xs text-neutral-textMuted">
+              最大3枠まで候補を追加できます。◯をタップしてください。
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-4 py-1 text-xs font-semibold text-brand-primary shadow-sm shadow-brand-primary/10">
@@ -208,7 +223,9 @@ export function ReservationBookingSection({
 
       <div className="rounded-[28px] border border-white/70 bg-white/95 p-5 text-neutral-text shadow-[0_18px_60px_rgba(21,93,252,0.14)]">
         <h3 className="text-sm font-semibold">候補枠の調整</h3>
-        <p className="mt-1 text-[11px] text-neutral-textMuted">希望時間をタップして候補に追加してください。最大3枠まで登録できます。</p>
+        <p className="mt-1 text-[11px] text-neutral-textMuted">
+          希望時間をタップして候補に追加してください。最大3枠まで登録できます。
+        </p>
         <div className="mt-4 hidden md:block">
           <AvailabilityPickerDesktop
             days={currentScheduleDays}
@@ -266,7 +283,13 @@ export function ReservationBookingSection({
   )
 }
 
-function LegendItem({ tone, children }: { tone: 'available' | 'tentative' | 'blocked'; children: string }) {
+function LegendItem({
+  tone,
+  children,
+}: {
+  tone: 'available' | 'tentative' | 'blocked'
+  children: string
+}) {
   const icon =
     tone === 'available'
       ? '●'
@@ -281,7 +304,14 @@ function LegendItem({ tone, children }: { tone: 'available' | 'tentative' | 'blo
         : 'border-neutral-borderLight/70 bg-neutral-borderLight/30 text-neutral-textMuted'
   return (
     <div className="flex items-center gap-3">
-      <span className={clsx('inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold', classes)}>{icon}</span>
+      <span
+        className={clsx(
+          'inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold',
+          classes,
+        )}
+      >
+        {icon}
+      </span>
       <span className="text-xs text-neutral-text">{children}</span>
     </div>
   )

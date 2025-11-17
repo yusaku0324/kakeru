@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { FormEvent, useState } from 'react'
 
@@ -33,7 +33,9 @@ export function SiteMagicLinkRequestForm() {
         break
       case 'rate_limited':
         setStatus('error')
-        setErrorMessage('短時間に複数回リクエストが行われました。しばらく時間をおいてから再度お試しください。')
+        setErrorMessage(
+          '短時間に複数回リクエストが行われました。しばらく時間をおいてから再度お試しください。',
+        )
         break
       case 'error':
       default:

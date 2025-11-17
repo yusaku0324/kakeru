@@ -113,7 +113,7 @@ export type DashboardShopProfileCreateResult =
 function createRequestInit(
   method: string,
   options?: DashboardShopRequestOptions,
-  body?: unknown
+  body?: unknown,
 ): RequestInit {
   const headers: Record<string, string> = {}
   if (options?.cookieHeader) {
@@ -144,7 +144,7 @@ function createRequestInit(
 async function requestJson<T>(
   path: string,
   init: RequestInit,
-  successStatuses: number[]
+  successStatuses: number[],
 ): Promise<{ response: Response; data?: T }> {
   let lastError: DashboardShopProfileFetchResult | DashboardShopProfileUpdateResult | null = null
 
@@ -182,27 +182,28 @@ async function requestJson<T>(
     } catch (error) {
       lastError = {
         status: 'error',
-        message:
-          error instanceof Error ? error.message : 'リクエスト中にエラーが発生しました',
+        message: error instanceof Error ? error.message : 'リクエスト中にエラーが発生しました',
       }
     }
   }
 
-  throw lastError ?? {
-    status: 'error',
-    message: 'API リクエストが完了しませんでした',
-  }
+  throw (
+    lastError ?? {
+      status: 'error',
+      message: 'API リクエストが完了しませんでした',
+    }
+  )
 }
 
 export async function fetchDashboardShopProfile(
   profileId: string,
-  options?: DashboardShopRequestOptions
+  options?: DashboardShopRequestOptions,
 ): Promise<DashboardShopProfileFetchResult> {
   try {
     const { response, data } = await requestJson<DashboardShopProfile>(
       `api/dashboard/shops/${profileId}/profile`,
       createRequestInit('GET', options),
-      [200]
+      [200],
     )
 
     switch (response.status) {
@@ -237,17 +238,12 @@ export async function fetchDashboardShopProfile(
 export async function updateDashboardShopProfile(
   profileId: string,
   payload: DashboardShopProfileUpdatePayload,
-  options?: DashboardShopRequestOptions
+  options?: DashboardShopRequestOptions,
 ): Promise<DashboardShopProfileUpdateResult> {
   try {
     const { response, data } = await requestJson<
-      | DashboardShopProfile
-      | { detail?: { current?: DashboardShopProfile } }
-    >(
-      `api/dashboard/shops/${profileId}/profile`,
-      createRequestInit('PUT', options, payload),
-      [200]
-    )
+      DashboardShopProfile | { detail?: { current?: DashboardShopProfile } }
+    >(`api/dashboard/shops/${profileId}/profile`, createRequestInit('PUT', options, payload), [200])
 
     switch (response.status) {
       case 200:
@@ -311,12 +307,14 @@ export async function updateDashboardShopProfile(
 
 export async function createDashboardShopProfile(
   payload: DashboardShopProfileCreatePayload,
-  options?: DashboardShopRequestOptions
+  options?: DashboardShopRequestOptions,
 ): Promise<DashboardShopProfileCreateResult> {
   try {
-    const { response, data } = await requestJson<
-      DashboardShopProfile | { detail?: unknown }
-    >('api/dashboard/shops', createRequestInit('POST', options, payload), [201])
+    const { response, data } = await requestJson<DashboardShopProfile | { detail?: unknown }>(
+      'api/dashboard/shops',
+      createRequestInit('POST', options, payload),
+      [201],
+    )
 
     switch (response.status) {
       case 201:
@@ -326,7 +324,10 @@ export async function createDashboardShopProfile(
       case 403:
         return { status: 'forbidden', detail: (data as { detail?: string } | undefined)?.detail }
       case 422:
-        return { status: 'validation_error', detail: (data as { detail?: unknown } | undefined)?.detail }
+        return {
+          status: 'validation_error',
+          detail: (data as { detail?: unknown } | undefined)?.detail,
+        }
       default:
         return {
           status: 'error',

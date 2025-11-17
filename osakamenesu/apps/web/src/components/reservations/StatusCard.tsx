@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import clsx from 'clsx'
 import Link from 'next/link'
@@ -22,7 +22,8 @@ export default function ReservationStatusCard({
 }: ReservationStatusCardProps) {
   const statusLabel = snapshot?.status ? getReservationStatusLabel(snapshot.status) : null
   const statusBadgeClass = statusLabel
-    ? RESERVATION_STATUS_BADGES[snapshot?.status ?? ''] ?? 'bg-neutral-200 text-neutral-600 border border-neutral-300'
+    ? (RESERVATION_STATUS_BADGES[snapshot?.status ?? ''] ??
+      'bg-neutral-200 text-neutral-600 border border-neutral-300')
     : null
   const submittedAtLabel = snapshot?.submittedAt
     ? (() => {
@@ -44,7 +45,8 @@ export default function ReservationStatusCard({
           </Link>
         </div>
         <p className="text-sm text-neutral-600">
-          Web 予約フォームから最後に受け付けたリクエストのステータスです。承認／辞退を行うと即座に更新され、下の履歴には送信順で一覧表示されます。
+          Web
+          予約フォームから最後に受け付けたリクエストのステータスです。承認／辞退を行うと即座に更新され、下の履歴には送信順で一覧表示されます。
         </p>
 
         {snapshot ? (
@@ -75,7 +77,8 @@ export default function ReservationStatusCard({
           </div>
         ) : (
           <div className="rounded-[22px] border border-dashed border-neutral-borderLight/70 bg-white/80 px-4 py-3 text-sm text-neutral-textMuted">
-            まだ予約リクエストが登録されていません。Web 予約が届くとここに最新のステータスが表示されます。
+            まだ予約リクエストが登録されていません。Web
+            予約が届くとここに最新のステータスが表示されます。
           </div>
         )}
       </div>

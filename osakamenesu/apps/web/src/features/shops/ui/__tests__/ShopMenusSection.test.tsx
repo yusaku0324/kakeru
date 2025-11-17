@@ -23,12 +23,19 @@ describe('ShopMenusSection', () => {
     const onRemoveMenu = vi.fn()
 
     render(
-      <ShopMenusSection menus={sampleMenus} onUpdateMenu={onUpdateMenu} onAddMenu={onAddMenu} onRemoveMenu={onRemoveMenu} />,
+      <ShopMenusSection
+        menus={sampleMenus}
+        onUpdateMenu={onUpdateMenu}
+        onAddMenu={onAddMenu}
+        onRemoveMenu={onRemoveMenu}
+      />,
     )
 
     expect(screen.getAllByTestId('menu-item')).toHaveLength(1)
 
-    fireEvent.change(screen.getAllByPlaceholderText('メニュー名')[0], { target: { value: 'ホットストーン' } })
+    fireEvent.change(screen.getAllByPlaceholderText('メニュー名')[0], {
+      target: { value: 'ホットストーン' },
+    })
     expect(onUpdateMenu).toHaveBeenCalledWith(0, { name: 'ホットストーン' })
 
     fireEvent.change(screen.getAllByPlaceholderText('価格')[0], { target: { value: '15000' } })

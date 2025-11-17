@@ -51,9 +51,7 @@ type TherapistFavoriteEntry = {
   staff: StaffSummary | null
 }
 
-type SiteUserResult =
-  | { status: 'authenticated'; displayName: string | null }
-  | { status: 'guest' }
+type SiteUserResult = { status: 'authenticated'; displayName: string | null } | { status: 'guest' }
 
 const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
   dateStyle: 'medium',
@@ -178,7 +176,8 @@ async function fetchTherapistFavorites(cookieHeader?: string): Promise<Therapist
       const favorites = (await res.json()) as TherapistFavoriteRecord[]
       return { status: 'ok', favorites }
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error('セラピストお気に入りの取得に失敗しました')
+      lastError =
+        error instanceof Error ? error : new Error('セラピストお気に入りの取得に失敗しました')
     }
   }
 
@@ -188,7 +187,10 @@ async function fetchTherapistFavorites(cookieHeader?: string): Promise<Therapist
   }
 }
 
-async function fetchShopSummary(shopId: string, cookieHeader?: string): Promise<ShopSummary | null> {
+async function fetchShopSummary(
+  shopId: string,
+  cookieHeader?: string,
+): Promise<ShopSummary | null> {
   for (const base of resolveApiBases()) {
     try {
       const res = await fetch(buildApiUrl(base, `api/v1/shops/${shopId}`), {
@@ -287,18 +289,16 @@ export default async function FavoritesDashboardPage() {
     console.info('[favorites-page]', {
       favoritesStatus: favoritesResult.status,
       therapistStatus: therapistFavoritesResult.status,
-      favoritesCount:
-        favoritesResult.status === 'ok' ? favoritesResult.favorites.length : null,
+      favoritesCount: favoritesResult.status === 'ok' ? favoritesResult.favorites.length : null,
       therapistFavoritesCount:
         therapistFavoritesResult.status === 'ok' ? therapistFavoritesResult.favorites.length : null,
     })
   }
 
-  if (
-    favoritesResult.status === 'error' &&
-    therapistFavoritesResult.status === 'error'
-  ) {
-    const combinedMessage = [favoritesResult.message, therapistFavoritesResult.message].filter(Boolean).join(' / ')
+  if (favoritesResult.status === 'error' && therapistFavoritesResult.status === 'error') {
+    const combinedMessage = [favoritesResult.message, therapistFavoritesResult.message]
+      .filter(Boolean)
+      .join(' / ')
     return (
       <main className="mx-auto max-w-4xl space-y-6 px-6 py-12">
         <h1 className="text-2xl font-semibold">マイページ</h1>
@@ -319,7 +319,10 @@ export default async function FavoritesDashboardPage() {
           お気に入りを表示するにはログインが必要です。ログインページからマジックリンクを送信し、メール経由でログインした後にこのページを再読み込みしてください。
         </p>
         <div className="flex flex-wrap gap-3">
-          <Link href="/auth/login" className="inline-flex rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white">
+          <Link
+            href="/auth/login"
+            className="inline-flex rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
+          >
             ログインページへ
           </Link>
           <Link
@@ -349,7 +352,8 @@ export default async function FavoritesDashboardPage() {
     }),
   )
 
-  const therapistFavorites = therapistFavoritesResult.status === 'ok' ? therapistFavoritesResult.favorites : []
+  const therapistFavorites =
+    therapistFavoritesResult.status === 'ok' ? therapistFavoritesResult.favorites : []
   const therapistEntries: TherapistFavoriteEntry[] = await Promise.all(
     therapistFavorites.map(async (favorite) => {
       if (!shopDetailMap.has(favorite.shop_id)) {
@@ -377,12 +381,15 @@ export default async function FavoritesDashboardPage() {
     return right - left
   })
 
-  const greeting = userResult.status === 'authenticated' ? userResult.displayName ?? 'ゲスト' : null
+  const greeting =
+    userResult.status === 'authenticated' ? (userResult.displayName ?? 'ゲスト') : null
 
   return (
     <main className="mx-auto max-w-5xl space-y-10 px-6 py-12">
       <header className="space-y-2">
-        <p className="text-sm text-neutral-600">{greeting ? `${greeting} さん、こんにちは！` : 'ようこそ。'}</p>
+        <p className="text-sm text-neutral-600">
+          {greeting ? `${greeting} さん、こんにちは！` : 'ようこそ。'}
+        </p>
         <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">マイページ</h1>
         <p className="text-sm text-neutral-600">
           お気に入りや最近チェックした店舗をまとめて確認できます。ログイン状態は30日間保持されます。
@@ -428,9 +435,16 @@ export default async function FavoritesDashboardPage() {
               </thead>
               <tbody className="divide-y divide-neutral-100">
                 {summaries.map(({ favorite, summary }) => {
-                  const href = summary ? (summary.slug ? `/profiles/${summary.slug}` : `/profiles/${summary.id}`) : undefined
+                  const href = summary
+                    ? summary.slug
+                      ? `/profiles/${summary.slug}`
+                      : `/profiles/${summary.id}`
+                    : undefined
                   return (
-                    <tr key={`${favorite.shop_id}-${favorite.created_at}`} className="hover:bg-neutral-50">
+                    <tr
+                      key={`${favorite.shop_id}-${favorite.created_at}`}
+                      className="hover:bg-neutral-50"
+                    >
                       <td className="px-4 py-3">
                         {summary ? (
                           <Link href={href!} className="text-brand-primary hover:underline">
@@ -441,8 +455,12 @@ export default async function FavoritesDashboardPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-neutral-600">{summary?.area ?? '—'}</td>
-                      <td className="px-4 py-3 text-neutral-600">{formatPriceRange(summary?.min_price, summary?.max_price)}</td>
-                      <td className="px-4 py-3 text-neutral-600">{dateFormatter.format(new Date(favorite.created_at))}</td>
+                      <td className="px-4 py-3 text-neutral-600">
+                        {formatPriceRange(summary?.min_price, summary?.max_price)}
+                      </td>
+                      <td className="px-4 py-3 text-neutral-600">
+                        {dateFormatter.format(new Date(favorite.created_at))}
+                      </td>
                     </tr>
                   )
                 })}
@@ -457,7 +475,10 @@ export default async function FavoritesDashboardPage() {
           <h2 id="therapist-favorites-heading" className="text-xl font-semibold text-neutral-900">
             お気に入りのセラピスト
           </h2>
-          <Link href="/search?force_samples=1" className="text-sm font-medium text-brand-primary hover:underline">
+          <Link
+            href="/search?force_samples=1"
+            className="text-sm font-medium text-brand-primary hover:underline"
+          >
             セラピストを探す
           </Link>
         </div>
@@ -477,9 +498,16 @@ export default async function FavoritesDashboardPage() {
               const alias = staff?.alias
               const headline = staff?.headline
               const initial = therapistName ? therapistName.slice(0, 1) : '？'
-              const href = summary ? (summary.slug ? `/profiles/${summary.slug}` : `/profiles/${summary.id}`) : null
+              const href = summary
+                ? summary.slug
+                  ? `/profiles/${summary.slug}`
+                  : `/profiles/${summary.id}`
+                : null
               return (
-                <Card key={`${favorite.therapist_id}-${favorite.created_at}`} className="space-y-3 p-4">
+                <Card
+                  key={`${favorite.therapist_id}-${favorite.created_at}`}
+                  className="space-y-3 p-4"
+                >
                   <div className="flex items-start gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-200 text-lg font-semibold text-neutral-700">
                       {initial}
@@ -501,7 +529,9 @@ export default async function FavoritesDashboardPage() {
                         ) : (
                           <span>{summary.name}</span>
                         )}
-                        {summary.area ? <span className="ml-1 text-xs text-neutral-500">({summary.area})</span> : null}
+                        {summary.area ? (
+                          <span className="ml-1 text-xs text-neutral-500">({summary.area})</span>
+                        ) : null}
                       </>
                     ) : (
                       <span>所属店舗情報を取得できませんでした。</span>
@@ -519,15 +549,23 @@ export default async function FavoritesDashboardPage() {
 
       <RecentlyViewedList />
 
-      <section aria-labelledby="reservation-history-heading" className="space-y-2 rounded border border-neutral-200 bg-neutral-50 p-6">
+      <section
+        aria-labelledby="reservation-history-heading"
+        className="space-y-2 rounded border border-neutral-200 bg-neutral-50 p-6"
+      >
         <div className="flex items-center justify-between">
           <div>
             <h2 id="reservation-history-heading" className="text-xl font-semibold text-neutral-900">
               予約履歴
             </h2>
-            <p className="text-sm text-neutral-600">近日中に、過去の予約状況をここで確認できるようになります。</p>
+            <p className="text-sm text-neutral-600">
+              近日中に、過去の予約状況をここで確認できるようになります。
+            </p>
           </div>
-          <Link href="/therapists" className="hidden rounded-full border border-neutral-300 px-4 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 sm:inline-flex">
+          <Link
+            href="/therapists"
+            className="hidden rounded-full border border-neutral-300 px-4 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 sm:inline-flex"
+          >
             セラピストを探す
           </Link>
         </div>

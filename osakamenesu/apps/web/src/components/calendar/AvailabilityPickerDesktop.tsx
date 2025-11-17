@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import type { AvailabilityDay, AvailabilitySlot, CalendarTime } from './types'
 import { WeekAvailabilityGrid, type SelectedSlot } from './WeekAvailabilityGrid'

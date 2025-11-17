@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { CSRF_HEADER_NAME, isCsrfProtectedMethod, shouldBypassCsrf, validateCsrfToken } from '@/lib/csrf'
+import {
+  CSRF_HEADER_NAME,
+  isCsrfProtectedMethod,
+  shouldBypassCsrf,
+  validateCsrfToken,
+} from '@/lib/csrf'
+import { resolveInternalApiBase } from '@/lib/server-config'
 import { SESSION_COOKIE_NAME } from '@/lib/session'
 
 const BASIC_REALM = 'Admin'
@@ -20,11 +26,7 @@ const rateLimitBuckets = new Map<string, RateLimitRecord>()
 const FASTAPI_BASE =
   process.env.E2E_INTERNAL_API_BASE ||
   process.env.E2E_SEED_API_BASE ||
-  process.env.OSAKAMENESU_API_INTERNAL_BASE ||
-  process.env.API_INTERNAL_BASE ||
-  process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE ||
-  'http://api:8000'
+  resolveInternalApiBase()
 
 const NORMALIZED_FASTAPI_BASE = FASTAPI_BASE.replace(/\/$/, '')
 const HMAC_SECRET = process.env.API_PROXY_HMAC_SECRET || process.env.PROXY_SHARED_SECRET || null
@@ -179,7 +181,11 @@ function enforceAdminBasicAuth(request: NextRequest): NextResponse | null {
 }
 
 const DASHBOARD_PUBLIC_PATHS = ['/dashboard/login', '/dashboard/favorites', '/dashboard/new']
-const SITE_PUBLIC_API_PATHS = ['/api/auth/me/site', '/api/auth/request-link', '/api/auth/test-login']
+const SITE_PUBLIC_API_PATHS = [
+  '/api/auth/me/site',
+  '/api/auth/request-link',
+  '/api/auth/test-login',
+]
 
 function isPublicDashboardPath(pathname: string) {
   return DASHBOARD_PUBLIC_PATHS.some(

@@ -33,7 +33,13 @@ describe('ReservationList', () => {
 
   it('renders reservations and handles selection', () => {
     const selectMock = vi.fn()
-    render(<ReservationList items={[baseReservation]} conflictIds={new Set(['res-1'])} onSelect={selectMock} />)
+    render(
+      <ReservationList
+        items={[baseReservation]}
+        conflictIds={new Set(['res-1'])}
+        onSelect={selectMock}
+      />,
+    )
     expect(screen.getByText('テスト 太郎')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button'))
     expect(selectMock).toHaveBeenCalledWith(baseReservation)

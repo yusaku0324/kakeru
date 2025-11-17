@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatSlotJp, getNextAvailableSlot, summarizeSlotAvailability, type ScheduleSlot } from './schedule'
+import {
+  formatSlotJp,
+  getNextAvailableSlot,
+  summarizeSlotAvailability,
+  type ScheduleSlot,
+} from './schedule'
 
-const buildSlot = (start: string, endOffsetMinutes = 90, status: ScheduleSlot['status'] = 'open'): ScheduleSlot => {
+const buildSlot = (
+  start: string,
+  endOffsetMinutes = 90,
+  status: ScheduleSlot['status'] = 'open',
+): ScheduleSlot => {
   const startDate = new Date(start)
   const endDate = new Date(startDate.getTime() + endOffsetMinutes * 60 * 1000)
   return {

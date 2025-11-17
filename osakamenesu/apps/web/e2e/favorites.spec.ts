@@ -70,7 +70,10 @@ function parseSetCookieHeaders(setCookieValues: string[], origin: URL): CookieIn
   const nowSeconds = Math.floor(Date.now() / 1000)
   return setCookieValues
     .map((raw) => {
-      const segments = raw.split(';').map((segment) => segment.trim()).filter(Boolean)
+      const segments = raw
+        .split(';')
+        .map((segment) => segment.trim())
+        .filter(Boolean)
       if (!segments.length) return null
       const [nameValue, ...attributes] = segments
       const separatorIndex = nameValue.indexOf('=')
@@ -179,7 +182,11 @@ async function buildCookieHeader(context: BrowserContext, baseURL: string): Prom
   return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ')
 }
 
-async function ensureAuthenticated(context: BrowserContext, page: Page, baseURL: string): Promise<string> {
+async function ensureAuthenticated(
+  context: BrowserContext,
+  page: Page,
+  baseURL: string,
+): Promise<string> {
   if (IS_MOCK_MODE) {
     return ''
   }
@@ -202,10 +209,9 @@ async function ensureAuthenticated(context: BrowserContext, page: Page, baseURL:
   const normalizedBase = normalizeBaseURL(baseURL)
   const apiBase = resolveApiBase(baseURL)
 
-  const secretCandidates = [
-    process.env.E2E_TEST_AUTH_SECRET,
-    process.env.TEST_AUTH_SECRET,
-  ].filter((value): value is string => Boolean(value && value.trim()))
+  const secretCandidates = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET].filter(
+    (value): value is string => Boolean(value && value.trim()),
+  )
 
   if (!secretCandidates.length) {
     secretCandidates.push('secret')
@@ -282,7 +288,9 @@ async function ensureAuthenticated(context: BrowserContext, page: Page, baseURL:
   }
 
   if (unauthorized) {
-    throw new Error('テストログインのシークレットが一致しません。E2E_TEST_AUTH_SECRET を設定してください。')
+    throw new Error(
+      'テストログインのシークレットが一致しません。E2E_TEST_AUTH_SECRET を設定してください。',
+    )
   }
 
   throw new Error(lastErrorMessage ?? 'test-login API が利用できませんでした')
@@ -342,7 +350,11 @@ function buildCookieVariants(cookies: CookieInput[], baseURL: string): CookieInp
 }
 
 test.describe('お気に入り（実API）', () => {
-  test('ログイン済みユーザーがセラピストのお気に入りをトグルできる', async ({ page, context, baseURL }) => {
+  test('ログイン済みユーザーがセラピストのお気に入りをトグルできる', async ({
+    page,
+    context,
+    baseURL,
+  }) => {
     if (!baseURL) throw new Error('baseURL is not defined')
     const siteCookies = loadSiteStorageCookies()
     if (siteCookies?.length) {
@@ -355,7 +367,9 @@ test.describe('お気に入り（実API）', () => {
       await ensureAuthenticated(context, page, baseURL)
     }
     const normalizedBase = normalizeBaseURL(baseURL)
-    const areaUrl = IS_MOCK_MODE ? `${normalizedBase}/test/favorites` : `${normalizedBase}${AREA_QUERY}`
+    const areaUrl = IS_MOCK_MODE
+      ? `${normalizedBase}/test/favorites`
+      : `${normalizedBase}${AREA_QUERY}`
 
     await page.goto(areaUrl, { waitUntil: 'domcontentloaded' })
 
@@ -365,20 +379,23 @@ test.describe('お気に入り（実API）', () => {
     const locateToggle = () => buildFavoriteToggleLocator(page, therapistId)
     const waitForToggleState = async (state: 'true' | 'false') => {
       await expect
-        .poll(async () => {
-          const toggle = locateToggle()
-          try {
-            if (!(await toggle.isVisible({ timeout: 1000 }))) {
-              return 'hidden'
+        .poll(
+          async () => {
+            const toggle = locateToggle()
+            try {
+              if (!(await toggle.isVisible({ timeout: 1000 }))) {
+                return 'hidden'
+              }
+              if (await toggle.isDisabled()) {
+                return 'processing'
+              }
+              return (await toggle.getAttribute('aria-pressed')) ?? 'missing'
+            } catch {
+              return 'missing'
             }
-            if (await toggle.isDisabled()) {
-              return 'processing'
-            }
-            return (await toggle.getAttribute('aria-pressed')) ?? 'missing'
-          } catch {
-            return 'missing'
-          }
-        }, { timeout: 20000 })
+          },
+          { timeout: 20000 },
+        )
         .toBe(state)
     }
 
@@ -390,7 +407,8 @@ test.describe('お気に入り（実API）', () => {
             .waitForResponse((response) =>
               IS_MOCK_MODE
                 ? true
-                : response.url().includes('/api/favorites/therapists') && response.request().method() === 'DELETE',
+                : response.url().includes('/api/favorites/therapists') &&
+                  response.request().method() === 'DELETE',
             )
             .catch(() => null),
           locateToggle().click(),
@@ -403,9 +421,14 @@ test.describe('お気に入り（実API）', () => {
     await waitForToggleState('false')
 
     await Promise.all([
-      page.waitForResponse((response) =>
-        IS_MOCK_MODE ? true : (response.url().includes('/api/favorites/therapists') && response.request().method() === 'POST'),
-      ).catch(() => null),
+      page
+        .waitForResponse((response) =>
+          IS_MOCK_MODE
+            ? true
+            : response.url().includes('/api/favorites/therapists') &&
+              response.request().method() === 'POST',
+        )
+        .catch(() => null),
       locateToggle().click(),
     ])
     await waitForToggleState('true')
@@ -418,16 +441,23 @@ test.describe('お気に入り（実API）', () => {
     await waitForToggleState('true')
 
     await Promise.all([
-      page.waitForResponse((response) =>
-        IS_MOCK_MODE ? true : (response.url().includes('/api/favorites/therapists') && response.request().method() === 'DELETE'),
-      ).catch(() => null),
+      page
+        .waitForResponse((response) =>
+          IS_MOCK_MODE
+            ? true
+            : response.url().includes('/api/favorites/therapists') &&
+              response.request().method() === 'DELETE',
+        )
+        .catch(() => null),
       locateToggle().click(),
     ])
     await waitForToggleState('false')
 
     await page.goto(`${normalizedBase}/dashboard/favorites`, { waitUntil: 'domcontentloaded' })
     const emptyState = page.getByText(/まだお気に入りの店舗がありません/)
-    await expect(emptyState.or(page.getByRole('heading', { name: therapistName, exact: false })).first()).toBeVisible({
+    await expect(
+      emptyState.or(page.getByRole('heading', { name: therapistName, exact: false })).first(),
+    ).toBeVisible({
       timeout: 15000,
     })
   })
@@ -439,11 +469,17 @@ async function waitForTherapistCard(page: Page, options: { therapistId?: string 
   if (isTestPage) {
     try {
       await expect
-        .poll(async () => {
-          return page.evaluate(() =>
-            document.querySelectorAll('[data-testid="test-therapist-card-wrapper"] [data-testid="therapist-card"]').length,
-          )
-        }, { timeout: 15_000 })
+        .poll(
+          async () => {
+            return page.evaluate(
+              () =>
+                document.querySelectorAll(
+                  '[data-testid="test-therapist-card-wrapper"] [data-testid="therapist-card"]',
+                ).length,
+            )
+          },
+          { timeout: 15_000 },
+        )
         .toBeGreaterThan(0)
     } catch (error) {
       const html = await page.content()
@@ -454,7 +490,9 @@ async function waitForTherapistCard(page: Page, options: { therapistId?: string 
     }
   } else {
     if (options.therapistId) {
-      await expect(buildFavoriteToggleLocator(page, options.therapistId)).toBeVisible({ timeout: 15000 })
+      await expect(buildFavoriteToggleLocator(page, options.therapistId)).toBeVisible({
+        timeout: 15000,
+      })
     } else {
       await expect(page.getByTestId('therapist-card').first()).toBeVisible({ timeout: 15000 })
     }
@@ -463,16 +501,21 @@ async function waitForTherapistCard(page: Page, options: { therapistId?: string 
 
 function buildFavoriteToggleLocator(page: Page, therapistId: string | null) {
   if (therapistId) {
-    return page.locator(`[data-testid="therapist-favorite-toggle"][data-therapist-id="${therapistId}"]`).first()
+    return page
+      .locator(`[data-testid="therapist-favorite-toggle"][data-therapist-id="${therapistId}"]`)
+      .first()
   }
   return page.getByTestId('therapist-favorite-toggle').first()
 }
 
 async function resolveTherapistTarget(page: Page) {
   if (IS_MOCK_MODE && page.url().includes('/test/favorites')) {
-    const mockCard = page.locator('[data-testid="test-therapist-card-wrapper"] [data-testid="therapist-card"]').first()
+    const mockCard = page
+      .locator('[data-testid="test-therapist-card-wrapper"] [data-testid="therapist-card"]')
+      .first()
     await expect(mockCard).toBeVisible({ timeout: 15000 })
-    const headingText = ((await mockCard.getByRole('heading').first().innerText()) ?? '').trim() || 'セラピスト'
+    const headingText =
+      ((await mockCard.getByRole('heading').first().innerText()) ?? '').trim() || 'セラピスト'
     return { therapistId: null, therapistName: headingText }
   }
 
@@ -481,6 +524,7 @@ async function resolveTherapistTarget(page: Page) {
   const toggle = card.getByTestId('therapist-favorite-toggle').first()
   await expect(toggle).toBeVisible({ timeout: 15000 })
   const therapistId = (await toggle.getAttribute('data-therapist-id'))?.trim() ?? null
-  const headingText = ((await card.getByRole('heading').first().innerText()) ?? '').trim() || 'セラピスト'
+  const headingText =
+    ((await card.getByRole('heading').first().innerText()) ?? '').trim() || 'セラピスト'
   return { therapistId, therapistName: headingText }
 }

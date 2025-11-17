@@ -1,14 +1,31 @@
-"use client"
+'use client'
 
 import clsx from 'clsx'
-import { type FormEventHandler, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import {
+  type FormEventHandler,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { BasicSearchSection } from '@/components/filters/BasicSearchSection'
 import { FilterChipsSection } from '@/components/filters/FilterChipsSection'
 import { StyleFiltersSection } from '@/components/filters/StyleFiltersSection'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { GLASS_SELECT_BUTTON_CLASS, GLASS_SELECT_MENU_CLASS, GLASS_SELECT_OPTION_CLASS } from '@/components/ui/glassStyles'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import {
+  GLASS_SELECT_BUTTON_CLASS,
+  GLASS_SELECT_MENU_CLASS,
+  GLASS_SELECT_OPTION_CLASS,
+} from '@/components/ui/glassStyles'
 
 type FacetValue = {
   value: string
@@ -61,7 +78,12 @@ const HAIR_STYLE_OPTIONS = [DEFAULT_TAG, 'ロング', 'ミディアム', 'ショ
 const BODY_TYPE_OPTIONS = [DEFAULT_TAG, 'スレンダー', '普通', 'グラマー', 'ぽっちゃり']
 const TAB_VALUE_SET = new Set(['all', 'therapists', 'shops'])
 
-const buildHighlightStyle = (minValue: number, maxValue: number, minBound: number, maxBound: number) => {
+const buildHighlightStyle = (
+  minValue: number,
+  maxValue: number,
+  minBound: number,
+  maxBound: number,
+) => {
   const range = maxBound - minBound
   if (range <= 0) return { left: '0%', right: '0%' }
   const start = ((minValue - minBound) / range) * 100
@@ -86,14 +108,14 @@ const SERVICE_SELECT_OPTIONS = [
   { value: 'dispatch', label: '派遣型' },
 ]
 export const SORT_SELECT_OPTIONS = [
-  { value: 'recommended', label: "おすすめ順" },
-  { value: 'price_asc', label: "料金が安い順" },
-  { value: 'price_desc', label: "料金が高い順" },
-  { value: 'rating', label: "クチコミ評価順" },
-  { value: 'reviews', label: "口コミ件数順" },
-  { value: 'availability', label: "予約可能枠が多い順" },
-  { value: 'new', label: "更新が新しい順" },
-  { value: 'favorites', label: "お気に入り数順" },
+  { value: 'recommended', label: 'おすすめ順' },
+  { value: 'price_asc', label: '料金が安い順' },
+  { value: 'price_desc', label: '料金が高い順' },
+  { value: 'rating', label: 'クチコミ評価順' },
+  { value: 'reviews', label: '口コミ件数順' },
+  { value: 'availability', label: '予約可能枠が多い順' },
+  { value: 'new', label: '更新が新しい順' },
+  { value: 'favorites', label: 'お気に入り数順' },
 ] as const
 
 const tagClass = (active: boolean) =>
@@ -103,7 +125,14 @@ const tagClass = (active: boolean) =>
       ? 'border-brand-primary bg-brand-primary/15 text-brand-primary shadow-[0_10px_24px_rgba(37,99,235,0.22)]'
       : 'border-white/55 bg-white/55 text-neutral-text hover:border-brand-primary/40',
   )
-export default function SearchFilters({ init, facets, sticky = false, className, resultCount, resultSummaryLabel }: Props) {
+export default function SearchFilters({
+  init,
+  facets,
+  sticky = false,
+  className,
+  resultCount,
+  resultSummaryLabel,
+}: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const sp = useSearchParams()
@@ -123,9 +152,15 @@ export default function SearchFilters({ init, facets, sticky = false, className,
   const [area, setArea] = useState<string>(() => extractParam('area'))
   const [service, setService] = useState<string>(() => extractParam('service'))
   const [today, setToday] = useState<boolean>(() => extractParam('today') === 'true')
-  const [promotionsOnly, setPromotionsOnly] = useState<boolean>(() => extractParam('promotions_only') === 'true')
-  const [discountsOnly, setDiscountsOnly] = useState<boolean>(() => extractParam('discounts_only') === 'true')
-  const [diariesOnly, setDiariesOnly] = useState<boolean>(() => extractParam('diaries_only') === 'true')
+  const [promotionsOnly, setPromotionsOnly] = useState<boolean>(
+    () => extractParam('promotions_only') === 'true',
+  )
+  const [discountsOnly, setDiscountsOnly] = useState<boolean>(
+    () => extractParam('discounts_only') === 'true',
+  )
+  const [diariesOnly, setDiariesOnly] = useState<boolean>(
+    () => extractParam('diaries_only') === 'true',
+  )
   const [sort, setSort] = useState<string>(() => extractParam('sort') || 'recommended')
   const [bustMinIndex, setBustMinIndex] = useState<number>(() => {
     const minPreset = BUST_SIZES.indexOf(extractParam('bust_min').toUpperCase())
@@ -143,31 +178,49 @@ export default function SearchFilters({ init, facets, sticky = false, className,
   })
   const [ageMin, setAgeMin] = useState<number>(() => {
     const value = Number.parseInt(extractParam('age_min'), 10)
-    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, AGE_MIN), AGE_MAX_LIMIT) : AGE_MIN
+    const normalized = Number.isFinite(value)
+      ? Math.min(Math.max(value, AGE_MIN), AGE_MAX_LIMIT)
+      : AGE_MIN
     const valueMax = Number.parseInt(extractParam('age_max'), 10)
-    const normalizedMax = Number.isFinite(valueMax) ? Math.min(Math.max(valueMax, AGE_MIN), AGE_MAX_LIMIT) : AGE_DEFAULT_MAX
+    const normalizedMax = Number.isFinite(valueMax)
+      ? Math.min(Math.max(valueMax, AGE_MIN), AGE_MAX_LIMIT)
+      : AGE_DEFAULT_MAX
     return Math.min(normalized, normalizedMax)
   })
   const [ageMax, setAgeMax] = useState<number>(() => {
     const value = Number.parseInt(extractParam('age_max'), 10)
-    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, AGE_MIN), AGE_MAX_LIMIT) : AGE_DEFAULT_MAX
+    const normalized = Number.isFinite(value)
+      ? Math.min(Math.max(value, AGE_MIN), AGE_MAX_LIMIT)
+      : AGE_DEFAULT_MAX
     return normalized
   })
   const [heightMin, setHeightMin] = useState<number>(() => {
     const value = Number.parseInt(extractParam('height_min'), 10)
-    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_MIN
+    const normalized = Number.isFinite(value)
+      ? Math.min(Math.max(value, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+      : HEIGHT_MIN
     const valueMax = Number.parseInt(extractParam('height_max'), 10)
-    const normalizedMax = Number.isFinite(valueMax) ? Math.min(Math.max(valueMax, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_DEFAULT_MAX
+    const normalizedMax = Number.isFinite(valueMax)
+      ? Math.min(Math.max(valueMax, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+      : HEIGHT_DEFAULT_MAX
     return Math.min(normalized, normalizedMax)
   })
   const [heightMax, setHeightMax] = useState<number>(() => {
     const value = Number.parseInt(extractParam('height_max'), 10)
-    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_DEFAULT_MAX
+    const normalized = Number.isFinite(value)
+      ? Math.min(Math.max(value, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+      : HEIGHT_DEFAULT_MAX
     return normalized
   })
-  const [hairColor, setHairColor] = useState<string>(() => extractParam('hair_color') || DEFAULT_TAG)
-  const [hairStyle, setHairStyle] = useState<string>(() => extractParam('hair_style') || DEFAULT_TAG)
-  const [bodyShape, setBodyShape] = useState<string>(() => extractParam('body_shape') || DEFAULT_TAG)
+  const [hairColor, setHairColor] = useState<string>(
+    () => extractParam('hair_color') || DEFAULT_TAG,
+  )
+  const [hairStyle, setHairStyle] = useState<string>(
+    () => extractParam('hair_style') || DEFAULT_TAG,
+  )
+  const [bodyShape, setBodyShape] = useState<string>(
+    () => extractParam('body_shape') || DEFAULT_TAG,
+  )
   const firstRender = useRef(true)
 
   useEffect(() => {
@@ -277,15 +330,23 @@ export default function SearchFilters({ init, facets, sticky = false, className,
     setBustMinIndex(Math.min(minValue, maxValue))
     setBustMaxIndex(Math.max(minValue, maxValue))
     const parsedAgeMin = Number.parseInt(extractParam('age_min'), 10)
-    const normalizedAgeMin = Number.isFinite(parsedAgeMin) ? Math.min(Math.max(parsedAgeMin, AGE_MIN), AGE_MAX_LIMIT) : AGE_MIN
+    const normalizedAgeMin = Number.isFinite(parsedAgeMin)
+      ? Math.min(Math.max(parsedAgeMin, AGE_MIN), AGE_MAX_LIMIT)
+      : AGE_MIN
     const parsedAgeMax = Number.parseInt(extractParam('age_max'), 10)
-    const normalizedAgeMax = Number.isFinite(parsedAgeMax) ? Math.min(Math.max(parsedAgeMax, AGE_MIN), AGE_MAX_LIMIT) : AGE_DEFAULT_MAX
+    const normalizedAgeMax = Number.isFinite(parsedAgeMax)
+      ? Math.min(Math.max(parsedAgeMax, AGE_MIN), AGE_MAX_LIMIT)
+      : AGE_DEFAULT_MAX
     setAgeMin(Math.min(normalizedAgeMin, normalizedAgeMax))
     setAgeMax(Math.max(normalizedAgeMin, normalizedAgeMax))
     const parsedHeightMin = Number.parseInt(extractParam('height_min'), 10)
-    const normalizedHeightMin = Number.isFinite(parsedHeightMin) ? Math.min(Math.max(parsedHeightMin, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_MIN
+    const normalizedHeightMin = Number.isFinite(parsedHeightMin)
+      ? Math.min(Math.max(parsedHeightMin, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+      : HEIGHT_MIN
     const parsedHeightMax = Number.parseInt(extractParam('height_max'), 10)
-    const normalizedHeightMax = Number.isFinite(parsedHeightMax) ? Math.min(Math.max(parsedHeightMax, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_DEFAULT_MAX
+    const normalizedHeightMax = Number.isFinite(parsedHeightMax)
+      ? Math.min(Math.max(parsedHeightMax, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+      : HEIGHT_DEFAULT_MAX
     setHeightMin(Math.min(normalizedHeightMin, normalizedHeightMax))
     setHeightMax(Math.max(normalizedHeightMin, normalizedHeightMax))
     setHairColor(extractParam('hair_color') || DEFAULT_TAG)
@@ -348,9 +409,19 @@ export default function SearchFilters({ init, facets, sticky = false, className,
     return options
   }, [service])
 
-  const bustHighlightStyle = buildHighlightStyle(bustMinIndex, bustMaxIndex, BUST_MIN_INDEX, BUST_MAX_INDEX)
+  const bustHighlightStyle = buildHighlightStyle(
+    bustMinIndex,
+    bustMaxIndex,
+    BUST_MIN_INDEX,
+    BUST_MAX_INDEX,
+  )
   const ageHighlightStyle = buildHighlightStyle(ageMin, ageMax, AGE_MIN, AGE_MAX_LIMIT)
-  const heightHighlightStyle = buildHighlightStyle(heightMin, heightMax, HEIGHT_MIN, HEIGHT_MAX_LIMIT)
+  const heightHighlightStyle = buildHighlightStyle(
+    heightMin,
+    heightMax,
+    HEIGHT_MIN,
+    HEIGHT_MAX_LIMIT,
+  )
 
   const diariesFacetCount = useMemo(
     () => (facets?.has_diaries || []).find((facet) => facet.value === 'true')?.count ?? 0,
@@ -393,15 +464,15 @@ export default function SearchFilters({ init, facets, sticky = false, className,
   const fieldClass =
     'w-full rounded-[24px] border border-white/50 bg-white/60 px-4 py-2.5 text-sm text-neutral-text shadow-[0_12px_32px_rgba(37,99,235,0.13)] transition focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30'
 
-
   const onSubmit: FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault()
     push()
   }
-  const currentConditionText = resultSummaryLabel
-    ?? (typeof resultCount === 'number'
-        ? `現在の条件: ${numberFormatter.format(resultCount)}件ヒット`
-        : diariesFacetCount
+  const currentConditionText =
+    resultSummaryLabel ??
+    (typeof resultCount === 'number'
+      ? `現在の条件: ${numberFormatter.format(resultCount)}件ヒット`
+      : diariesFacetCount
         ? `現在の条件: 写メ日記あり ${numberFormatter.format(diariesFacetCount)} 名`
         : '現在の条件: すべて表示')
   const helperText = '現在の検索結果に、条件を追加して絞り込めます。'
@@ -424,7 +495,9 @@ export default function SearchFilters({ init, facets, sticky = false, className,
           </span>
           <div className="space-y-1">
             <p className="text-lg font-semibold">検索フィルター</p>
-            <p className="text-sm text-neutral-textMuted">必要な条件だけを開いて設定できるよう、セクションをアコーディオンにまとめました。</p>
+            <p className="text-sm text-neutral-textMuted">
+              必要な条件だけを開いて設定できるよう、セクションをアコーディオンにまとめました。
+            </p>
             <p className="text-sm font-semibold text-neutral-text">{currentConditionText}</p>
             <p className="text-xs text-neutral-textMuted">{helperText}</p>
           </div>
@@ -477,18 +550,18 @@ export default function SearchFilters({ init, facets, sticky = false, className,
           <AccordionItem value="special">
             <AccordionTrigger>特別条件</AccordionTrigger>
             <AccordionContent className="space-y-4">
-          <FilterChipsSection
-            todayOnly={today}
-            onToggleToday={setToday}
-            promotionsOnly={promotionsOnly}
-            onTogglePromotions={setPromotionsOnly}
-            discountsOnly={discountsOnly}
-            onToggleDiscounts={setDiscountsOnly}
-            diariesOnly={diariesOnly}
-            onToggleDiaries={setDiariesOnly}
-            className={clsx(accordionPanelCardClass, 'space-y-5')}
-            showHeader={false}
-          />
+              <FilterChipsSection
+                todayOnly={today}
+                onToggleToday={setToday}
+                promotionsOnly={promotionsOnly}
+                onTogglePromotions={setPromotionsOnly}
+                discountsOnly={discountsOnly}
+                onToggleDiscounts={setDiscountsOnly}
+                diariesOnly={diariesOnly}
+                onToggleDiaries={setDiariesOnly}
+                className={clsx(accordionPanelCardClass, 'space-y-5')}
+                showHeader={false}
+              />
             </AccordionContent>
           </AccordionItem>
 
@@ -520,7 +593,9 @@ export default function SearchFilters({ init, facets, sticky = false, className,
                 showHeader={false}
               />
 
-              <section className={clsx(accordionPanelCardClass, 'space-y-5 text-sm text-neutral-text')}>
+              <section
+                className={clsx(accordionPanelCardClass, 'space-y-5 text-sm text-neutral-text')}
+              >
                 <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(191,219,254,0.25)_0%,rgba(191,219,254,0)_60%)]" />
                 <header className="flex items-center gap-3">
                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary">
@@ -528,7 +603,9 @@ export default function SearchFilters({ init, facets, sticky = false, className,
                   </span>
                   <div>
                     <p className="text-sm font-semibold text-neutral-text">スタイルタグ</p>
-                    <p className="text-xs text-neutral-textMuted">髪色・髪型・体型などのタグを選択できます</p>
+                    <p className="text-xs text-neutral-textMuted">
+                      髪色・髪型・体型などのタグを選択できます
+                    </p>
                   </div>
                 </header>
 

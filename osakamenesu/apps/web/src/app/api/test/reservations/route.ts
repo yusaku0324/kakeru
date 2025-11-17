@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const API_BASE =
-  process.env.OSAKAMENESU_API_INTERNAL_BASE ||
-  process.env.API_INTERNAL_BASE ||
-  process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE
+import { resolveInternalApiBase } from '@/lib/server-config'
 
-function ensureApiBase(): string {
-  if (!API_BASE) {
-    throw new Error('API base URL is not configured for test proxy')
-  }
-  return API_BASE.replace(/\/+$/, '')
-}
+const API_BASE = resolveInternalApiBase().replace(/\/+$/, '')
 
 function buildBackendUrl(path: string): string {
-  const base = ensureApiBase()
   const normalized = path.startsWith('/') ? path : `/${path}`
-  return `${base}${normalized}`
+  return `${API_BASE}${normalized}`
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

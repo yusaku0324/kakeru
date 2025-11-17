@@ -35,9 +35,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     today_available: true,
     online_reservation: true,
     has_promotions: true,
-    promotions: [
-      { label: 'プレミアム体験 ¥2,000OFF', expires_at: '2025-12-31' },
-    ],
+    promotions: [{ label: 'プレミアム体験 ¥2,000OFF', expires_at: '2025-12-31' }],
     promotion_count: 2,
     ranking_reason: '口コミ評価4.7★。プレミアム個室で極上リラクゼーション体験。',
     price_band_label: '90分 12,000円〜',
@@ -122,9 +120,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     today_available: true,
     online_reservation: true,
     has_promotions: true,
-    promotions: [
-      { label: '平日昼割 ¥2,000OFF', expires_at: '2025-10-31' },
-    ],
+    promotions: [{ label: '平日昼割 ¥2,000OFF', expires_at: '2025-10-31' }],
     ranking_reason: 'ビジネス帰りの利用多数。21時以降のクイックコース人気。',
     price_band_label: '75分 9,000円〜',
     diary_count: 8,
@@ -155,13 +151,17 @@ const SAMPLE_RESULTS: ShopHit[] = [
 ]
 
 SAMPLE_RESULTS.forEach((hit) => {
-  if (!hit.next_available_slot && hit.next_available_at) {
-    hit.next_available_slot = toNextAvailableSlotPayload(hit.next_available_at)
+  if (!hit.next_available_slot) {
+    hit.next_available_slot = hit.next_available_at
+      ? toNextAvailableSlotPayload(hit.next_available_at)
+      : null
   }
   if (Array.isArray(hit.staff_preview)) {
     hit.staff_preview.forEach((staff) => {
-      if (!staff.next_available_slot && staff.next_available_at) {
-        staff.next_available_slot = toNextAvailableSlotPayload(staff.next_available_at)
+      if (!staff.next_available_slot) {
+        staff.next_available_slot = staff.next_available_at
+          ? toNextAvailableSlotPayload(staff.next_available_at)
+          : null
       }
     })
   }
@@ -305,7 +305,11 @@ function buildSampleFacets(hits: ShopHit[]): Record<string, FacetValue[]> {
 
   const facets: Record<string, FacetValue[]> = {}
   if (Object.keys(areaCounts).length) {
-    facets.area = Object.entries(areaCounts).map(([value, count]) => ({ value, label: value, count }))
+    facets.area = Object.entries(areaCounts).map(([value, count]) => ({
+      value,
+      label: value,
+      count,
+    }))
   }
   return facets
 }
@@ -341,9 +345,7 @@ function buildEditorialSpots(total: number): SpotlightItem[] {
 function buildHighlights(facets: Record<string, FacetValue[]>, hits: ShopHit[]) {
   const highlights: string[] = []
 
-  const areas = [...(facets.area ?? [])]
-    .sort((a, b) => (b.count ?? 0) - (a.count ?? 0))
-    .slice(0, 3)
+  const areas = [...(facets.area ?? [])].sort((a, b) => (b.count ?? 0) - (a.count ?? 0)).slice(0, 3)
   if (areas.length) {
     highlights.push(`人気エリア: ${areas.map((a) => a.label || a.value).join(' / ')}`)
   }
@@ -369,11 +371,17 @@ function buildHighlights(facets: Record<string, FacetValue[]>, hits: ShopHit[]) 
 
   const priced = hits.filter((h) => h.min_price || h.max_price)
   if (priced.length) {
-    const minAvg = Math.round(priced.reduce((sum, h) => sum + (h.min_price || 0), 0) / priced.length)
-    const maxAvg = Math.round(priced.reduce((sum, h) => sum + (h.max_price || h.min_price || 0), 0) / priced.length)
+    const minAvg = Math.round(
+      priced.reduce((sum, h) => sum + (h.min_price || 0), 0) / priced.length,
+    )
+    const maxAvg = Math.round(
+      priced.reduce((sum, h) => sum + (h.max_price || h.min_price || 0), 0) / priced.length,
+    )
     if (minAvg) {
       const intl = new Intl.NumberFormat('ja-JP')
-      highlights.push(`予算目安: ¥${intl.format(minAvg)}〜¥${intl.format(Math.max(minAvg, maxAvg))}`)
+      highlights.push(
+        `予算目安: ¥${intl.format(minAvg)}〜¥${intl.format(Math.max(minAvg, maxAvg))}`,
+      )
     }
   }
 
@@ -425,19 +433,18 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
         )
         const uniqueId = `${hit.id}-${staffIdentifier}`
         const specialties = Array.isArray(staff.specialties)
-          ? staff.specialties.filter((tag): tag is string => Boolean(tag)).map((tag) => tag.trim()).filter(Boolean)
+          ? staff.specialties
+              .filter((tag): tag is string => Boolean(tag))
+              .map((tag) => tag.trim())
+              .filter(Boolean)
           : []
         const todayAvailable =
           typeof staff.today_available === 'boolean'
             ? staff.today_available
             : typeof hit.today_available === 'boolean'
-            ? hit.today_available
-            : null
-        const nextAvailableSlot =
-          staff.next_available_slot ??
-          hit.next_available_slot ??
-          toNextAvailableSlotPayload(staff.next_available_at) ??
-          toNextAvailableSlotPayload(hit.next_available_at)
+              ? hit.today_available
+              : null
+        const nextAvailableSlot = staff.next_available_slot ?? hit.next_available_slot ?? null
         return {
           id: uniqueId,
           therapistId: staff.id ? String(staff.id) : null,
@@ -467,7 +474,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const allowedTabs: SearchTabValue[] = ['all', 'therapists', 'shops']
   const tabCandidate = resolvedSearchParams.tab
   const activeTab: SearchTabValue = allowedTabs.includes((tabCandidate as SearchTabValue) || 'all')
-    ? ((tabCandidate as SearchTabValue) || 'all')
+    ? (tabCandidate as SearchTabValue) || 'all'
     : 'all'
   const forceSampleMode = parseBoolParam(
     Array.isArray(resolvedSearchParams.force_samples)
@@ -482,7 +489,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const highlights = buildHighlights(facets, hits)
   const displayHighlights = useSampleData ? buildHighlights({}, SAMPLE_RESULTS) : highlights
   const editorialSpots = buildEditorialSpots(total)
-  const displayEditorialSpots = useSampleData ? buildEditorialSpots(SAMPLE_RESULTS.length) : editorialSpots
+  const displayEditorialSpots = useSampleData
+    ? buildEditorialSpots(SAMPLE_RESULTS.length)
+    : editorialSpots
   const numberFormatter = new Intl.NumberFormat('ja-JP')
 
   const hasActiveFilters = Object.entries(resolvedSearchParams || {}).some(
@@ -497,19 +506,23 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
   const therapistHitsFromResults = buildTherapistHits(displayHits)
   const usingSampleTherapists = !hasActiveFilters && therapistHitsFromResults.length === 0
-  const therapistHits = usingSampleTherapists ? buildTherapistHits(SAMPLE_RESULTS) : therapistHitsFromResults
+  const therapistHits = usingSampleTherapists
+    ? buildTherapistHits(SAMPLE_RESULTS)
+    : therapistHitsFromResults
   const therapistTotal = therapistHits.length
   const hasTherapistResults = therapistTotal > 0
 
   const resolvedPageSize = pageSize || 12
   const resolvedPage = page || 1
   const hasShopResults = displayHits.length > 0
-  const shopTotal = useSampleData ? SAMPLE_RESULTS.length : (total || 0)
+  const shopTotal = useSampleData ? SAMPLE_RESULTS.length : total || 0
   const shopPage = useSampleData ? 1 : resolvedPage
   const shopLastPage = useSampleData ? 1 : Math.max(1, Math.ceil((total || 0) / resolvedPageSize))
-  const renderTherapistSection = hasTherapistResults && (activeTab === 'all' || activeTab === 'therapists')
+  const renderTherapistSection =
+    hasTherapistResults && (activeTab === 'all' || activeTab === 'therapists')
   const renderShopSection = hasShopResults && (activeTab === 'all' || activeTab === 'shops')
-  const heroShowsTherapist = activeTab === 'therapists' || (activeTab === 'all' && renderTherapistSection)
+  const heroShowsTherapist =
+    activeTab === 'therapists' || (activeTab === 'all' && renderTherapistSection)
   const heroResultCount = heroShowsTherapist ? therapistTotal : shopTotal
   const heroResultUnit = heroShowsTherapist ? '名' : '件'
   const isDev = process.env.NODE_ENV !== 'production'
@@ -522,20 +535,23 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
   const filterSummaryLabel = `現在の条件: すべて表示（店舗 ${numberFormatter.format(shopTotal)}件 / セラピスト ${numberFormatter.format(therapistTotal)}名）`
 
-  const searchKeyword = typeof resolvedSearchParams.q === 'string' ? resolvedSearchParams.q.trim() : ''
+  const searchKeyword =
+    typeof resolvedSearchParams.q === 'string' ? resolvedSearchParams.q.trim() : ''
   const normalizedKeyword = searchKeyword.toLowerCase()
   const heroShop =
     activeTab === 'all' && normalizedKeyword
-      ? displayHits.find((hit) => {
+      ? (displayHits.find((hit) => {
           const target = `${hit.store_name || ''} ${hit.name || ''}`.toLowerCase()
           return target.includes(normalizedKeyword)
-        }) ?? null
+        }) ?? null)
       : null
   const prioritizedShopHits =
     heroShop && displayHits.length
       ? [heroShop, ...displayHits.filter((hit) => hit.id !== heroShop.id)]
       : displayHits
-  const availableTodayQuickList = prioritizedShopHits.filter((hit) => hit.today_available).slice(0, 4)
+  const availableTodayQuickList = prioritizedShopHits
+    .filter((hit) => hit.today_available)
+    .slice(0, 4)
 
   const areaFacetSource = facets.area ?? []
   const derivedAreaFacets: FacetValue[] = areaFacetSource.length
@@ -600,10 +616,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       >
         検索結果へスキップ
       </a>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(147,197,253,0.18),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(196,181,253,0.16),_transparent_50%)]" aria-hidden />
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(147,197,253,0.18),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(196,181,253,0.16),_transparent_50%)]"
+        aria-hidden
+      />
       <div className="relative mx-auto max-w-6xl space-y-8 px-4 py-10 lg:space-y-10 lg:px-6">
         <header className="relative overflow-hidden rounded-section border border-white/60 bg-white/75 px-6 py-8 shadow-xl shadow-brand-primary/5 backdrop-blur supports-[backdrop-filter]:bg-white/65">
-          <div className="pointer-events-none absolute -top-10 right-0 h-32 w-32 rounded-full bg-brand-primary/10 blur-3xl" aria-hidden />
+          <div
+            className="pointer-events-none absolute -top-10 right-0 h-32 w-32 rounded-full bg-brand-primary/10 blur-3xl"
+            aria-hidden
+          />
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3 text-neutral-text">
               <span className="inline-flex items-center gap-1 rounded-badge border border-brand-primary/20 bg-brand-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-primary/90">
@@ -628,10 +650,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               </div>
             </div>
             <div className="flex flex-col items-start gap-3 text-left lg:items-end lg:text-right">
-              <span className="text-xs font-semibold uppercase tracking-wide text-brand-primary/80">掲載件数</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-brand-primary/80">
+                掲載件数
+              </span>
               <div className="text-3xl font-bold text-neutral-text">
                 {Intl.NumberFormat('ja-JP').format(heroResultCount)}
-                <span className="ml-1 text-base font-medium text-neutral-textMuted">{heroResultUnit}</span>
+                <span className="ml-1 text-base font-medium text-neutral-textMuted">
+                  {heroResultUnit}
+                </span>
               </div>
               <span className="text-xs text-neutral-textMuted">毎日アップデート中</span>
             </div>
@@ -639,14 +665,24 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           {displayHighlights.length ? (
             <div className="mt-6 flex flex-wrap items-center gap-2">
               {displayHighlights.map((item) => (
-                <Badge key={item} variant="outline" className="border-brand-primary/30 bg-brand-primary/5 text-brand-primaryDark">
+                <Badge
+                  key={item}
+                  variant="outline"
+                  className="border-brand-primary/30 bg-brand-primary/5 text-brand-primaryDark"
+                >
                   {item}
                 </Badge>
               ))}
             </div>
           ) : null}
           <div className="mt-6 flex flex-wrap gap-2 text-xs text-neutral-text">
-            {(popularAreas.length ? popularAreas.map((facet) => ({ label: `${facet.label || facet.value} (${facet.count})`, href: `/search?area=${encodeURIComponent(facet.value)}` })) : quickLinks).map((link) => (
+            {(popularAreas.length
+              ? popularAreas.map((facet) => ({
+                  label: `${facet.label || facet.value} (${facet.count})`,
+                  href: `/search?area=${encodeURIComponent(facet.value)}`,
+                }))
+              : quickLinks
+            ).map((link) => (
               <a
                 key={link.href}
                 href={link.href}
@@ -668,103 +704,132 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         <div className="space-y-6 lg:space-y-8">
           <SearchAvailableToday shops={availableTodayQuickList} />
 
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="min-w-[240px] flex-1">
-              <SearchTabs current={activeTab} buildHref={buildTabHref} />
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="min-w-[240px] flex-1">
+                <SearchTabs current={activeTab} buildHref={buildTabHref} />
+              </div>
+              <ResultsSortControl options={SORT_SELECT_OPTIONS} currentSort={currentSortValue} />
             </div>
-            <ResultsSortControl options={SORT_SELECT_OPTIONS} currentSort={currentSortValue} />
-          </div>
-          {activeTab === 'all' ? (
-            <p className="text-xs font-semibold text-neutral-textMuted">
-              現在の表示: 店舗 {numberFormatter.format(shopTotal)}件 / セラピスト {numberFormatter.format(therapistTotal)}名
-            </p>
-          ) : null}
-          <div id="search-results" aria-hidden className="sr-only" />
+            {activeTab === 'all' ? (
+              <p className="text-xs font-semibold text-neutral-textMuted">
+                現在の表示: 店舗 {numberFormatter.format(shopTotal)}件 / セラピスト{' '}
+                {numberFormatter.format(therapistTotal)}名
+              </p>
+            ) : null}
+            <div id="search-results" aria-hidden className="sr-only" />
 
             {renderShopSection ? (
-            <Section
-              id="shop-results"
-              ariaLive="polite"
-              title={`店舗（${numberFormatter.format(shopTotal)}件）`}
-              className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
-            >
-              {isDev && useSampleData ? (
-                <div className="mb-6 rounded-card border border-dashed border-brand-primary/40 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
-                  API から検索結果を取得できなかったため、参考用のサンプル店舗を表示しています。
-                </div>
-              ) : null}
-              <div className="grid gap-6 md:grid-cols-2">
-                {prioritizedShopHits.map((hit) => (
-                  <div
-                    key={hit.id}
-                    className={clsx('h-full', heroShop && heroShop.id === hit.id && 'relative rounded-card ring-2 ring-brand-primary/40 md:col-span-2')}
-                  >
-                    {heroShop && heroShop.id === hit.id ? (
-                      <span className="absolute left-3 top-3 z-10 inline-flex items-center rounded-full bg-brand-primary px-3 py-1 text-[11px] font-semibold text-white shadow">
-                        該当店舗
-                      </span>
-                    ) : null}
-                    <ShopCard hit={hit} />
-                  </div>
-                ))}
-              </div>
-
-              <nav className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-borderLight/70 pt-5 text-sm" aria-label="検索結果ページネーション">
-                <div className="text-neutral-textMuted" aria-live="polite">
-                  {shopPage} / {shopLastPage}ページ（{Intl.NumberFormat('ja-JP').format(shopTotal)}件）
-                </div>
-                <div className="flex items-center gap-2">
-                  {shopPage > 1 ? (
-                    <a href={qp(shopPage - 1)} className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary">
-                      前へ
-                    </a>
-                  ) : (
-                    <span className="rounded-badge border border-neutral-borderLight/70 px-3 py-1 text-neutral-textMuted/60">前へ</span>
-                  )}
-                  {shopPage < shopLastPage ? (
-                    <a href={qp(shopPage + 1)} className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary">
-                      次へ
-                    </a>
-                  ) : (
-                    <span className="rounded-badge border border-neutral-borderLight/70 px-3 py-1 text-neutral-textMuted/60">次へ</span>
-                  )}
-                </div>
-              </nav>
-            </Section>
-          ) : null}
-
-            {renderTherapistSection ? (
-            <TherapistFavoritesProvider>
               <Section
-                id="therapist-results"
+                id="shop-results"
                 ariaLive="polite"
-                title={`セラピスト（${numberFormatter.format(therapistTotal)}名）`}
+                title={`店舗（${numberFormatter.format(shopTotal)}件）`}
                 className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
               >
-                {usingSampleTherapists ? (
-                  <div className="mb-6 rounded-card border border-brand-primary/30 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
-                    API の検索結果にセラピスト情報が含まれていなかったため、参考用のサンプルセラピストを表示しています。
+                {isDev && useSampleData ? (
+                  <div className="mb-6 rounded-card border border-dashed border-brand-primary/40 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
+                    API から検索結果を取得できなかったため、参考用のサンプル店舗を表示しています。
                   </div>
                 ) : null}
-                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {therapistHits.map((hit) => (
-                    <TherapistCard key={hit.id} hit={hit} />
+                <div className="grid gap-6 md:grid-cols-2">
+                  {prioritizedShopHits.map((hit) => (
+                    <div
+                      key={hit.id}
+                      className={clsx(
+                        'h-full',
+                        heroShop &&
+                          heroShop.id === hit.id &&
+                          'relative rounded-card ring-2 ring-brand-primary/40 md:col-span-2',
+                      )}
+                    >
+                      {heroShop && heroShop.id === hit.id ? (
+                        <span className="absolute left-3 top-3 z-10 inline-flex items-center rounded-full bg-brand-primary px-3 py-1 text-[11px] font-semibold text-white shadow">
+                          該当店舗
+                        </span>
+                      ) : null}
+                      <ShopCard hit={hit} />
+                    </div>
                   ))}
                 </div>
+
+                <nav
+                  className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-borderLight/70 pt-5 text-sm"
+                  aria-label="検索結果ページネーション"
+                >
+                  <div className="text-neutral-textMuted" aria-live="polite">
+                    {shopPage} / {shopLastPage}ページ（
+                    {Intl.NumberFormat('ja-JP').format(shopTotal)}件）
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {shopPage > 1 ? (
+                      <a
+                        href={qp(shopPage - 1)}
+                        className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary"
+                      >
+                        前へ
+                      </a>
+                    ) : (
+                      <span className="rounded-badge border border-neutral-borderLight/70 px-3 py-1 text-neutral-textMuted/60">
+                        前へ
+                      </span>
+                    )}
+                    {shopPage < shopLastPage ? (
+                      <a
+                        href={qp(shopPage + 1)}
+                        className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary"
+                      >
+                        次へ
+                      </a>
+                    ) : (
+                      <span className="rounded-badge border border-neutral-borderLight/70 px-3 py-1 text-neutral-textMuted/60">
+                        次へ
+                      </span>
+                    )}
+                  </div>
+                </nav>
               </Section>
-            </TherapistFavoritesProvider>
-          ) : null}
+            ) : null}
+
+            {renderTherapistSection ? (
+              <TherapistFavoritesProvider>
+                <Section
+                  id="therapist-results"
+                  ariaLive="polite"
+                  title={`セラピスト（${numberFormatter.format(therapistTotal)}名）`}
+                  className="border border-neutral-borderLight/70 bg-white/85 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/70"
+                >
+                  {usingSampleTherapists ? (
+                    <div className="mb-6 rounded-card border border-brand-primary/30 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
+                      API
+                      の検索結果にセラピスト情報が含まれていなかったため、参考用のサンプルセラピストを表示しています。
+                    </div>
+                  ) : null}
+                  <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                    {therapistHits.map((hit) => (
+                      <TherapistCard key={hit.id} hit={hit} />
+                    ))}
+                  </div>
+                </Section>
+              </TherapistFavoritesProvider>
+            ) : null}
 
             {!renderTherapistSection && !renderShopSection ? (
               <div className="flex flex-col items-center justify-center gap-4 rounded-card border border-dashed border-neutral-borderLight/80 bg-neutral-surfaceAlt/70 p-10 text-center text-neutral-textMuted">
-                <p className="text-base font-medium text-neutral-text">一致するセラピスト・店舗が見つかりませんでした</p>
-                <p className="text-sm leading-relaxed">キーワードや条件を調整すると候補が表示される場合があります。</p>
+                <p className="text-base font-medium text-neutral-text">
+                  一致するセラピスト・店舗が見つかりませんでした
+                </p>
+                <p className="text-sm leading-relaxed">
+                  キーワードや条件を調整すると候補が表示される場合があります。
+                </p>
               </div>
             ) : null}
           </div>
 
-          <SearchFilters init={resolvedSearchParams} facets={facets} resultSummaryLabel={filterSummaryLabel} />
+          <SearchFilters
+            init={resolvedSearchParams}
+            facets={facets}
+            resultSummaryLabel={filterSummaryLabel}
+          />
 
           {displayEditorialSpots.length ? (
             <Section
@@ -775,7 +840,10 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               <div className="grid gap-4 md:grid-cols-2">
                 {displayEditorialSpots.map((item) => (
                   <a key={item.id} href={item.href} className="block focus:outline-none">
-                    <Card interactive className="h-full bg-gradient-to-br from-brand-primary/15 via-brand-primary/10 to-brand-secondary/15 p-6">
+                    <Card
+                      interactive
+                      className="h-full bg-gradient-to-br from-brand-primary/15 via-brand-primary/10 to-brand-secondary/15 p-6"
+                    >
                       <Badge variant="brand" className="mb-3 w-fit shadow-sm">
                         SHOP PR
                       </Badge>

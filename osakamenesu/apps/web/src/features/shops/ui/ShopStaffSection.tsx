@@ -7,7 +7,12 @@ type ShopStaffSectionProps = {
   onRemoveStaff: (index: number) => void
 }
 
-export function ShopStaffSection({ staff, onUpdateStaff, onAddStaff, onRemoveStaff }: ShopStaffSectionProps) {
+export function ShopStaffSection({
+  staff,
+  onUpdateStaff,
+  onAddStaff,
+  onRemoveStaff,
+}: ShopStaffSectionProps) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -18,35 +23,39 @@ export function ShopStaffSection({ staff, onUpdateStaff, onAddStaff, onRemoveSta
       </div>
       <div className="space-y-3">
         {staff.map((member, idx) => (
-          <div key={member.id || idx} className="space-y-2 rounded-lg border bg-white p-3 shadow-sm" data-testid="staff-item">
+          <div
+            key={member.id || idx}
+            className="space-y-2 rounded-lg border bg-white p-3 shadow-sm"
+            data-testid="staff-item"
+          >
             <div className="grid gap-2 md:grid-cols-2">
               <input
                 value={member.name}
-                onChange={e => onUpdateStaff(idx, { name: e.target.value })}
+                onChange={(e) => onUpdateStaff(idx, { name: e.target.value })}
                 className="rounded border px-3 py-2 text-sm"
                 placeholder="名前"
               />
               <input
                 value={member.alias || ''}
-                onChange={e => onUpdateStaff(idx, { alias: e.target.value })}
+                onChange={(e) => onUpdateStaff(idx, { alias: e.target.value })}
                 className="rounded border px-3 py-2 text-sm"
                 placeholder="表示名"
               />
             </div>
             <textarea
               value={member.headline || ''}
-              onChange={e => onUpdateStaff(idx, { headline: e.target.value })}
+              onChange={(e) => onUpdateStaff(idx, { headline: e.target.value })}
               className="w-full rounded border px-3 py-2 text-sm"
               rows={2}
               placeholder="紹介文"
             />
             <input
               value={(member.specialties || []).join(', ')}
-              onChange={e =>
+              onChange={(e) =>
                 onUpdateStaff(idx, {
                   specialties: e.target.value
                     .split(',')
-                    .map(tag => tag.trim())
+                    .map((tag) => tag.trim())
                     .filter(Boolean),
                 })
               }
@@ -54,7 +63,11 @@ export function ShopStaffSection({ staff, onUpdateStaff, onAddStaff, onRemoveSta
               placeholder="得意分野 (カンマ区切り)"
             />
             <div className="flex justify-end">
-              <button onClick={() => onRemoveStaff(idx)} className="text-xs text-red-600" type="button">
+              <button
+                onClick={() => onRemoveStaff(idx)}
+                className="text-xs text-red-600"
+                type="button"
+              >
                 削除
               </button>
             </div>

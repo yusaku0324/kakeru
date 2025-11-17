@@ -31,7 +31,7 @@ export function SearchTabs({ current, buildHref }: Props) {
                 tabBaseClass,
                 active
                   ? 'bg-brand-primary text-white shadow-[0_8px_24px_rgba(37,99,235,0.28)]'
-                  : 'text-neutral-text hover:text-brand-primary/90'
+                  : 'text-neutral-text hover:text-brand-primary/90',
               )}
               aria-current={active ? 'page' : undefined}
             >

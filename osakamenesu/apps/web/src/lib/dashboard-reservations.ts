@@ -92,12 +92,15 @@ export async function fetchDashboardReservations(
   if (mode) {
     params.set('mode', mode)
   }
-  const res = await apiFetch(`/api/dashboard/shops/${profileId}/reservations?${params.toString()}`, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    cache: 'no-store',
-    signal,
-  })
+  const res = await apiFetch(
+    `/api/dashboard/shops/${profileId}/reservations?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      signal,
+    },
+  )
   if (!res.ok) {
     throw new Error(`予約リストの取得に失敗しました (status=${res.status})`)
   }
@@ -107,8 +110,14 @@ export async function fetchDashboardReservations(
 export async function updateDashboardReservation(
   profileId: string,
   reservationId: string,
-  payload: { status: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'expired'; note?: string },
-): Promise<{ reservation: DashboardReservationItem & { async_job?: { status: string; error?: string } }; conflict: boolean }> {
+  payload: {
+    status: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'expired'
+    note?: string
+  },
+): Promise<{
+  reservation: DashboardReservationItem & { async_job?: { status: string; error?: string } }
+  conflict: boolean
+}> {
   const res = await apiFetch(`/api/dashboard/shops/${profileId}/reservations/${reservationId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -120,7 +129,8 @@ export async function updateDashboardReservation(
   if (!res.ok) {
     const detail = await res.json().catch(() => null)
     const message =
-      (detail && (detail.message || detail.detail)) || '予約の更新に失敗しました。時間をおいて再度お試しください。'
+      (detail && (detail.message || detail.detail)) ||
+      '予約の更新に失敗しました。時間をおいて再度お試しください。'
     throw new Error(typeof message === 'string' ? message : '予約の更新に失敗しました。')
   }
 

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React from 'react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
@@ -79,7 +79,10 @@ describe('TherapistCard favorite button', () => {
 
     fireEvent.click(button)
     expect(toggleFavoriteMock).toHaveBeenCalledTimes(1)
-    expect(toggleFavoriteMock).toHaveBeenCalledWith({ therapistId: 'therapist-uuid', shopId: 'shop-uuid' })
+    expect(toggleFavoriteMock).toHaveBeenCalledWith({
+      therapistId: 'therapist-uuid',
+      shopId: 'shop-uuid',
+    })
   })
 
   it('disables the button when therapistId is missing', () => {

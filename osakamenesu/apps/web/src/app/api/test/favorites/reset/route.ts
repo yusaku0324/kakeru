@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readMockFavorites, writeMockFavorites, isMockFavoritesMode } from '../../../favorites/mockStore'
+import {
+  readMockFavorites,
+  writeMockFavorites,
+  isMockFavoritesMode,
+} from '../../../favorites/mockStore'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!isMockFavoritesMode()) {

@@ -1,16 +1,25 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from http import HTTPStatus
 from typing import List
 from uuid import UUID
 
-from fastapi import HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .... import models
-from ....schemas import ReservationAdminList, ReservationAdminSummary, ReservationAdminUpdate
-from .audit import record_change
+from ....schemas import (
+    ReservationAdminList,
+    ReservationAdminSummary,
+    ReservationAdminUpdate,
+)
+from .audit import AdminAuditContext, record_change
+from .errors import AdminServiceError
+
+
+class ReservationServiceError(AdminServiceError):
+    """Domain-level exception for admin reservation operations."""
 
 
 async def list_reservations(
@@ -37,7 +46,9 @@ async def list_reservations(
     shop_names: dict[UUID, str] = {}
     if shop_ids:
         res = await db.execute(
-            select(models.Profile.id, models.Profile.name).where(models.Profile.id.in_(shop_ids))
+            select(models.Profile.id, models.Profile.name).where(
+                models.Profile.id.in_(shop_ids)
+            )
         )
         shop_names = dict(res.all())
 
@@ -65,17 +76,21 @@ async def list_reservations(
 
 async def update_reservation(
     *,
-    request: Request,
+    audit_context: AdminAuditContext | None,
     db: AsyncSession,
     reservation_id: UUID,
     payload: ReservationAdminUpdate,
 ) -> dict[str, str | None]:
     if payload.status is None and payload.notes is None:
-        raise HTTPException(status_code=400, detail="no updates provided")
+        raise ReservationServiceError(
+            HTTPStatus.BAD_REQUEST, detail="no updates provided"
+        )
 
     reservation = await db.get(models.Reservation, reservation_id)
     if not reservation:
-        raise HTTPException(status_code=404, detail="reservation not found")
+        raise ReservationServiceError(
+            HTTPStatus.NOT_FOUND, detail="reservation not found"
+        )
 
     before = {
         "status": reservation.status,
@@ -86,8 +101,16 @@ async def update_reservation(
 
     status_changed = False
     if payload.status is not None and payload.status != reservation.status:
-        if payload.status not in {"pending", "confirmed", "declined", "cancelled", "expired"}:
-            raise HTTPException(status_code=400, detail="invalid status")
+        if payload.status not in {
+            "pending",
+            "confirmed",
+            "declined",
+            "cancelled",
+            "expired",
+        }:
+            raise ReservationServiceError(
+                HTTPStatus.BAD_REQUEST, detail="invalid status"
+            )
         reservation.status = payload.status
         status_changed = True
 
@@ -114,8 +137,8 @@ async def update_reservation(
         "desired_end": reservation.desired_end.isoformat(),
     }
     await record_change(
-        request,
         db,
+        context=audit_context,
         target_type="reservation",
         target_id=reservation.id,
         action="update",

@@ -73,7 +73,10 @@ export type DashboardReservationFeedActions = {
   handleLoadPrevious: () => Promise<void>
   openReservation: (reservation: DashboardReservationItem) => void
   closeReservation: () => void
-  decideReservation: (reservation: DashboardReservationItem, decision: 'approve' | 'decline') => Promise<void>
+  decideReservation: (
+    reservation: DashboardReservationItem,
+    decision: 'approve' | 'decline',
+  ) => Promise<void>
 }
 
 export type DashboardReservationFeedToast = {
@@ -121,7 +124,10 @@ export function useDashboardReservationFeedState({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const filterStorageKey = useMemo(() => `dashboard:reservation-feed:filters:${profileId}`, [profileId])
+  const filterStorageKey = useMemo(
+    () => `dashboard:reservation-feed:filters:${profileId}`,
+    [profileId],
+  )
   const suppressParamsSyncRef = useRef(false)
   const lastParamsRef = useRef<string | null>(null)
 
@@ -162,7 +168,9 @@ export function useDashboardReservationFeedState({
         }
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : '予約リストの取得に失敗しました。時間をおいて再度お試しください。'
+          error instanceof Error
+            ? error.message
+            : '予約リストの取得に失敗しました。時間をおいて再度お試しください。'
         setErrorMessage(message)
         setNextCursor(null)
         setPrevCursor(null)
@@ -238,7 +246,10 @@ export function useDashboardReservationFeedState({
         const nextValue = typeof partial.q === 'string' ? partial.q : ''
         setAppliedSearch(nextValue)
       }
-      if (Object.prototype.hasOwnProperty.call(partial, 'limit') && typeof next.limit === 'number') {
+      if (
+        Object.prototype.hasOwnProperty.call(partial, 'limit') &&
+        typeof next.limit === 'number'
+      ) {
         setPageSize(next.limit)
       }
       setNextCursor(null)
@@ -263,7 +274,10 @@ export function useDashboardReservationFeedState({
     let nextFilters: DashboardFilterState = { ...DEFAULT_FILTERS }
 
     const statusParam = searchParams.get('status')
-    if (statusParam && ['all', 'pending', 'confirmed', 'declined', 'cancelled', 'expired'].includes(statusParam)) {
+    if (
+      statusParam &&
+      ['all', 'pending', 'confirmed', 'declined', 'cancelled', 'expired'].includes(statusParam)
+    ) {
       nextFilters.status = statusParam as DashboardFilterState['status']
     }
 
@@ -305,7 +319,12 @@ export function useDashboardReservationFeedState({
       if (stored) {
         try {
           const parsed = JSON.parse(stored) as Partial<DashboardFilterState>
-          if (parsed.status && ['all', 'pending', 'confirmed', 'declined', 'cancelled', 'expired'].includes(parsed.status)) {
+          if (
+            parsed.status &&
+            ['all', 'pending', 'confirmed', 'declined', 'cancelled', 'expired'].includes(
+              parsed.status,
+            )
+          ) {
             nextFilters.status = parsed.status as DashboardFilterState['status']
           }
           if (parsed.sort && ['latest', 'date'].includes(parsed.sort)) {
@@ -364,7 +383,16 @@ export function useDashboardReservationFeedState({
     const controller = new AbortController()
     refreshBase({ silent: true, signal: controller.signal }).catch(() => undefined)
     return () => controller.abort()
-  }, [searchParams, buildSearchParams, filterStorageKey, pathname, profileId, refreshBase, router, writeFiltersToStorage])
+  }, [
+    searchParams,
+    buildSearchParams,
+    filterStorageKey,
+    pathname,
+    profileId,
+    refreshBase,
+    router,
+    writeFiltersToStorage,
+  ])
 
   useEffect(() => {
     const handleUpdate = (event: Event) => {
@@ -537,7 +565,9 @@ export function useDashboardReservationFeedState({
       setTotal(data.total)
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : '追加の予約取得に失敗しました。時間をおいて再度お試しください。'
+        error instanceof Error
+          ? error.message
+          : '追加の予約取得に失敗しました。時間をおいて再度お試しください。'
       push('error', message)
     } finally {
       setIsLoadingMore(false)
@@ -568,7 +598,9 @@ export function useDashboardReservationFeedState({
       setTotal(data.total)
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : '最新の予約取得に失敗しました。時間をおいて再度お試しください。'
+        error instanceof Error
+          ? error.message
+          : '最新の予約取得に失敗しました。時間をおいて再度お試しください。'
       push('error', message)
     } finally {
       setIsLoadingPrevious(false)
@@ -587,10 +619,17 @@ export function useDashboardReservationFeedState({
     async (reservation: DashboardReservationItem, decision: 'approve' | 'decline') => {
       const nextStatus = decision === 'approve' ? 'confirmed' : 'declined'
       try {
-        const { reservation: updated, conflict } = await updateDashboardReservation(profileId, reservation.id, {
-          status: nextStatus,
-        })
-        push('success', `「${reservation.customer_name}」の予約を${decision === 'approve' ? '承認' : '辞退'}しました。`)
+        const { reservation: updated, conflict } = await updateDashboardReservation(
+          profileId,
+          reservation.id,
+          {
+            status: nextStatus,
+          },
+        )
+        push(
+          'success',
+          `「${reservation.customer_name}」の予約を${decision === 'approve' ? '承認' : '辞退'}しました。`,
+        )
         if (conflict) {
           push('error', '他の予約と時間が重複しています。スケジュールをご確認ください。')
         }
@@ -626,11 +665,15 @@ export function useDashboardReservationFeedState({
         await refresh()
         router.refresh()
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('reservation:updated', { detail: { shopId: profileId } }))
+          window.dispatchEvent(
+            new CustomEvent('reservation:updated', { detail: { shopId: profileId } }),
+          )
         }
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : '予約の更新に失敗しました。時間をおいて再度お試しください。'
+          error instanceof Error
+            ? error.message
+            : '予約の更新に失敗しました。時間をおいて再度お試しください。'
         push('error', message)
       }
     },

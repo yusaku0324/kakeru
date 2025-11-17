@@ -18,11 +18,21 @@ const INITIAL_AVAILABILITY = [
 function ShopReservationSummaryPreview() {
   const [availability, setAvailability] = useState<AvailabilityDay[]>(INITIAL_AVAILABILITY)
 
-  const updateSlots = (dayIndex: number, slotIndex: number, key: 'start_at' | 'end_at' | 'status', value: string) => {
-    setAvailability(prev =>
+  const updateSlots = (
+    dayIndex: number,
+    slotIndex: number,
+    key: 'start_at' | 'end_at' | 'status',
+    value: string,
+  ) => {
+    setAvailability((prev) =>
       prev.map((day, idx) =>
         idx === dayIndex
-          ? { ...day, slots: day.slots.map((slot, sIdx) => (sIdx === slotIndex ? { ...slot, [key]: value } : slot)) }
+          ? {
+              ...day,
+              slots: day.slots.map((slot, sIdx) =>
+                sIdx === slotIndex ? { ...slot, [key]: value } : slot,
+              ),
+            }
           : day,
       ),
     )
@@ -31,25 +41,37 @@ function ShopReservationSummaryPreview() {
   return (
     <ShopReservationSummary
       availability={availability}
-      onAddDay={() => setAvailability(prev => [...prev, { date: new Date().toISOString().slice(0, 10), slots: [] }])}
-      onDeleteDay={index => setAvailability(prev => prev.filter((_, idx) => idx !== index))}
-      onUpdateDate={(index, value) =>
-        setAvailability(prev => prev.map((day, idx) => (idx === index ? { ...day, date: value } : day)))
+      onAddDay={() =>
+        setAvailability((prev) => [
+          ...prev,
+          { date: new Date().toISOString().slice(0, 10), slots: [] },
+        ])
       }
-      onAddSlot={index =>
-        setAvailability(prev =>
+      onDeleteDay={(index) => setAvailability((prev) => prev.filter((_, idx) => idx !== index))}
+      onUpdateDate={(index, value) =>
+        setAvailability((prev) =>
+          prev.map((day, idx) => (idx === index ? { ...day, date: value } : day)),
+        )
+      }
+      onAddSlot={(index) =>
+        setAvailability((prev) =>
           prev.map((day, idx) =>
             idx === index
-              ? { ...day, slots: [...day.slots, { start_at: '', end_at: '', status: 'open' as const }] }
+              ? {
+                  ...day,
+                  slots: [...day.slots, { start_at: '', end_at: '', status: 'open' as const }],
+                }
               : day,
           ),
         )
       }
       onUpdateSlot={updateSlots}
       onRemoveSlot={(dayIndex, slotIndex) =>
-        setAvailability(prev =>
+        setAvailability((prev) =>
           prev.map((day, idx) =>
-            idx === dayIndex ? { ...day, slots: day.slots.filter((_, sIdx) => sIdx !== slotIndex) } : day,
+            idx === dayIndex
+              ? { ...day, slots: day.slots.filter((_, sIdx) => sIdx !== slotIndex) }
+              : day,
           ),
         )
       }

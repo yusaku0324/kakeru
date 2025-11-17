@@ -52,7 +52,9 @@ export function ReservationInfoCard({
         </span>
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold text-neutral-text sm:text-3xl">{name}</h2>
-          {shopDisplayName ? <p className="text-sm text-neutral-textMuted">{shopDisplayName}</p> : null}
+          {shopDisplayName ? (
+            <p className="text-sm text-neutral-textMuted">{shopDisplayName}</p>
+          ) : null}
         </div>
         <p className="text-[11px] font-medium text-neutral-textMuted">{reviewSummary}</p>
       </div>
@@ -89,13 +91,17 @@ export function ReservationInfoCard({
                   key={`${item.label}-${item.value}`}
                   className="rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 text-sm font-semibold text-neutral-text shadow-sm shadow-brand-primary/10"
                 >
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-textMuted">{item.label}</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-textMuted">
+                    {item.label}
+                  </div>
                   <div className="mt-1 text-sm">{item.value}</div>
                 </div>
               ))}
               {optionsList.length ? (
                 <div className="rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 text-sm shadow-sm shadow-brand-primary/10">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-textMuted">オプション・対応メニュー</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-textMuted">
+                    オプション・対応メニュー
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
                     {optionsList.map((option) => (
                       <span
@@ -113,8 +119,14 @@ export function ReservationInfoCard({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <InfoPanel title="出勤予定" body={summarySchedule ?? '最新スケジュールはお問い合わせください。'} />
-          <InfoPanel title="コース料金" body={summaryPricing ?? '最新価格はフォームよりお問い合わせください。'} />
+          <InfoPanel
+            title="出勤予定"
+            body={summarySchedule ?? '最新スケジュールはお問い合わせください。'}
+          />
+          <InfoPanel
+            title="コース料金"
+            body={summaryPricing ?? '最新価格はフォームよりお問い合わせください。'}
+          />
         </div>
       </div>
 
@@ -156,7 +168,9 @@ export function ReservationInfoCard({
 function InfoPanel({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-[32px] bg-gradient-to-br from-white via-white to-[#f5f8ff] p-6 shadow-[0_18px_60px_rgba(37,99,235,0.16)] ring-1 ring-white/60">
-      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-textMuted">{title}</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-textMuted">
+        {title}
+      </div>
       <p className="mt-3 text-sm leading-6 text-neutral-text">{body}</p>
     </div>
   )

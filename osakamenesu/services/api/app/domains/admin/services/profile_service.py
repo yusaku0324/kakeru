@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime, timezone
+from http import HTTPStatus
 from typing import Any, List, Optional
 from uuid import UUID
 
-from fastapi import HTTPException, Request
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from zoneinfo import ZoneInfo
@@ -35,33 +34,47 @@ from ....schemas import (
 )
 from ....utils.profiles import build_profile_doc, normalize_review_aspects
 from ....utils.slug import slugify
-from .audit import record_change
+from .audit import AdminAuditContext, record_change
+from .errors import AdminServiceError
 from . import site_bridge
 
 logger = logging.getLogger("app.admin.profile_service")
 JST = ZoneInfo("Asia/Tokyo")
 
 
+class ProfileServiceError(AdminServiceError):
+    """Domain-level exception for admin profile operations."""
+
+
 async def reindex_profile(*, db: AsyncSession, profile_id: UUID) -> None:
     profile = await db.get(models.Profile, profile_id)
     if not profile:
-        raise HTTPException(status_code=404, detail="profile not found")
+        raise ProfileServiceError(HTTPStatus.NOT_FOUND, detail="profile not found")
     await db.refresh(profile, attribute_names=["reviews"])
     doc = await _build_profile_document(db=db, profile=profile)
     try:
         index_profile(doc)
     except Exception as exc:  # pragma: no cover - meili failure path
-        raise HTTPException(status_code=503, detail=f"meili_unavailable: {exc}") from exc
+        raise ProfileServiceError(
+            HTTPStatus.SERVICE_UNAVAILABLE, detail=f"meili_unavailable: {exc}"
+        ) from exc
 
 
 async def reindex_all_profiles(*, db: AsyncSession, purge: bool = False) -> int:
+    from .. import router as admin_router  # local import to avoid circular deps
+
+    purge_callable = getattr(admin_router, "purge_all", purge_all)
     if purge:
         try:
-            purge_all()
+            purge_callable()
         except Exception as exc:  # pragma: no cover
-            raise HTTPException(status_code=503, detail=f"meili_unavailable: {exc}") from exc
+            raise ProfileServiceError(
+                HTTPStatus.SERVICE_UNAVAILABLE, detail=f"meili_unavailable: {exc}"
+            ) from exc
 
-    result = await db.execute(select(models.Profile).where(models.Profile.status == "published"))
+    result = await db.execute(
+        select(models.Profile).where(models.Profile.status == "published")
+    )
     profiles = list(result.scalars().all())
     docs = []
     for profile in profiles:
@@ -71,10 +84,13 @@ async def reindex_all_profiles(*, db: AsyncSession, purge: bool = False) -> int:
     if not docs:
         return 0
 
+    index_callable = getattr(admin_router, "index_bulk", index_bulk)
     try:
-        index_bulk(docs)
+        index_callable(docs)
     except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=503, detail=f"meili_unavailable: {exc}") from exc
+        raise ProfileServiceError(
+            HTTPStatus.SERVICE_UNAVAILABLE, detail=f"meili_unavailable: {exc}"
+        ) from exc
     return len(docs)
 
 
@@ -87,7 +103,7 @@ async def create_single_availability(
 ) -> str:
     profile = await db.get(models.Profile, profile_id)
     if not profile:
-        raise HTTPException(status_code=404, detail="profile not found")
+        raise ProfileServiceError(HTTPStatus.NOT_FOUND, detail="profile not found")
 
     availability = models.Availability(
         profile_id=profile.id,
@@ -109,7 +125,9 @@ async def create_availability_bulk(
     for item in payload:
         profile = await db.get(models.Profile, item.profile_id)
         if not profile:
-            raise HTTPException(status_code=404, detail=f"profile {item.profile_id} not found")
+            raise ProfileServiceError(
+                HTTPStatus.NOT_FOUND, detail=f"profile {item.profile_id} not found"
+            )
         slots_json = _slots_to_json(item.slots)
         availability = models.Availability(
             profile_id=profile.id,
@@ -133,8 +151,10 @@ async def create_outlink(
 ) -> str:
     profile = await db.get(models.Profile, profile_id)
     if not profile:
-        raise HTTPException(status_code=404, detail="profile not found")
-    outlink = models.Outlink(profile_id=profile.id, kind=kind, token=token, target_url=target_url)
+        raise ProfileServiceError(HTTPStatus.NOT_FOUND, detail="profile not found")
+    outlink = models.Outlink(
+        profile_id=profile.id, kind=kind, token=token, target_url=target_url
+    )
     db.add(outlink)
     await db.commit()
     return str(outlink.id)
@@ -145,7 +165,7 @@ async def update_marketing_metadata(
 ) -> None:
     profile = await db.get(models.Profile, profile_id)
     if not profile:
-        raise HTTPException(status_code=404, detail="profile not found")
+        raise ProfileServiceError(HTTPStatus.NOT_FOUND, detail="profile not found")
 
     if payload.discounts is not None:
         profile.discounts = [d.model_dump(exclude_none=True) for d in payload.discounts]
@@ -179,7 +199,7 @@ async def list_shops(*, db: AsyncSession) -> ShopAdminList:
 async def get_shop_detail(*, db: AsyncSession, shop_id: UUID) -> ShopAdminDetail:
     profile = await db.get(models.Profile, shop_id)
     if not profile:
-        raise HTTPException(status_code=404, detail="shop not found")
+        raise ProfileServiceError(HTTPStatus.NOT_FOUND, detail="shop not found")
 
     availability_calendar = await site_bridge.fetch_availability(db, profile.id)
     contact_json = dict(profile.contact_json or {})
@@ -207,16 +227,17 @@ async def get_shop_detail(*, db: AsyncSession, shop_id: UUID) -> ShopAdminDetail
         availability=availability_calendar.days if availability_calendar else [],
     )
 
+
 async def update_shop_content(
     *,
-    request: Request,
+    audit_context: AdminAuditContext | None,
     db: AsyncSession,
     shop_id: UUID,
     payload: ShopContentUpdate,
 ) -> ShopAdminDetail:
     profile = await db.get(models.Profile, shop_id)
     if not profile:
-        raise HTTPException(status_code=404, detail="shop not found")
+        raise ProfileServiceError(HTTPStatus.NOT_FOUND, detail="shop not found")
 
     before_detail = await get_shop_detail(db=db, shop_id=shop_id)
     contact_json = dict(profile.contact_json or {})
@@ -253,7 +274,11 @@ async def update_shop_content(
         profile.body_tags = payload.service_tags
 
     if payload.service_type is not None:
-        profile.service_type = payload.service_type if payload.service_type in {"store", "dispatch"} else "store"
+        profile.service_type = (
+            payload.service_type
+            if payload.service_type in {"store", "dispatch"}
+            else "store"
+        )
 
     if payload.slug is not None:
         normalized = slugify(payload.slug)
@@ -265,7 +290,9 @@ async def update_shop_content(
             )
             conflict = (await db.execute(stmt)).scalar_one_or_none()
         if conflict:
-            raise HTTPException(status_code=400, detail="slug already exists")
+            raise ProfileServiceError(
+                HTTPStatus.BAD_REQUEST, detail="slug already exists"
+            )
         profile.slug = normalized or None
 
     profile.contact_json = contact_json
@@ -276,8 +303,8 @@ async def update_shop_content(
 
     detail = await get_shop_detail(db=db, shop_id=profile.id)
     await record_change(
-        request,
         db,
+        context=audit_context,
         target_type="shop",
         target_id=profile.id,
         action="content_update",
@@ -289,7 +316,7 @@ async def update_shop_content(
 
 async def bulk_ingest_shop_content(
     *,
-    request: Request,
+    audit_context: AdminAuditContext | None,
     db: AsyncSession,
     payload: BulkShopContentRequest,
 ) -> BulkShopContentResponse:
@@ -333,19 +360,28 @@ async def bulk_ingest_shop_content(
             summary.photos_updated = True
 
         if entry.menus is not None:
-            contact_json["menus"] = [site_bridge.serialize_bulk_menu(menu, profile.id) for menu in entry.menus]
+            contact_json["menus"] = [
+                site_bridge.serialize_bulk_menu(menu, profile.id)
+                for menu in entry.menus
+            ]
             summary.menus_updated = True
 
         profile.contact_json = contact_json
 
         if entry.reviews:
-            await _upsert_reviews(db=db, profile=profile, reviews=entry.reviews, summary=summary)
+            await _upsert_reviews(
+                db=db, profile=profile, reviews=entry.reviews, summary=summary
+            )
 
         if entry.diaries:
-            await _upsert_diaries(db=db, profile=profile, diaries=entry.diaries, summary=summary)
+            await _upsert_diaries(
+                db=db, profile=profile, diaries=entry.diaries, summary=summary
+            )
 
         if entry.availability:
-            await _upsert_bulk_availability(db=db, profile=profile, availability=entry.availability, summary=summary)
+            await _upsert_bulk_availability(
+                db=db, profile=profile, availability=entry.availability, summary=summary
+            )
 
         try:
             await db.commit()
@@ -362,8 +398,8 @@ async def bulk_ingest_shop_content(
         await _reindex_profile_contact(db=db, profile=profile)
         after_detail = await get_shop_detail(db=db, shop_id=profile.id)
         await record_change(
-            request,
             db,
+            context=audit_context,
             target_type="shop",
             target_id=profile.id,
             action="bulk_ingest",
@@ -378,14 +414,14 @@ async def bulk_ingest_shop_content(
 
 async def upsert_availability(
     *,
-    request: Request,
+    audit_context: AdminAuditContext | None,
     db: AsyncSession,
     shop_id: UUID,
     payload: AvailabilityUpsert,
 ) -> str:
     profile = await db.get(models.Profile, shop_id)
     if not profile:
-        raise HTTPException(status_code=404, detail="shop not found")
+        raise ProfileServiceError(HTTPStatus.NOT_FOUND, detail="shop not found")
 
     slots_json = _slots_to_json(payload.slots)
     stmt = (
@@ -410,8 +446,8 @@ async def upsert_availability(
     await db.commit()
 
     await record_change(
-        request,
         db,
+        context=audit_context,
         target_type="availability",
         target_id=avail.id,
         action="upsert",
@@ -423,12 +459,20 @@ async def upsert_availability(
 
 
 async def get_availability_calendar(
-    *, db: AsyncSession, shop_id: UUID, start_date: date | None = None, end_date: date | None = None
+    *,
+    db: AsyncSession,
+    shop_id: UUID,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> AvailabilityCalendar | None:
-    return await site_bridge.fetch_availability(db, shop_id, start_date=start_date, end_date=end_date)
+    return await site_bridge.fetch_availability(
+        db, shop_id, start_date=start_date, end_date=end_date
+    )
 
 
-async def resolve_profile_by_identifier(*, db: AsyncSession, identifier: str) -> models.Profile | None:
+async def resolve_profile_by_identifier(
+    *, db: AsyncSession, identifier: str
+) -> models.Profile | None:
     try:
         profile_uuid = UUID(identifier)
     except (ValueError, TypeError):
@@ -439,11 +483,15 @@ async def resolve_profile_by_identifier(*, db: AsyncSession, identifier: str) ->
         if profile:
             return profile
 
-    result = await db.execute(select(models.Profile).where(models.Profile.slug == identifier))
+    result = await db.execute(
+        select(models.Profile).where(models.Profile.slug == identifier)
+    )
     return result.scalar_one_or_none()
 
 
-async def _reindex_profile_contact(*, db: AsyncSession, profile: models.Profile) -> None:
+async def _reindex_profile_contact(
+    *, db: AsyncSession, profile: models.Profile
+) -> None:
     doc = await _build_profile_document(db=db, profile=profile)
     try:
         index_profile(doc)
@@ -451,15 +499,22 @@ async def _reindex_profile_contact(*, db: AsyncSession, profile: models.Profile)
         logger.exception("Failed to reindex profile %s", profile.id)
 
 
-async def _build_profile_document(*, db: AsyncSession, profile: models.Profile) -> dict[str, Any]:
+async def _build_profile_document(
+    *, db: AsyncSession, profile: models.Profile
+) -> dict[str, Any]:
     today = datetime.now(JST).date()
     res_today = await db.execute(
         select(func.count())
         .select_from(models.Availability)
-        .where(models.Availability.profile_id == profile.id, models.Availability.date == today)
+        .where(
+            models.Availability.profile_id == profile.id,
+            models.Availability.date == today,
+        )
     )
     has_today = (res_today.scalar_one() or 0) > 0
-    res_out = await db.execute(select(models.Outlink).where(models.Outlink.profile_id == profile.id))
+    res_out = await db.execute(
+        select(models.Outlink).where(models.Outlink.profile_id == profile.id)
+    )
     outlinks = list(res_out.scalars().all())
     return build_profile_doc(
         profile,
@@ -468,6 +523,7 @@ async def _build_profile_document(*, db: AsyncSession, profile: models.Profile) 
         ctr7d=0.0,
         outlinks=outlinks,
     )
+
 
 def _slots_to_json(slots: List[AvailabilitySlotIn] | None) -> dict | None:
     if not slots:

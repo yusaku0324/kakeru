@@ -21,7 +21,11 @@ export function FeaturedSectionHeading({ title, subtitle }: { title: string; sub
       >
         <span
           aria-hidden
-          className={clsx('inline-flex h-6 w-6 items-center justify-center rounded-full text-[13px]', ICON_GRADIENT, ICON_SHADOW)}
+          className={clsx(
+            'inline-flex h-6 w-6 items-center justify-center rounded-full text-[13px]',
+            ICON_GRADIENT,
+            ICON_SHADOW,
+          )}
         >
           ✦
         </span>
@@ -49,7 +53,9 @@ export function QuickFiltersHeading() {
       </span>
       <div>
         <h2 className="text-lg font-semibold text-neutral-text">クイックフィルター</h2>
-        <p className="text-xs text-neutral-textMuted">ワンタップでおすすめの条件をセットできます。</p>
+        <p className="text-xs text-neutral-textMuted">
+          ワンタップでおすすめの条件をセットできます。
+        </p>
       </div>
     </div>
   )

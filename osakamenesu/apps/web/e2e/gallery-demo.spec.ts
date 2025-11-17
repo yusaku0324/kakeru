@@ -24,17 +24,21 @@ test.describe('Gallery demo interactions', () => {
     // Click 2nd dot -> slide 2
     const s0 = await getState()
     await dots.nth(1).click()
-    await expect.poll(async () => {
-      const s = await getState()
-      return Math.round(s.left)
-    }).toBeGreaterThanOrEqual(Math.round(s0.width * 0.8))
+    await expect
+      .poll(async () => {
+        const s = await getState()
+        return Math.round(s.left)
+      })
+      .toBeGreaterThanOrEqual(Math.round(s0.width * 0.8))
 
     // Click 1st thumbnail -> back to slide 1
     await thumbs.first().click()
-    await expect.poll(async () => {
-      const s = await getState()
-      return Math.round(s.left)
-    }).toBeLessThanOrEqual(10)
+    await expect
+      .poll(async () => {
+        const s = await getState()
+        return Math.round(s.left)
+      })
+      .toBeLessThanOrEqual(10)
   })
 
   test('drag swipe advances slide', async ({ page, baseURL }) => {
@@ -50,8 +54,10 @@ test.describe('Gallery demo interactions', () => {
       ;(el as HTMLElement).scrollTo({ left: target, behavior: 'auto' })
     })
 
-    await expect.poll(async () => {
-      return await view.evaluate((el) => Math.round((el as HTMLElement).scrollLeft))
-    }).toBeGreaterThan(20)
+    await expect
+      .poll(async () => {
+        return await view.evaluate((el) => Math.round((el as HTMLElement).scrollLeft))
+      })
+      .toBeGreaterThan(20)
   })
 })

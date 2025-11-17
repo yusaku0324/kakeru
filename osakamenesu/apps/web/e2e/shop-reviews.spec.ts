@@ -4,7 +4,11 @@ const SHOP_ID = 'sample-namba-resort'
 const REVIEWS_ENDPOINT = new RegExp(`/api/v1/shops/${SHOP_ID}/reviews`)
 
 test.describe('Shop reviews', () => {
-  test('fetches remote reviews and allows posting with mock API', async ({ page, baseURL, context }) => {
+  test('fetches remote reviews and allows posting with mock API', async ({
+    page,
+    baseURL,
+    context,
+  }) => {
     if (!baseURL) {
       throw new Error('baseURL is required for this test')
     }
@@ -62,7 +66,11 @@ test.describe('Shop reviews', () => {
     let magicLinkRequested = false
     await page.route('**/api/auth/request-link', async (route) => {
       magicLinkRequested = true
-      await route.fulfill({ status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true }) })
+      await route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ok: true }),
+      })
     })
 
     await page.route(REVIEWS_ENDPOINT, async (route) => {
@@ -92,7 +100,11 @@ test.describe('Shop reviews', () => {
       if (request.method() === 'POST') {
         const cookies = await context.cookies()
         if (!cookies.some((cookie) => cookie.name.startsWith('osakamenesu_session'))) {
-          await route.fulfill({ status: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ detail: 'unauthenticated' }) })
+          await route.fulfill({
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ detail: 'unauthenticated' }),
+          })
           return
         }
         const payload = JSON.parse(request.postData() ?? '{}')
@@ -124,7 +136,9 @@ test.describe('Shop reviews', () => {
 
     await expect(page.getByRole('heading', { name: '口コミ' })).toBeVisible()
     await expect(page.getByText('モックレビューテキスト')).toBeVisible()
-    await expect(page.locator('[data-testid="review-aspect-card"]').first().getByText('セラピストの接客')).toBeVisible()
+    await expect(
+      page.locator('[data-testid="review-aspect-card"]').first().getByText('セラピストの接客'),
+    ).toBeVisible()
 
     // 投稿にはログインが必要なため、案内リンクからログインページへ遷移
     await page.getByRole('link', { name: 'ログインページへ' }).click()
@@ -153,17 +167,23 @@ test.describe('Shop reviews', () => {
 
     await page.goto(`${baseURL}/profiles/${SHOP_ID}?force_reviews=1`)
 
-    await page.waitForFunction(() => {
-      const fieldset = document.querySelector('form fieldset') as HTMLFieldSetElement | null
-      return fieldset ? !fieldset.disabled : false
-    }, {}, { timeout: 15000 })
+    await page.waitForFunction(
+      () => {
+        const fieldset = document.querySelector('form fieldset') as HTMLFieldSetElement | null
+        return fieldset ? !fieldset.disabled : false
+      },
+      {},
+      { timeout: 15000 },
+    )
 
     await page.waitForSelector('text=口コミ本文 *', { state: 'visible' })
     const bodyField = page.getByLabel('口コミ本文 *')
     await bodyField.fill('E2E Playwright 投稿本文')
     await page.getByRole('button', { name: '口コミを投稿する' }).click()
 
-    await expect(page.getByText('口コミを送信しました。掲載までしばらくお待ちください。')).toBeVisible()
+    await expect(
+      page.getByText('口コミを送信しました。掲載までしばらくお待ちください。'),
+    ).toBeVisible()
     await expect(page.getByText('E2E Playwright 投稿本文')).toBeVisible()
   })
 })

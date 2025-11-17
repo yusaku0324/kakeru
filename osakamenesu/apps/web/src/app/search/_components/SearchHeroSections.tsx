@@ -1,7 +1,7 @@
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import type { ShopHit } from '@/components/shop/ShopCard'
-import { nextSlotPayloadToScheduleSlot, toNextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
+import { nextSlotPayloadToScheduleSlot } from '@/lib/nextAvailableSlot'
 import { formatSlotJp } from '@/lib/schedule'
 
 export type SpotlightItem = {
@@ -39,7 +39,9 @@ export function SearchPickupContent({ items }: SearchPickupContentProps) {
               interactive
               className="h-full border-brand-primary/10 bg-gradient-to-br from-brand-primary/10 via-white to-brand-secondary/15 p-5 text-sm text-neutral-text shadow-[0_20px_60px_rgba(37,99,235,0.18)]"
             >
-              <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">Editor&apos;s Note</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">
+                Editor&apos;s Note
+              </p>
               <h3 className="mt-2 text-base font-semibold text-neutral-text">{item.title}</h3>
               <p className="mt-2 text-neutral-textMuted">{item.description}</p>
               <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand-primary">
@@ -78,13 +80,19 @@ export function SearchAvailableToday({ shops }: SearchAvailableTodayProps) {
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {items.map((shop) => {
             const href = shop.slug ? `/shops/${shop.slug}` : `/shops/${shop.id}`
-            const tags = Array.isArray(shop.service_tags) ? shop.service_tags.filter(Boolean).slice(0, 2) : []
-            const nextSlotPayload = shop.next_available_slot ?? toNextAvailableSlotPayload(shop.next_available_at)
-            const nextSlotEntity = nextSlotPayload ? nextSlotPayloadToScheduleSlot(nextSlotPayload) : null
+            const tags = Array.isArray(shop.service_tags)
+              ? shop.service_tags.filter(Boolean).slice(0, 2)
+              : []
+            const nextSlotPayload = shop.next_available_slot ?? null
+            const nextSlotEntity = nextSlotPayload
+              ? nextSlotPayloadToScheduleSlot(nextSlotPayload)
+              : null
             const formattedSlot = formatSlotJp(nextSlotEntity)
             const nextSlotLabel = (() => {
               if (!formattedSlot) {
-                return shop.today_available === false ? '本日の受付は終了しました' : '最短の空き枠: 情報確認中'
+                return shop.today_available === false
+                  ? '本日の受付は終了しました'
+                  : '最短の空き枠: 情報確認中'
               }
               if (shop.today_available === false) {
                 return `本日空きなし / 最短: ${formattedSlot}`
@@ -99,7 +107,9 @@ export function SearchAvailableToday({ shops }: SearchAvailableTodayProps) {
               >
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{shop.store_name || shop.name}</p>
-                  <p className="truncate text-xs text-neutral-textMuted">{shop.area_name || shop.area || 'エリア確認中'}</p>
+                  <p className="truncate text-xs text-neutral-textMuted">
+                    {shop.area_name || shop.area || 'エリア確認中'}
+                  </p>
                   {tags.length ? (
                     <div className="mt-2 flex flex-wrap gap-1 text-[11px] text-neutral-textMuted">
                       {tags.map((tag) => (
@@ -112,7 +122,9 @@ export function SearchAvailableToday({ shops }: SearchAvailableTodayProps) {
                   <p className="mt-2 text-xs font-semibold text-brand-primary">{nextSlotLabel}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1 text-xs text-brand-primary">
-                  <Badge variant="brand" className="text-[10px]">{shop.today_available ? '本日空きあり' : '要確認'}</Badge>
+                  <Badge variant="brand" className="text-[10px]">
+                    {shop.today_available ? '本日空きあり' : '要確認'}
+                  </Badge>
                 </div>
               </a>
             )

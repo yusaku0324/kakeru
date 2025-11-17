@@ -41,9 +41,15 @@ describe('ReservationForm payload', () => {
       />,
     )
 
-    fireEvent.change(screen.getByPlaceholderText('例: 山田 太郎'), { target: { value: '山田 太郎' } })
-    fireEvent.change(screen.getByPlaceholderText('090-1234-5678'), { target: { value: '090-1111-2222' } })
-    fireEvent.change(screen.getByPlaceholderText('example@mail.com'), { target: { value: 'guest@example.com' } })
+    fireEvent.change(screen.getByPlaceholderText('例: 山田 太郎'), {
+      target: { value: '山田 太郎' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('090-1234-5678'), {
+      target: { value: '090-1111-2222' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('example@mail.com'), {
+      target: { value: 'guest@example.com' },
+    })
 
     const submitButton = screen.getByRole('button', { name: '予約リクエストを送信' })
     fireEvent.click(submitButton)

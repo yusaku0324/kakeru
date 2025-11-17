@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useToast, ToastContainer } from '@/components/useToast'
@@ -74,17 +74,17 @@ export default function AdminReservationsPage() {
 
   const addHighlights = (ids: string[]) => {
     if (!ids.length) return
-    setHighlightIds(prev => {
+    setHighlightIds((prev) => {
       const next = new Set(prev)
-      ids.forEach(id => next.add(id))
+      ids.forEach((id) => next.add(id))
       return next
     })
-    ids.forEach(id => {
+    ids.forEach((id) => {
       if (highlightTimers.current[id]) {
         clearTimeout(highlightTimers.current[id])
       }
       highlightTimers.current[id] = setTimeout(() => {
-        setHighlightIds(prev => {
+        setHighlightIds((prev) => {
           const next = new Set(prev)
           next.delete(id)
           return next
@@ -94,44 +94,49 @@ export default function AdminReservationsPage() {
     })
   }
 
-  const { loading: isLoading, refresh } = usePolling(async () => {
-    const params = new URLSearchParams()
-    if (statusFilter) params.set('status', statusFilter)
-    params.set('limit', String(PAGE_SIZE))
-    params.set('offset', String((pageNumber - 1) * PAGE_SIZE))
-    const resp = await fetch(`/api/admin/reservations?${params.toString()}`, { cache: 'no-store' })
-    if (!resp.ok) {
-      throw new Error('failed to fetch reservations')
-    }
-    const json = (await resp.json()) as ReservationListResponse
-
-    const prevMap = lastStatusMap.current
-    const nextMap = new Map<string, string>()
-    const newHighlights: string[] = []
-    json.items.forEach(item => {
-      nextMap.set(item.id, item.status)
-      if (!prevMap.has(item.id)) {
-        newHighlights.push(item.id)
-      } else if (prevMap.get(item.id) !== item.status && item.status === 'pending') {
-        newHighlights.push(item.id)
+  const { loading: isLoading, refresh } = usePolling(
+    async () => {
+      const params = new URLSearchParams()
+      if (statusFilter) params.set('status', statusFilter)
+      params.set('limit', String(PAGE_SIZE))
+      params.set('offset', String((pageNumber - 1) * PAGE_SIZE))
+      const resp = await fetch(`/api/admin/reservations?${params.toString()}`, {
+        cache: 'no-store',
+      })
+      if (!resp.ok) {
+        throw new Error('failed to fetch reservations')
       }
-    })
-    lastStatusMap.current = nextMap
+      const json = (await resp.json()) as ReservationListResponse
 
-    if (newHighlights.length) {
-      playNotification()
-      push('success', `${newHighlights.length}件の新しい予約/更新があります`)
-      addHighlights(newHighlights)
-    }
+      const prevMap = lastStatusMap.current
+      const nextMap = new Map<string, string>()
+      const newHighlights: string[] = []
+      json.items.forEach((item) => {
+        nextMap.set(item.id, item.status)
+        if (!prevMap.has(item.id)) {
+          newHighlights.push(item.id)
+        } else if (prevMap.get(item.id) !== item.status && item.status === 'pending') {
+          newHighlights.push(item.id)
+        }
+      })
+      lastStatusMap.current = nextMap
 
-    setData(json)
-    const drafts: Record<string, string> = {}
-    json.items.forEach(item => {
-      drafts[item.id] = item.notes || ''
-    })
-    setNotesDraft(drafts)
-    return json
-  }, { intervalMs: 15000, enabled: true })
+      if (newHighlights.length) {
+        playNotification()
+        push('success', `${newHighlights.length}件の新しい予約/更新があります`)
+        addHighlights(newHighlights)
+      }
+
+      setData(json)
+      const drafts: Record<string, string> = {}
+      json.items.forEach((item) => {
+        drafts[item.id] = item.notes || ''
+      })
+      setNotesDraft(drafts)
+      return json
+    },
+    { intervalMs: 15000, enabled: true },
+  )
 
   useEffect(() => {
     setPageNumber(1)
@@ -143,7 +148,7 @@ export default function AdminReservationsPage() {
   }, [statusFilter, pageNumber])
 
   async function updateReservation(id: string, nextStatus: string | null) {
-    setPendingIds(prev => new Set(prev).add(id))
+    setPendingIds((prev) => new Set(prev).add(id))
     try {
       const payload: Record<string, unknown> = {}
       if (nextStatus) payload.status = nextStatus
@@ -164,7 +169,7 @@ export default function AdminReservationsPage() {
       console.error(err)
       push('error', 'ネットワークエラーが発生しました')
     } finally {
-      setPendingIds(prev => {
+      setPendingIds((prev) => {
         const next = new Set(prev)
         next.delete(id)
         return next
@@ -172,9 +177,12 @@ export default function AdminReservationsPage() {
     }
   }
 
-  useEffect(() => () => {
-    Object.values(highlightTimers.current).forEach(timer => clearTimeout(timer))
-  }, [])
+  useEffect(
+    () => () => {
+      Object.values(highlightTimers.current).forEach((timer) => clearTimeout(timer))
+    },
+    [],
+  )
 
   return (
     <main className="max-w-5xl mx-auto p-4 space-y-6">
@@ -188,13 +196,15 @@ export default function AdminReservationsPage() {
             ステータス
             <select
               value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
+              onChange={(e) => setStatusFilter(e.target.value)}
               className="ml-2 border rounded px-2 py-1 text-sm"
               data-testid="status-filter"
             >
               <option value="">すべて</option>
-              {STATUSES.map(status => (
-                <option key={status} value={status}>{status}</option>
+              {STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
               ))}
             </select>
           </label>
@@ -210,12 +220,14 @@ export default function AdminReservationsPage() {
       </div>
 
       <div className="text-sm text-slate-500">
-        {isLoading ? '読み込み中…' : `${data.total}件中 ${data.items.length}件を表示（${pageNumber} / ${Math.max(1, Math.ceil(data.total / PAGE_SIZE))}ページ）`}
+        {isLoading
+          ? '読み込み中…'
+          : `${data.total}件中 ${data.items.length}件を表示（${pageNumber} / ${Math.max(1, Math.ceil(data.total / PAGE_SIZE))}ページ）`}
       </div>
 
       <div className="flex justify-end items-center gap-2 text-sm">
         <button
-          onClick={() => setPageNumber(prev => Math.max(1, prev - 1))}
+          onClick={() => setPageNumber((prev) => Math.max(1, prev - 1))}
           className="border rounded px-3 py-1 disabled:opacity-50"
           disabled={pageNumber <= 1}
           data-testid="reservations-prev"
@@ -223,7 +235,7 @@ export default function AdminReservationsPage() {
           前へ
         </button>
         <button
-          onClick={() => setPageNumber(prev => prev + 1)}
+          onClick={() => setPageNumber((prev) => prev + 1)}
           className="border rounded px-3 py-1 disabled:opacity-50"
           disabled={data.total <= pageNumber * PAGE_SIZE}
           data-testid="reservations-next"
@@ -250,13 +262,15 @@ export default function AdminReservationsPage() {
                 <div className="flex items-center gap-2 text-sm">
                   <select
                     value={item.status}
-                    onChange={e => updateReservation(item.id, e.target.value)}
+                    onChange={(e) => updateReservation(item.id, e.target.value)}
                     className="border rounded px-2 py-1"
                     disabled={pending}
                     data-testid="reservation-status"
                   >
-                    {STATUSES.map(status => (
-                      <option key={status} value={status}>{status}</option>
+                    {STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
                     ))}
                   </select>
                   <span className="text-xs text-slate-500">
@@ -267,13 +281,28 @@ export default function AdminReservationsPage() {
 
               <div className="grid gap-2 text-sm md:grid-cols-2">
                 <div className="space-y-1">
-                  <div><span className="font-medium">希望日時:</span> {formatDate(item.desired_start)} 〜 {formatDate(item.desired_end)}</div>
-                  {item.channel ? <div><span className="font-medium">経路:</span> {item.channel}</div> : null}
+                  <div>
+                    <span className="font-medium">希望日時:</span> {formatDate(item.desired_start)}{' '}
+                    〜 {formatDate(item.desired_end)}
+                  </div>
+                  {item.channel ? (
+                    <div>
+                      <span className="font-medium">経路:</span> {item.channel}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="space-y-1">
-                  <div><span className="font-medium">氏名:</span> {item.customer_name}</div>
-                  <div><span className="font-medium">電話:</span> {item.customer_phone}</div>
-                  {item.customer_email ? <div><span className="font-medium">メール:</span> {item.customer_email}</div> : null}
+                  <div>
+                    <span className="font-medium">氏名:</span> {item.customer_name}
+                  </div>
+                  <div>
+                    <span className="font-medium">電話:</span> {item.customer_phone}
+                  </div>
+                  {item.customer_email ? (
+                    <div>
+                      <span className="font-medium">メール:</span> {item.customer_email}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -281,7 +310,9 @@ export default function AdminReservationsPage() {
                 <label className="text-xs font-medium text-slate-600">メモ</label>
                 <textarea
                   value={notesDraft[item.id] ?? ''}
-                  onChange={e => setNotesDraft(prev => ({ ...prev, [item.id]: e.target.value }))}
+                  onChange={(e) =>
+                    setNotesDraft((prev) => ({ ...prev, [item.id]: e.target.value }))
+                  }
                   className="w-full border rounded px-3 py-2 text-sm"
                   rows={2}
                   data-testid="reservation-notes"

@@ -58,7 +58,10 @@ function parseSetCookieHeaders(setCookieValues, origin) {
   const nowSeconds = Math.floor(Date.now() / 1000)
   return setCookieValues
     .map((raw) => {
-      const segments = raw.split(';').map((segment) => segment.trim()).filter(Boolean)
+      const segments = raw
+        .split(';')
+        .map((segment) => segment.trim())
+        .filter(Boolean)
       if (!segments.length) return null
       const [nameValue, ...attributes] = segments
       const separatorIndex = nameValue.indexOf('=')
@@ -100,7 +103,8 @@ function parseSetCookieHeaders(setCookieValues, origin) {
             break
           case 'samesite':
             if (attrValue) {
-              const normalized = attrValue.charAt(0).toUpperCase() + attrValue.slice(1).toLowerCase()
+              const normalized =
+                attrValue.charAt(0).toUpperCase() + attrValue.slice(1).toLowerCase()
               if (normalized === 'Lax' || normalized === 'Strict' || normalized === 'None') {
                 cookie.sameSite = normalized
               }
@@ -134,8 +138,9 @@ function parseSetCookieHeaders(setCookieValues, origin) {
 
 async function ensureDashboardAuthenticated(context, page, baseURL) {
   const normalizedBase = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL
-  const secretCandidates = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET]
-    .filter((value) => Boolean(value && value.trim()))
+  const secretCandidates = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET].filter(
+    (value) => Boolean(value && value.trim()),
+  )
 
   if (!secretCandidates.length) {
     throw new Error('E2E_TEST_AUTH_SECRET もしくは TEST_AUTH_SECRET が必要です')
@@ -196,7 +201,11 @@ async function resolveProfileId(page, explicitProfileId) {
     throw new Error(`/api/dashboard/shops の取得に失敗しました (status=${response.status()})`)
   }
   const json = await response.json()
-  const items = Array.isArray(json?.items) ? json.items : Array.isArray(json?.shops) ? json.shops : []
+  const items = Array.isArray(json?.items)
+    ? json.items
+    : Array.isArray(json?.shops)
+      ? json.shops
+      : []
   const firstShop = items[0]
   if (!firstShop?.id) {
     throw new Error('ダッシュボード用の店舗データが見つかりませんでした')
@@ -243,7 +252,10 @@ async function main() {
     return
   }
 
-  const defaultOutput = path.resolve(__dirname, '../../../../docs/images/notifications/line-settings-01.png')
+  const defaultOutput = path.resolve(
+    __dirname,
+    '../../../../docs/images/notifications/line-settings-01.png',
+  )
   const outputPath = options.output ? path.resolve(process.cwd(), options.output) : defaultOutput
   const baseURL = options.baseURL ?? process.env.SCREENSHOT_BASE_URL ?? 'http://127.0.0.1:3000'
   const state = options.state ?? 'form'
@@ -270,13 +282,24 @@ async function main() {
     if (state === 'saved') {
       const saveButton = page.getByRole('button', { name: '設定を保存' })
       await saveButton.click()
-      await page.waitForResponse((response) => response.url().includes('/api/dashboard/shops/') && response.request().method() === 'PUT', { timeout: 10000 }).catch(() => null)
-      await page.waitForSelector('text=通知設定を保存しました。', { timeout: 5000 }).catch(() => null)
+      await page
+        .waitForResponse(
+          (response) =>
+            response.url().includes('/api/dashboard/shops/') &&
+            response.request().method() === 'PUT',
+          { timeout: 10000 },
+        )
+        .catch(() => null)
+      await page
+        .waitForSelector('text=通知設定を保存しました。', { timeout: 5000 })
+        .catch(() => null)
       await page.waitForTimeout(400)
     } else if (state === 'error') {
       const saveButton = page.getByRole('button', { name: '設定を保存' })
       await saveButton.click()
-      await page.waitForSelector('text=入力内容を確認してください。', { timeout: 5000 }).catch(() => null)
+      await page
+        .waitForSelector('text=入力内容を確認してください。', { timeout: 5000 })
+        .catch(() => null)
       await page.waitForTimeout(400)
     } else {
       await page.waitForTimeout(300)

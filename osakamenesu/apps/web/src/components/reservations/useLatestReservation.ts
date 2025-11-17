@@ -1,8 +1,12 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 
-import { buildLatestReservationKey, loadLatestReservation, type LatestReservationSnapshot } from './storage'
+import {
+  buildLatestReservationKey,
+  loadLatestReservation,
+  type LatestReservationSnapshot,
+} from './storage'
 
 export function useLatestReservation(shopId: string | null | undefined, slug?: string | null) {
   const [snapshot, setSnapshot] = useState<LatestReservationSnapshot | null>(null)

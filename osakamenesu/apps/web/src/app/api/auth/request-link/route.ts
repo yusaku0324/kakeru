@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const API_BASE =
-  process.env.OSAKAMENESU_API_INTERNAL_BASE ||
-  process.env.API_INTERNAL_BASE ||
-  process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE
+import { resolveInternalApiBase } from '@/lib/server-config'
 
 function ensureApiBase(): string {
-  if (!API_BASE) {
-    throw new Error('API base URL is not configured for auth proxy')
-  }
-  return API_BASE.replace(/\/+$/, '')
+  return resolveInternalApiBase().replace(/\/+$/, '')
 }
 
 function buildBackendUrl(path: string): string {

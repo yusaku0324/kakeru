@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useMemo } from 'react'
 
@@ -21,10 +21,17 @@ function buildLineLink(lineId: string, message: string | null) {
   return base.includes('?') ? `${base}&text=${encoded}` : `${base}?text=${encoded}`
 }
 
-export default function ReservationContactBar({ tel, lineId, reservationId, shopName, lastPayload }: Props) {
+export default function ReservationContactBar({
+  tel,
+  lineId,
+  reservationId,
+  shopName,
+  lastPayload,
+}: Props) {
   const lineUrl = useMemo(() => {
     if (!lineId) return null
-    if (!lastPayload && !reservationId) return buildLineLink(lineId, shopName ? `${shopName}の件で` : null)
+    if (!lastPayload && !reservationId)
+      return buildLineLink(lineId, shopName ? `${shopName}の件で` : null)
     const parts: string[] = []
     if (shopName) parts.push(`${shopName}の件で`)
     if (lastPayload?.desiredStart) {
@@ -56,12 +63,20 @@ export default function ReservationContactBar({ tel, lineId, reservationId, shop
     <div className="text-sm text-slate-600">
       <div className="flex flex-col gap-2">
         {telUrl ? (
-          <a className="inline-flex items-center justify-center gap-2 rounded bg-blue-600 text-white px-3 py-2" href={telUrl}>
+          <a
+            className="inline-flex items-center justify-center gap-2 rounded bg-blue-600 text-white px-3 py-2"
+            href={telUrl}
+          >
             TELで問い合わせる{reservationId ? `（ID: ${reservationId} をお伝えください）` : ''}
           </a>
         ) : null}
         {lineUrl ? (
-          <a className="inline-flex items-center justify-center gap-2 rounded bg-[#06C755] text-white px-3 py-2" href={lineUrl} target="_blank" rel="noopener noreferrer">
+          <a
+            className="inline-flex items-center justify-center gap-2 rounded bg-[#06C755] text-white px-3 py-2"
+            href={lineUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             LINEで問い合わせる{reservationId ? `（ID: ${reservationId}）` : ''}
           </a>
         ) : null}

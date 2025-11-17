@@ -21,9 +21,8 @@ async function proxy(method: 'GET' | 'PATCH', request: NextRequest, params: { id
   }
 
   let lastError: any = null
-  const targetPath = method === 'PATCH'
-    ? `/api/admin/shops/${params.id}/content`
-    : `/api/admin/shops/${params.id}`
+  const targetPath =
+    method === 'PATCH' ? `/api/admin/shops/${params.id}/content` : `/api/admin/shops/${params.id}`
   const requestStart = Date.now()
   const forwardPayload = {
     targetPath,

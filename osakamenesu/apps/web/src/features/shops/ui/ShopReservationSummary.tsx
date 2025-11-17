@@ -7,7 +7,12 @@ type ShopReservationSummaryProps = {
   onDeleteDay: (dayIndex: number) => void
   onUpdateDate: (dayIndex: number, value: string) => void
   onAddSlot: (dayIndex: number) => void
-  onUpdateSlot: (dayIndex: number, slotIndex: number, key: keyof AvailabilitySlot, value: string) => void
+  onUpdateSlot: (
+    dayIndex: number,
+    slotIndex: number,
+    key: keyof AvailabilitySlot,
+    value: string,
+  ) => void
   onRemoveSlot: (dayIndex: number, slotIndex: number) => void
   onSaveDay: (date: string, slots: AvailabilitySlot[]) => void | Promise<boolean>
 }
@@ -36,18 +41,26 @@ export function ShopReservationSummary({
           日を追加
         </button>
       </div>
-      <p className="text-xs text-slate-500">日付を選び、時間帯とステータスを編集して保存してください。</p>
-      {availability.length === 0 ? <Card className="p-4 text-sm text-slate-500">登録された空き枠はありません。</Card> : null}
+      <p className="text-xs text-slate-500">
+        日付を選び、時間帯とステータスを編集して保存してください。
+      </p>
+      {availability.length === 0 ? (
+        <Card className="p-4 text-sm text-slate-500">登録された空き枠はありません。</Card>
+      ) : null}
       <div className="space-y-4">
         {availability.map((day, dayIndex) => (
-          <Card key={`${day.date}-${dayIndex}`} className="space-y-4 p-4" data-testid="availability-day">
+          <Card
+            key={`${day.date}-${dayIndex}`}
+            className="space-y-4 p-4"
+            data-testid="availability-day"
+          >
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-600">日付</label>
                 <input
                   type="date"
                   value={day.date}
-                  onChange={e => onUpdateDate(dayIndex, e.target.value)}
+                  onChange={(e) => onUpdateDate(dayIndex, e.target.value)}
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
                   data-testid="availability-date"
                 />
@@ -83,7 +96,9 @@ export function ShopReservationSummary({
                     <input
                       type="datetime-local"
                       value={slot.start_at}
-                      onChange={e => onUpdateSlot(dayIndex, slotIndex, 'start_at', e.target.value)}
+                      onChange={(e) =>
+                        onUpdateSlot(dayIndex, slotIndex, 'start_at', e.target.value)
+                      }
                       className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                       data-testid="slot-start"
                     />
@@ -93,7 +108,7 @@ export function ShopReservationSummary({
                     <input
                       type="datetime-local"
                       value={slot.end_at}
-                      onChange={e => onUpdateSlot(dayIndex, slotIndex, 'end_at', e.target.value)}
+                      onChange={(e) => onUpdateSlot(dayIndex, slotIndex, 'end_at', e.target.value)}
                       className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                       data-testid="slot-end"
                     />
@@ -102,13 +117,24 @@ export function ShopReservationSummary({
                     <label className="text-xs font-semibold text-slate-600">ステータス</label>
                     <select
                       value={slot.status}
-                      onChange={e => onUpdateSlot(dayIndex, slotIndex, 'status', e.target.value as AvailabilitySlot['status'])}
+                      onChange={(e) =>
+                        onUpdateSlot(
+                          dayIndex,
+                          slotIndex,
+                          'status',
+                          e.target.value as AvailabilitySlot['status'],
+                        )
+                      }
                       className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                       data-testid="slot-status"
                     >
-                      {STATUS_OPTIONS.map(option => (
+                      {STATUS_OPTIONS.map((option) => (
                         <option key={option} value={option}>
-                          {option === 'open' ? '空きあり' : option === 'tentative' ? '調整中' : '受付停止'}
+                          {option === 'open'
+                            ? '空きあり'
+                            : option === 'tentative'
+                              ? '調整中'
+                              : '受付停止'}
                         </option>
                       ))}
                     </select>

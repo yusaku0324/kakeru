@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { forwardRef } from 'react'
 
@@ -16,36 +16,51 @@ type ReservationOverlayTriggerButtonProps = React.ComponentPropsWithoutRef<'butt
   hitOverride?: OverlayPayload['hit']
 }
 
-const ReservationOverlayTriggerButton = forwardRef<HTMLButtonElement, ReservationOverlayTriggerButtonProps>(
-  ({ overlay: overlayProp, payload, defaultStart, defaultDurationMinutes, hitOverride, onClick, type, ...rest }, ref) => {
+const ReservationOverlayTriggerButton = forwardRef<
+  HTMLButtonElement,
+  ReservationOverlayTriggerButtonProps
+>(
+  (
+    {
+      overlay: overlayProp,
+      payload,
+      defaultStart,
+      defaultDurationMinutes,
+      hitOverride,
+      onClick,
+      type,
+      ...rest
+    },
+    ref,
+  ) => {
     const overlay = payload ?? overlayProp
     return (
-    <button
-      {...rest}
-      ref={ref}
-      type={type ?? 'button'}
-      onClick={(event) => {
-        if (onClick) onClick(event)
-        if (event.defaultPrevented) return
+      <button
+        {...rest}
+        ref={ref}
+        type={type ?? 'button'}
+        onClick={(event) => {
+          if (onClick) onClick(event)
+          if (event.defaultPrevented) return
 
-        if (!overlay) {
-          console.warn('[ReservationOverlayTriggerButton] overlay payload is missing')
-          return
-        }
+          if (!overlay) {
+            console.warn('[ReservationOverlayTriggerButton] overlay payload is missing')
+            return
+          }
 
-        const payload: OverlayPayload = {
-          ...overlay,
-          hit: hitOverride ?? overlay.hit,
-          defaultStart: defaultStart ?? overlay.defaultStart ?? null,
-          defaultDurationMinutes:
-            typeof defaultDurationMinutes === 'number' && Number.isFinite(defaultDurationMinutes)
-              ? defaultDurationMinutes
-              : overlay.defaultDurationMinutes ?? null,
-        }
+          const payload: OverlayPayload = {
+            ...overlay,
+            hit: hitOverride ?? overlay.hit,
+            defaultStart: defaultStart ?? overlay.defaultStart ?? null,
+            defaultDurationMinutes:
+              typeof defaultDurationMinutes === 'number' && Number.isFinite(defaultDurationMinutes)
+                ? defaultDurationMinutes
+                : (overlay.defaultDurationMinutes ?? null),
+          }
 
-        openReservationOverlay(payload)
-      }}
-    />
+          openReservationOverlay(payload)
+        }}
+      />
     )
   },
 )

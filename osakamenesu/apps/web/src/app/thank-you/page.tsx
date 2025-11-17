@@ -21,7 +21,9 @@ export default async function ThankYouPage({
         title="ご予約リクエストありがとうございます"
         subtitle="担当スタッフが内容を確認し折り返しご連絡いたします"
         className="shadow-none border border-neutral-borderLight bg-neutral-surface"
-        actions={reservationId ? <Badge variant="outline">受付番号: {reservationId}</Badge> : undefined}
+        actions={
+          reservationId ? <Badge variant="outline">受付番号: {reservationId}</Badge> : undefined
+        }
       >
         <p className="text-sm leading-relaxed text-neutral-textMuted">
           1〜2時間以内に返信がない場合は、お手数ですがお電話またはLINEで直接お問い合わせください。迷惑メールフォルダのご確認もお願いいたします。

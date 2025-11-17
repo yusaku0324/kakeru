@@ -31,7 +31,9 @@ export default async function ShopSearchPage({ searchParams }: { searchParams: P
       : resolvedSearchParams.force_samples,
   )
 
-  const data = forceSampleMode ? buildSampleResponse(resolvedSearchParams) : await fetchSearchResults(resolvedSearchParams)
+  const data = forceSampleMode
+    ? buildSampleResponse(resolvedSearchParams)
+    : await fetchSearchResults(resolvedSearchParams)
   const { results, facets, _error, page, page_size: pageSize, total } = data
   const hits = results ?? []
   const hasHits = hits.length > 0
@@ -48,12 +50,15 @@ export default async function ShopSearchPage({ searchParams }: { searchParams: P
   const derivedAreaFacets: FacetValue[] = areaFacetSource.length
     ? areaFacetSource
     : Object.entries(
-        (displayHits.length ? displayHits : SAMPLE_RESULTS).reduce<Record<string, number>>((acc, hit) => {
-          const key = hit.area_name || hit.area
-          if (!key) return acc
-          acc[key] = (acc[key] ?? 0) + 1
-          return acc
-        }, {}),
+        (displayHits.length ? displayHits : SAMPLE_RESULTS).reduce<Record<string, number>>(
+          (acc, hit) => {
+            const key = hit.area_name || hit.area
+            if (!key) return acc
+            acc[key] = (acc[key] ?? 0) + 1
+            return acc
+          },
+          {},
+        ),
       ).map(([value, count]) => ({ value, label: value, count }))
 
   const pageTheme = {
@@ -77,15 +82,17 @@ export default async function ShopSearchPage({ searchParams }: { searchParams: P
     .filter((facet) => facet.count && facet.value)
     .sort((a, b) => (b.count ?? 0) - (a.count ?? 0))
     .slice(0, 8)
-    .map((facet) => ({ label: facet.label || facet.value, href: `/search/shops?area=${encodeURIComponent(facet.value)}` }))
+    .map((facet) => ({
+      label: facet.label || facet.value,
+      href: `/search/shops?area=${encodeURIComponent(facet.value)}`,
+    }))
 
-  const quickLinks = [
-    ...areaLinks,
-    { label: 'セラピストで探す', href: '/search' },
-  ]
+  const quickLinks = [...areaLinks, { label: 'セラピストで探す', href: '/search' }]
 
   const qp = (n: number) => {
-    const entries = Object.entries(searchParams || {}).filter(([, v]) => v !== undefined && v !== null)
+    const entries = Object.entries(searchParams || {}).filter(
+      ([, v]) => v !== undefined && v !== null,
+    )
     const sp = new URLSearchParams(entries as [string, string][])
     sp.set('page', String(Math.min(Math.max(n, 1), lastPage)))
     return `/search/shops?${sp.toString()}`
@@ -129,7 +136,9 @@ export default async function ShopSearchPage({ searchParams }: { searchParams: P
                   <span aria-hidden>🏙</span>
                   店舗検索
                 </span>
-                <h1 className="text-3xl font-bold tracking-tight text-neutral-text sm:text-4xl">大阪メンエス.com</h1>
+                <h1 className="text-3xl font-bold tracking-tight text-neutral-text sm:text-4xl">
+                  大阪メンエス.com
+                </h1>
                 <p className="text-sm leading-relaxed text-neutral-textMuted sm:text-base">
                   エリア・料金・キャンペーン情報から大阪のメンズエステ店舗を比較できます。WEB予約リンクからリクエストすると担当者が折り返しご連絡します。
                 </p>
@@ -148,7 +157,9 @@ export default async function ShopSearchPage({ searchParams }: { searchParams: P
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-brand-primary/15 bg-brand-primary/5 px-4 py-4 text-sm text-brand-primaryDark">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-brand-primary/70">掲載店舗数</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-brand-primary/70">
+                    掲載店舗数
+                  </div>
                   <div className="mt-2 text-2xl font-bold text-brand-primaryDark">
                     {numberFormatter.format(shopTotal)}
                     <span className="ml-1 text-sm font-medium text-brand-primary/70">件</span>
@@ -185,53 +196,69 @@ export default async function ShopSearchPage({ searchParams }: { searchParams: P
                   </div>
                 ) : null}
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                  {displayHits.length ? (() => {
-                    type GridItem =
-                      | { kind: 'shop'; value: ShopHit }
-                      | { kind: 'spotlight'; value: SpotlightItem }
+                  {displayHits.length ? (
+                    (() => {
+                      type GridItem =
+                        | { kind: 'shop'; value: ShopHit }
+                        | { kind: 'spotlight'; value: SpotlightItem }
 
-                    const gridItems: GridItem[] = []
-                    const prSlots = [1, 8, 15]
+                      const gridItems: GridItem[] = []
+                      const prSlots = [1, 8, 15]
 
-                    if (displayHits.length > 0) {
-                      let prIndex = 0
-                      displayHits.forEach((hit, idx) => {
-                        if (prSlots.includes(idx + 1) && prIndex < editorialSpots.length) {
+                      if (displayHits.length > 0) {
+                        let prIndex = 0
+                        displayHits.forEach((hit, idx) => {
+                          if (prSlots.includes(idx + 1) && prIndex < editorialSpots.length) {
+                            gridItems.push({ kind: 'spotlight', value: editorialSpots[prIndex] })
+                            prIndex += 1
+                          }
+                          gridItems.push({ kind: 'shop', value: hit })
+                        })
+                        while (
+                          gridItems.length < displayHits.length + editorialSpots.length &&
+                          prIndex < editorialSpots.length
+                        ) {
                           gridItems.push({ kind: 'spotlight', value: editorialSpots[prIndex] })
                           prIndex += 1
                         }
-                        gridItems.push({ kind: 'shop', value: hit })
-                      })
-                      while (gridItems.length < displayHits.length + editorialSpots.length && prIndex < editorialSpots.length) {
-                        gridItems.push({ kind: 'spotlight', value: editorialSpots[prIndex] })
-                        prIndex += 1
                       }
-                    }
 
-                    const itemsToRender = gridItems.length
-                      ? gridItems
-                      : displayHits.map((hit) => ({ kind: 'shop', value: hit }))
+                      const itemsToRender = gridItems.length
+                        ? gridItems
+                        : displayHits.map((hit) => ({ kind: 'shop', value: hit }))
 
-                    return itemsToRender.map((item) =>
-                      item.kind === 'shop' ? (
-                        <ShopCard key={item.value.id} hit={item.value} />
-                      ) : (
-                        <a key={item.value.id} href={item.value.href} className="block focus:outline-none">
-                          <Card interactive className="h-full bg-gradient-to-br from-brand-primary/15 via-brand-primary/10 to-brand-secondary/15 p-6">
-                            <Badge variant="brand" className="mb-3 w-fit shadow-sm">
-                              PR
-                            </Badge>
-                            <h3 className="text-lg font-semibold text-neutral-text">{item.value.title}</h3>
-                            <p className="mt-2 text-sm text-neutral-textMuted">{item.value.description}</p>
-                            <span className="mt-6 inline-flex items-center gap-1 text-sm font-semibold text-brand-primaryDark">
-                              くわしく見る
-                              <span aria-hidden>→</span>
-                            </span>
-                          </Card>
-                        </a>
-                      ),
-                    )
-                  })() : (
+                      return itemsToRender.map((item) =>
+                        item.kind === 'shop' ? (
+                          <ShopCard key={item.value.id} hit={item.value} />
+                        ) : (
+                          <a
+                            key={item.value.id}
+                            href={item.value.href}
+                            className="block focus:outline-none"
+                          >
+                            <Card
+                              interactive
+                              className="h-full bg-gradient-to-br from-brand-primary/15 via-brand-primary/10 to-brand-secondary/15 p-6"
+                            >
+                              <Badge variant="brand" className="mb-3 w-fit shadow-sm">
+                                PR
+                              </Badge>
+                              <h3 className="text-lg font-semibold text-neutral-text">
+                                {item.value.title}
+                              </h3>
+                              <p className="mt-2 text-sm text-neutral-textMuted">
+                                {item.value.description}
+                              </p>
+                              <span className="mt-6 inline-flex items-center gap-1 text-sm font-semibold text-brand-primaryDark">
+                                くわしく見る
+                                <span aria-hidden>→</span>
+                              </span>
+                            </Card>
+                          </a>
+                        ),
+                      )
+                    })()
+                  ) : (
                     <div className="col-span-full rounded-card border border-dashed border-neutral-borderLight/80 bg-neutral-surfaceAlt/70 p-10 text-center text-neutral-textMuted">
                       条件に一致する店舗が見つかりませんでした。
                     </div>
@@ -247,18 +274,28 @@ export default async function ShopSearchPage({ searchParams }: { searchParams: P
                   </div>
                   <div className="flex items-center gap-2">
                     {resolvedPage > 1 ? (
-                      <a href={qp(resolvedPage - 1)} className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary">
+                      <a
+                        href={qp(resolvedPage - 1)}
+                        className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary"
+                      >
                         前へ
                       </a>
                     ) : (
-                      <span className="rounded-badge border border-neutral-borderLight/70 px-3 py-1 text-neutral-textMuted/60">前へ</span>
+                      <span className="rounded-badge border border-neutral-borderLight/70 px-3 py-1 text-neutral-textMuted/60">
+                        前へ
+                      </span>
                     )}
                     {resolvedPage < lastPage ? (
-                      <a href={qp(resolvedPage + 1)} className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary">
+                      <a
+                        href={qp(resolvedPage + 1)}
+                        className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary"
+                      >
                         次へ
                       </a>
                     ) : (
-                      <span className="rounded-badge border border-neutral-borderLight/70 px-3 py-1 text-neutral-textMuted/60">次へ</span>
+                      <span className="rounded-badge border border-neutral-borderLight/70 px-3 py-1 text-neutral-textMuted/60">
+                        次へ
+                      </span>
                     )}
                   </div>
                 </nav>

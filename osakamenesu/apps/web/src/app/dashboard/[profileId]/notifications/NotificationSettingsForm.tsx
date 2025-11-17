@@ -157,7 +157,10 @@ export function NotificationSettingsForm({ profileId, initialData }: Props) {
     setUpdatedAtLabel(new Date(formState.updatedAt).toLocaleString('ja-JP'))
   }, [formState.updatedAt])
 
-  const triggerSelections = useMemo(() => Array.from(formState.triggerStatus), [formState.triggerStatus])
+  const triggerSelections = useMemo(
+    () => Array.from(formState.triggerStatus),
+    [formState.triggerStatus],
+  )
 
   const handleToggleChannel = (key: keyof DashboardNotificationChannels) => {
     setFormState((prev) => {
@@ -195,7 +198,7 @@ export function NotificationSettingsForm({ profileId, initialData }: Props) {
       | DashboardNotificationsError
       | null
     >,
-    successMessage: string
+    successMessage: string,
   ) => {
     const validation = validateForm(formState)
     if (validation) {
@@ -238,7 +241,8 @@ export function NotificationSettingsForm({ profileId, initialData }: Props) {
 
       setMessage({
         type: 'error',
-        text: result.message ?? '処理中にエラーが発生しました。しばらくしてから再度お試しください。',
+        text:
+          result.message ?? '処理中にエラーが発生しました。しばらくしてから再度お試しください。',
       })
     })
   }
@@ -311,7 +315,9 @@ export function NotificationSettingsForm({ profileId, initialData }: Props) {
       <div className="space-y-4">
         <div>
           <h2 className="text-xl font-semibold">通知チャネル</h2>
-          <p className="text-sm text-neutral-600">有効にする通知チャネルを選択し、必要な情報を入力してください。</p>
+          <p className="text-sm text-neutral-600">
+            有効にする通知チャネルを選択し、必要な情報を入力してください。
+          </p>
         </div>
 
         <div className="space-y-4">
@@ -338,7 +344,9 @@ export function NotificationSettingsForm({ profileId, initialData }: Props) {
               <label htmlFor="channel-email" className="font-medium text-neutral-800">
                 メール通知
               </label>
-              <p className="text-sm text-neutral-600">宛先は複数入力できます（改行またはカンマ区切り、最大 5 件）。</p>
+              <p className="text-sm text-neutral-600">
+                宛先は複数入力できます（改行またはカンマ区切り、最大 5 件）。
+              </p>
               <textarea
                 className="mt-2 w-full rounded border border-neutral-300 px-3 py-2 text-sm disabled:bg-neutral-100"
                 rows={4}
@@ -370,7 +378,9 @@ export function NotificationSettingsForm({ profileId, initialData }: Props) {
               <label htmlFor="channel-line" className="font-medium text-neutral-800">
                 LINE Notify
               </label>
-              <p className="text-sm text-neutral-600">店舗が取得した LINE Notify トークンを入力します。</p>
+              <p className="text-sm text-neutral-600">
+                店舗が取得した LINE Notify トークンを入力します。
+              </p>
               <input
                 type="text"
                 className="mt-2 w-full rounded border border-neutral-300 px-3 py-2 text-sm disabled:bg-neutral-100"
@@ -402,7 +412,9 @@ export function NotificationSettingsForm({ profileId, initialData }: Props) {
               <label htmlFor="channel-slack" className="font-medium text-neutral-800">
                 Slack Webhook
               </label>
-              <p className="text-sm text-neutral-600">運営チャンネルの Slack Incoming Webhook URL を入力します。</p>
+              <p className="text-sm text-neutral-600">
+                運営チャンネルの Slack Incoming Webhook URL を入力します。
+              </p>
               <input
                 type="url"
                 className="mt-2 w-full rounded border border-neutral-300 px-3 py-2 text-sm disabled:bg-neutral-100"
@@ -448,8 +460,8 @@ export function NotificationSettingsForm({ profileId, initialData }: Props) {
             message.type === 'success'
               ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
               : message.type === 'error'
-              ? 'border-red-300 bg-red-50 text-red-700'
-              : 'border-blue-200 bg-blue-50 text-blue-700'
+                ? 'border-red-300 bg-red-50 text-red-700'
+                : 'border-blue-200 bg-blue-50 text-blue-700'
           }`}
         >
           {message.text}

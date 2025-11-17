@@ -1,32 +1,34 @@
 import type { MetadataRoute } from 'next'
 
-const SITE_BASE = process.env.NEXT_PUBLIC_SITE_URL || 'https://osaka-menesu.com'
-const INTERNAL_API_BASE =
-  process.env.OSAKAMENESU_API_INTERNAL_BASE ||
-  process.env.API_INTERNAL_BASE ||
-  process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE ||
-  '/api'
+import { getServerConfig } from '@/lib/server-config'
+
+const SERVER_CONFIG = getServerConfig()
 
 async function fetchProfiles(): Promise<Array<{ id: string; slug?: string; updated_at?: string }>> {
-  const res = await fetch(`${INTERNAL_API_BASE}/api/dashboard/shops?limit=1000`, {
+  const res = await fetch(`${SERVER_CONFIG.internalApiBase}/api/dashboard/shops?limit=1000`, {
     headers: { Accept: 'application/json' },
     cache: 'no-store',
   })
   if (!res.ok) {
     return []
   }
-  const data = (await res.json().catch(() => undefined)) as { shops?: Array<{ id?: string; slug?: string; updated_at?: string } | null> } | undefined
+  const data = (await res.json().catch(() => undefined)) as
+    | { shops?: Array<{ id?: string; slug?: string; updated_at?: string } | null> }
+    | undefined
   if (!data?.shops?.length) {
     return []
   }
   return data.shops
-    .map((shop) => ({ id: shop?.id ?? '', slug: shop?.slug ?? undefined, updated_at: shop?.updated_at }))
+    .map((shop) => ({
+      id: shop?.id ?? '',
+      slug: shop?.slug ?? undefined,
+      updated_at: shop?.updated_at,
+    }))
     .filter((shop) => shop.id)
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = SITE_BASE.replace(/\/$/, '')
+  const base = SERVER_CONFIG.siteUrl.replace(/\/$/, '')
   const profiles = await fetchProfiles()
   const now = new Date()
 

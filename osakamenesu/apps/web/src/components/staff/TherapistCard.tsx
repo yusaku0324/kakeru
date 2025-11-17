@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import Link from 'next/link'
 import { useMemo } from 'react'
@@ -6,11 +6,7 @@ import { useMemo } from 'react'
 import SafeImage from '@/components/SafeImage'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
-import {
-  nextSlotPayloadToScheduleSlot,
-  toNextAvailableSlotPayload,
-  type NextAvailableSlotPayload,
-} from '@/lib/nextAvailableSlot'
+import { nextSlotPayloadToScheduleSlot, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { formatSlotJp } from '@/lib/schedule'
 import { useTherapistFavorites } from './TherapistFavoritesProvider'
 
@@ -32,7 +28,6 @@ export type TherapistHit = {
   shopAreaName: string | null
   todayAvailable: boolean | null
   nextAvailableSlot: NextAvailableSlotPayload | null
-  nextAvailableAt?: string | null
 }
 
 const formatter = new Intl.NumberFormat('ja-JP')
@@ -84,7 +79,7 @@ export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCar
   const favorite = therapistId ? isFavorite(therapistId) : false
   const processing = therapistId ? isProcessing(therapistId) : false
   const dataTherapistId = therapistId ?? hit.staffId ?? null
-  const nextSlotPayload = hit.nextAvailableSlot ?? toNextAvailableSlotPayload(hit.nextAvailableAt)
+  const nextSlotPayload = hit.nextAvailableSlot ?? null
   const nextSlotEntity = nextSlotPayload ? nextSlotPayloadToScheduleSlot(nextSlotPayload) : null
   const formattedSlot = formatSlotJp(nextSlotEntity)
   const nextSlotLabel = (() => {
@@ -151,16 +146,22 @@ export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCar
             </h3>
             {hit.rating ? (
               <span className="flex items-center gap-1 text-sm text-neutral-text">
-                <span aria-hidden className="text-amber-400">★</span>
+                <span aria-hidden className="text-amber-400">
+                  ★
+                </span>
                 <span className="font-semibold">{hit.rating.toFixed(1)}</span>
                 {typeof hit.reviewCount === 'number' ? (
-                  <span className="text-xs text-neutral-textMuted">({formatter.format(hit.reviewCount)}件)</span>
+                  <span className="text-xs text-neutral-textMuted">
+                    ({formatter.format(hit.reviewCount)}件)
+                  </span>
                 ) : null}
               </span>
             ) : null}
           </div>
           {hit.alias ? <p className="text-xs text-neutral-textMuted">{hit.alias}</p> : null}
-          {hit.headline ? <p className="text-sm text-neutral-textMuted line-clamp-2">{hit.headline}</p> : null}
+          {hit.headline ? (
+            <p className="text-sm text-neutral-textMuted line-clamp-2">{hit.headline}</p>
+          ) : null}
           {nextSlotLabel ? (
             <p className="text-xs text-brand-primaryDark">
               <span className="inline-flex items-center rounded-full border border-brand-primary/20 bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold">
@@ -190,9 +191,7 @@ export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCar
             <Link href={shopHref} className="font-semibold text-brand-primaryDark hover:underline">
               {hit.shopName}
             </Link>
-            <div className="text-xs text-neutral-textMuted">
-              {hit.shopAreaName || hit.shopArea}
-            </div>
+            <div className="text-xs text-neutral-textMuted">{hit.shopAreaName || hit.shopArea}</div>
           </div>
           <Badge variant="outline">セラピスト</Badge>
         </div>

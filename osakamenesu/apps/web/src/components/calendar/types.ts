@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 export type AvailabilityStatus = 'open' | 'tentative' | 'blocked'
 

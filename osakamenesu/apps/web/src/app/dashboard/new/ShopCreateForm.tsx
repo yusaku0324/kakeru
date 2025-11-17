@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import Link from 'next/link'
 import { FormEvent, useState } from 'react'
@@ -224,7 +224,9 @@ export function ShopCreateForm({ isAuthenticated }: Props) {
           </div>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-neutral-text">サービスタグ (カンマ区切り)</span>
+            <span className="text-sm font-medium text-neutral-text">
+              サービスタグ (カンマ区切り)
+            </span>
             <input
               type="text"
               value={serviceTags}
@@ -236,7 +238,9 @@ export function ShopCreateForm({ isAuthenticated }: Props) {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold text-neutral-text uppercase tracking-wide">連絡先</h2>
+          <h2 className="text-sm font-semibold text-neutral-text uppercase tracking-wide">
+            連絡先
+          </h2>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-1">
               <span className="text-sm font-medium text-neutral-text">電話番号</span>
@@ -280,7 +284,9 @@ export function ShopCreateForm({ isAuthenticated }: Props) {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold text-neutral-text uppercase tracking-wide">掲載情報</h2>
+          <h2 className="text-sm font-semibold text-neutral-text uppercase tracking-wide">
+            掲載情報
+          </h2>
           <label className="space-y-1">
             <span className="text-sm font-medium text-neutral-text">キャッチコピー</span>
             <input
@@ -310,9 +316,7 @@ export function ShopCreateForm({ isAuthenticated }: Props) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-sm font-medium text-neutral-text">
-              写真 URL（1 行に 1 件）
-            </span>
+            <span className="text-sm font-medium text-neutral-text">写真 URL（1 行に 1 件）</span>
             <textarea
               value={photoInputs}
               onChange={(event) => setPhotoInputs(event.target.value)}

@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 
-const INTERNAL_BASE = process.env.OSAKAMENESU_API_INTERNAL_BASE || process.env.API_INTERNAL_BASE || 'http://osakamenesu-api:8000'
-const PUBLIC_BASE = process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE || process.env.NEXT_PUBLIC_API_BASE || '/api'
+import { getServerConfig } from '@/lib/server-config'
+
+const SERVER_CONFIG = getServerConfig()
+const INTERNAL_BASE = SERVER_CONFIG.internalApiBase
+const PUBLIC_BASE = SERVER_CONFIG.publicApiBase
 
 function uniqueBases(): string[] {
   const bases = [INTERNAL_BASE, PUBLIC_BASE, '/api']
@@ -49,12 +52,17 @@ export async function GET(req: Request) {
 
       lastError = { status: resp.status, body: payload }
     } catch (error) {
-      lastError = { status: 503, body: { detail: (error as Error).message || 'session endpoint unreachable' } }
+      lastError = {
+        status: 503,
+        body: { detail: (error as Error).message || 'session endpoint unreachable' },
+      }
     }
   }
 
   if (lastError) {
-    return NextResponse.json(lastError.body ?? { detail: 'session status unavailable' }, { status: lastError.status })
+    return NextResponse.json(lastError.body ?? { detail: 'session status unavailable' }, {
+      status: lastError.status,
+    })
   }
 
   return NextResponse.json({ detail: 'session status unavailable' }, { status: 503 })

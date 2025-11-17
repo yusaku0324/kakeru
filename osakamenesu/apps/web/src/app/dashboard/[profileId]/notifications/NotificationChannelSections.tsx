@@ -52,7 +52,9 @@ export function EmailChannelSection({
         <label htmlFor="channel-email" className="font-medium text-neutral-800">
           メール通知
         </label>
-        <p className="text-sm text-neutral-600">宛先は複数入力できます（改行またはカンマ区切り、最大 5 件）。</p>
+        <p className="text-sm text-neutral-600">
+          宛先は複数入力できます（改行またはカンマ区切り、最大 5 件）。
+        </p>
         <textarea
           className="mt-2 w-full rounded border border-neutral-300 px-3 py-2 text-sm disabled:bg-neutral-100"
           rows={4}
@@ -92,7 +94,8 @@ export function LineChannelSection({
           LINE 通知（Messaging API）
         </label>
         <p className="text-sm text-neutral-600">
-          店舗が取得したチャネルアクセストークンと Webhook URL を設定します。保存時に入力された URL へ自動で Webhook 設定を同期します。
+          店舗が取得したチャネルアクセストークンと Webhook URL を設定します。保存時に入力された URL
+          へ自動で Webhook 設定を同期します。
         </p>
         <input
           type="text"
@@ -113,7 +116,9 @@ export function LineChannelSection({
         />
         {enabled && (
           <p className="mt-1 text-xs text-neutral-500">
-            保存すると、入力した Webhook URL が LINE Messaging API に同期されます。テスト環境ではスタブのエンドポイントを指定し、動作確認後に本番 URL へ切り替えてください。
+            保存すると、入力した Webhook URL が LINE Messaging API
+            に同期されます。テスト環境ではスタブのエンドポイントを指定し、動作確認後に本番 URL
+            へ切り替えてください。
           </p>
         )}
         {enabled && webhookError && <p className="mt-1 text-sm text-red-600">{webhookError}</p>}
@@ -143,7 +148,9 @@ export function SlackChannelSection({
         <label htmlFor="channel-slack" className="font-medium text-neutral-800">
           Slack Webhook
         </label>
-        <p className="text-sm text-neutral-600">運営チャンネルの Slack Incoming Webhook URL を入力します。</p>
+        <p className="text-sm text-neutral-600">
+          運営チャンネルの Slack Incoming Webhook URL を入力します。
+        </p>
         <input
           type="url"
           className="mt-2 w-full rounded border border-neutral-300 px-3 py-2 text-sm disabled:bg-neutral-100"

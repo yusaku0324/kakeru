@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect } from 'react'
 
@@ -46,7 +46,13 @@ export type RecentlyViewedRecorderProps = {
   imageUrl?: string | null
 }
 
-export default function RecentlyViewedRecorder({ shopId, slug, name, area, imageUrl }: RecentlyViewedRecorderProps) {
+export default function RecentlyViewedRecorder({
+  shopId,
+  slug,
+  name,
+  area,
+  imageUrl,
+}: RecentlyViewedRecorderProps) {
   useEffect(() => {
     if (!shopId || typeof window === 'undefined') return
 
@@ -64,7 +70,9 @@ export default function RecentlyViewedRecorder({ shopId, slug, name, area, image
       viewedAt: new Date().toISOString(),
     }
 
-    const filtered = previous.filter((item) => item.shopId !== shopId && (!normalizedSlug || item.slug !== normalizedSlug))
+    const filtered = previous.filter(
+      (item) => item.shopId !== shopId && (!normalizedSlug || item.slug !== normalizedSlug),
+    )
     const next = [nextEntry, ...filtered].slice(0, 12)
     writeEntries(next)
   }, [shopId, slug, name, area, imageUrl])

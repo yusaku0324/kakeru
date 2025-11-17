@@ -34,7 +34,10 @@ export default async function DashboardShopProfilePage({
           店舗プロフィールを編集するにはログインが必要です。ログインページからマジックリンクを送信し、メール経由でログインした後にこのページを再読み込みしてください。
         </p>
         <div className="flex flex-wrap gap-3">
-          <Link href="/dashboard/login" className="inline-flex rounded bg-black px-4 py-2 text-sm font-medium text-white">
+          <Link
+            href="/dashboard/login"
+            className="inline-flex rounded bg-black px-4 py-2 text-sm font-medium text-white"
+          >
             ログインページへ
           </Link>
           <Link

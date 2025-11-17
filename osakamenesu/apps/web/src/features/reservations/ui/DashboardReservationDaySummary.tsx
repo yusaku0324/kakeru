@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
@@ -19,7 +19,11 @@ const DAY_TABS: Array<{ mode: ReservationDayMode; label: string }> = [
   { mode: 'tomorrow', label: '明日' },
 ]
 
-const CANCELLED_STATUSES: Array<DashboardReservationItem['status']> = ['cancelled', 'declined', 'expired']
+const CANCELLED_STATUSES: Array<DashboardReservationItem['status']> = [
+  'cancelled',
+  'declined',
+  'expired',
+]
 
 function formatTimeRange(item: DashboardReservationItem) {
   const start = new Date(item.desired_start)
@@ -38,10 +42,13 @@ type DayState = {
   reservations: DashboardReservationItem[]
 }
 
-const INITIAL_STATE = DAY_TABS.reduce<Record<ReservationDayMode, DayState>>((acc, tab) => {
-  acc[tab.mode] = { loading: true, error: null, reservations: [] }
-  return acc
-}, {} as Record<ReservationDayMode, DayState>)
+const INITIAL_STATE = DAY_TABS.reduce<Record<ReservationDayMode, DayState>>(
+  (acc, tab) => {
+    acc[tab.mode] = { loading: true, error: null, reservations: [] }
+    return acc
+  },
+  {} as Record<ReservationDayMode, DayState>,
+)
 
 export default function DashboardReservationDaySummary({ profileId }: { profileId: string }) {
   const [mode, setMode] = useState<ReservationDayMode>('today')
@@ -49,35 +56,44 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
 
   useEffect(() => {
     let cancelled = false
-    const controllers = DAY_TABS.reduce<Record<ReservationDayMode, AbortController>>((acc, tab) => {
-      acc[tab.mode] = new AbortController()
-      return acc
-    }, {} as Record<ReservationDayMode, AbortController>)
+    const controllers = DAY_TABS.reduce<Record<ReservationDayMode, AbortController>>(
+      (acc, tab) => {
+        acc[tab.mode] = new AbortController()
+        return acc
+      },
+      {} as Record<ReservationDayMode, AbortController>,
+    )
 
     async function loadDay(day: ReservationDayMode) {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         [day]: { ...prev[day], loading: true, error: null },
       }))
       try {
-        const reservations = await loadShopReservationsForDay(profileId, day, { signal: controllers[day].signal })
+        const reservations = await loadShopReservationsForDay(profileId, day, {
+          signal: controllers[day].signal,
+        })
         if (cancelled) return
-        setState(prev => ({ ...prev, [day]: { loading: false, error: null, reservations } }))
+        setState((prev) => ({ ...prev, [day]: { loading: false, error: null, reservations } }))
       } catch (error) {
         if (cancelled) return
         if ((error as Error).name === 'AbortError') return
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
-          [day]: { loading: false, error: '予約の取得に失敗しました', reservations: prev[day].reservations },
+          [day]: {
+            loading: false,
+            error: '予約の取得に失敗しました',
+            reservations: prev[day].reservations,
+          },
         }))
       }
     }
 
-    DAY_TABS.forEach(tab => loadDay(tab.mode))
+    DAY_TABS.forEach((tab) => loadDay(tab.mode))
 
     return () => {
       cancelled = true
-      DAY_TABS.forEach(tab => controllers[tab.mode].abort())
+      DAY_TABS.forEach((tab) => controllers[tab.mode].abort())
     }
   }, [profileId])
 
@@ -90,7 +106,7 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
   }, [mode, state])
 
   const currentState = state[mode]
-  const currentLabel = useMemo(() => DAY_TABS.find(tab => tab.mode === mode)?.label ?? '', [mode])
+  const currentLabel = useMemo(() => DAY_TABS.find((tab) => tab.mode === mode)?.label ?? '', [mode])
 
   return (
     <Card className="space-y-4 border border-brand-primary/20 bg-white/80 p-4 shadow-sm">
@@ -100,7 +116,7 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
           <h2 className="text-lg font-semibold text-neutral-text">今日は誰が来店しますか？</h2>
         </div>
         <div className="inline-flex rounded-full border border-brand-primary/30 bg-white p-0.5 text-sm font-semibold">
-          {DAY_TABS.map(tab => (
+          {DAY_TABS.map((tab) => (
             <button
               key={tab.mode}
               type="button"
@@ -119,7 +135,8 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
       </div>
 
       <div className="rounded-card bg-brand-primary/5 px-4 py-3 text-sm font-medium text-brand-primaryDark">
-        {currentLabel}の予約: {summary.total}件（来店予定 {summary.active}件 / キャンセル {summary.cancelled}件）
+        {currentLabel}の予約: {summary.total}件（来店予定 {summary.active}件 / キャンセル{' '}
+        {summary.cancelled}件）
       </div>
 
       {currentState.loading ? (
@@ -131,7 +148,8 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
       ) : (
         <ul className="space-y-3">
           {currentState.reservations.map((reservation) => {
-            const statusClass = RESERVATION_STATUS_BADGES[reservation.status] ?? 'bg-neutral-200 text-neutral-700'
+            const statusClass =
+              RESERVATION_STATUS_BADGES[reservation.status] ?? 'bg-neutral-200 text-neutral-700'
             return (
               <li
                 key={reservation.id}
@@ -139,14 +157,25 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="font-semibold text-neutral-text">{formatDateLabel(reservation)}</div>
-                    <div className="text-xs text-neutral-textMuted">{formatTimeRange(reservation)}</div>
+                    <div className="font-semibold text-neutral-text">
+                      {formatDateLabel(reservation)}
+                    </div>
+                    <div className="text-xs text-neutral-textMuted">
+                      {formatTimeRange(reservation)}
+                    </div>
                   </div>
                   <div className="text-right text-xs text-neutral-textMuted">
-                    <div className="font-semibold text-neutral-text">{reservation.customer_name}</div>
+                    <div className="font-semibold text-neutral-text">
+                      {reservation.customer_name}
+                    </div>
                     {reservation.channel ? <div>経路: {reservation.channel}</div> : null}
                   </div>
-                  <span className={clsx('inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold', statusClass)}>
+                  <span
+                    className={clsx(
+                      'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold',
+                      statusClass,
+                    )}
+                  >
                     {getReservationStatusDisplay(reservation.status)}
                   </span>
                 </div>

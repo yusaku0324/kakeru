@@ -34,10 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
               strategy="afterInteractive"
             />
-            <Script
-              id="ga-init"
-              strategy="afterInteractive"
-            >{`
+            <Script id="ga-init" strategy="afterInteractive">{`
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
@@ -46,7 +43,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           </>
         ) : null}
       </head>
-      <body className={`${brandFont.variable} min-h-screen bg-neutral-surfaceAlt text-neutral-text font-sans`}>
+      <body
+        className={`${brandFont.variable} min-h-screen bg-neutral-surfaceAlt text-neutral-text font-sans`}
+      >
         <header className="sticky top-0 z-30 border-b border-white/30 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 lg:px-6">
             <Link href="/" className="group inline-flex items-center gap-3">

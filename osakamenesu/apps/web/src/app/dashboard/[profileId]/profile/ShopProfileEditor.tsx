@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { FormEvent, useMemo, useState } from 'react'
 
@@ -43,20 +43,38 @@ const SERVICE_TYPE_OPTIONS: { value: DashboardShopServiceType; label: string }[]
   { value: 'dispatch', label: '出張型' },
 ]
 
-const STATUS_OPTIONS: { value: 'draft' | 'published' | 'hidden'; label: string; description: string }[] = [
-  { value: 'draft', label: '下書き', description: '検索には表示されず、編集者だけが閲覧できます。' },
-  { value: 'published', label: '公開中', description: '検索結果に表示され、一般ユーザーが閲覧できます。' },
-  { value: 'hidden', label: '非公開', description: '検索には表示されず、URL を知っているユーザーだけがアクセスできます。' },
+const STATUS_OPTIONS: {
+  value: 'draft' | 'published' | 'hidden'
+  label: string
+  description: string
+}[] = [
+  {
+    value: 'draft',
+    label: '下書き',
+    description: '検索には表示されず、編集者だけが閲覧できます。',
+  },
+  {
+    value: 'published',
+    label: '公開中',
+    description: '検索結果に表示され、一般ユーザーが閲覧できます。',
+  },
+  {
+    value: 'hidden',
+    label: '非公開',
+    description: '検索には表示されず、URL を知っているユーザーだけがアクセスできます。',
+  },
 ]
 
 function toMenuDraft(menu: DashboardShopMenu): MenuDraft {
   return {
     id: menu.id,
     name: menu.name ?? '',
-    price: typeof menu.price === 'number' ? String(menu.price) : menu.price ?? '',
+    price: typeof menu.price === 'number' ? String(menu.price) : (menu.price ?? ''),
     duration: menu.duration_minutes != null ? String(menu.duration_minutes) : '',
     description: menu.description ?? '',
-    tags: Array.isArray(menu.tags) ? menu.tags.join(', ') : (menu.tags as unknown as string) ?? '',
+    tags: Array.isArray(menu.tags)
+      ? menu.tags.join(', ')
+      : ((menu.tags as unknown as string) ?? ''),
   }
 }
 
@@ -85,13 +103,13 @@ export function ShopProfileEditor({
   const [slug, setSlug] = useState(initialData.slug ?? '')
   const [area, setArea] = useState(initialData.area ?? '')
   const [priceMin, setPriceMin] = useState(
-    typeof initialData.price_min === 'number' ? String(initialData.price_min) : ''
+    typeof initialData.price_min === 'number' ? String(initialData.price_min) : '',
   )
   const [priceMax, setPriceMax] = useState(
-    typeof initialData.price_max === 'number' ? String(initialData.price_max) : ''
+    typeof initialData.price_max === 'number' ? String(initialData.price_max) : '',
   )
   const [serviceType, setServiceType] = useState<DashboardShopServiceType>(
-    initialData.service_type ?? 'store'
+    initialData.service_type ?? 'store',
   )
   const [serviceTags, setServiceTags] = useState<string[]>(initialData.service_tags ?? [])
   const [tagInput, setTagInput] = useState('')
@@ -99,16 +117,16 @@ export function ShopProfileEditor({
   const [catchCopy, setCatchCopy] = useState(initialData.catch_copy ?? '')
   const [address, setAddress] = useState(initialData.address ?? '')
   const [statusValue, setStatusValue] = useState<'draft' | 'published' | 'hidden'>(
-    (initialData.status as 'draft' | 'published' | 'hidden' | undefined) ?? 'draft'
+    (initialData.status as 'draft' | 'published' | 'hidden' | undefined) ?? 'draft',
   )
   const [contact, setContact] = useState<ContactDraft>(normalizeContact(initialData.contact))
   const [photos, setPhotos] = useState<string[]>(
-    initialData.photos && initialData.photos.length ? [...initialData.photos] : ['']
+    initialData.photos && initialData.photos.length ? [...initialData.photos] : [''],
   )
   const [menus, setMenus] = useState<MenuDraft[]>(
     initialData.menus && initialData.menus.length
       ? initialData.menus.map(toMenuDraft)
-      : [emptyMenu()]
+      : [emptyMenu()],
   )
   const [updatedAt, setUpdatedAt] = useState<string | undefined>(initialData.updated_at)
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
@@ -229,7 +247,10 @@ export function ShopProfileEditor({
     const normalizedTags = serviceTags
       .map((tag) => tag.trim())
       .filter(Boolean)
-      .filter((tag, index, self) => self.findIndex((t) => t.toLowerCase() === tag.toLowerCase()) === index)
+      .filter(
+        (tag, index, self) =>
+          self.findIndex((t) => t.toLowerCase() === tag.toLowerCase()) === index,
+      )
 
     const normalizedMenus: DashboardShopMenu[] = menus
       .map((menu) => ({
@@ -309,13 +330,20 @@ export function ShopProfileEditor({
         case 'conflict': {
           hydrateFromData(result.current)
           setSnapshot(result.current)
-          setFormError('ほかのユーザーが更新したため最新の内容に置き換えました。再度確認のうえ保存してください。')
-          push('error', 'ほかのユーザーが店舗情報を更新しました。内容を確認して再保存してください。')
+          setFormError(
+            'ほかのユーザーが更新したため最新の内容に置き換えました。再度確認のうえ保存してください。',
+          )
+          push(
+            'error',
+            'ほかのユーザーが店舗情報を更新しました。内容を確認して再保存してください。',
+          )
           break
         }
         case 'validation_error': {
           console.error('[dashboard] shop validation error', result.detail)
-          setFormError('サーバー側のバリデーションでエラーが発生しました。入力内容をご確認ください。')
+          setFormError(
+            'サーバー側のバリデーションでエラーが発生しました。入力内容をご確認ください。',
+          )
           push('error', '入力内容の保存でエラーが発生しました。')
           break
         }
@@ -337,7 +365,8 @@ export function ShopProfileEditor({
         case 'error':
         default: {
           console.error('[dashboard] shop update error', result)
-          const message = result.message ?? '店舗情報の保存に失敗しました。しばらくしてから再度お試しください。'
+          const message =
+            result.message ?? '店舗情報の保存に失敗しました。しばらくしてから再度お試しください。'
           setFormError(message)
           push('error', message)
           break
@@ -367,7 +396,9 @@ export function ShopProfileEditor({
             </p>
             <div className="flex flex-col gap-2 rounded-md border border-neutral-200 bg-neutral-surfaceAlt px-3 py-2 text-xs text-neutral-600 md:flex-row md:items-center md:gap-3">
               <div className="flex items-center gap-2">
-                <span className="font-semibold uppercase tracking-wide text-neutral-500">ステータス</span>
+                <span className="font-semibold uppercase tracking-wide text-neutral-500">
+                  ステータス
+                </span>
                 <span className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-semibold text-white">
                   {selectedStatusOption.label}
                 </span>
@@ -428,7 +459,9 @@ export function ShopProfileEditor({
               <select
                 id="shop-status"
                 value={statusValue}
-                onChange={(event) => setStatusValue(event.target.value as 'draft' | 'published' | 'hidden')}
+                onChange={(event) =>
+                  setStatusValue(event.target.value as 'draft' | 'published' | 'hidden')
+                }
                 className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
               >
                 {STATUS_OPTIONS.map((option) => (
@@ -569,7 +602,10 @@ export function ShopProfileEditor({
           </div>
           <div className="space-y-3">
             {photos.map((photo, index) => (
-              <div key={`photo-${index}`} className="flex flex-col gap-2 md:flex-row md:items-center">
+              <div
+                key={`photo-${index}`}
+                className="flex flex-col gap-2 md:flex-row md:items-center"
+              >
                 <label className="flex-1">
                   <span className="sr-only">写真 {index + 1}</span>
                   <input
@@ -731,9 +767,7 @@ export function ShopProfileEditor({
                   <span className="text-xs font-semibold text-neutral-600">説明</span>
                   <textarea
                     value={menu.description}
-                    onChange={(event) =>
-                      handleMenuChange(index, 'description', event.target.value)
-                    }
+                    onChange={(event) => handleMenuChange(index, 'description', event.target.value)}
                     className="h-24 w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
                     placeholder="コース内容やおすすめポイントを記載してください。"
                   />

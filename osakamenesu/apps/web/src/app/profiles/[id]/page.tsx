@@ -14,11 +14,7 @@ import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
 import type { TherapistHit } from '@/components/staff/TherapistCard'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
-import {
-  nextSlotPayloadToScheduleSlot,
-  toNextAvailableSlotPayload,
-  type NextAvailableSlotPayload,
-} from '@/lib/nextAvailableSlot'
+import { nextSlotPayloadToScheduleSlot, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { formatSlotJp } from '@/lib/schedule'
 import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
 import { sampleShopToDetail } from '@/lib/sampleShopAdapters'
@@ -68,7 +64,13 @@ export type StaffSummary = {
   next_available_slot?: NextAvailableSlotPayload | null
   next_available_at?: string | null
 }
-type AvailabilitySlot = { start_at: string; end_at: string; status: 'open' | 'tentative' | 'blocked'; staff_id?: string | null; menu_id?: string | null }
+type AvailabilitySlot = {
+  start_at: string
+  end_at: string
+  status: 'open' | 'tentative' | 'blocked'
+  staff_id?: string | null
+  menu_id?: string | null
+}
 type AvailabilityDay = { date: string; is_today?: boolean | null; slots: AvailabilitySlot[] }
 type AvailabilityCalendar = { shop_id: string; generated_at: string; days: AvailabilityDay[] }
 type ReviewAspectKey = 'therapist_service' | 'staff_response' | 'room_cleanliness'
@@ -157,7 +159,11 @@ function uuidFromString(input: string): string {
 }
 
 const formatYen = (n: number) => `¥${Number(n).toLocaleString('ja-JP')}`
-const dayFormatter = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
+const dayFormatter = new Intl.DateTimeFormat('ja-JP', {
+  month: 'numeric',
+  day: 'numeric',
+  weekday: 'short',
+})
 
 function uniquePhotos(photos?: MediaImage[] | null): string[] {
   if (!Array.isArray(photos)) return []
@@ -246,7 +252,11 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const badges = shop.badges || []
   const contact = shop.contact || {}
   const phone = contact.phone || null
-  const lineId = contact.line_id ? (contact.line_id.startsWith('@') ? contact.line_id.slice(1) : contact.line_id) : null
+  const lineId = contact.line_id
+    ? contact.line_id.startsWith('@')
+      ? contact.line_id.slice(1)
+      : contact.line_id
+    : null
   const menus = Array.isArray(shop.menus) ? shop.menus : []
   const staff = Array.isArray(shop.staff) ? shop.staff : []
   const availability = shop.availability_calendar?.days || []
@@ -308,7 +318,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     return null
   })()
 
-  const nextReservableStartIso = selectedSlot?.start_at ?? firstOpenSlot?.start_at ?? tentativeSlotFallback?.start_at ?? null
+  const nextReservableStartIso =
+    selectedSlot?.start_at ?? firstOpenSlot?.start_at ?? tentativeSlotFallback?.start_at ?? null
 
   const shopGallerySources = uniquePhotos(shop.photos)
   const shopPrimaryPhoto = shopGallerySources[0] ?? null
@@ -350,9 +361,13 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const overlayProfileDetails = [
     shop.area_name || shop.area ? { label: 'エリア', value: shop.area_name || shop.area } : null,
     shop.staff?.length ? { label: '在籍セラピスト', value: `${shop.staff.length}名` } : null,
-    reservationTags.length ? { label: 'サービス', value: reservationTags.slice(0, 4).join(' / ') } : null,
+    reservationTags.length
+      ? { label: 'サービス', value: reservationTags.slice(0, 4).join(' / ') }
+      : null,
   ].filter(Boolean) as Array<{ label: string; value: string }>
-  const overlaySchedule = availabilityUpdatedLabel ? `空き状況更新: ${availabilityUpdatedLabel}` : null
+  const overlaySchedule = availabilityUpdatedLabel
+    ? `空き状況更新: ${availabilityUpdatedLabel}`
+    : null
   const overlayPricingLabel = `${formatYen(shop.min_price)}〜${formatYen(shop.max_price)}`
 
   const reservationOverlayConfig = {
@@ -502,7 +517,9 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                 </div>
               ) : null}
               {!contactLinks.length && !contact.line_id ? (
-                <p className="text-xs text-neutral-textMuted">店舗への直接連絡先は掲載準備中です。</p>
+                <p className="text-xs text-neutral-textMuted">
+                  店舗への直接連絡先は掲載準備中です。
+                </p>
               ) : null}
             </div>
             {contact.sns?.length ? (
@@ -527,13 +544,18 @@ export default async function ProfilePage({ params, searchParams }: Props) {
               <div className="text-sm font-semibold text-neutral-text">キャンペーン / 特典</div>
               <ul className="space-y-2 text-sm text-neutral-text">
                 {shop.promotions.slice(0, 3).map((promo, index) => (
-                  <li key={`${promo.label}-${index}`} className="rounded-card border border-brand-primary/20 bg-brand-primary/5 p-3">
+                  <li
+                    key={`${promo.label}-${index}`}
+                    className="rounded-card border border-brand-primary/20 bg-brand-primary/5 p-3"
+                  >
                     <div className="font-semibold text-brand-primaryDark">{promo.label}</div>
                     {promo.description ? (
                       <p className="text-xs text-neutral-textMuted">{promo.description}</p>
                     ) : null}
                     {promo.expires_at ? (
-                      <p className="text-[11px] text-neutral-textMuted mt-1">終了予定: {promo.expires_at}</p>
+                      <p className="text-[11px] text-neutral-textMuted mt-1">
+                        終了予定: {promo.expires_at}
+                      </p>
                     ) : null}
                     {promo.highlight ? (
                       <Badge variant="outline" className="mt-2">
@@ -557,9 +579,13 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                   <Card key={diary.id ?? idx} className="p-4">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-neutral-text">{diary.title || '写メ日記'}</div>
+                        <div className="text-sm font-semibold text-neutral-text">
+                          {diary.title || '写メ日記'}
+                        </div>
                         {diary.published_at ? (
-                          <span className="text-[11px] text-neutral-textMuted">{formatDayLabel(diary.published_at)}</span>
+                          <span className="text-[11px] text-neutral-textMuted">
+                            {formatDayLabel(diary.published_at)}
+                          </span>
                         ) : null}
                       </div>
                       {diary.photos?.length ? (
@@ -599,19 +625,26 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                 送信内容をもとに担当者が折り返しご連絡します。返信をもって予約成立となります。
               </p>
             </div>
-            <ShopReservationCardClient tel={phone} lineId={lineId} shopName={shop.name} overlay={reservationOverlayConfig} />
+            <ShopReservationCardClient
+              tel={phone}
+              lineId={lineId}
+              shopName={shop.name}
+              overlay={reservationOverlayConfig}
+            />
           </Card>
         </div>
       </section>
 
-      {(shop.description || shop.catch_copy) ? (
+      {shop.description || shop.catch_copy ? (
         <Section
           title="店舗紹介"
           subtitle={shop.catch_copy && shop.description ? shop.catch_copy : undefined}
           className="shadow-none border border-neutral-borderLight bg-neutral-surface"
         >
           {shop.description ? (
-            <p className="whitespace-pre-line text-sm leading-relaxed text-neutral-text">{shop.description}</p>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-neutral-text">
+              {shop.description}
+            </p>
           ) : (
             <p className="text-sm text-neutral-textMuted">{shop.catch_copy}</p>
           )}
@@ -621,11 +654,21 @@ export default async function ProfilePage({ params, searchParams }: Props) {
       {shop.reviews ? (
         <Section
           title="口コミ"
-          subtitle={shop.reviews.review_count ? `公開件数 ${shop.reviews.review_count}件` : undefined}
+          subtitle={
+            shop.reviews.review_count ? `公開件数 ${shop.reviews.review_count}件` : undefined
+          }
           className="shadow-none border border-neutral-borderLight bg-neutral-surface"
-          actions={shop.reviews.average_score ? <Badge variant="brand">平均 {shop.reviews.average_score.toFixed(1)}★</Badge> : undefined}
+          actions={
+            shop.reviews.average_score ? (
+              <Badge variant="brand">平均 {shop.reviews.average_score.toFixed(1)}★</Badge>
+            ) : undefined
+          }
         >
-          <ShopReviews shopId={shop.id} summary={shop.reviews} forceRemoteFetch={forceReviewsFetch} />
+          <ShopReviews
+            shopId={shop.id}
+            summary={shop.reviews}
+            forceRemoteFetch={forceReviewsFetch}
+          />
         </Section>
       ) : null}
 
@@ -640,13 +683,19 @@ export default async function ProfilePage({ params, searchParams }: Props) {
               <Card key={menu.id} className="space-y-3 p-4">
                 <div className="flex items-baseline justify-between gap-3">
                   <div className="text-base font-semibold text-neutral-text">{menu.name}</div>
-                  <div className="text-sm font-medium text-brand-primaryDark">{formatYen(menu.price)}</div>
+                  <div className="text-sm font-medium text-brand-primaryDark">
+                    {formatYen(menu.price)}
+                  </div>
                 </div>
                 {menu.duration_minutes ? (
-                  <div className="text-xs text-neutral-textMuted">所要時間: 約{menu.duration_minutes}分</div>
+                  <div className="text-xs text-neutral-textMuted">
+                    所要時間: 約{menu.duration_minutes}分
+                  </div>
                 ) : null}
                 {menu.description ? (
-                  <p className="text-sm leading-relaxed text-neutral-textMuted">{shorten(menu.description, 140)}</p>
+                  <p className="text-sm leading-relaxed text-neutral-textMuted">
+                    {shorten(menu.description, 140)}
+                  </p>
                 ) : null}
                 {menu.tags?.length ? (
                   <div className="flex flex-wrap gap-2">
@@ -671,9 +720,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {staff.map((member) => {
-              const nextSlotEntity = nextSlotPayloadToScheduleSlot(
-                member.next_available_slot ?? toNextAvailableSlotPayload(member.next_available_at),
-              )
+              const nextSlotEntity = nextSlotPayloadToScheduleSlot(member.next_available_slot ?? null)
               const formattedSlot = formatSlotJp(nextSlotEntity)
               const nextSlotLabel = formattedSlot
                 ? member.today_available === false
@@ -708,7 +755,9 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                     </div>
                   </div>
                   {member.headline ? (
-                    <p className="text-sm leading-relaxed text-neutral-textMuted">{shorten(member.headline, 120)}</p>
+                    <p className="text-sm leading-relaxed text-neutral-textMuted">
+                      {shorten(member.headline, 120)}
+                    </p>
                   ) : null}
                   {member.specialties?.length ? (
                     <div className="flex flex-wrap gap-2">
@@ -740,7 +789,9 @@ export default async function ProfilePage({ params, searchParams }: Props) {
             <Card className="mb-4 space-y-3 border border-brand-primary/20 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
               <div className="flex items-center justify-between gap-2">
                 <div className="font-semibold">本日の枠</div>
-                <span className="text-xs text-brand-primaryDark/80">{formatDayLabel(todayIso)}</span>
+                <span className="text-xs text-brand-primaryDark/80">
+                  {formatDayLabel(todayIso)}
+                </span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {upcomingOpenToday.length ? (
@@ -764,26 +815,35 @@ export default async function ProfilePage({ params, searchParams }: Props) {
             {availability.slice(0, 6).map((day) => (
               <Card key={day.date} className="space-y-3 p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-neutral-text">{formatDayLabel(day.date)}</div>
+                  <div className="text-sm font-semibold text-neutral-text">
+                    {formatDayLabel(day.date)}
+                  </div>
                   {day.is_today ? <Badge variant="brand">本日</Badge> : null}
                 </div>
                 {day.slots?.length ? (
                   <div className="space-y-2 text-sm text-neutral-text">
                     {day.slots.slice(0, 6).map((slot, idx) => {
                       const display = slotStatusMap[slot.status]
-                      const waitLabel = slot.status !== 'blocked' ? formatWaitLabel(slot.start_at) : null
+                      const waitLabel =
+                        slot.status !== 'blocked' ? formatWaitLabel(slot.start_at) : null
                       return (
                         <div
                           key={`${slot.start_at}-${idx}`}
                           className="flex items-center gap-3 rounded-card border border-neutral-borderLight/70 bg-neutral-surfaceAlt px-3 py-2"
                         >
-                          <span className="font-medium text-neutral-text">{toTimeLabel(slot.start_at)}〜{toTimeLabel(slot.end_at)}</span>
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${display.badgeClass}`}>
+                          <span className="font-medium text-neutral-text">
+                            {toTimeLabel(slot.start_at)}〜{toTimeLabel(slot.end_at)}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${display.badgeClass}`}
+                          >
                             {display.icon ? <span aria-hidden>{display.icon}</span> : null}
                             {display.label}
                           </span>
                           {waitLabel ? (
-                            <span className="text-[11px] font-medium text-brand-primary">{waitLabel}</span>
+                            <span className="text-[11px] font-medium text-brand-primary">
+                              {waitLabel}
+                            </span>
                           ) : null}
                         </div>
                       )

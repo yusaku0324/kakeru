@@ -1,4 +1,4 @@
-"use client"
+'use client'
 import React, { useCallback, useRef, useState } from 'react'
 
 export type ToastMessage = {
@@ -27,11 +27,14 @@ export function useToast() {
 
   const push = useCallback(
     (type: ToastMessage['type'], message: string, options?: ToastOptions) => {
-      const opts = typeof options === 'number' ? { ttl: options } : options ?? {}
+      const opts = typeof options === 'number' ? { ttl: options } : (options ?? {})
       const ttl = opts.ttl ?? 4000
       setToasts((prev) => {
         const id = nextIdRef.current++
-        const next = [...prev, { id, type, message, actionLabel: opts.actionLabel, onAction: opts.onAction }]
+        const next = [
+          ...prev,
+          { id, type, message, actionLabel: opts.actionLabel, onAction: opts.onAction },
+        ]
         if (ttl > 0) {
           window.setTimeout(() => remove(id), ttl)
         }
@@ -48,7 +51,13 @@ export function useToast() {
   }
 }
 
-export function ToastContainer({ toasts, onDismiss }: { toasts: ToastMessage[]; onDismiss: (id: number) => void }) {
+export function ToastContainer({
+  toasts,
+  onDismiss,
+}: {
+  toasts: ToastMessage[]
+  onDismiss: (id: number) => void
+}) {
   return (
     <div className="fixed bottom-4 right-4 z-50 space-y-3">
       {toasts.map((toast) => (
@@ -60,7 +69,10 @@ export function ToastContainer({ toasts, onDismiss }: { toasts: ToastMessage[]; 
             <span className="font-semibold text-xs uppercase tracking-wide">
               {toast.type === 'success' ? 'Success' : 'Error'}
             </span>
-            <button className="ml-auto text-xs opacity-60 hover:opacity-100" onClick={() => onDismiss(toast.id)}>
+            <button
+              className="ml-auto text-xs opacity-60 hover:opacity-100"
+              onClick={() => onDismiss(toast.id)}
+            >
               ×
             </button>
           </div>

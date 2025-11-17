@@ -2,7 +2,8 @@
 
 import { revalidateTag } from 'next/cache'
 
-import { buildApiUrl, resolveApiBases } from '@/lib/api'
+import { buildApiUrl } from '@/lib/api'
+import { resolveInternalApiBase } from '@/lib/server-config'
 import { CACHE_TAGS } from '@/lib/cache-tags'
 import { enqueueAsyncJobServer } from '@/lib/server/async-jobs'
 import type { ReservationNotificationJob } from '@/lib/async-jobs'
@@ -31,14 +32,16 @@ type AsyncJobStatus = {
   error?: string
 }
 
-export type CreateReservationResult = {
-  success: true
-  reservation: ReservationApiResponse
-  asyncJob: AsyncJobStatus
-} | {
-  success: false
-  error: string
-}
+export type CreateReservationResult =
+  | {
+      success: true
+      reservation: ReservationApiResponse
+      asyncJob: AsyncJobStatus
+    }
+  | {
+      success: false
+      error: string
+    }
 
 function formatDateKey(iso: string): string {
   try {
@@ -77,11 +80,14 @@ function buildNotificationJobPayload(
 type RevalidateFn = (tag: string) => void
 const callRevalidateTag: RevalidateFn = revalidateTag as unknown as RevalidateFn
 
-export async function createReservationAction(payload: CreateReservationPayload): Promise<CreateReservationResult> {
+export async function createReservationAction(
+  payload: CreateReservationPayload,
+): Promise<CreateReservationResult> {
   const body = JSON.stringify(payload)
   let lastError: { status?: number; body?: any } | null = null
 
-  for (const base of resolveApiBases()) {
+  const targets = ['/api', resolveInternalApiBase()]
+  for (const base of targets) {
     try {
       const resp = await fetch(buildApiUrl(base, '/api/v1/reservations'), {
         method: 'POST',
@@ -141,7 +147,10 @@ export async function createReservationAction(payload: CreateReservationPayload)
   const message = (() => {
     if (typeof lastError?.body?.detail === 'string') return lastError.body.detail
     if (Array.isArray(lastError?.body?.detail)) {
-      return lastError.body.detail.map((item: any) => item?.msg).filter(Boolean).join('\n')
+      return lastError.body.detail
+        .map((item: any) => item?.msg)
+        .filter(Boolean)
+        .join('\n')
     }
     if (typeof lastError?.body === 'string') return lastError.body
     if (lastError?.body instanceof Error) return lastError.body.message

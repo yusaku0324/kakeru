@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useCallback, useMemo, useState } from 'react'
 
@@ -18,7 +18,14 @@ type ReservationModalProps = {
   filterSummary?: string | null
 }
 
-export function ReservationModal({ open, reservation, onClose, onApprove, onDecline, filterSummary }: ReservationModalProps) {
+export function ReservationModal({
+  open,
+  reservation,
+  onClose,
+  onApprove,
+  onDecline,
+  filterSummary,
+}: ReservationModalProps) {
   const [copyState, setCopyState] = useState<'idle' | 'copying' | 'copied'>('idle')
   const [actionState, setActionState] = useState<'idle' | 'approving' | 'declining'>('idle')
 
@@ -27,7 +34,10 @@ export function ReservationModal({ open, reservation, onClose, onApprove, onDecl
     return getReservationStatusDisplay(reservation.status)
   }, [reservation])
 
-  const statusClass = reservation ? RESERVATION_STATUS_BADGES[reservation.status] ?? 'bg-neutral-200 text-neutral-700 border border-neutral-300' : ''
+  const statusClass = reservation
+    ? (RESERVATION_STATUS_BADGES[reservation.status] ??
+      'bg-neutral-200 text-neutral-700 border border-neutral-300')
+    : ''
 
   const preferredSlots = useMemo(() => {
     if (!reservation?.preferred_slots?.length) return []
@@ -39,8 +49,17 @@ export function ReservationModal({ open, reservation, onClose, onApprove, onDecl
         day: 'numeric',
         weekday: 'short',
       })} ${start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-      const endLabel = end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
-      const status = slot.status === 'open' ? '◎ 予約可' : slot.status === 'tentative' ? '△ 要確認' : '× 予約不可'
+      const endLabel = end.toLocaleTimeString('ja-JP', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+      const status =
+        slot.status === 'open'
+          ? '◎ 予約可'
+          : slot.status === 'tentative'
+            ? '△ 要確認'
+            : '× 予約不可'
       return `第${index + 1}候補: ${dateLabel}〜${endLabel} (${status})`
     })
   }, [reservation])
@@ -104,7 +123,12 @@ export function ReservationModal({ open, reservation, onClose, onApprove, onDecl
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-neutral-950/50 p-4 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
-      <div role="dialog" aria-modal="true" aria-labelledby="reservation-modal-title" className="relative z-10 w-full max-w-3xl overflow-hidden rounded-3xl border border-white/60 bg-white/95 shadow-[0_40px_120px_rgba(15,23,42,0.22)]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reservation-modal-title"
+        className="relative z-10 w-full max-w-3xl overflow-hidden rounded-3xl border border-white/60 bg-white/95 shadow-[0_40px_120px_rgba(15,23,42,0.22)]"
+      >
         <div className="flex items-center justify-between border-b border-white/60 bg-gradient-to-r from-brand-primary/10 to-transparent px-6 py-4">
           <div>
             <h2 id="reservation-modal-title" className="text-lg font-semibold text-neutral-900">
@@ -115,7 +139,12 @@ export function ReservationModal({ open, reservation, onClose, onApprove, onDecl
               <p className="mt-1 text-[11px] text-neutral-500">現在の表示条件: {filterSummary}</p>
             ) : null}
           </div>
-          <button type="button" onClick={onClose} className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800" aria-label="予約詳細モーダルを閉じる">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
+            aria-label="予約詳細モーダルを閉じる"
+          >
             ✕
           </button>
         </div>
@@ -127,21 +156,30 @@ export function ReservationModal({ open, reservation, onClose, onApprove, onDecl
                 送信日時: {new Date(reservation.created_at).toLocaleString('ja-JP')}
               </div>
             </div>
-            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}>
+            <span
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}
+            >
               {statusLabel}
             </span>
           </div>
 
           <div className="grid gap-4 text-sm text-neutral-700 md:grid-cols-2">
             <div className="space-y-1">
-              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">希望日時</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                希望日時
+              </div>
               <div>
                 {new Date(reservation.desired_start).toLocaleString('ja-JP')}〜
-                {new Date(reservation.desired_end).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                {new Date(reservation.desired_end).toLocaleTimeString('ja-JP', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </div>
             </div>
             <div className="space-y-1">
-              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">連絡先</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                連絡先
+              </div>
               <div className="space-y-1">
                 <div>📞 {reservation.customer_phone}</div>
                 {reservation.customer_email ? <div>✉️ {reservation.customer_email}</div> : null}
@@ -149,7 +187,9 @@ export function ReservationModal({ open, reservation, onClose, onApprove, onDecl
             </div>
             {preferredSlots.length ? (
               <div className="space-y-1 md:col-span-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">候補日時</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  候補日時
+                </div>
                 <div className="space-y-1 whitespace-pre-line rounded-2xl border border-dashed border-neutral-300 bg-neutral-50/80 px-4 py-3 text-sm">
                   {preferredSlots.join('\n')}
                 </div>
@@ -157,7 +197,9 @@ export function ReservationModal({ open, reservation, onClose, onApprove, onDecl
             ) : null}
             {reservation.notes ? (
               <div className="space-y-1 md:col-span-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">メモ</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  メモ
+                </div>
                 <p className="whitespace-pre-line rounded-2xl bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
                   {reservation.notes}
                 </p>
@@ -172,7 +214,11 @@ export function ReservationModal({ open, reservation, onClose, onApprove, onDecl
               disabled={copyState === 'copying'}
               className="inline-flex items-center gap-2 rounded-full border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 transition hover:border-brand-primary hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {copyState === 'copied' ? '複製しました' : copyState === 'copying' ? '複製中…' : '詳細をコピー'}
+              {copyState === 'copied'
+                ? '複製しました'
+                : copyState === 'copying'
+                  ? '複製中…'
+                  : '詳細をコピー'}
             </button>
             <div className="flex flex-wrap gap-2">
               <button

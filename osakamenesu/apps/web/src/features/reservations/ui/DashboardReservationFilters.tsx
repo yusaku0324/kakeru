@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import type { FormEvent } from 'react'
 
@@ -71,10 +71,12 @@ export function DashboardReservationFilters({
           <span className="font-semibold">ステータス</span>
           <select
             value={statusFilter}
-            onChange={(event) => onStatusChange(event.target.value as (typeof STATUS_OPTIONS)[number]['value'])}
+            onChange={(event) =>
+              onStatusChange(event.target.value as (typeof STATUS_OPTIONS)[number]['value'])
+            }
             className="rounded-full border border-neutral-300 bg-white px-2 py-1 text-xs"
           >
-            {STATUS_OPTIONS.map(option => (
+            {STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -86,10 +88,12 @@ export function DashboardReservationFilters({
           <span className="font-semibold">並び替え</span>
           <select
             value={sortBy}
-            onChange={(event) => onSortChange(event.target.value as (typeof SORT_OPTIONS)[number]['value'])}
+            onChange={(event) =>
+              onSortChange(event.target.value as (typeof SORT_OPTIONS)[number]['value'])
+            }
             className="rounded-full border border-neutral-300 bg-white px-2 py-1 text-xs"
           >
-            {SORT_OPTIONS.map(option => (
+            {SORT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -104,7 +108,7 @@ export function DashboardReservationFilters({
             onChange={(event) => onDirectionChange(event.target.value as 'desc' | 'asc')}
             className="rounded-full border border-neutral-300 bg-white px-2 py-1 text-xs"
           >
-            {DIRECTION_OPTIONS.map(option => (
+            {DIRECTION_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -119,7 +123,7 @@ export function DashboardReservationFilters({
             onChange={(event) => onLimitChange(Number.parseInt(event.target.value, 10))}
             className="rounded-full border border-neutral-300 bg-white px-2 py-1 text-xs"
           >
-            {PAGE_SIZE_OPTIONS.map(option => (
+            {PAGE_SIZE_OPTIONS.map((option) => (
               <option key={option} value={option}>
                 {option} 件
               </option>

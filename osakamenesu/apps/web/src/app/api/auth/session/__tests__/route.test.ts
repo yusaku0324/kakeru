@@ -31,7 +31,9 @@ describe('api/auth/session route', () => {
 
     const resp = await GET(req)
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    const forwardedHeaders = fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string> | undefined
+    const forwardedHeaders = fetchMock.mock.calls[0]?.[1]?.headers as
+      | Record<string, string>
+      | undefined
     expect(forwardedHeaders?.cookie).toBe('osakamenesu_session=abc')
     expect(resp.status).toBe(200)
     const json = await resp.json()

@@ -42,7 +42,11 @@ type StaffPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-const dayFormatter = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
+const dayFormatter = new Intl.DateTimeFormat('ja-JP', {
+  month: 'numeric',
+  day: 'numeric',
+  weekday: 'short',
+})
 
 function formatDayLabel(dateStr: string): string {
   const iso = toLocalDateISO(new Date(dateStr))
@@ -76,7 +80,10 @@ function toDateTimeLocal(iso?: string | null) {
   return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16)
 }
 
-function computeSlotDurationMinutes(startIso?: string | null, endIso?: string | null): number | undefined {
+function computeSlotDurationMinutes(
+  startIso?: string | null,
+  endIso?: string | null,
+): number | undefined {
   if (!startIso || !endIso) return undefined
   const start = new Date(startIso)
   const end = new Date(endIso)
@@ -119,11 +126,17 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
   const specialties = formatSpecialties(staff.specialties)
   const specialtiesLabel = specialties.length ? specialties.join(' / ') : null
   const ratingLabel = typeof staff.rating === 'number' ? `${staff.rating.toFixed(1)} / 5.0` : null
-  const reviewLabel = typeof staff.review_count === 'number' ? `${staff.review_count}件のクチコミ` : null
+  const reviewLabel =
+    typeof staff.review_count === 'number' ? `${staff.review_count}件のクチコミ` : null
   const contact = shop.contact || {}
   const otherStaff = listOtherStaff(shop, staff.id)
-  const availabilityDays = Array.isArray(shop.availability_calendar?.days) ? shop.availability_calendar?.days ?? [] : []
-  const normalizedStaffId = slugifyStaffIdentifier(staff.id) || slugifyStaffIdentifier(staff.alias) || slugifyStaffIdentifier(staff.name)
+  const availabilityDays = Array.isArray(shop.availability_calendar?.days)
+    ? (shop.availability_calendar?.days ?? [])
+    : []
+  const normalizedStaffId =
+    slugifyStaffIdentifier(staff.id) ||
+    slugifyStaffIdentifier(staff.alias) ||
+    slugifyStaffIdentifier(staff.name)
   const staffAvailability = availabilityDays
     .map((day) => ({
       date: day.date,
@@ -290,11 +303,17 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
 
   return (
     <main className="relative min-h-screen bg-neutral-surface">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(147,197,253,0.18),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(196,181,253,0.16),_transparent_50%)]" aria-hidden />
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(147,197,253,0.18),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(196,181,253,0.16),_transparent_50%)]"
+        aria-hidden
+      />
       <div className="relative mx-auto max-w-4xl space-y-6 px-4 py-10 lg:space-y-8">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-1">
-            <Link href={shopHref} className="text-xs font-semibold uppercase tracking-wide text-brand-primary hover:underline">
+            <Link
+              href={shopHref}
+              className="text-xs font-semibold uppercase tracking-wide text-brand-primary hover:underline"
+            >
               {shop.name} に戻る
             </Link>
             <h1 className="text-3xl font-semibold text-neutral-text">{staff.name}</h1>
@@ -303,7 +322,9 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
           {ratingLabel ? (
             <div className="text-right text-sm text-neutral-text">
               <div className="font-semibold text-brand-primaryDark">評価 {ratingLabel}</div>
-              {reviewLabel ? <div className="text-xs text-neutral-textMuted">{reviewLabel}</div> : null}
+              {reviewLabel ? (
+                <div className="text-xs text-neutral-textMuted">{reviewLabel}</div>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -351,7 +372,10 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
                 <p className="text-sm leading-relaxed text-neutral-text">{staff.headline}</p>
               ) : null}
 
-              <Card className="space-y-3 border-neutral-borderLight/80 bg-neutral-surfaceAlt/80 p-4" as="div">
+              <Card
+                className="space-y-3 border-neutral-borderLight/80 bg-neutral-surfaceAlt/80 p-4"
+                as="div"
+              >
                 <h2 className="text-sm font-semibold text-neutral-text">お問い合わせ・予約</h2>
                 <div className="flex flex-wrap gap-2 text-xs">
                   {contact.phone ? <Badge variant="outline">電話 {contact.phone}</Badge> : null}
@@ -389,7 +413,9 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
           <details className="rounded-section border border-neutral-borderLight/70 bg-white/90 p-4 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/80">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-neutral-text">
               <span>詳細な週別スケジュールを見る</span>
-              <span className="text-xs font-normal text-neutral-textMuted">週ごとのリストを表示</span>
+              <span className="text-xs font-normal text-neutral-textMuted">
+                週ごとのリストを表示
+              </span>
             </summary>
             <div className="mt-4 space-y-4 text-sm text-neutral-text">
               <p className="text-xs text-neutral-textMuted">表示枠は店舗提供情報に基づきます。</p>
@@ -405,7 +431,9 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
                         前の週
                       </Link>
                     ) : (
-                      <span className="rounded-badge border border-neutral-borderLight/60 px-3 py-1 text-neutral-textMuted/70">前の週</span>
+                      <span className="rounded-badge border border-neutral-borderLight/60 px-3 py-1 text-neutral-textMuted/70">
+                        前の週
+                      </span>
                     )}
                     {requestedWeekIndex < weeks.length - 1 ? (
                       <Link
@@ -415,7 +443,9 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
                         次の週
                       </Link>
                     ) : (
-                      <span className="rounded-badge border border-neutral-borderLight/60 px-3 py-1 text-neutral-textMuted/70">次の週</span>
+                      <span className="rounded-badge border border-neutral-borderLight/60 px-3 py-1 text-neutral-textMuted/70">
+                        次の週
+                      </span>
                     )}
                   </div>
                 </div>
@@ -424,8 +454,12 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
                 {weekColumns.map((day) => (
                   <Card key={day.date} className="space-y-3 p-4">
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold text-neutral-text">{formatDayLabel(day.date)}</div>
-                      {(day.is_today || day.date === todayIso) ? <Badge variant="brand">本日</Badge> : null}
+                      <div className="text-sm font-semibold text-neutral-text">
+                        {formatDayLabel(day.date)}
+                      </div>
+                      {day.is_today || day.date === todayIso ? (
+                        <Badge variant="brand">本日</Badge>
+                      ) : null}
                     </div>
                     <div className="space-y-2 text-sm text-neutral-text">
                       {day.slots.map((slot, idx) => {
@@ -444,13 +478,17 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
                             <span>
                               {toTimeLabel(slot.start_at)}〜{toTimeLabel(slot.end_at)}
                             </span>
-                            <span className={`text-xs font-semibold ${display.className}`}>{display.label}</span>
+                            <span className={`text-xs font-semibold ${display.className}`}>
+                              {display.label}
+                            </span>
                           </Link>
                         )
                       })}
                       {day.slots.length === 0 ? (
                         <div className="rounded-card border border-dashed border-neutral-borderLight/70 bg-white/60 px-3 py-6 text-center text-[11px] text-neutral-textMuted">
-                          {hasWeekSlots ? 'この日は公開枠がありません' : '公開された枠はありません。店舗へ直接お問い合わせください。'}
+                          {hasWeekSlots
+                            ? 'この日は公開枠がありません'
+                            : '公開された枠はありません。店舗へ直接お問い合わせください。'}
                         </div>
                       ) : null}
                     </div>
@@ -461,7 +499,10 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
           </details>
         ) : null}
 
-        <Card id="reserve" className="space-y-3 border border-neutral-borderLight/70 bg-white/95 p-5 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/85">
+        <Card
+          id="reserve"
+          className="space-y-3 border border-neutral-borderLight/70 bg-white/95 p-5 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/85"
+        >
           <div className="space-y-1">
             <div className="text-sm font-semibold text-neutral-text">WEB予約リクエスト</div>
             <p className="text-xs leading-relaxed text-neutral-textMuted">
@@ -527,7 +568,6 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
             </div>
           </Section>
         ) : null}
-
       </div>
     </main>
   )

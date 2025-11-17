@@ -2,7 +2,11 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 import { ADMIN_KEY, adminBases, buildAdminHeaders } from '@/app/api/admin/client'
 
-async function proxyAdminRequest(input: Request, params: { id: string }, init: RequestInit & { method: string }) {
+async function proxyAdminRequest(
+  input: Request,
+  params: { id: string },
+  init: RequestInit & { method: string },
+) {
   if (!ADMIN_KEY) {
     return NextResponse.json({ detail: 'admin key not configured' }, { status: 500 })
   }
@@ -62,9 +66,13 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
   } catch {
     return NextResponse.json({ detail: 'invalid JSON body' }, { status: 400 })
   }
-  return proxyAdminRequest(request, { id }, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-  })
+  return proxyAdminRequest(
+    request,
+    { id },
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    },
+  )
 }

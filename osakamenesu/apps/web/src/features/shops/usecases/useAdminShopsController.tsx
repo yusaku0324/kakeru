@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   AvailabilityDay,
@@ -89,6 +89,7 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
   const [availability, setAvailability] = useState<AvailabilityDay[]>([])
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [tagDraft, setTagDraft] = useState('')
+  const detailRequestIdRef = useRef(0)
 
   const notifyError = useCallback((message: string) => onError?.(message), [onError])
   const notifySuccess = useCallback((message: string) => onSuccess?.(message), [onSuccess])
@@ -106,31 +107,46 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
     }
   }, [isCreating, selectedId, notifyError])
 
-  const loadDetail = useCallback(async (id: string) => {
-    setLoadingDetail(true)
-    try {
-      const json = await fetchAdminShopDetail(id)
-      setDetail(json)
-      setForm(mapDetailToForm(json))
-      const availabilityJson = await fetchShopAvailability(id)
-      setAvailability(
-        (availabilityJson.days || []).map(day => ({
-          date: day.date,
-          slots: (day.slots || []).map(slot => ({
-            start_at: toLocalIso(slot.start_at),
-            end_at: toLocalIso(slot.end_at),
-            status: slot.status,
+  const loadDetail = useCallback(
+    async (id: string) => {
+      const requestId = detailRequestIdRef.current + 1
+      detailRequestIdRef.current = requestId
+      setLoadingDetail(true)
+      try {
+        const json = await fetchAdminShopDetail(id)
+        if (detailRequestIdRef.current !== requestId) {
+          return
+        }
+        setDetail(json)
+        setForm(mapDetailToForm(json))
+        const availabilityJson = await fetchShopAvailability(id)
+        if (detailRequestIdRef.current !== requestId) {
+          return
+        }
+        setAvailability(
+          (availabilityJson.days || []).map((day) => ({
+            date: day.date,
+            slots: (day.slots || []).map((slot) => ({
+              start_at: toLocalIso(slot.start_at),
+              end_at: toLocalIso(slot.end_at),
+              status: slot.status,
+            })),
           })),
-        })),
-      )
-      setIsCreating(false)
-    } catch (error) {
-      console.error(error)
-      notifyError('店舗詳細の取得に失敗しました')
-    } finally {
-      setLoadingDetail(false)
-    }
-  }, [notifyError])
+        )
+        setIsCreating(false)
+      } catch (error) {
+        console.error(error)
+        if (detailRequestIdRef.current === requestId) {
+          notifyError('店舗詳細の取得に失敗しました')
+        }
+      } finally {
+        if (detailRequestIdRef.current === requestId) {
+          setLoadingDetail(false)
+        }
+      }
+    },
+    [notifyError],
+  )
 
   useEffect(() => {
     loadShops()
@@ -155,16 +171,19 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
     setAvailability([])
   }, [])
 
-  const updateForm = useCallback(<K extends keyof ShopFormState>(key: K, value: ShopFormState[K]) => {
-    setForm(prev => ({ ...prev, [key]: value }))
-  }, [])
+  const updateForm = useCallback(
+    <K extends keyof ShopFormState>(key: K, value: ShopFormState[K]) => {
+      setForm((prev) => ({ ...prev, [key]: value }))
+    },
+    [],
+  )
 
   const updateContact = useCallback((patch: Partial<ContactInfo>) => {
-    setForm(prev => ({ ...prev, contact: { ...prev.contact, ...patch } }))
+    setForm((prev) => ({ ...prev, contact: { ...prev.contact, ...patch } }))
   }, [])
 
   const setServiceTags = useCallback((tags: string[]) => {
-    setForm(prev => ({ ...prev, serviceTags: tags }))
+    setForm((prev) => ({ ...prev, serviceTags: tags }))
   }, [])
 
   const addServiceTag = useCallback(
@@ -172,7 +191,7 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
       const baseValue = typeof value === 'string' ? value : tagDraft
       const trimmed = baseValue.trim()
       if (!trimmed) return
-      setForm(prev => {
+      setForm((prev) => {
         if (prev.serviceTags.includes(trimmed)) return prev
         return { ...prev, serviceTags: [...prev.serviceTags, trimmed] }
       })
@@ -182,64 +201,70 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
   )
 
   const removeServiceTag = useCallback((index: number) => {
-    setForm(prev => ({ ...prev, serviceTags: prev.serviceTags.filter((_, idx) => idx !== index) }))
+    setForm((prev) => ({
+      ...prev,
+      serviceTags: prev.serviceTags.filter((_, idx) => idx !== index),
+    }))
   }, [])
 
   const updateMenu = useCallback((index: number, patch: Partial<MenuItem>) => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       menus: prev.menus.map((menu, idx) => (idx === index ? { ...menu, ...patch } : menu)),
     }))
   }, [])
 
   const addMenu = useCallback(() => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
-      menus: [...prev.menus, { name: '', price: 0, description: '', duration_minutes: undefined, tags: [] }],
+      menus: [
+        ...prev.menus,
+        { name: '', price: 0, description: '', duration_minutes: undefined, tags: [] },
+      ],
     }))
   }, [])
 
   const removeMenu = useCallback((index: number) => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       menus: prev.menus.filter((_, idx) => idx !== index),
     }))
   }, [])
 
   const updateStaff = useCallback((index: number, patch: Partial<StaffItem>) => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       staff: prev.staff.map((member, idx) => (idx === index ? { ...member, ...patch } : member)),
     }))
   }, [])
 
   const addStaff = useCallback(() => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       staff: [...prev.staff, { name: '', alias: '', headline: '', specialties: [] }],
     }))
   }, [])
 
   const removeStaff = useCallback((index: number) => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       staff: prev.staff.filter((_, idx) => idx !== index),
     }))
   }, [])
 
   const updatePhoto = useCallback((index: number, value: string) => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       photos: prev.photos.map((url, idx) => (idx === index ? value : url)),
     }))
   }, [])
 
   const addPhoto = useCallback(() => {
-    setForm(prev => ({ ...prev, photos: [...prev.photos, ''] }))
+    setForm((prev) => ({ ...prev, photos: [...prev.photos, ''] }))
   }, [])
 
   const removePhoto = useCallback((index: number) => {
-    setForm(prev => ({ ...prev, photos: prev.photos.filter((_, idx) => idx !== index) }))
+    setForm((prev) => ({ ...prev, photos: prev.photos.filter((_, idx) => idx !== index) }))
   }, [])
 
   const refreshAvailability = useCallback(async () => {
@@ -247,9 +272,9 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
     try {
       const availabilityJson = await fetchShopAvailability(selectedId)
       setAvailability(
-        (availabilityJson.days || []).map(day => ({
+        (availabilityJson.days || []).map((day) => ({
           date: day.date,
-          slots: (day.slots || []).map(slot => ({
+          slots: (day.slots || []).map((slot) => ({
             start_at: toLocalIso(slot.start_at),
             end_at: toLocalIso(slot.end_at),
             status: slot.status,
@@ -268,7 +293,7 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
       try {
         const payload = {
           date: dateValue,
-          slots: slots.map(slot => ({
+          slots: slots.map((slot) => ({
             start_at: fromLocalIso(slot.start_at),
             end_at: fromLocalIso(slot.end_at),
             status: slot.status,
@@ -292,7 +317,7 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
       const target = availability[dayIndex]
       if (!target) return
       if (!target.date) {
-        setAvailability(prev => prev.filter((_, idx) => idx !== dayIndex))
+        setAvailability((prev) => prev.filter((_, idx) => idx !== dayIndex))
         return
       }
       await saveAvailability(target.date, [])
@@ -302,15 +327,17 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
 
   const addAvailabilityDay = useCallback(() => {
     const today = new Date().toISOString().slice(0, 10)
-    setAvailability(prev => [...prev, { date: today, slots: [] }])
+    setAvailability((prev) => [...prev, { date: today, slots: [] }])
   }, [])
 
   const updateAvailabilityDate = useCallback((dayIndex: number, value: string) => {
-    setAvailability(prev => prev.map((day, idx) => (idx === dayIndex ? { ...day, date: value } : day)))
+    setAvailability((prev) =>
+      prev.map((day, idx) => (idx === dayIndex ? { ...day, date: value } : day)),
+    )
   }, [])
 
   const addSlot = useCallback((dayIndex: number) => {
-    setAvailability(prev =>
+    setAvailability((prev) =>
       prev.map((day, idx) =>
         idx === dayIndex
           ? {
@@ -329,27 +356,36 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
     )
   }, [])
 
-  const updateSlot = useCallback((dayIndex: number, slotIndex: number, key: keyof AvailabilitySlot, value: string) => {
-    setAvailability(prev =>
+  const updateSlot = useCallback(
+    (dayIndex: number, slotIndex: number, key: keyof AvailabilitySlot, value: string) => {
+      setAvailability((prev) =>
+        prev.map((day, idx) =>
+          idx === dayIndex
+            ? {
+                ...day,
+                slots: day.slots.map((slot, sIdx) =>
+                  sIdx === slotIndex ? { ...slot, [key]: value } : slot,
+                ),
+              }
+            : day,
+        ),
+      )
+    },
+    [],
+  )
+
+  const removeSlot = useCallback((dayIndex: number, slotIndex: number) => {
+    setAvailability((prev) =>
       prev.map((day, idx) =>
         idx === dayIndex
-          ? {
-              ...day,
-              slots: day.slots.map((slot, sIdx) => (sIdx === slotIndex ? { ...slot, [key]: value } : slot)),
-            }
+          ? { ...day, slots: day.slots.filter((_, sIdx) => sIdx !== slotIndex) }
           : day,
       ),
     )
   }, [])
 
-  const removeSlot = useCallback((dayIndex: number, slotIndex: number) => {
-    setAvailability(prev =>
-      prev.map((day, idx) => (idx === dayIndex ? { ...day, slots: day.slots.filter((_, sIdx) => sIdx !== slotIndex) } : day)),
-    )
-  }, [])
-
   const buildUpdatePayload = useCallback(() => {
-    const normalizedMenus = form.menus.map(menu => ({
+    const normalizedMenus = form.menus.map((menu) => ({
       id: menu.id,
       name: menu.name,
       price: menu.price,
@@ -358,7 +394,7 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
       tags: menu.tags,
       is_reservable_online: menu.is_reservable_online,
     }))
-    const normalizedStaff = form.staff.map(member => ({
+    const normalizedStaff = form.staff.map((member) => ({
       id: member.id,
       name: member.name,
       alias: member.alias,
@@ -381,14 +417,14 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
       price_min: Number(form.priceMin) || 0,
       price_max: Number(form.priceMax) || 0,
       service_type: form.serviceType,
-      service_tags: form.serviceTags.map(tag => tag.trim()).filter(Boolean),
+      service_tags: form.serviceTags.map((tag) => tag.trim()).filter(Boolean),
       menus: normalizedMenus,
       staff: normalizedStaff,
       contact: contactPayload,
       description: form.description || undefined,
       catch_copy: form.catchCopy || undefined,
       address: form.address.trim(),
-      photos: form.photos.map(url => url.trim()).filter(Boolean),
+      photos: form.photos.map((url) => url.trim()).filter(Boolean),
     }
   }, [form])
 
@@ -465,6 +501,18 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
 
       const targetId = selectedId || detail?.id
       if (!targetId) return
+      if (typeof document !== 'undefined') {
+        const liveAddress = document
+          .querySelector<HTMLInputElement>('[data-testid="shop-address"]')
+          ?.value?.trim()
+        console.log('[admin-shops/saveContent]', {
+          formAddress: preparedPayload.address,
+          liveAddress,
+        })
+        if (liveAddress) {
+          preparedPayload.address = liveAddress
+        }
+      }
       await updateAdminShopContent(targetId, preparedPayload)
       await loadDetail(targetId)
       await loadShops()
@@ -473,7 +521,17 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
       console.error(error)
       notifyError('保存に失敗しました')
     }
-  }, [buildCreatePayload, buildUpdatePayload, detail, isCreating, loadDetail, loadShops, notifyError, notifySuccess, selectedId])
+  }, [
+    buildCreatePayload,
+    buildUpdatePayload,
+    detail,
+    isCreating,
+    loadDetail,
+    loadShops,
+    notifyError,
+    notifySuccess,
+    selectedId,
+  ])
 
   const canSave = useMemo(() => {
     const resolvedName = (form.name || '').trim() || detail?.name || ''

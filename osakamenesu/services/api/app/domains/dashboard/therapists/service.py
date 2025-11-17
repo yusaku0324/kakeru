@@ -1,15 +1,14 @@
-
 from __future__ import annotations
 
-import hashlib
 import imghdr
 import mimetypes
 import uuid
 from datetime import datetime, timezone
+from http import HTTPStatus
+from dataclasses import dataclass
 from typing import Any, Iterable, List
 from uuid import UUID
 
-from fastapi import HTTPException, Request, status
 import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,6 +44,18 @@ IMGHDR_TO_MIME: dict[str, str] = {
 }
 
 
+class DashboardTherapistError(Exception):
+    def __init__(self, status_code: int | HTTPStatus, detail: Any) -> None:
+        super().__init__(str(detail))
+        self.status_code = int(status_code)
+        self.detail = detail
+
+
+@dataclass(frozen=True)
+class DashboardTherapistAuditContext:
+    ip_hash: str | None = None
+
+
 def ensure_datetime(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
@@ -54,7 +65,7 @@ def ensure_datetime(value: datetime) -> datetime:
 async def get_profile(db: AsyncSession, profile_id: UUID) -> models.Profile:
     profile = await db.get(models.Profile, profile_id)
     if not profile:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="profile_not_found")
+        raise DashboardTherapistError(HTTPStatus.NOT_FOUND, "profile_not_found")
     return profile
 
 
@@ -117,10 +128,15 @@ async def reindex_profile(db: AsyncSession, profile: models.Profile) -> None:
     availability_count = await db.execute(
         select(sa.func.count())
         .select_from(models.Availability)
-        .where(models.Availability.profile_id == profile.id, models.Availability.date == today)
+        .where(
+            models.Availability.profile_id == profile.id,
+            models.Availability.date == today,
+        )
     )
     has_today = (availability_count.scalar_one() or 0) > 0
-    outlinks = await db.execute(select(models.Outlink).where(models.Outlink.profile_id == profile.id))
+    outlinks = await db.execute(
+        select(models.Outlink).where(models.Outlink.profile_id == profile.id)
+    )
     doc = build_profile_doc(
         profile,
         today=has_today,
@@ -171,16 +187,15 @@ async def sync_staff_contact_json(db: AsyncSession, profile: models.Profile) -> 
 
 
 async def record_change(
-    request: Request,
     db: AsyncSession,
+    *,
+    actor: DashboardTherapistAuditContext | None,
     target_id: UUID | None,
     action: str,
     before: Any,
     after: Any,
 ) -> None:
     try:
-        ip = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "")
-        ip_hash = hashlib.sha256(ip.encode("utf-8")).hexdigest() if ip else None
         log = models.AdminChangeLog(
             target_type="therapist",
             target_id=target_id,
@@ -188,7 +203,7 @@ async def record_change(
             before_json=before,
             after_json=after,
             admin_key_hash=None,
-            ip_hash=ip_hash,
+            ip_hash=actor.ip_hash if actor else None,
         )
         db.add(log)
         await db.commit()
@@ -205,7 +220,9 @@ def matches_magic_signature(payload: bytes) -> tuple[str | None, str | None]:
     return None, None
 
 
-def detect_image_type(filename: str | None, content_type: str | None, payload: bytes) -> tuple[str, str]:
+def detect_image_type(
+    filename: str | None, content_type: str | None, payload: bytes
+) -> tuple[str, str]:
     mime, extension = matches_magic_signature(payload)
     if mime:
         return mime, extension  # type: ignore[return-value]
@@ -218,8 +235,8 @@ def detect_image_type(filename: str | None, content_type: str | None, payload: b
         if guess and guess in ALLOWED_IMAGE_CONTENT_TYPES:
             return guess, ALLOWED_IMAGE_CONTENT_TYPES[guess]
 
-    raise HTTPException(
-        status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+    raise DashboardTherapistError(
+        HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
         detail="unsupported_media_type",
     )
 
@@ -252,7 +269,7 @@ class DashboardTherapistService:
     async def create_therapist(
         self,
         *,
-        request: Request,
+        audit_context: DashboardTherapistAuditContext | None,
         profile_id: UUID,
         payload: DashboardTherapistCreatePayload,
         db: AsyncSession,
@@ -260,8 +277,8 @@ class DashboardTherapistService:
         profile = await get_profile(db, profile_id)
         name = payload.name.strip() if payload.name else ""
         if not name:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise DashboardTherapistError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
                 detail={"field": "name", "message": "セラピスト名を入力してください。"},
             )
 
@@ -292,7 +309,9 @@ class DashboardTherapistService:
             qualifications=qualifications or None,
             experience_years=experience_years,
             photo_urls=photo_urls or None,
-            is_booking_enabled=payload.is_booking_enabled if payload.is_booking_enabled is not None else True,
+            is_booking_enabled=payload.is_booking_enabled
+            if payload.is_booking_enabled is not None
+            else True,
             display_order=next_order,
             status="draft",
         )
@@ -305,7 +324,14 @@ class DashboardTherapistService:
         await reindex_profile(db, profile)
 
         detail = serialize_therapist(therapist)
-        await record_change(request, db, detail.id, "create", None, detail.model_dump())
+        await record_change(
+            db,
+            actor=audit_context,
+            target_id=detail.id,
+            action="create",
+            before=None,
+            after=detail.model_dump(),
+        )
         return detail
 
     async def get_therapist(
@@ -318,13 +344,15 @@ class DashboardTherapistService:
         await get_profile(db, profile_id)
         therapist = await db.get(models.Therapist, therapist_id)
         if not therapist or therapist.profile_id != profile_id:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="therapist_not_found")
+            raise DashboardTherapistError(
+                HTTPStatus.NOT_FOUND, detail="therapist_not_found"
+            )
         return serialize_therapist(therapist)
 
     async def update_therapist(
         self,
         *,
-        request: Request,
+        audit_context: DashboardTherapistAuditContext | None,
         profile_id: UUID,
         therapist_id: UUID,
         payload: DashboardTherapistUpdatePayload,
@@ -333,13 +361,15 @@ class DashboardTherapistService:
         profile = await get_profile(db, profile_id)
         therapist = await db.get(models.Therapist, therapist_id)
         if not therapist or therapist.profile_id != profile_id:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="therapist_not_found")
+            raise DashboardTherapistError(
+                HTTPStatus.NOT_FOUND, detail="therapist_not_found"
+            )
 
         current_updated_at = ensure_datetime(therapist.updated_at)
         incoming_updated_at = ensure_datetime(payload.updated_at)
         if incoming_updated_at != current_updated_at:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
+            raise DashboardTherapistError(
+                HTTPStatus.CONFLICT,
                 detail={
                     "message": "conflict",
                     "current": serialize_therapist(therapist).model_dump(),
@@ -351,9 +381,12 @@ class DashboardTherapistService:
         if payload.name is not None:
             name = payload.name.strip()
             if not name:
-                raise HTTPException(
-                    status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail={"field": "name", "message": "セラピスト名を入力してください。"},
+                raise DashboardTherapistError(
+                    HTTPStatus.UNPROCESSABLE_ENTITY,
+                    detail={
+                        "field": "name",
+                        "message": "セラピスト名を入力してください。",
+                    },
                 )
             therapist.name = name
 
@@ -394,13 +427,20 @@ class DashboardTherapistService:
         await reindex_profile(db, profile)
 
         detail = serialize_therapist(therapist)
-        await record_change(request, db, detail.id, "update", before, detail.model_dump())
+        await record_change(
+            db,
+            actor=audit_context,
+            target_id=detail.id,
+            action="update",
+            before=before,
+            after=detail.model_dump(),
+        )
         return detail
 
     async def delete_therapist(
         self,
         *,
-        request: Request,
+        audit_context: DashboardTherapistAuditContext | None,
         profile_id: UUID,
         therapist_id: UUID,
         db: AsyncSession,
@@ -408,7 +448,9 @@ class DashboardTherapistService:
         profile = await get_profile(db, profile_id)
         therapist = await db.get(models.Therapist, therapist_id)
         if not therapist or therapist.profile_id != profile_id:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="therapist_not_found")
+            raise DashboardTherapistError(
+                HTTPStatus.NOT_FOUND, detail="therapist_not_found"
+            )
 
         before = serialize_therapist(therapist).model_dump()
         await db.delete(therapist)
@@ -417,12 +459,19 @@ class DashboardTherapistService:
         await sync_staff_contact_json(db, profile)
         await db.commit()
         await reindex_profile(db, profile)
-        await record_change(request, db, therapist.id, "delete", before, None)
+        await record_change(
+            db,
+            actor=audit_context,
+            target_id=therapist.id,
+            action="delete",
+            before=before,
+            after=None,
+        )
 
     async def upload_photo(
         self,
         *,
-        request: Request,
+        audit_context: DashboardTherapistAuditContext | None,
         profile_id: UUID,
         filename: str | None,
         content_type: str | None,
@@ -437,15 +486,19 @@ class DashboardTherapistService:
         folder = f"therapists/{profile_id}"
 
         try:
-            stored = await storage.save_photo(folder=folder, filename=stored_name, content=payload, content_type=mime)
+            stored = await storage.save_photo(
+                folder=folder, filename=stored_name, content=payload, content_type=mime
+            )
         except MediaStorageError as exc:
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail="upload_failed") from exc
+            raise DashboardTherapistError(
+                HTTPStatus.INTERNAL_SERVER_ERROR, detail="upload_failed"
+            ) from exc
 
         await record_change(
-            request,
             db,
-            profile.id,
-            "upload_photo",
+            actor=audit_context,
+            target_id=profile.id,
+            action="upload_photo",
             before=None,
             after={"key": stored.key, "url": stored.url, "content_type": mime},
         )
@@ -460,26 +513,30 @@ class DashboardTherapistService:
     async def reorder_therapists(
         self,
         *,
-        request: Request,
+        audit_context: DashboardTherapistAuditContext | None,
         profile_id: UUID,
         payload: DashboardTherapistReorderPayload,
         db: AsyncSession,
     ) -> List[DashboardTherapistSummary]:
         profile = await get_profile(db, profile_id)
         if not payload.items:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise DashboardTherapistError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
                 detail={"message": "items_required"},
             )
 
         therapist_ids = {item.therapist_id for item in payload.items}
         result = await db.execute(
-            select(models.Therapist)
-            .where(models.Therapist.profile_id == profile_id, models.Therapist.id.in_(therapist_ids))
+            select(models.Therapist).where(
+                models.Therapist.profile_id == profile_id,
+                models.Therapist.id.in_(therapist_ids),
+            )
         )
         existing = {therapist.id: therapist for therapist in result.scalars().all()}
         if len(existing) != len(therapist_ids):
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="therapist_not_found")
+            raise DashboardTherapistError(
+                HTTPStatus.NOT_FOUND, detail="therapist_not_found"
+            )
 
         before_state = [
             serialize_therapist(existing[tid]).model_dump()
@@ -504,11 +561,20 @@ class DashboardTherapistService:
 
         after_state = [summary.model_dump() for summary in summaries]
         await reindex_profile(db, profile)
-        await record_change(request, db, None, "reorder", before_state, after_state)
+        await record_change(
+            db,
+            actor=audit_context,
+            target_id=None,
+            action="reorder",
+            before=before_state,
+            after=after_state,
+        )
         return summaries
 
 
 __all__ = [
+    "DashboardTherapistError",
+    "DashboardTherapistAuditContext",
     "DashboardTherapistService",
     "MAX_PHOTO_BYTES",
     "ALLOWED_IMAGE_CONTENT_TYPES",

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 export type LatestReservationSnapshot = {
   reservationId: string | null

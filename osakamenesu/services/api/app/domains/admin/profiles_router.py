@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from typing import Awaitable, TypeVar
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -19,19 +20,40 @@ from ...schemas import (
     ShopAdminList,
 )
 from .services import profile_service
+from .services.audit import build_admin_audit_context
+from .services.errors import AdminServiceError
+
+_T = TypeVar("_T")
 
 router = APIRouter()
 
 
-@router.post("/api/admin/profiles/{profile_id}/reindex", summary="Reindex single profile")
+def _admin_context(request: Request):
+    ip = request.headers.get("x-forwarded-for") or (
+        request.client.host if request.client else ""
+    )
+    admin_key = request.headers.get("x-admin-key")
+    return build_admin_audit_context(ip=ip, admin_key=admin_key)
+
+
+async def _run_service(call: Awaitable[_T]):
+    try:
+        return await call
+    except AdminServiceError as exc:  # pragma: no cover - HTTP adapter
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
+@router.post(
+    "/api/admin/profiles/{profile_id}/reindex", summary="Reindex single profile"
+)
 async def reindex_one(profile_id: UUID, db: AsyncSession = Depends(get_session)):
-    await profile_service.reindex_profile(db=db, profile_id=profile_id)
+    await _run_service(profile_service.reindex_profile(db=db, profile_id=profile_id))
     return {"ok": True}
 
 
 @router.post("/api/admin/reindex", summary="Reindex all published profiles")
 async def reindex_all(purge: bool = False, db: AsyncSession = Depends(get_session)):
-    count = await profile_service.reindex_all_profiles(db=db, purge=purge)
+    count = await _run_service(profile_service.reindex_all_profiles(db=db, purge=purge))
     return {"indexed": count, "purged": purge}
 
 
@@ -46,20 +68,27 @@ async def create_availability(
         date_value = datetime.strptime(date, "%Y-%m-%d").date()
     except ValueError as exc:  # pragma: no cover
         raise HTTPException(status_code=422, detail="invalid date format") from exc
-    availability_id = await profile_service.create_single_availability(
-        db=db,
-        profile_id=profile_id,
-        date_value=date_value,
-        slots_json=slots_json,
+    availability_id = await _run_service(
+        profile_service.create_single_availability(
+            db=db,
+            profile_id=profile_id,
+            date_value=date_value,
+            slots_json=slots_json,
+        )
     )
     return {"id": availability_id}
 
-@router.post("/api/admin/availabilities/bulk", summary="Create availabilities from JSON")
+
+@router.post(
+    "/api/admin/availabilities/bulk", summary="Create availabilities from JSON"
+)
 async def create_availability_bulk_endpoint(
     payload: list[AvailabilityCreate],
     db: AsyncSession = Depends(get_session),
 ):
-    created = await profile_service.create_availability_bulk(db=db, payload=payload)
+    created = await _run_service(
+        profile_service.create_availability_bulk(db=db, payload=payload)
+    )
     return {"created": created}
 
 
@@ -71,34 +100,46 @@ async def create_outlink(
     target_url: str,
     db: AsyncSession = Depends(get_session),
 ):
-    outlink_id = await profile_service.create_outlink(
-        db=db,
-        profile_id=profile_id,
-        kind=kind,
-        token=token,
-        target_url=target_url,
+    outlink_id = await _run_service(
+        profile_service.create_outlink(
+            db=db,
+            profile_id=profile_id,
+            kind=kind,
+            token=token,
+            target_url=target_url,
+        )
     )
     return {"id": outlink_id}
 
 
-@router.post("/api/admin/profiles/{profile_id}/marketing", summary="Update marketing metadata")
+@router.post(
+    "/api/admin/profiles/{profile_id}/marketing", summary="Update marketing metadata"
+)
 async def update_marketing(
     profile_id: UUID,
     payload: ProfileMarketingUpdate,
     db: AsyncSession = Depends(get_session),
 ):
-    await profile_service.update_marketing_metadata(db=db, profile_id=profile_id, payload=payload)
+    await _run_service(
+        profile_service.update_marketing_metadata(
+            db=db, profile_id=profile_id, payload=payload
+        )
+    )
     return {"ok": True}
 
 
 @router.get("/api/admin/shops", summary="List shops", response_model=ShopAdminList)
 async def admin_list_shops(db: AsyncSession = Depends(get_session)):
-    return await profile_service.list_shops(db=db)
+    return await _run_service(profile_service.list_shops(db=db))
 
 
-@router.get("/api/admin/shops/{shop_id}", summary="Get shop detail", response_model=ShopAdminDetail)
+@router.get(
+    "/api/admin/shops/{shop_id}",
+    summary="Get shop detail",
+    response_model=ShopAdminDetail,
+)
 async def admin_get_shop(shop_id: UUID, db: AsyncSession = Depends(get_session)):
-    return await profile_service.get_shop_detail(db=db, shop_id=shop_id)
+    return await _run_service(profile_service.get_shop_detail(db=db, shop_id=shop_id))
 
 
 @router.get(
@@ -112,15 +153,19 @@ async def admin_get_shop_availability(
     end_date: date | None = Query(default=None),
     db: AsyncSession = Depends(get_session),
 ):
-    profile = await profile_service.resolve_profile_by_identifier(db=db, identifier=shop_id)
+    profile = await profile_service.resolve_profile_by_identifier(
+        db=db, identifier=shop_id
+    )
     if not profile:
         raise HTTPException(status_code=404, detail="shop not found")
 
-    availability = await profile_service.get_availability_calendar(
-        db=db,
-        shop_id=profile.id,
-        start_date=start_date,
-        end_date=end_date,
+    availability = await _run_service(
+        profile_service.get_availability_calendar(
+            db=db,
+            shop_id=profile.id,
+            start_date=start_date,
+            end_date=end_date,
+        )
     )
 
     if not availability:
@@ -139,11 +184,14 @@ async def admin_update_shop_content_endpoint(
     payload: ShopContentUpdate,
     db: AsyncSession = Depends(get_session),
 ):
-    return await profile_service.update_shop_content(
-        request=request,
-        db=db,
-        shop_id=shop_id,
-        payload=payload,
+    context = _admin_context(request)
+    return await _run_service(
+        profile_service.update_shop_content(
+            audit_context=context,
+            db=db,
+            shop_id=shop_id,
+            payload=payload,
+        )
     )
 
 
@@ -157,7 +205,12 @@ async def admin_bulk_ingest_shop_content(
     payload: BulkShopContentRequest,
     db: AsyncSession = Depends(get_session),
 ):
-    return await profile_service.bulk_ingest_shop_content(request=request, db=db, payload=payload)
+    context = _admin_context(request)
+    return await _run_service(
+        profile_service.bulk_ingest_shop_content(
+            audit_context=context, db=db, payload=payload
+        )
+    )
 
 
 @router.put(
@@ -171,10 +224,13 @@ async def admin_upsert_availability_endpoint(
     payload: AvailabilityUpsert,
     db: AsyncSession = Depends(get_session),
 ):
-    availability_id = await profile_service.upsert_availability(
-        request=request,
-        db=db,
-        shop_id=shop_id,
-        payload=payload,
+    context = _admin_context(request)
+    availability_id = await _run_service(
+        profile_service.upsert_availability(
+            audit_context=context,
+            db=db,
+            shop_id=shop_id,
+            payload=payload,
+        )
     )
     return {"id": availability_id}

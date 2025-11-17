@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import Link from 'next/link'
 import { useMemo } from 'react'
@@ -27,7 +27,9 @@ export default function ShopReservationCardClient({
   overlay,
 }: ShopReservationCardClientProps) {
   const hasContact = useMemo(() => Boolean(tel || lineId), [tel, lineId])
-  const helperText = description ?? 'フォーム送信後は店舗担当者からの折り返しをもってご予約確定となります。24時間受付しています。'
+  const helperText =
+    description ??
+    'フォーム送信後は店舗担当者からの折り返しをもってご予約確定となります。24時間受付しています。'
 
   return (
     <div className="space-y-4">
@@ -36,7 +38,10 @@ export default function ShopReservationCardClient({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span>選択中の枠: {selectedSlotLabel}</span>
             {clearHref ? (
-              <Link href={clearHref} className="text-[11px] font-semibold text-brand-primary hover:underline">
+              <Link
+                href={clearHref}
+                className="text-[11px] font-semibold text-brand-primary hover:underline"
+              >
                 クリア
               </Link>
             ) : null}
@@ -54,8 +59,14 @@ export default function ShopReservationCardClient({
       <p className="text-[11px] leading-relaxed text-neutral-textMuted">{helperText}</p>
       {hasContact ? (
         <div className="rounded-card border border-neutral-borderLight bg-white/80 p-3">
-          <div className="mb-2 text-xs font-semibold text-neutral-textMuted">電話・LINEでのお問い合わせ</div>
-          <ReservationContactBar tel={tel || undefined} lineId={lineId || undefined} shopName={shopName} />
+          <div className="mb-2 text-xs font-semibold text-neutral-textMuted">
+            電話・LINEでのお問い合わせ
+          </div>
+          <ReservationContactBar
+            tel={tel || undefined}
+            lineId={lineId || undefined}
+            shopName={shopName}
+          />
         </div>
       ) : null}
     </div>

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import ReservationOverlay from '@/components/ReservationOverlay'
 
@@ -11,4 +11,3 @@ export default function ReservationOverlayRoot() {
 
   return <ReservationOverlay {...payload} onClose={closeReservationOverlay} />
 }
-

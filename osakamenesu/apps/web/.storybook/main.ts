@@ -15,7 +15,7 @@ const config: StorybookConfig = {
   docs: {
     autodocs: 'tag',
   },
-  webpackFinal: async config => {
+  webpackFinal: async (config) => {
     config.resolve = config.resolve || {}
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
@@ -29,10 +29,7 @@ const config: StorybookConfig = {
         loader: require.resolve('babel-loader'),
         options: {
           presets: [
-            [
-              require.resolve('@babel/preset-react'),
-              { runtime: 'automatic' },
-            ],
+            [require.resolve('@babel/preset-react'), { runtime: 'automatic' }],
             require.resolve('@babel/preset-typescript'),
           ],
         },

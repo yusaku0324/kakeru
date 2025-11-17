@@ -8,7 +8,13 @@ type ShopListProps = {
   onCreateShop: () => void
 }
 
-export function ShopList({ shops, selectedId, isCreating, onSelectShop, onCreateShop }: ShopListProps) {
+export function ShopList({
+  shops,
+  selectedId,
+  isCreating,
+  onSelectShop,
+  onCreateShop,
+}: ShopListProps) {
   return (
     <aside className="w-full rounded-lg border bg-white shadow-sm md:w-64">
       <div className="flex items-center justify-between border-b px-3 py-2 text-sm font-semibold">
@@ -25,7 +31,7 @@ export function ShopList({ shops, selectedId, isCreating, onSelectShop, onCreate
         <p className="px-3 py-4 text-xs text-slate-500">登録済みの店舗がありません。</p>
       ) : null}
       <ul className="max-h-[60vh] overflow-y-auto">
-        {shops.map(shop => (
+        {shops.map((shop) => (
           <li key={shop.id}>
             <button
               type="button"

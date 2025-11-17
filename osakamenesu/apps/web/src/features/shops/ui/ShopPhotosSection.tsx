@@ -5,7 +5,12 @@ type ShopPhotosSectionProps = {
   onRemovePhoto: (index: number) => void
 }
 
-export function ShopPhotosSection({ photos, onUpdatePhoto, onAddPhoto, onRemovePhoto }: ShopPhotosSectionProps) {
+export function ShopPhotosSection({
+  photos,
+  onUpdatePhoto,
+  onAddPhoto,
+  onRemovePhoto,
+}: ShopPhotosSectionProps) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -19,7 +24,7 @@ export function ShopPhotosSection({ photos, onUpdatePhoto, onAddPhoto, onRemoveP
           <div key={`photo-${idx}`} className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input
               value={url}
-              onChange={e => onUpdatePhoto(idx, e.target.value)}
+              onChange={(e) => onUpdatePhoto(idx, e.target.value)}
               className="flex-1 rounded border px-3 py-2 text-sm font-mono"
               placeholder="https://example.com/photo.jpg"
               data-testid="shop-photo-input"
@@ -37,7 +42,9 @@ export function ShopPhotosSection({ photos, onUpdatePhoto, onAddPhoto, onRemoveP
           </div>
         ))}
       </div>
-      <p className="text-xs text-slate-500">公開ページに表示する画像のURLを1行ずつ入力してください。</p>
+      <p className="text-xs text-slate-500">
+        公開ページに表示する画像のURLを1行ずつ入力してください。
+      </p>
     </section>
   )
 }

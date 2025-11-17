@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+
+import { resolveInternalApiBase } from '@/lib/server-config'
+
 import {
   addMockFavorite,
   readMockFavorites,
@@ -6,23 +9,11 @@ import {
   writeMockFavorites,
 } from '../mockStore'
 
-const API_BASE =
-  process.env.OSAKAMENESU_API_INTERNAL_BASE ||
-  process.env.API_INTERNAL_BASE ||
-  process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE
-
-function ensureApiBase(): string {
-  if (!API_BASE) {
-    throw new Error('API base URL is not configured for favorites proxy')
-  }
-  return API_BASE.replace(/\/+$/, '')
-}
+const API_BASE = resolveInternalApiBase().replace(/\/+$/, '')
 
 function buildBackendUrl(path: string): string {
-  const base = ensureApiBase()
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
-  return `${base}${normalizedPath}`
+  return `${API_BASE}${normalizedPath}`
 }
 
 async function forwardRequest(

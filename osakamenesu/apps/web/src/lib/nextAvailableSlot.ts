@@ -11,8 +11,10 @@ export function formatNextAvailableSlotLabel(
   options: { fallbackLabel?: string; now?: Date } = {},
 ): string | null {
   const scheduleSlot = nextSlotPayloadToScheduleSlot(slot)
-  const formatted = scheduleSlot ? formatSlotJp(scheduleSlot, { now: options.now, fallbackLabel: options.fallbackLabel }) : null
-  return formatted ? `最短の空き枠: ${formatted}` : options.fallbackLabel ?? null
+  const formatted = scheduleSlot
+    ? formatSlotJp(scheduleSlot, { now: options.now, fallbackLabel: options.fallbackLabel })
+    : null
+  return formatted ? `最短の空き枠: ${formatted}` : (options.fallbackLabel ?? null)
 }
 
 export function toNextAvailableSlotPayload(
@@ -23,7 +25,9 @@ export function toNextAvailableSlotPayload(
   return { start_at: value, end_at: null, status }
 }
 
-export function nextSlotPayloadToScheduleSlot(slot: NextAvailableSlotPayload | null | undefined): ScheduleSlot | null {
+export function nextSlotPayloadToScheduleSlot(
+  slot: NextAvailableSlotPayload | null | undefined,
+): ScheduleSlot | null {
   if (!slot?.start_at) return null
   return {
     start_at: slot.start_at,

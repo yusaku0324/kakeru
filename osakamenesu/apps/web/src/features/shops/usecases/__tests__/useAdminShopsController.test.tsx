@@ -25,7 +25,7 @@ describe('useAdminShopsController service tags helpers', () => {
   })
 
   afterEach(() => {
-    Object.values(getMocks()).forEach(mockFn => mockFn.mockReset())
+    Object.values(getMocks()).forEach((mockFn) => mockFn.mockReset())
   })
 
   it('adds a trimmed unique service tag and clears the draft', async () => {
@@ -89,7 +89,14 @@ describe('useAdminShopsController service tags helpers', () => {
     const mocks = getMocks()
     const shopId = 'shop-1'
     mocks.fetchAdminShops.mockResolvedValue([
-      { id: shopId, name: 'サンプル', slug: 'sample', area: '心斎橋', status: 'draft', service_type: 'store' },
+      {
+        id: shopId,
+        name: 'サンプル',
+        slug: 'sample',
+        area: '心斎橋',
+        status: 'draft',
+        service_type: 'store',
+      },
     ])
     mocks.fetchAdminShopDetail.mockResolvedValue({
       id: shopId,
@@ -131,7 +138,7 @@ describe('useAdminShopsController service tags helpers', () => {
 describe('useAdminShopsController availability and validation', () => {
   beforeEach(() => {
     const mocks = getMocks()
-    Object.values(mocks).forEach(mockFn => mockFn.mockReset())
+    Object.values(mocks).forEach((mockFn) => mockFn.mockReset())
   })
 
   const baseShop = {
@@ -172,7 +179,11 @@ describe('useAdminShopsController availability and validation', () => {
     const { result } = renderHook(() => useAdminShopsController())
     await waitFor(() => expect(result.current.state.selectedId).toBe(baseShop.id))
 
-    const slot = { start_at: '2024-02-01T09:00', end_at: '2024-02-01T10:00', status: 'open' as const }
+    const slot = {
+      start_at: '2024-02-01T09:00',
+      end_at: '2024-02-01T10:00',
+      status: 'open' as const,
+    }
 
     await act(async () => {
       const saved = await result.current.actions.saveAvailability('2024-02-01', [slot])

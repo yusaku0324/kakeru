@@ -34,7 +34,9 @@ describe('ShopStaffSection', () => {
     fireEvent.change(screen.getAllByPlaceholderText('名前')[0], { target: { value: 'Rio' } })
     expect(onUpdateStaff).toHaveBeenCalledWith(0, { name: 'Rio' })
 
-    fireEvent.change(screen.getAllByPlaceholderText('得意分野 (カンマ区切り)')[0], { target: { value: 'オイル, ストレッチ' } })
+    fireEvent.change(screen.getAllByPlaceholderText('得意分野 (カンマ区切り)')[0], {
+      target: { value: 'オイル, ストレッチ' },
+    })
     expect(onUpdateStaff).toHaveBeenCalledWith(0, { specialties: ['オイル', 'ストレッチ'] })
 
     fireEvent.click(screen.getByRole('button', { name: 'スタッフを追加' }))

@@ -7,7 +7,6 @@ from .settings import settings
 import logging
 from .meili import ensure_indexes
 from .utils.ratelimit import create_rate_limiter, shutdown_rate_limiter
-from .notifications import start_notification_worker, stop_notification_worker
 from .domains.admin import (
     admin_router,
     admin_profiles_router,
@@ -58,18 +57,22 @@ async def lifespan(app: FastAPI):
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.warning("Meili init error: %s", exc)
 
-    await start_notification_worker()
+    logger.info(
+        "Notifications worker runs outside the API process. Start it via `python -m app.scripts.notifications_worker`.",
+    )
 
     yield
-
-    await stop_notification_worker()
 
     await shutdown_rate_limiter(_outlink_rate)
 
 
 app = FastAPI(title="Osaka Men-Esu API", version="0.1.0", lifespan=lifespan)
 
-redis_client = from_url(settings.rate_limit_redis_url, encoding="utf-8", decode_responses=False) if settings.rate_limit_redis_url else None
+redis_client = (
+    from_url(settings.rate_limit_redis_url, encoding="utf-8", decode_responses=False)
+    if settings.rate_limit_redis_url
+    else None
+)
 
 # per token+ip: 5 requests / 10 seconds
 _outlink_rate = create_rate_limiter(
@@ -115,7 +118,9 @@ async def healthz():
 
 
 @app.get("/api/out/{token}")
-async def out_redirect(token: str, request: Request, db: AsyncSession = Depends(get_session)):
+async def out_redirect(
+    token: str, request: Request, db: AsyncSession = Depends(get_session)
+):
     """Resolve outlink token from DB and redirect. Optionally logs a click."""
     from fastapi.responses import RedirectResponse
     import hashlib
@@ -127,13 +132,16 @@ async def out_redirect(token: str, request: Request, db: AsyncSession = Depends(
 
     # Rate limit per token+ip to mitigate abuse
     try:
-        ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "")
+        ip = request.headers.get(
+            "x-forwarded-for", request.client.host if request.client else ""
+        )
         key = f"{token}:{ip}"
         allowed, retry_after = await _outlink_rate.allow(key)
         if not allowed:
             raise HTTPException(status_code=429, detail="too many requests")
         # Best-effort click logging (non-blocking)
         import hashlib
+
         ip_hash = hashlib.sha256(ip.encode("utf-8")).hexdigest() if ip else None
         referer = request.headers.get("referer")
         ua = request.headers.get("user-agent")
@@ -144,6 +152,8 @@ async def out_redirect(token: str, request: Request, db: AsyncSession = Depends(
         pass
 
     return RedirectResponse(ol.target_url, status_code=302)
+
+
 app.include_router(admin_profiles_router)
 app.include_router(admin_router)
 app.include_router(shops_router)

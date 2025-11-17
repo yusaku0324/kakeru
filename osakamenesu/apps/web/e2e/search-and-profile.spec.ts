@@ -5,7 +5,9 @@ test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
   await page.goto(url)
 
   // 結果ヘッダーが表示される
-  await expect(page.getByRole('heading', { name: /セラピスト(を探す|一覧)/ })).toBeVisible({ timeout: 15000 })
+  await expect(page.getByRole('heading', { name: /セラピスト(を探す|一覧)/ })).toBeVisible({
+    timeout: 15000,
+  })
 
   // 空き状況のバッジ表示が想定どおりになっているかチェック
   const therapistCards = page.getByTestId('therapist-card')
@@ -42,18 +44,22 @@ test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
       }
       const s0 = await getState()
       await dots.nth(1).click()
-      await expect.poll(async () => {
-        const s = await getState()
-        return Math.round(s.left)
-      }).toBeGreaterThanOrEqual(Math.round(s0.width * 0.6))
+      await expect
+        .poll(async () => {
+          const s = await getState()
+          return Math.round(s.left)
+        })
+        .toBeGreaterThanOrEqual(Math.round(s0.width * 0.6))
 
       // サムネで先頭に戻す
       if (await thumbs.count()) {
         await thumbs.first().click()
-        await expect.poll(async () => {
-          const s = await getState()
-          return Math.round(s.left)
-        }).toBeLessThanOrEqual(10)
+        await expect
+          .poll(async () => {
+            const s = await getState()
+            return Math.round(s.left)
+          })
+          .toBeLessThanOrEqual(10)
       }
     }
   }
@@ -62,7 +68,10 @@ test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
   await expect(page.locator('h1')).toBeVisible()
 })
 
-test('therapist favorites can be toggled when API responds successfully', async ({ page, baseURL }) => {
+test('therapist favorites can be toggled when API responds successfully', async ({
+  page,
+  baseURL,
+}) => {
   const favorites = new Map<string, { createdAt: string }>()
 
   await page.route('**/api/favorites/therapists**', async (route) => {

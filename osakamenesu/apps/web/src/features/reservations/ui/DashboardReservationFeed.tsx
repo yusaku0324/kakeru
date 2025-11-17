@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import clsx from 'clsx'
 import { useMemo } from 'react'
@@ -21,7 +21,11 @@ export default function DashboardReservationFeed({
   limit?: number
   className?: string
 }) {
-  const { state, derived, actions, toast } = useDashboardReservationFeedState({ profileId, slug, limit })
+  const { state, derived, actions, toast } = useDashboardReservationFeedState({
+    profileId,
+    slug,
+    limit,
+  })
   const {
     items,
     total,
@@ -92,7 +96,12 @@ export default function DashboardReservationFeed({
   }, [conflictIds, errorMessage, fetchStatus, items, limit, openReservation])
 
   return (
-    <section className={clsx('space-y-5 rounded-xl border border-neutral-borderLight/60 bg-white/90 p-5', className)}>
+    <section
+      className={clsx(
+        'space-y-5 rounded-xl border border-neutral-borderLight/60 bg-white/90 p-5',
+        className,
+      )}
+    >
       <DashboardReservationToolbar
         total={total}
         visibleCount={items.length}
