@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { ToastContainer, useToast } from '@/components/useToast'
+import { getJaFormatter } from '@/utils/date'
 
 type ReviewAspectKey = 'therapist_service' | 'staff_response' | 'room_cleanliness'
 
@@ -105,15 +106,13 @@ function toDisplayKey(prefix: string, unique?: string | null, fallback?: number)
   return `${prefix}-fallback-${fallback ?? Date.now()}`
 }
 
+const visitedDateFormatter = getJaFormatter('dateNumeric')
+
 function formatVisitedLabel(input?: string | null) {
   if (!input) return null
   const date = new Date(input)
   if (Number.isNaN(date.getTime())) return input
-  return new Intl.DateTimeFormat('ja-JP', {
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-  }).format(date)
+  return visitedDateFormatter.format(date)
 }
 
 function starLabel(score: number) {

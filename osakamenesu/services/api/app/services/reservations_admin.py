@@ -10,8 +10,16 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import models
-from ..constants import DEFAULT_RESERVATION_STATUS, RESERVATION_STATUS_SET, ReservationStatusLiteral
+from ..notifications import ReservationNotification
+from ..constants import (
+    DEFAULT_RESERVATION_STATUS,
+    RESERVATION_STATUS_SET,
+    ReservationStatusLiteral,
+)
 from ..schemas import ReservationAdminList, ReservationAdminSummary
+from .reservation_notifications import (
+    enqueue_reservation_notification_for_reservation as _enqueue_notification_helper,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,11 +89,21 @@ def build_reservation_summary(
         notes = _stringify_optional(getattr(reservation, "notes", None))
         customer_name = _stringify_required(getattr(reservation, "customer_name", ""))
         customer_phone = _stringify_required(getattr(reservation, "customer_phone", ""))
-        customer_email = _stringify_optional(getattr(reservation, "customer_email", None))
-        desired_start = _coerce_datetime(getattr(reservation, "desired_start", None), fallback=fallback_now)
-        desired_end = _coerce_datetime(getattr(reservation, "desired_end", None), fallback=fallback_now)
-        created_at = _coerce_datetime(getattr(reservation, "created_at", None), fallback=fallback_now)
-        updated_at = _coerce_datetime(getattr(reservation, "updated_at", None), fallback=created_at)
+        customer_email = _stringify_optional(
+            getattr(reservation, "customer_email", None)
+        )
+        desired_start = _coerce_datetime(
+            getattr(reservation, "desired_start", None), fallback=fallback_now
+        )
+        desired_end = _coerce_datetime(
+            getattr(reservation, "desired_end", None), fallback=fallback_now
+        )
+        created_at = _coerce_datetime(
+            getattr(reservation, "created_at", None), fallback=fallback_now
+        )
+        updated_at = _coerce_datetime(
+            getattr(reservation, "updated_at", None), fallback=created_at
+        )
 
         return ReservationAdminSummary(
             id=reservation_id,
@@ -126,15 +144,23 @@ def build_reservation_summary(
             shop_id=fallback_shop_id,
             shop_name=shop_names.get(fallback_shop_id, "") or "",
             status=DEFAULT_RESERVATION_STATUS,
-            desired_start=_coerce_datetime(getattr(reservation, "desired_start", None), fallback=now),
-            desired_end=_coerce_datetime(getattr(reservation, "desired_end", None), fallback=now),
+            desired_start=_coerce_datetime(
+                getattr(reservation, "desired_start", None), fallback=now
+            ),
+            desired_end=_coerce_datetime(
+                getattr(reservation, "desired_end", None), fallback=now
+            ),
             channel=None,
             notes=None,
             customer_name="",
             customer_phone="",
             customer_email=None,
-            created_at=_coerce_datetime(getattr(reservation, "created_at", None), fallback=now),
-            updated_at=_coerce_datetime(getattr(reservation, "updated_at", None), fallback=now),
+            created_at=_coerce_datetime(
+                getattr(reservation, "created_at", None), fallback=now
+            ),
+            updated_at=_coerce_datetime(
+                getattr(reservation, "updated_at", None), fallback=now
+            ),
         )
 
 
@@ -163,10 +189,30 @@ async def list_reservations(
     shop_ids = [r.shop_id for r in reservations]
     if shop_ids:
         profiles_result = await db.execute(
-            select(models.Profile.id, models.Profile.name).where(models.Profile.id.in_(shop_ids))
+            select(models.Profile.id, models.Profile.name).where(
+                models.Profile.id.in_(shop_ids)
+            )
         )
         shop_names = dict(profiles_result.all())
 
-    items = [build_reservation_summary(reservation, shop_names) for reservation in reservations]
+    items = [
+        build_reservation_summary(reservation, shop_names)
+        for reservation in reservations
+    ]
 
     return ReservationAdminList(total=total, items=items)
+
+
+async def enqueue_reservation_notification_for_reservation(
+    db: AsyncSession,
+    reservation: models.Reservation,
+    shop: models.Profile,
+    *,
+    note_override: str | None = None,
+) -> ReservationNotification:
+    return await _enqueue_notification_helper(
+        db,
+        reservation,
+        shop,
+        note_override=note_override,
+    )

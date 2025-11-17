@@ -7,6 +7,7 @@ import { Chip } from '@/components/ui/Chip'
 import { nextSlotPayloadToScheduleSlot, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { formatSlotJp } from '@/lib/schedule'
 import { toZonedDate } from '@/lib/timezone'
+import { getJaFormatter } from '@/utils/date'
 
 export type Promotion = {
   label: string
@@ -63,12 +64,7 @@ export type ShopHit = {
 }
 
 const formatter = new Intl.NumberFormat('ja-JP')
-const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
-  month: 'short',
-  day: 'numeric',
-  weekday: 'short',
-  timeZone: 'Asia/Tokyo',
-})
+const dateFormatter = getJaFormatter('monthShortDay')
 function formatPriceRange(min: number, max: number) {
   if (!min && !max) return '料金情報なし'
   if (min === max) return `¥${formatter.format(min)}`

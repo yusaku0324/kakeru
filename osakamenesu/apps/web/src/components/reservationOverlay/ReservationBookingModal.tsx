@@ -4,16 +4,10 @@ import clsx from 'clsx'
 import ReservationForm from '@/components/ReservationForm'
 import type { AvailabilityStatus } from '@/components/calendar/types'
 
-import { ReservationAvailabilitySection, SelectedSlotList } from './sections'
+import { RESERVATION_LEGEND_ITEMS } from '@/components/reservation/constants'
+import { ReservationAvailabilitySection, SelectedSlotList } from '@/components/reservation'
 import type { ReservationOverlayProps } from '../ReservationOverlay'
 import type { ReservationOverlayState } from './useReservationOverlayState'
-
-type LegendItem = {
-  key: string
-  label: string
-  icon: string
-  iconClass: string
-}
 
 type BookingStep = {
   key: string
@@ -29,7 +23,6 @@ type ReservationBookingModalProps = {
   defaultDurationMinutes?: ReservationOverlayProps['defaultDurationMinutes']
   allowDemoSubmission?: ReservationOverlayProps['allowDemoSubmission']
   courseOptions: NonNullable<ComponentProps<typeof ReservationForm>['courseOptions']>
-  legendItems: readonly LegendItem[]
   state: ReservationOverlayState
   onRemoveSlot: (startAt: string) => void
   bookingSteps: readonly BookingStep[]
@@ -44,7 +37,6 @@ export function ReservationBookingModal({
   defaultDurationMinutes,
   allowDemoSubmission,
   courseOptions,
-  legendItems,
   state,
   onRemoveSlot,
   bookingSteps,
@@ -160,7 +152,7 @@ export function ReservationBookingModal({
                     selected={selectedSlots}
                     onToggle={toggleSlot}
                     timeFormatter={timeFormatter}
-                    legendItems={legendItems}
+                    legendItems={RESERVATION_LEGEND_ITEMS}
                     showLegend={false}
                   />
                 </div>

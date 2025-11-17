@@ -6,8 +6,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import SafeImage from '@/components/SafeImage'
 import { Card } from '@/components/ui/Card'
 import { RECENTLY_VIEWED_STORAGE_KEY, RECENTLY_VIEWED_UPDATE_EVENT } from './RecentlyViewedRecorder'
+import { getJaFormatter } from '@/utils/date'
 
-const dateFormatter = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'short', timeStyle: 'short' })
+const dateFormatter = getJaFormatter('dateTimeShort')
 
 type Entry = {
   shopId: string

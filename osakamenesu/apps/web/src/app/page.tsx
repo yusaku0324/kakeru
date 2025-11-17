@@ -9,9 +9,10 @@ import { Section } from '@/components/ui/Section'
 import { SearchAvailableToday } from './search/_components/SearchHeroSections'
 import {
   buildSampleResponse,
-  buildSampleFacets,
   buildTherapistHits,
   buildEditorialSpots,
+  fetchProfiles,
+  type SearchResponse,
 } from './search/shared'
 
 function buildHighlights(facets: Record<string, any[]>, hits: any[]) {
@@ -59,10 +60,22 @@ function buildHighlights(facets: Record<string, any[]>, hits: any[]) {
   return highlights
 }
 
-export default function HomePage() {
-  const response = buildSampleResponse()
+async function loadHomeData(): Promise<SearchResponse> {
+  const data = await fetchProfiles({ page_size: '12', today: '1' })
+  if (!data._error) {
+    return data
+  }
+  const fallback = buildSampleResponse()
+  return {
+    ...fallback,
+    _error: data._error,
+  }
+}
+
+export default async function HomePage() {
+  const response = await loadHomeData()
   const hits = response.results
-  const facets = buildSampleFacets(hits)
+  const facets = response.facets
   const therapistHits = buildTherapistHits(hits).slice(0, 2)
   const displayHighlights = buildHighlights(facets, hits)
   const availableToday = hits.filter((hit) => hit.today_available).slice(0, 3)

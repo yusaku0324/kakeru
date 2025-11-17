@@ -3,6 +3,7 @@
 import clsx from 'clsx'
 import { Fragment, useMemo } from 'react'
 
+import { getJaFormatter } from '@/utils/date'
 import {
   AVAILABILITY_STATUS_META,
   type AvailabilityDay,
@@ -28,11 +29,8 @@ type WeekAvailabilityGridProps = {
   variant?: 'desktop' | 'mobile'
 }
 
-const WEEKDAY_FORMATTER = new Intl.DateTimeFormat('ja-JP', {
-  weekday: 'short',
-  timeZone: 'Asia/Tokyo',
-})
-const MONTH_FORMATTER = new Intl.DateTimeFormat('ja-JP', { month: 'short', timeZone: 'Asia/Tokyo' })
+const WEEKDAY_FORMATTER = getJaFormatter('weekday')
+const MONTH_FORMATTER = getJaFormatter('monthShort')
 
 function buildSlotKey(day: AvailabilityDay, slot: AvailabilitySlot) {
   const key = slot.timeKey ?? slot.start_at.slice(11, 16)

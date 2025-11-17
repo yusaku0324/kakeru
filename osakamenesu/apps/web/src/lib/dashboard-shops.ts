@@ -27,6 +27,25 @@ export type DashboardShopStaff = {
   specialties?: string[]
 }
 
+export type DashboardAvailabilitySlot = {
+  start_at: string
+  end_at: string
+  status: 'open' | 'tentative' | 'blocked'
+  staff_id?: string | null
+  menu_id?: string | null
+}
+
+export type DashboardAvailabilityDay = {
+  date: string
+  is_today?: boolean | null
+  slots: DashboardAvailabilitySlot[]
+}
+
+export type DashboardAvailabilityCalendar = {
+  generated_at?: string | null
+  days: DashboardAvailabilityDay[]
+}
+
 export type DashboardShopProfile = {
   id: string
   slug?: string | null
@@ -44,6 +63,7 @@ export type DashboardShopProfile = {
   contact: DashboardShopContact | null
   menus: DashboardShopMenu[]
   staff: DashboardShopStaff[]
+  availability_calendar?: DashboardAvailabilityCalendar | null
   updated_at?: string
   status?: string | null
 }

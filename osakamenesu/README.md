@@ -68,6 +68,8 @@ doppler run --project osakamenesu --config dev_web -- \
   pnpm --dir apps/web run test:e2e:real -- --project web favorites.spec.ts
 ```
 
+Playwright の実行後は CI で自動再生成される `apps/web/test-results/` が残るため、`rm -rf apps/web/test-results` で後片付けしてからコミットしてください。
+
 Next.js 側には以下のプロキシ／補助エンドポイントを作成済みです。
 
 - `/api/auth/request-link`, `/api/auth/test-login`, `/api/auth/me/site`: FastAPI の `sessionCookieOptions()` をそのまま使い回し、Playwright でも正しい Cookie 属性が得られます。

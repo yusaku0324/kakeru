@@ -25,6 +25,7 @@ from ....notifications import (
     enqueue_reservation_notification,
     is_notification_worker_enabled,
 )
+from ....services import reservation_notifications as reservation_notifications_service
 from ...admin import reservations as admin_reservations
 from ....settings import settings
 
@@ -42,7 +43,9 @@ async def _ensure_profile(db: AsyncSession, profile_id: UUID) -> models.Profile:
     return profile
 
 
-def _serialize_reservation(reservation: models.Reservation) -> schemas.DashboardReservationItem:
+def _serialize_reservation(
+    reservation: models.Reservation,
+) -> schemas.DashboardReservationItem:
     preferred_slots: List[schemas.DashboardReservationPreferredSlot] = []
     for slot in getattr(reservation, "preferred_slots", []) or []:
         preferred_slots.append(
@@ -74,29 +77,9 @@ def _serialize_reservation(reservation: models.Reservation) -> schemas.Dashboard
     )
 
 
-def _extract_line_targets(channels_config: dict[str, Any]) -> str | None:
-    line_value = channels_config.get("line")
-    token = line_value if isinstance(line_value, str) else None
-    return token
-
-
-def _extract_shop_contact_info(contact: Any) -> tuple[str | None, str | None]:
-    contact = contact or {}
-    phone = contact.get("phone") or contact.get("tel")
-    if isinstance(phone, (int, float)):
-        phone = str(phone)
-    if isinstance(phone, str):
-        phone = phone.strip() or None
-    else:
-        phone = None
-
-    line_contact = contact.get("line") or contact.get("line_url") or contact.get("line_id")
-    if isinstance(line_contact, str):
-        line_contact = line_contact.strip() or None
-    else:
-        line_contact = None
-
-    return phone, line_contact
+_enqueue_reservation_notification_for_reservation = (
+    reservation_notifications_service.enqueue_reservation_notification_for_reservation
+)
 
 
 async def _schedule_dashboard_reservation_reminder(
@@ -125,7 +108,9 @@ async def _schedule_dashboard_reservation_reminder(
         status="confirmed",
     )
 
-    await enqueue_reservation_notification(db, reminder_notification, schedule_at=reminder_at)
+    await enqueue_reservation_notification(
+        db, reminder_notification, schedule_at=reminder_at
+    )
     if hasattr(reservation, "reminder_scheduled_at"):
         reservation.reminder_scheduled_at = reminder_at
 
@@ -148,10 +133,17 @@ def _parse_date_param(value: str, *, field: str, is_end: bool = False) -> dateti
     except ValueError as exc:  # pragma: no cover - validation path
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"field": field, "message": "日付パラメータの形式が正しくありません。"},
+            detail={
+                "field": field,
+                "message": "日付パラメータの形式が正しくありません。",
+            },
         ) from exc
 
-    if is_end and parsed_datetime.time() == time.max and parsed_datetime.tzinfo is timezone.utc:
+    if (
+        is_end
+        and parsed_datetime.time() == time.max
+        and parsed_datetime.tzinfo is timezone.utc
+    ):
         # time.max already includes microseconds=999999, keep inclusive by staying as-is
         return parsed_datetime
 
@@ -163,11 +155,15 @@ def _encode_cursor(value: datetime, reservation_id: UUID) -> str:
         "value": value.isoformat(),
         "id": str(reservation_id),
     }
-    payload_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    payload_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode(
+        "utf-8"
+    )
     encoded_payload = base64.urlsafe_b64encode(payload_bytes).decode("utf-8")
     secret = getattr(settings, "cursor_signature_secret", None)
     if secret:
-        digest = hmac.new(secret.encode("utf-8"), payload_bytes, hashlib.sha256).digest()
+        digest = hmac.new(
+            secret.encode("utf-8"), payload_bytes, hashlib.sha256
+        ).digest()
         signature = base64.urlsafe_b64encode(digest).decode("utf-8")
         return f"{encoded_payload}.{signature}"
     return encoded_payload
@@ -179,7 +175,10 @@ def _decode_cursor(cursor: str) -> tuple[datetime, UUID]:
         if "." not in cursor:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"field": "cursor", "message": "カーソルの形式が正しくありません。"},
+                detail={
+                    "field": "cursor",
+                    "message": "カーソルの形式が正しくありません。",
+                },
             )
         encoded_payload, encoded_signature = cursor.split(".", 1)
     else:
@@ -190,12 +189,17 @@ def _decode_cursor(cursor: str) -> tuple[datetime, UUID]:
         payload_bytes = base64.urlsafe_b64decode(encoded_payload.encode("utf-8"))
         payload = json.loads(payload_bytes.decode("utf-8"))
         if secret:
-            expected = hmac.new(secret.encode("utf-8"), payload_bytes, hashlib.sha256).digest()
+            expected = hmac.new(
+                secret.encode("utf-8"), payload_bytes, hashlib.sha256
+            ).digest()
             provided = base64.urlsafe_b64decode(encoded_signature.encode("utf-8"))
             if not hmac.compare_digest(expected, provided):
                 raise HTTPException(
                     status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail={"field": "cursor", "message": "カーソルの検証に失敗しました。"},
+                    detail={
+                        "field": "cursor",
+                        "message": "カーソルの検証に失敗しました。",
+                    },
                 )
         value = datetime.fromisoformat(payload["value"])
         reservation_id = UUID(payload["id"])
@@ -239,7 +243,10 @@ async def list_dashboard_reservations(
         if status_filter not in RESERVATION_STATUS_SET:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"field": "status", "message": "不正なステータスが指定されました。"},
+                detail={
+                    "field": "status",
+                    "message": "不正なステータスが指定されました。",
+                },
             )
         filters.append(models.Reservation.status == status_filter)
 
@@ -258,8 +265,12 @@ async def list_dashboard_reservations(
     if mode:
         today_jst = datetime.now(JST).date()
         target_date = today_jst if mode == "today" else today_jst + timedelta(days=1)
-        start_dt = datetime.combine(target_date, time.min, tzinfo=JST).astimezone(timezone.utc)
-        end_dt = datetime.combine(target_date, time.max, tzinfo=JST).astimezone(timezone.utc)
+        start_dt = datetime.combine(target_date, time.min, tzinfo=JST).astimezone(
+            timezone.utc
+        )
+        end_dt = datetime.combine(target_date, time.max, tzinfo=JST).astimezone(
+            timezone.utc
+        )
         filters.append(models.Reservation.desired_start >= start_dt)
         filters.append(models.Reservation.desired_start <= end_dt)
     else:
@@ -271,9 +282,17 @@ async def list_dashboard_reservations(
             end_dt = _parse_date_param(end_date, field="end", is_end=True)
             filters.append(models.Reservation.desired_start <= end_dt)
 
-    sort_column = models.Reservation.created_at if sort == "latest" else models.Reservation.desired_start
+    sort_column = (
+        models.Reservation.created_at
+        if sort == "latest"
+        else models.Reservation.desired_start
+    )
     order_clause = sort_column.asc() if direction == "asc" else sort_column.desc()
-    id_order_clause = models.Reservation.id.asc() if direction == "asc" else models.Reservation.id.desc()
+    id_order_clause = (
+        models.Reservation.id.asc()
+        if direction == "asc"
+        else models.Reservation.id.desc()
+    )
 
     if cursor:
         cursor_value, cursor_id = _decode_cursor(cursor)
@@ -282,14 +301,16 @@ async def list_dashboard_reservations(
                 filters.append(
                     or_(
                         sort_column < cursor_value,
-                        (sort_column == cursor_value) & (models.Reservation.id < cursor_id),
+                        (sort_column == cursor_value)
+                        & (models.Reservation.id < cursor_id),
                     )
                 )
             else:
                 filters.append(
                     or_(
                         sort_column > cursor_value,
-                        (sort_column == cursor_value) & (models.Reservation.id > cursor_id),
+                        (sort_column == cursor_value)
+                        & (models.Reservation.id > cursor_id),
                     )
                 )
         else:
@@ -297,14 +318,16 @@ async def list_dashboard_reservations(
                 filters.append(
                     or_(
                         sort_column > cursor_value,
-                        (sort_column == cursor_value) & (models.Reservation.id > cursor_id),
+                        (sort_column == cursor_value)
+                        & (models.Reservation.id > cursor_id),
                     )
                 )
             else:
                 filters.append(
                     or_(
                         sort_column < cursor_value,
-                        (sort_column == cursor_value) & (models.Reservation.id < cursor_id),
+                        (sort_column == cursor_value)
+                        & (models.Reservation.id < cursor_id),
                     )
                 )
 
@@ -323,13 +346,17 @@ async def list_dashboard_reservations(
     next_cursor: Optional[str] = None
     if len(reservations) > limit:
         last_item = reservations.pop()
-        cursor_value = last_item.created_at if sort == "latest" else last_item.desired_start
+        cursor_value = (
+            last_item.created_at if sort == "latest" else last_item.desired_start
+        )
         next_cursor = _encode_cursor(cursor_value, last_item.id)
 
     prev_cursor: Optional[str] = None
     if cursor and reservations:
         first_item = reservations[0]
-        first_value = first_item.created_at if sort == "latest" else first_item.desired_start
+        first_value = (
+            first_item.created_at if sort == "latest" else first_item.desired_start
+        )
         prev_cursor = _encode_cursor(first_value, first_item.id)
 
     total = await db.scalar(total_stmt) or 0
@@ -337,13 +364,21 @@ async def list_dashboard_reservations(
     return schemas.DashboardReservationListResponse(
         profile_id=profile.id,
         total=int(total),
-        reservations=[_serialize_reservation(reservation) for reservation in reservations],
+        reservations=[
+            _serialize_reservation(reservation) for reservation in reservations
+        ],
         next_cursor=next_cursor,
         prev_cursor=prev_cursor,
     )
 
 
-__all__ = ["router", "_serialize_reservation", "_parse_date_param", "_encode_cursor", "_decode_cursor"]
+__all__ = [
+    "router",
+    "_serialize_reservation",
+    "_parse_date_param",
+    "_encode_cursor",
+    "_decode_cursor",
+]
 
 
 @router.patch(
@@ -429,38 +464,21 @@ async def update_dashboard_reservation(
     async_job_status: dict[str, str | None] | None = None
     if status_changed and new_status in {"confirmed", "declined"}:
         shop = await admin_reservations._ensure_shop(db, reservation.shop_id)
-        channels_config = await admin_reservations._resolve_notification_channels(db, reservation.shop_id, new_status)
-        line_token = _extract_line_targets(channels_config)
-        contact = getattr(shop, "contact_json", None)
-        shop_phone, shop_line_contact = _extract_shop_contact_info(contact)
-
-        notification = ReservationNotification(
-            reservation_id=str(reservation.id),
-            shop_id=str(reservation.shop_id),
-            shop_name=getattr(shop, "name", None) or str(reservation.shop_id),
-            customer_name=reservation.customer_name,
-            customer_phone=reservation.customer_phone,
-            desired_start=reservation.desired_start.isoformat(),
-            desired_end=reservation.desired_end.isoformat(),
-            status=reservation.status,
-            channel=reservation.channel or "web",
-            notes=reservation.notes,
-            customer_email=reservation.customer_email,
-            shop_phone=shop_phone,
-            shop_line_contact=shop_line_contact,
-            email_recipients=[addr for addr in (channels_config.get("emails") or []) if isinstance(addr, str)],
-            slack_webhook_url=channels_config.get("slack"),
-            line_notify_token=line_token,
-        )
         queue_active = is_notification_worker_enabled()
-        await enqueue_reservation_notification(db, notification)
+        notification = await _enqueue_reservation_notification_for_reservation(
+            db,
+            reservation,
+            shop,
+        )
         async_job_status = {
             "status": "queued" if queue_active else "skipped",
             "error": None,
         }
 
         if new_status == "confirmed":
-            await _schedule_dashboard_reservation_reminder(db, reservation, notification)
+            await _schedule_dashboard_reservation_reminder(
+                db, reservation, notification
+            )
 
     await db.commit()
     await db.refresh(reservation)

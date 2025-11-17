@@ -1,10 +1,8 @@
-import type { ReservationContactItem } from '@/components/reservation/ReservationInfoCard'
+import type { ReservationContactItem } from '../types'
 
 type ReservationContactListProps = {
   items: ReservationContactItem[]
 }
-
-export type { ReservationContactItem }
 
 export function ReservationContactList({ items }: ReservationContactListProps) {
   return (

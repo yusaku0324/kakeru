@@ -5,15 +5,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import { useHeroImages } from '@/hooks/useHeroImages'
-import { ReservationHeroCard } from '@/components/reservation/ReservationHeroCard'
-import type { ReservationContactItem } from '@/components/reservation/ReservationInfoCard'
+import { ReservationHeroCard } from '@/components/reservation'
 import { type TherapistHit } from '@/components/staff/TherapistCard'
 import { parsePricingText } from '@/utils/pricing'
 import ReservationOverlayBooking from './reservationOverlay/ReservationOverlayBooking'
 import ReservationOverlayProfile from './reservationOverlay/ReservationOverlayProfile'
 import ReservationOverlayReviews from './reservationOverlay/ReservationOverlayReviews'
 import { FALLBACK_STAFF_META } from './reservationOverlay/data'
+import type { ReservationContactItem } from '@/components/reservation'
 import { useReservationOverlayState } from './reservationOverlay/useReservationOverlayState'
+import {
+  buildLineContactUrl,
+  buildReservationContactItems,
+} from './reservationOverlay/utils'
 
 export type ReservationOverlayProps = {
   hit: TherapistHit
@@ -78,20 +82,13 @@ export default function ReservationOverlay({
   )
 
   const contactItems = useMemo<ReservationContactItem[]>(
-    () => [
-      {
-        key: 'tel',
-        label: '電話予約',
-        value: tel ? `TEL ${tel}` : '未登録',
-        helper: '24時間受付（折り返し連絡）',
-      },
-      {
-        key: 'line',
-        label: 'LINE相談',
-        value: lineId ? `ID ${lineId}` : '準備中',
-        helper: '空き状況や指名のご相談に',
-      },
-    ],
+    () =>
+      buildReservationContactItems({
+        tel,
+        lineId,
+        telHref: tel ? `tel:${tel}` : null,
+        lineHref: lineId ? buildLineContactUrl(lineId) : null,
+      }),
     [lineId, tel],
   )
 

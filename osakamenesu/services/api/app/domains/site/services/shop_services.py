@@ -32,6 +32,7 @@ from ....schemas import (
 )
 from ....utils.profiles import compute_review_summary, normalize_review_aspects
 from ....utils.datetime import now_jst
+from ....utils.text import normalize_contact_value
 from .shop.availability import (
     fetch_availability as _fetch_availability,
     get_next_available_slot as _get_next_available_slot,
@@ -497,6 +498,10 @@ def _build_contact_info(profile: models.Profile) -> Optional[ContactInfo]:
     raw = getattr(profile, "contact_json", None) or {}
     if not isinstance(raw, dict):
         raw = {}
+    phone_value = normalize_contact_value(
+        raw.get("phone") or raw.get("tel"), allow_numeric=True
+    )
+    line_value = normalize_contact_value(raw.get("line_id") or raw.get("line"))
     sns_entries: List[SocialLink] = []
     for entry in raw.get("sns", []) or []:
         if not isinstance(entry, dict):
@@ -513,16 +518,16 @@ def _build_contact_info(profile: models.Profile) -> Optional[ContactInfo]:
             )
         )
     if not (
-        raw.get("phone")
-        or raw.get("line_id")
+        phone_value
+        or line_value
         or raw.get("website_url")
         or raw.get("reservation_form_url")
         or sns_entries
     ):
         return None
     return ContactInfo(
-        phone=raw.get("phone"),
-        line_id=raw.get("line_id"),
+        phone=phone_value,
+        line_id=line_value,
         website_url=raw.get("website_url"),
         reservation_form_url=raw.get("reservation_form_url"),
         sns=sns_entries,

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...site import shops as site_shops
 from ...site import utils as site_utils
+from ...site.services import shop_services
 from ....schemas import (
     AvailabilityCalendar,
     BulkMenuInput,
@@ -28,7 +29,12 @@ async def fetch_availability(
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> AvailabilityCalendar | None:
-    return await site_shops._fetch_availability(db, shop_id, start_date=start_date, end_date=end_date)
+    return await shop_services._fetch_availability(
+        db,
+        shop_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
 
 def normalize_contact(contact_json: dict[str, Any] | None) -> dict[str, Any]:

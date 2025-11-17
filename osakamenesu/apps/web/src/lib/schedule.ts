@@ -1,20 +1,10 @@
 import { TOKYO_TZ, toZonedDayjs, type DayjsInput, type Dayjs } from '@/lib/timezone'
+import { getJaFormatter } from '@/utils/date'
 
 const DEFAULT_TZ = TOKYO_TZ
 
-const dayLabelFormatter = new Intl.DateTimeFormat('ja-JP', {
-  month: 'numeric',
-  day: 'numeric',
-  weekday: 'short',
-  timeZone: DEFAULT_TZ,
-})
-
-const timeLabelFormatter = new Intl.DateTimeFormat('ja-JP', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZone: DEFAULT_TZ,
-})
+const dayLabelFormatter = getJaFormatter('day')
+const timeLabelFormatter = getJaFormatter('time')
 
 export type ScheduleSlotStatus = 'open' | 'tentative' | 'blocked'
 

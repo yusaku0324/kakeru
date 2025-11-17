@@ -2,17 +2,11 @@
 
 import clsx from 'clsx'
 
+import type { ReservationContactItem } from '@/components/reservation'
+
 export type ReservationDetailItem = {
   label: string
   value: string
-}
-
-export type ReservationContactItem = {
-  key: string
-  label: string
-  value: string
-  helper: string
-  href?: string
 }
 
 type ReservationInfoCardProps = {

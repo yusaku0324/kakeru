@@ -19,6 +19,7 @@ import { formatSlotJp } from '@/lib/schedule'
 import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
 import { sampleShopToDetail } from '@/lib/sampleShopAdapters'
 import { TOKYO_TZ, formatDatetimeLocal, formatZonedIso, toZonedDayjs, toZonedDate } from '@/lib/timezone'
+import { getJaFormatter } from '@/utils/date'
 import ShopReservationCardClient from './ShopReservationCardClient'
 
 type Props = {
@@ -160,19 +161,8 @@ function uuidFromString(input: string): string {
 }
 
 const formatYen = (n: number) => `¥${Number(n).toLocaleString('ja-JP')}`
-const dayFormatter = new Intl.DateTimeFormat('ja-JP', {
-  month: 'numeric',
-  day: 'numeric',
-  weekday: 'short',
-  timeZone: TOKYO_TZ,
-})
-
-const timeFormatter = new Intl.DateTimeFormat('ja-JP', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZone: TOKYO_TZ,
-})
+const dayFormatter = getJaFormatter('day')
+const timeFormatter = getJaFormatter('time')
 
 function uniquePhotos(photos?: MediaImage[] | null): string[] {
   if (!Array.isArray(photos)) return []

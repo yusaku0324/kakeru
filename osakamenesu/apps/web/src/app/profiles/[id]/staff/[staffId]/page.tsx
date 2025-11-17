@@ -11,6 +11,7 @@ import { Section } from '@/components/ui/Section'
 import { TherapistSchedule } from '@/features/therapist/ui/TherapistSchedule'
 import { buildStaffIdentifier, staffMatchesIdentifier, slugifyStaffIdentifier } from '@/lib/staff'
 import { toLocalDateISO } from '@/lib/date'
+import { getJaFormatter } from '@/utils/date'
 import { fetchShop, type ShopDetail, type StaffSummary } from '../../page'
 
 function findStaff(shop: ShopDetail, staffId: string): StaffSummary | null {
@@ -42,11 +43,7 @@ type StaffPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-const dayFormatter = new Intl.DateTimeFormat('ja-JP', {
-  month: 'numeric',
-  day: 'numeric',
-  weekday: 'short',
-})
+const dayFormatter = getJaFormatter('day')
 
 function formatDayLabel(dateStr: string): string {
   const iso = toLocalDateISO(new Date(dateStr))

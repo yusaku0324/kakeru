@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import imghdr
 import mimetypes
 import uuid
 from datetime import datetime, timezone
@@ -36,12 +35,22 @@ ALLOWED_IMAGE_CONTENT_TYPES: dict[str, str] = {
     "image/webp": ".webp",
     "image/gif": ".gif",
 }
-IMGHDR_TO_MIME: dict[str, str] = {
-    "jpeg": "image/jpeg",
-    "png": "image/png",
-    "gif": "image/gif",
-    "webp": "image/webp",
-}
+JPEG_MAGIC = b"\xff\xd8\xff"
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+GIF87_MAGIC = b"GIF87a"
+GIF89_MAGIC = b"GIF89a"
+
+
+def _detect_magic_mime(payload: bytes) -> str | None:
+    if payload.startswith(JPEG_MAGIC):
+        return "image/jpeg"
+    if payload.startswith(PNG_MAGIC):
+        return "image/png"
+    if payload.startswith(GIF87_MAGIC) or payload.startswith(GIF89_MAGIC):
+        return "image/gif"
+    if len(payload) >= 12 and payload[:4] == b"RIFF" and payload[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 class DashboardTherapistError(Exception):
@@ -212,11 +221,9 @@ async def record_change(
 
 
 def matches_magic_signature(payload: bytes) -> tuple[str | None, str | None]:
-    detected = imghdr.what(None, h=payload)
-    if detected:
-        mime = IMGHDR_TO_MIME.get(detected.lower())
-        if mime and mime in ALLOWED_IMAGE_CONTENT_TYPES:
-            return mime, ALLOWED_IMAGE_CONTENT_TYPES[mime]
+    mime = _detect_magic_mime(payload)
+    if mime and mime in ALLOWED_IMAGE_CONTENT_TYPES:
+        return mime, ALLOWED_IMAGE_CONTENT_TYPES[mime]
     return None, None
 
 
@@ -578,7 +585,6 @@ __all__ = [
     "DashboardTherapistService",
     "MAX_PHOTO_BYTES",
     "ALLOWED_IMAGE_CONTENT_TYPES",
-    "IMGHDR_TO_MIME",
     "detect_image_type",
     "sanitize_strings",
     "sanitize_photo_urls",

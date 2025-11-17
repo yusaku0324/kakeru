@@ -1,14 +1,17 @@
 from pathlib import Path
 from pydantic import AliasChoices, Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="")
     database_url: str = "postgresql+asyncpg://app:app@osakamenesu-db:5432/osaka_menesu"
     api_origin: str = "http://localhost:3000"
     api_public_base_url: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("OSAKAMENESU_API_BASE", "API_BASE", "API_PUBLIC_BASE_URL"),
+        validation_alias=AliasChoices(
+            "OSAKAMENESU_API_BASE", "API_BASE", "API_PUBLIC_BASE_URL"
+        ),
     )
     meili_host: str = "http://osakamenesu-meili:7700"
     meili_master_key: str = "dev_meili_master_key"
@@ -21,9 +24,17 @@ class Settings(BaseSettings):
     notify_email_endpoint: str | None = None
     notify_line_endpoint: str | None = None
     notify_from_email: str | None = None
-    mail_api_key: str | None = Field(default=None, validation_alias=AliasChoices("MAIL_APIKEY", "MAIL_API_KEY"))
-    mail_from_address: str = Field(default="no-reply@osakamenesu.local", validation_alias=AliasChoices("MAIL_FROM_ADDRESS", "MAIL_FROM"))
-    mail_provider_base_url: str = Field(default="https://api.resend.com", validation_alias=AliasChoices("MAIL_PROVIDER_BASE_URL", "RESEND_BASE_URL"))
+    mail_api_key: str | None = Field(
+        default=None, validation_alias=AliasChoices("MAIL_APIKEY", "MAIL_API_KEY")
+    )
+    mail_from_address: str = Field(
+        default="no-reply@osakamenesu.local",
+        validation_alias=AliasChoices("MAIL_FROM_ADDRESS", "MAIL_FROM"),
+    )
+    mail_provider_base_url: str = Field(
+        default="https://api.resend.com",
+        validation_alias=AliasChoices("MAIL_PROVIDER_BASE_URL", "RESEND_BASE_URL"),
+    )
     escalation_pending_threshold_minutes: int = 30
     escalation_check_interval_minutes: int = 5
     auth_magic_link_expire_minutes: int = 15
@@ -34,24 +45,34 @@ class Settings(BaseSettings):
     reservation_notification_retry_backoff_multiplier: float = 2.0
     reservation_notification_worker_interval_seconds: float = 1.5
     reservation_notification_batch_size: int = 20
-    ops_api_token: str | None = Field(default=None, validation_alias=AliasChoices("OPS_API_TOKEN", "OPS_TOKEN"))
+    ops_api_token: str | None = Field(
+        default=None, validation_alias=AliasChoices("OPS_API_TOKEN", "OPS_TOKEN")
+    )
     cursor_signature_secret: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("CURSOR_SIGNATURE_SECRET", "DASHBOARD_CURSOR_SIGNATURE_SECRET"),
+        validation_alias=AliasChoices(
+            "CURSOR_SIGNATURE_SECRET", "DASHBOARD_CURSOR_SIGNATURE_SECRET"
+        ),
     )
     dashboard_session_cookie_name: str = Field(
         default="osakamenesu_session",
-        validation_alias=AliasChoices("AUTH_SESSION_COOKIE_NAME", "DASHBOARD_SESSION_COOKIE_NAME"),
+        validation_alias=AliasChoices(
+            "AUTH_SESSION_COOKIE_NAME", "DASHBOARD_SESSION_COOKIE_NAME"
+        ),
     )
     site_session_cookie_name: str = Field(
         default="osakamenesu_session",
-        validation_alias=AliasChoices("SITE_SESSION_COOKIE_NAME", "USER_SESSION_COOKIE_NAME"),
+        validation_alias=AliasChoices(
+            "SITE_SESSION_COOKIE_NAME", "USER_SESSION_COOKIE_NAME"
+        ),
     )
     auth_session_cookie_secure: bool = False
     auth_session_cookie_domain: str | None = None
     auth_session_cookie_same_site: str = Field(
         default="lax",
-        validation_alias=AliasChoices("AUTH_SESSION_COOKIE_SAMESITE", "SESSION_COOKIE_SAMESITE"),
+        validation_alias=AliasChoices(
+            "AUTH_SESSION_COOKIE_SAMESITE", "SESSION_COOKIE_SAMESITE"
+        ),
     )
     auth_magic_link_redirect_path: str = "/auth/complete"
     auth_magic_link_debug: bool = True
@@ -97,16 +118,14 @@ class Settings(BaseSettings):
     )
     sentry_traces_sample_rate: float | None = Field(
         default=None,
-        validation_alias=AliasChoices("SENTRY_TRACES_SAMPLE_RATE", "NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE"),
+        validation_alias=AliasChoices(
+            "SENTRY_TRACES_SAMPLE_RATE", "NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE"
+        ),
     )
     test_auth_secret: str | None = Field(
         default="secret",
         validation_alias=AliasChoices("E2E_TEST_AUTH_SECRET", "TEST_AUTH_SECRET"),
     )
-
-    class Config:
-        env_file = ".env"
-        env_prefix = ""
 
     @property
     def auth_session_cookie_name(self) -> str:

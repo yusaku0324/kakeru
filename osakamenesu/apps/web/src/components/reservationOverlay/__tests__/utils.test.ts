@@ -1,14 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import { calculateSchedulePages, buildTimelineTimes } from '../utils'
-import type { NormalizedDay } from '../types'
+import type { NormalizedDay } from '@/components/reservation'
+import { getJaFormatter } from '@/utils/date'
 
-const formatter = new Intl.DateTimeFormat('ja-JP', {
-  month: 'numeric',
-  day: 'numeric',
-  weekday: 'short',
-  timeZone: 'Asia/Tokyo',
-})
+const formatter = getJaFormatter('day')
 
 const sampleDays: NormalizedDay[] = [
   {

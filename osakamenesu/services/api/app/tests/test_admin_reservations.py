@@ -84,8 +84,16 @@ settings_module.Settings = _DummySettings  # type: ignore[attr-defined]
 settings_module.settings = _DummySettings()
 sys.modules["app.settings"] = settings_module
 
-from app.services.reservations_admin import build_reservation_summary  # type: ignore  # noqa: E402
-from app.domains.admin.reservations import _reservation_to_schema  # type: ignore  # noqa: E402
+from app.services.reservations_admin import (  # type: ignore  # noqa: E402
+    build_reservation_summary,
+    enqueue_reservation_notification_for_reservation,
+)
+from app.notifications import ReservationNotification  # type: ignore  # noqa: E402
+from app.domains.admin.reservations import (  # type: ignore  # noqa: E402
+    _reservation_to_schema,
+    _build_reservation_notification_payload,
+    _resolve_notification_channels,
+)
 
 
 def _make_reservation(**overrides):
@@ -160,13 +168,15 @@ def test_reservation_to_schema_includes_preferred_slots():
         created_at=now,
         updated_at=now,
         status_events=[
-            SimpleNamespace(status="pending", changed_at=now, changed_by="system", note=None),
+            SimpleNamespace(
+                status="pending", changed_at=now, changed_by="system", note=None
+            ),
         ],
         preferred_slots=[
-                SimpleNamespace(
-                    id=slot_id,
-                    desired_start=now,
-                    desired_end=end_time,
+            SimpleNamespace(
+                id=slot_id,
+                desired_start=now,
+                desired_end=end_time,
                 status="tentative",
                 created_at=now,
             )
@@ -176,3 +186,110 @@ def test_reservation_to_schema_includes_preferred_slots():
     schema = _reservation_to_schema(reservation)
     assert schema.preferred_slots
     assert schema.preferred_slots[0].status == "tentative"
+
+
+def test_build_reservation_notification_payload_normalizes_contacts():
+    reservation = _make_reservation(notes="base-note", channel=None)
+    shop = SimpleNamespace(
+        name="Shop",
+        contact_json={"phone": 1234567890, "line": "  https://line.me/store  "},
+    )
+    channels_config = {
+        "emails": ["valid@example.com", 42],
+        "slack": "https://hooks.slack.com/abc",
+        "line": "notify-token",
+    }
+
+    payload = _build_reservation_notification_payload(
+        reservation,
+        shop,
+        channels_config,
+        note_override="notification-note",
+    )
+
+    assert payload.notes == "notification-note"
+    assert payload.shop_phone == "1234567890"
+    assert payload.shop_line_contact == "https://line.me/store"
+    assert payload.email_recipients == ["valid@example.com"]
+    assert payload.slack_webhook_url == "https://hooks.slack.com/abc"
+    assert payload.line_notify_token == "notify-token"
+
+
+class _FakeSession:
+    def __init__(self, result):
+        self._result = result
+
+    async def get(self, model, pk):
+        return self._result
+
+
+@pytest.mark.asyncio
+async def test_resolve_notification_channels_trims_slack_and_line_token():
+    shop_id = uuid.uuid4()
+    setting = SimpleNamespace(
+        trigger_status=["pending"],
+        channels={
+            "slack": {
+                "enabled": True,
+                "webhook_url": "  https://hooks.slack.com/abc  ",
+            },
+            "line": {"enabled": True, "token": "  line-token  "},
+            "email": {"enabled": False},
+        },
+    )
+    db = _FakeSession(setting)
+
+    config = await _resolve_notification_channels(db, shop_id, "pending")
+
+    assert config["slack"] == "https://hooks.slack.com/abc"
+    assert config["line"] == "line-token"
+
+
+@pytest.mark.asyncio
+async def test_service_enqueue_helper_reuses_notification_helpers(monkeypatch):
+    reservation = _make_reservation(notes="note", channel=None)
+    shop = SimpleNamespace(
+        name="Shop",
+        contact_json={"phone": 1234567890, "line": "  https://line.me/contact  "},
+    )
+    setting = SimpleNamespace(
+        trigger_status=None,
+        channels={
+            "email": {"enabled": True, "recipients": ["notify@example.com", 123]},
+            "slack": {
+                "enabled": True,
+                "webhook_url": "  https://hooks.slack.com/abc  ",
+            },
+            "line": {"enabled": True, "token": "  line-token  "},
+        },
+    )
+    db = _FakeSession(setting)
+    captured: dict[str, ReservationNotification] = {}
+
+    from app.services import (
+        reservation_notifications as reservation_notifications_service,
+    )
+
+    async def fake_enqueue(_db, notification):
+        captured["notification"] = notification
+
+    monkeypatch.setattr(
+        reservation_notifications_service,
+        "enqueue_reservation_notification",
+        fake_enqueue,
+    )
+
+    await enqueue_reservation_notification_for_reservation(
+        db,
+        reservation,
+        shop,
+        note_override="notification-note",
+    )
+
+    notification = captured["notification"]
+    assert notification.notes == "notification-note"
+    assert notification.shop_phone == "1234567890"
+    assert notification.shop_line_contact == "https://line.me/contact"
+    assert notification.slack_webhook_url == "https://hooks.slack.com/abc"
+    assert notification.line_notify_token == "line-token"
+    assert notification.email_recipients == ["notify@example.com"]

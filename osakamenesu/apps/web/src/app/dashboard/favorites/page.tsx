@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import RecentlyViewedList from '@/components/RecentlyViewedList'
 import { Card } from '@/components/ui/Card'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
+import { getJaFormatter } from '@/utils/date'
 
 type FavoriteRecord = {
   shop_id: string
@@ -53,10 +54,7 @@ type TherapistFavoriteEntry = {
 
 type SiteUserResult = { status: 'authenticated'; displayName: string | null } | { status: 'guest' }
 
-const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
+const dateFormatter = getJaFormatter('dateMediumTimeShort')
 
 const currencyFormatter = new Intl.NumberFormat('ja-JP')
 

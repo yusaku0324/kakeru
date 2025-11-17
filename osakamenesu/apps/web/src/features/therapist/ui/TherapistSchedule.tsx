@@ -5,18 +5,11 @@ import clsx from 'clsx'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { toLocalDateISO } from '@/lib/date'
+import { getJaFormatter } from '@/utils/date'
 import { formatSlotJp, getNextAvailableSlot, type ScheduleSlot } from '@/lib/schedule'
 
-const dayFormatter = new Intl.DateTimeFormat('ja-JP', {
-  month: 'numeric',
-  day: 'numeric',
-  weekday: 'short',
-})
-const timeFormatter = new Intl.DateTimeFormat('ja-JP', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-})
+const dayFormatter = getJaFormatter('day')
+const timeFormatter = getJaFormatter('time')
 
 type SlotStatus = 'open' | 'tentative' | 'blocked'
 

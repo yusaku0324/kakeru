@@ -15,7 +15,7 @@ import type { AvailabilityStatus } from '@/components/calendar/types'
 
 import { formatLocalDate, getJaFormatter, toIsoWithOffset } from '@/utils/date'
 import type { ReservationOverlayProps } from '../ReservationOverlay'
-import type { NormalizedDay, NormalizedSlot } from './types'
+import type { NormalizedDay, NormalizedSlot } from '@/components/reservation'
 import { buildTimelineTimes, calculateSchedulePages } from './utils'
 
 type AvailabilityTemplate = Array<{

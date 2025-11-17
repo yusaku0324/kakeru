@@ -1,6 +1,6 @@
 import { pad } from '@/utils/date'
 
-import type { NormalizedDay, TimelineEntry } from './types'
+import type { NormalizedDay, TimelineEntry, ReservationContactItem } from '@/components/reservation'
 
 type BuildTimelineOptions = {
   intervalMinutes?: number
@@ -12,6 +12,10 @@ export function buildTimelineTimes(
   days: NormalizedDay[],
   { intervalMinutes = 30, fallbackStartHour = 10, fallbackEndHour = 22 }: BuildTimelineOptions = {},
 ): TimelineEntry[] {
+  if (!days.length) {
+    return buildFallbackTimes({ intervalMinutes, fallbackStartHour, fallbackEndHour })
+  }
+
   const activeMinutes: number[] = []
 
   days.forEach((day) => {
@@ -37,21 +41,7 @@ export function buildTimelineTimes(
   })
 
   if (!activeMinutes.length) {
-    const fallback: TimelineEntry[] = []
-    for (
-      let minutes = fallbackStartHour * 60;
-      minutes <= fallbackEndHour * 60;
-      minutes += intervalMinutes
-    ) {
-      const hour = Math.floor(minutes / 60)
-      const minute = minutes % 60
-      const key = `${pad(hour)}:${pad(minute)}`
-      fallback.push({
-        key,
-        label: `${hour}:${minute.toString().padStart(2, '0')}`.replace(/^0/, ''),
-      })
-    }
-    return fallback
+    return buildFallbackTimes({ intervalMinutes, fallbackStartHour, fallbackEndHour })
   }
 
   activeMinutes.sort((a, b) => a - b)
@@ -127,4 +117,60 @@ export function calculateSchedulePages({
   }
 
   return pages
+}
+
+export function buildLineContactUrl(lineId: string, message?: string | null): string {
+  const base = lineId.startsWith('http') ? lineId : `https://line.me/R/ti/p/${lineId}`
+  if (!message) return base
+  const encoded = encodeURIComponent(message)
+  return base.includes('?') ? `${base}&text=${encoded}` : `${base}?text=${encoded}`
+}
+
+type BuildReservationContactItemsParams = {
+  tel?: string | null
+  lineId?: string | null
+  telHref?: string | null
+  lineHref?: string | null
+}
+
+export function buildReservationContactItems({
+  tel,
+  lineId,
+  telHref,
+  lineHref,
+}: BuildReservationContactItemsParams): ReservationContactItem[] {
+  return [
+    {
+      key: 'tel',
+      label: '電話予約',
+      value: tel ? `TEL ${tel}` : '未登録',
+      helper: '24時間受付（折り返し連絡）',
+      href: tel && telHref ? telHref : undefined,
+    },
+    {
+      key: 'line',
+      label: 'LINE相談',
+      value: lineId ? `ID ${lineId}` : '準備中',
+      helper: '空き状況や指名のご相談に',
+      href: lineId && lineHref ? lineHref : undefined,
+    },
+  ]
+}
+
+function buildFallbackTimes({
+  intervalMinutes,
+  fallbackStartHour,
+  fallbackEndHour,
+}: Required<BuildTimelineOptions>): TimelineEntry[] {
+  const entries: TimelineEntry[] = []
+  for (let minutes = fallbackStartHour * 60; minutes <= fallbackEndHour * 60; minutes += intervalMinutes) {
+    const hour = Math.floor(minutes / 60)
+    const minute = minutes % 60
+    const key = `${pad(hour)}:${pad(minute)}`
+    entries.push({
+      key,
+      label: `${hour}:${minute.toString().padStart(2, '0')}`.replace(/^0/, ''),
+    })
+  }
+  return entries
 }

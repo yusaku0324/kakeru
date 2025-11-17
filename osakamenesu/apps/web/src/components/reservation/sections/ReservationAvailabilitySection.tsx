@@ -41,7 +41,7 @@ export function ReservationAvailabilitySection({
       <div className="hidden lg:block">
         <AvailabilityPickerDesktop
           days={days}
-          timeline={timeline ?? []}
+          timeline={timeline}
           selected={selected}
           onToggle={onToggle}
           timeFormatter={timeFormatter}
@@ -50,7 +50,7 @@ export function ReservationAvailabilitySection({
       <div className="lg:hidden">
         <AvailabilityPickerMobile
           days={days}
-          timeline={timeline ?? []}
+          timeline={timeline}
           selected={selected}
           onToggle={onToggle}
           timeFormatter={timeFormatter}

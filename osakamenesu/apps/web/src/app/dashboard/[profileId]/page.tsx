@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 
 import DashboardReservationFeed from '@/features/reservations/ui/DashboardReservationFeed'
 import DashboardReservationDaySummary from '@/features/reservations/ui/DashboardReservationDaySummary'
+import { DashboardReservationAvailabilityPreview } from '@/features/reservations/ui'
 import { Card } from '@/components/ui/Card'
 import { fetchDashboardShopProfile } from '@/lib/dashboard-shops'
 
@@ -138,6 +139,11 @@ export default async function DashboardHomePage({
           </div>
         </Card>
       </section>
+
+      <DashboardReservationAvailabilityPreview
+        availabilityDays={data.availability_calendar?.days}
+        generatedAt={data.availability_calendar?.generated_at}
+      />
 
       <DashboardReservationDaySummary profileId={data.id} />
 

@@ -14,6 +14,7 @@ from ....meili import index_bulk, purge_all
 from ....schemas import (
     AvailabilityCalendar,
     AvailabilityCreate,
+    AvailabilityOut,
     AvailabilitySlotIn,
     AvailabilityUpsert,
     BulkAvailabilityInput,
@@ -24,6 +25,7 @@ from ....schemas import (
     BulkShopContentResponse,
     BulkShopIngestResult,
     MenuItem,
+    ProfileDetail,
     ProfileMarketingUpdate,
     ShopContentUpdate,
     ShopAdminDetail,
@@ -36,7 +38,11 @@ from ....utils.datetime import (
     ensure_jst_datetime,
     now_jst,
 )
-from ....utils.profiles import normalize_review_aspects
+from ....utils.profiles import (
+    infer_height_age,
+    infer_store_name,
+    normalize_review_aspects,
+)
 from ....utils.slug import slugify
 from .audit import AdminAuditContext, record_change
 from .errors import AdminServiceError
@@ -439,7 +445,74 @@ async def resolve_profile_by_identifier(
     result = await db.execute(
         select(models.Profile).where(models.Profile.slug == identifier)
     )
+    profile = result.scalar_one_or_none()
+    if profile:
+        return profile
+
+    if not identifier:
+        return None
+
+    result = await db.execute(
+        select(models.Profile).where(models.Profile.name == identifier)
+    )
     return result.scalar_one_or_none()
+
+
+async def get_profile_detail(*, db: AsyncSession, identifier: str) -> ProfileDetail:
+    profile = await resolve_profile_by_identifier(db=db, identifier=identifier)
+    if not profile:
+        raise ProfileServiceError(HTTPStatus.NOT_FOUND, detail="profile not found")
+
+    today = now_jst().date()
+    today_availability = await db.execute(
+        select(models.Availability)
+        .where(
+            models.Availability.profile_id == profile.id,
+            models.Availability.date == today,
+        )
+        .limit(1)
+    )
+    availability = today_availability.scalar_one_or_none()
+    availability_out: AvailabilityOut | None = None
+    has_today = False
+    if availability:
+        has_today = True
+        availability_out = AvailabilityOut(
+            date=availability.date.isoformat(),
+            is_today=True,
+            slots_json=availability.slots_json or None,
+        )
+
+    outlinks_result = await db.execute(
+        select(models.Outlink).where(models.Outlink.profile_id == profile.id)
+    )
+    outlinks = list(outlinks_result.scalars().all())
+    height_cm, age = infer_height_age(profile)
+    store_name = infer_store_name(profile, outlinks)
+
+    detail = ProfileDetail(
+        id=str(profile.id),
+        slug=profile.slug,
+        name=profile.name,
+        area=profile.area,
+        price_min=profile.price_min,
+        price_max=profile.price_max,
+        bust_tag=profile.bust_tag,
+        service_type=profile.service_type,
+        body_tags=profile.body_tags or [],
+        height_cm=height_cm,
+        age=age,
+        photos=profile.photos or [],
+        discounts=profile.discounts or [],
+        ranking_badges=profile.ranking_badges or [],
+        ranking_weight=profile.ranking_weight,
+        status=profile.status,
+        store_name=store_name,
+        today=has_today,
+        availability_today=availability_out,
+        outlinks=[{"kind": o.kind, "token": o.token} for o in outlinks],
+    )
+    return detail
 
 
 async def _upsert_reviews(

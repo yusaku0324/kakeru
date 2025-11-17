@@ -27,7 +27,7 @@ from ..schemas import (
 from ..utils.datetime import ensure_aware_datetime
 from ..utils.profiles import build_profile_doc
 from ..utils.slug import slugify
-from ..utils.text import sanitize_strings, strip_or_none
+from ..utils.text import normalize_contact_value, sanitize_strings, strip_or_none
 from .dashboard_shop_helpers import (
     extract_contact,
     extract_menus,
@@ -321,8 +321,12 @@ class DashboardShopService:
     ) -> Optional[DashboardShopContact]:
         if not isinstance(contact_json, dict):
             return None
-        phone = contact_json.get("phone") or contact_json.get("tel")
-        line_id = contact_json.get("line_id") or contact_json.get("line")
+        phone = normalize_contact_value(
+            contact_json.get("phone") or contact_json.get("tel"), allow_numeric=True
+        )
+        line_id = normalize_contact_value(
+            contact_json.get("line_id") or contact_json.get("line")
+        )
         website_url = contact_json.get("website_url") or contact_json.get("web")
         reservation_form_url = contact_json.get("reservation_form_url")
         if not any([phone, line_id, website_url, reservation_form_url]):

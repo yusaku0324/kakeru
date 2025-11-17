@@ -5,6 +5,30 @@ import { toNextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import type { ShopHit } from '@/components/shop/ShopCard'
 import type { TherapistHit } from '@/components/staff/TherapistCard'
 
+export type FacetValue = {
+  value: string
+  label: string
+  count: number
+  selected?: boolean | null
+}
+
+export type SearchResponse = {
+  page: number
+  page_size: number
+  total: number
+  results: ShopHit[]
+  facets: Record<string, FacetValue[]>
+  _error?: string
+}
+
+function toQueryString(p: Record<string, string | undefined>) {
+  const q = Object.entries(p)
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`)
+    .join('&')
+  return q ? `?${q}` : ''
+}
+
 function isoHoursFromNow(hours: number): string {
   return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
 }
@@ -300,22 +324,6 @@ SAMPLE_RESULTS.forEach((hit) => {
   }
 })
 
-export type FacetValue = {
-  value: string
-  label?: string | null
-  count: number
-  selected?: boolean | null
-}
-
-export type SearchResponse = {
-  page: number
-  page_size: number
-  total: number
-  results: ShopHit[]
-  facets: Record<string, FacetValue[]>
-  _error?: string
-}
-
 export type Params = {
   q?: string
   area?: string
@@ -339,13 +347,7 @@ export type Params = {
   force_samples?: string
 }
 
-function toQueryString(p: Record<string, string | undefined>) {
-  const q = Object.entries(p)
-    .filter(([, v]) => v !== undefined && v !== '')
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`)
-    .join('&')
-  return q ? `?${q}` : ''
-}
+export type SearchParams = Params
 
 function parseNumber(value?: string): number | null {
   if (!value) return null
@@ -439,6 +441,8 @@ export async function fetchSearchResults(params: Params): Promise<SearchResponse
     _error: lastErr?.message || '検索に失敗しました',
   }
 }
+
+export const fetchProfiles = fetchSearchResults
 
 export function parseBoolParam(value?: string): boolean {
   if (!value) return false
