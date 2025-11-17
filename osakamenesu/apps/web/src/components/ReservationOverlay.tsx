@@ -34,8 +34,6 @@ export type ReservationOverlayProps = {
 
 type OverlayTab = 'profile' | 'reviews' | 'booking'
 
-const pad = (value: number) => value.toString().padStart(2, '0')
-
 
 function useBodyScrollLock(active: boolean) {
   useEffect(() => {
@@ -129,12 +127,6 @@ export default function ReservationOverlay({
     { key: 'reviews', label: '口コミ' },
     { key: 'booking', label: '空き状況・予約', helper: '候補枠を最大3枠まで選択できます' },
   ]
-
-  const bookingSteps = [
-    { key: 'schedule', label: '日程選択', description: 'ご希望の日時をタップ' },
-    { key: 'course', label: 'コース選択', description: '希望コース・オプション' },
-    { key: 'info', label: 'お客様情報', description: '連絡先と要望を入力' },
-  ] as const
 
   const detailItems = useMemo(() => {
     const base: Array<{ label: string; value: string }> = []

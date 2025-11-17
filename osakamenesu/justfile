@@ -59,11 +59,28 @@ web-unit:
 
 # Bring up admin E2E stack (db/api/web) via docker compose
 admin-e2e-up:
-	bash -c 'set -a; source .env.admin-e2e; set +a; export COMPOSE_PULL_POLICY=never; docker compose -f docker-compose.admin-e2e.yml up -d db meili redis api web'
+	bash -c '
+	  set -euo pipefail
+	  if [ -f .env.admin-e2e ]; then
+	    set -a
+	    source .env.admin-e2e
+	    set +a
+	  fi
+	  export COMPOSE_PULL_POLICY=${COMPOSE_PULL_POLICY:-never}
+	  docker compose -f docker-compose.admin-e2e.yml up -d db meili redis api web
+	'
 
 # Tear down admin E2E stack
 admin-e2e-down:
-	bash -c 'set -a; source .env.admin-e2e; set +a; docker compose -f docker-compose.admin-e2e.yml down'
+	bash -c '
+	  set -euo pipefail
+	  if [ -f .env.admin-e2e ]; then
+	    set -a
+	    source .env.admin-e2e
+	    set +a
+	  fi
+	  docker compose -f docker-compose.admin-e2e.yml down
+	'
 
 # Full admin E2E flow: spin up stack, run Playwright, then stop services
 admin-e2e:
