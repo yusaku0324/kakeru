@@ -352,7 +352,6 @@ export default async function ProfilePage({ params, searchParams }: Props) {
           status: 'ok' as const,
         }
       : null,
-    nextAvailableAt: null,
   }
 
   const availabilityUpdatedLabel = shop.availability_calendar?.generated_at
