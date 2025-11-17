@@ -122,6 +122,9 @@ jobs:
       - name: Run pytest
         run: pytest -n auto app/tests -q
 
+      - name: Run shop detail/availability integration tests
+        run: pytest app/tests/test_site_shops.py app/tests/test_admin_site_integration.py -q
+
   integration-test:
     # Temporarily disabled alongside the legacy Python pipeline above
     if: ${{ false }}
@@ -404,8 +407,8 @@ jobs:
           password: ${{ secrets.GHCR_PAT }}
 
       - uses: dopplerhq/cli-action@v1
-        with:
-          doppler-token: ${{ secrets.DOPPLER_STG_TOKEN }}
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_STG_TOKEN }}
 
       - name: Write admin env file from Doppler (stg)
         working-directory: osakamenesu
