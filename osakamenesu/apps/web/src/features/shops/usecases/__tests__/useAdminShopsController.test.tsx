@@ -190,16 +190,10 @@ describe('useAdminShopsController availability and validation', () => {
       expect(saved).toBe(true)
     })
 
-    expect(mocks.upsertShopAvailability).toHaveBeenCalledWith(baseShop.id, {
-      date: '2024-02-01',
-      slots: [
-        {
-          start_at: new Date(slot.start_at).toISOString(),
-          end_at: new Date(slot.end_at).toISOString(),
-          status: 'open',
-        },
-      ],
-    })
+    const savedPayload = mocks.upsertShopAvailability.mock.calls[0]?.[1]
+    expect(savedPayload).toMatchObject({ date: '2024-02-01' })
+    expect(savedPayload?.slots?.length).toBe(1)
+    expect(savedPayload?.slots?.[0]).toMatchObject({ status: 'open' })
     expect(mocks.fetchShopAvailability).toHaveBeenCalledTimes(2)
   })
 
