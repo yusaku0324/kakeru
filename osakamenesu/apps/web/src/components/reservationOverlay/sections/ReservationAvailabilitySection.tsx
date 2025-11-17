@@ -23,6 +23,7 @@ type ReservationAvailabilitySectionProps = {
   onToggle: (day: NormalizedDay, slot: NormalizedSlot) => void
   timeFormatter: Intl.DateTimeFormat
   legendItems: readonly LegendItem[]
+  showLegend?: boolean
 }
 
 export function ReservationAvailabilitySection({
@@ -33,6 +34,7 @@ export function ReservationAvailabilitySection({
   onToggle,
   timeFormatter,
   legendItems,
+  showLegend = true,
 }: ReservationAvailabilitySectionProps) {
   return (
     <div className={clsx('space-y-6', className)}>
@@ -54,21 +56,23 @@ export function ReservationAvailabilitySection({
           timeFormatter={timeFormatter}
         />
       </div>
-      <div className="flex flex-wrap items-center gap-3 rounded-[24px] border border-white/60 bg-white/80 px-4 py-2 text-[11px] text-neutral-text">
-        {legendItems.map((item) => (
-          <span key={item.key} className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white px-3 py-1">
-            <span
-              className={clsx(
-                'inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs',
-                item.iconClass,
-              )}
-            >
-              {item.icon}
+      {showLegend ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-[24px] border border-white/60 bg-white/80 px-4 py-2 text-[11px] text-neutral-text">
+          {legendItems.map((item) => (
+            <span key={item.key} className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white px-3 py-1">
+              <span
+                className={clsx(
+                  'inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs',
+                  item.iconClass,
+                )}
+              >
+                {item.icon}
+              </span>
+              {item.label}
             </span>
-            {item.label}
-          </span>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -116,7 +116,7 @@ export default function ReservationOverlayBooking({
           <ReservationAvailabilitySection
             className="mt-6"
             days={currentScheduleDays}
-            timeline={timelineTimes ?? []}
+            timeline={timelineTimes}
             selected={selectedSlots}
             onToggle={toggleSlot}
             timeFormatter={timeFormatter}
