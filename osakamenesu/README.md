@@ -106,6 +106,11 @@ doppler run --project osakamenesu --config dev_api -- \
 
 詳細なスタック/ディレクトリ構成や Docker ベースの手順は `docs/README.md` を参照してください。
 
+## 共通 UI Hooks / Utils
+
+- `apps/web/src/hooks/useBodyScrollLock.ts` にスクロール固定用の React フックを用意しています。モーダルや全画面オーバーレイを実装するときは `useBodyScrollLock(isOpen)` を呼び出し、`body` の `overflow` を自動的に復旧させてください。
+- 日付フォーマット (`pad`, `formatLocalDate`, `toIsoWithOffset`) は `apps/web/src/utils/date.ts`、料金テキストのパースは `apps/web/src/utils/pricing.ts` に集約しています。同じユーティリティを使うことで UI 間での表記揺れを防げます。
+
 ## アーキテクチャ健全性チェック
 
 スプリントごとにリファクタ候補を洗い出すため、`just architecture-check` で肥大化ファイルとホットスポット、サービス層の依存方向（例: FastAPI import）を確認できます。出力やオプションの詳細は [`docs/architecture-check.md`](docs/architecture-check.md) を参照してください。GitHub Actions (`Architecture Check`) でも同じスクリプトを `--fail-on-issues` 付きで走らせており、新規で閾値を超えるファイルや禁止 import が発生すると CI が失敗します。また `Artifact Guard` ワークフローが `python tools/check_artifacts.py` を実行し、`.next` や `apps/web/test-results` などの生成物が誤ってコミットされていないかも自動検査、`Import Cycles` ワークフローが `python tools/check_cycles.py` で `services/api/app` 内の import 循環をブロックします。ローカルでは `just check-artifacts`, `just check-cycles`, `just check-all`（`just checkall` エイリアスあり）で同じ検査をまとめて回せます。週次のトリアージ手順は [`docs/architecture-triage.md`](docs/architecture-triage.md)、垂直スライス設計ルールは [`docs/vertical-slice-guidelines.md`](docs/vertical-slice-guidelines.md) を参照してください。

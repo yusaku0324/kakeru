@@ -1,10 +1,12 @@
 'use client'
 
 import clsx from 'clsx'
-import Image from 'next/image'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
+import { ReservationHeroCard } from '@/components/reservation/ReservationHeroCard'
 import { type TherapistHit } from '@/components/staff/TherapistCard'
+import { parsePricingText } from '@/utils/pricing'
 import ReservationOverlayBooking from './reservationOverlay/ReservationOverlayBooking'
 import ReservationOverlayProfile from './reservationOverlay/ReservationOverlayProfile'
 import ReservationOverlayReviews from './reservationOverlay/ReservationOverlayReviews'
@@ -33,18 +35,6 @@ export type ReservationOverlayProps = {
 }
 
 type OverlayTab = 'profile' | 'reviews' | 'booking'
-
-
-function useBodyScrollLock(active: boolean) {
-  useEffect(() => {
-    if (!active) return
-    const original = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = original
-    }
-  }, [active])
-}
 
 export default function ReservationOverlay({
   hit,
@@ -162,29 +152,8 @@ export default function ReservationOverlay({
     return fallback
   }, [profileOptions, fallbackMeta?.options])
 
-  const pricingItems = useMemo(() => {
-    const source = profilePricing ?? summaryPricing ?? ''
-    if (!source) return []
-    return source
-      .split(/[／/]/)
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part, index) => {
-        const priceMatch = part.match(/¥[\d,]+|[0-9]+(?:,?[0-9]{3})*円/)
-        const durationMatch = part.match(/[0-9]+分/)
-        const price = priceMatch?.[0]?.replace(/円$/, '円') ?? null
-        const duration = durationMatch?.[0] ?? null
-        const durationMinutes = duration
-          ? Number.parseInt(duration.replace(/\D/g, ''), 10) || null
-          : null
-        let title = part
-        if (price) title = title.replace(price, '').trim()
-        if (duration) title = title.replace(duration, '').trim()
-        title = title.replace(/[()（）]/g, '').trim()
-        if (!title) title = `コース ${index + 1}`
-        return { title, duration, price, durationMinutes }
-      })
-  }, [profilePricing, summaryPricing])
+  const pricingSource = profilePricing ?? summaryPricing ?? ''
+  const pricingItems = useMemo(() => parsePricingText(pricingSource), [pricingSource])
 
   const courseOptions = useMemo(
     () =>
@@ -241,69 +210,17 @@ export default function ReservationOverlay({
             <div className="flex max-h-[calc(100vh-8rem)] flex-col overflow-y-auto">
               <div className="w-full space-y-10 p-6 sm:p-8 lg:p-12">
                 <section className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-                  <div className="relative overflow-hidden rounded-[36px] border border-white/45 bg-white/25 shadow-[0_28px_90px_rgba(21,93,252,0.28)] backdrop-blur-[28px]">
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(147,197,253,0.24)_0%,rgba(147,197,253,0)_60%),linear-gradient(200deg,rgba(255,255,255,0.75)_0%,rgba(240,248,255,0.35)_55%,rgba(227,233,255,0.25)_100%),url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cpath d=%22M0 39h1v1H0zM39 0h1v1h-1z%22 fill=%22%23ffffff33%22/%3E%3C/svg%3E')]" />
-                    <div className="relative aspect-[4/3] overflow-hidden sm:aspect-[5/4] lg:aspect-square">
-                      {heroImages.map((src, index) => (
-                        <div
-                          key={src ?? `fallback-${index}`}
-                          className={clsx(
-                            'absolute inset-0 transition-opacity duration-500 ease-out',
-                            index === heroIndex ? 'opacity-100' : 'pointer-events-none opacity-0',
-                          )}
-                        >
-                          {src ? (
-                            <Image
-                              src={src}
-                              alt={`${hit.name}の写真${index ? ` ${index + 1}` : ''}`}
-                              fill
-                              className="object-cover"
-                              sizes="(max-width: 768px) 80vw, 480px"
-                              priority={index === heroIndex}
-                            />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-4xl font-semibold text-brand-primary">
-                              <span>{hit.name.slice(0, 1)}</span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      {heroImages.length > 1 ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setHeroIndex(
-                                (prev) => (prev - 1 + heroImages.length) % heroImages.length,
-                              )
-                            }
-                            className="absolute left-4 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/85 text-lg text-brand-primary shadow-sm shadow-brand-primary/20 transition hover:bg-white"
-                            aria-label="前の写真"
-                          >
-                            ←
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setHeroIndex((prev) => (prev + 1) % heroImages.length)}
-                            className="absolute right-4 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/85 text-lg text-brand-primary shadow-sm shadow-brand-primary/20 transition hover:bg-white"
-                            aria-label="次の写真"
-                          >
-                            →
-                          </button>
-                        </>
-                      ) : null}
-
-                      <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-1 text-xs font-semibold text-brand-primary shadow-sm shadow-brand-primary/25">
-                        <span aria-hidden>★</span>
-                        {hit.rating ? hit.rating.toFixed(1) : '評価準備中'}
-                        {hit.reviewCount ? (
-                          <span className="text-[11px] font-medium text-neutral-textMuted">
-                            口コミ {hit.reviewCount}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
+                  <ReservationHeroCard
+                    name={hit.name}
+                    images={heroImages}
+                    activeIndex={heroIndex}
+                    onPrev={() =>
+                      setHeroIndex((prev) => (prev - 1 + heroImages.length) % heroImages.length)
+                    }
+                    onNext={() => setHeroIndex((prev) => (prev + 1) % heroImages.length)}
+                    rating={hit.rating}
+                    reviewCount={hit.reviewCount}
+                  />
 
                   <div className="relative flex flex-col gap-5 overflow-hidden rounded-[36px] border border-white/50 bg-white/28 p-6 shadow-[0_32px_90px_rgba(21,93,252,0.28)] backdrop-blur-[26px]">
                     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.22),transparent_58%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.2),transparent_55%),url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22 viewBox=%220 0 48 48%22%3E%3Cpath d=%22M0 47h1v1H0zM47 0h1v1h-1z%22 fill=%22%23ffffff29%22/%3E%3C/svg%3E')]" />

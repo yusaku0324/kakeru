@@ -13,10 +13,10 @@ import {
 import type { SelectedSlot } from '@/components/calendar/AvailabilityPickerDesktop'
 import type { AvailabilityStatus } from '@/components/calendar/types'
 
+import { formatLocalDate, toIsoWithOffset } from '@/utils/date'
 import type { ReservationOverlayProps } from '../ReservationOverlay'
-import { formatLocalDate, toIsoWithOffset } from './data'
-
-const pad = (value: number) => value.toString().padStart(2, '0')
+import type { NormalizedDay, NormalizedSlot } from './types'
+import { buildTimelineTimes, calculateSchedulePages } from './utils'
 
 type AvailabilityTemplate = Array<{
   dayOffset: number
@@ -30,20 +30,6 @@ type AvailabilityTemplate = Array<{
 
 export type OverlayFormTab = 'schedule' | 'info'
 export type SlotStatus = Exclude<AvailabilityStatus, 'blocked'>
-
-export type NormalizedSlot = {
-  start_at: string
-  end_at: string
-  status: AvailabilityStatus
-  timeKey: string
-}
-
-export type NormalizedDay = {
-  date: string
-  label: string
-  isToday: boolean
-  slots: NormalizedSlot[]
-}
 
 type UseReservationOverlayStateParams = {
   availabilityDays?: ReservationOverlayProps['availabilityDays']
@@ -63,6 +49,7 @@ export type ReservationOverlayState = {
   timelineTimes: Array<{ key: string; label: string }>
   selectedSlots: SelectedSlot[]
   toggleSlot: (day: NormalizedDay, slot: NormalizedSlot) => void
+  removeSlot: (startAt: string) => void
   ensureSelection: () => SelectedSlot[]
   hasAvailability: boolean
   formOpen: boolean
@@ -151,108 +138,20 @@ export function useReservationOverlayState({
       .sort((a, b) => a.date.localeCompare(b.date))
   }, [availabilitySource, dayFormatter, todayIso])
 
-  const timelineTimes = useMemo(() => {
-    const activeMinutes: number[] = []
+  const timelineTimes = useMemo(
+    () => buildTimelineTimes(normalizedAvailability),
+    [normalizedAvailability],
+  )
 
-    normalizedAvailability.forEach((day) => {
-      day.slots.forEach((slot) => {
-        const startKey = slot.timeKey ?? slot.start_at.slice(11, 16)
-        const [hourStr, minuteStr] = startKey.split(':')
-        const startHour = Number.parseInt(hourStr ?? '', 10)
-        const startMinute = Number.parseInt(minuteStr ?? '', 10)
-        if (Number.isNaN(startHour) || Number.isNaN(startMinute)) return
-
-        const startMinutes = startHour * 60 + startMinute
-        const durationMinutes = Math.max(
-          30,
-          Math.round(
-            (new Date(slot.end_at).getTime() - new Date(slot.start_at).getTime()) / 60000,
-          ) || 0,
-        )
-        const endMinutes = Math.min(24 * 60, startMinutes + durationMinutes)
-        for (let minutes = startMinutes; minutes < endMinutes; minutes += 30) {
-          activeMinutes.push(minutes)
-        }
-      })
-    })
-
-    if (!activeMinutes.length) {
-      const fallback: { key: string; label: string }[] = []
-      for (let minutes = 10 * 60; minutes <= 22 * 60; minutes += 30) {
-        const hour = Math.floor(minutes / 60)
-        const minute = minutes % 60
-        const key = `${pad(hour)}:${pad(minute)}`
-        fallback.push({
-          key,
-          label: `${hour}:${minute.toString().padStart(2, '0')}`.replace(/^0/, ''),
-        })
-      }
-      return fallback
-    }
-
-    activeMinutes.sort((a, b) => a - b)
-    const minMinutes = Math.max(0, activeMinutes[0] - 30)
-    const maxMinutes = Math.min(24 * 60, activeMinutes[activeMinutes.length - 1] + 60)
-
-    const times: { key: string; label: string }[] = []
-    for (let minutes = minMinutes; minutes <= maxMinutes; minutes += 30) {
-      const hour = Math.floor(minutes / 60)
-      const minute = minutes % 60
-      const key = `${pad(hour)}:${pad(minute)}`
-      times.push({ key, label: `${hour}:${minute.toString().padStart(2, '0')}`.replace(/^0/, '') })
-    }
-    return times
-  }, [normalizedAvailability])
-
-  const schedulePages = useMemo(() => {
-    const chunkSize = 7
-    if (!normalizedAvailability.length) {
-      const base = new Date(todayIso)
-      base.setHours(0, 0, 0, 0)
-      const page: NormalizedDay[] = Array.from({ length: chunkSize }).map((_, offset) => {
-        const date = new Date(base)
-        date.setDate(base.getDate() + offset)
-        const iso = date.toISOString().slice(0, 10)
-        return {
-          date: iso,
-          label: dayFormatter.format(date),
-          isToday: iso === todayIso,
-          slots: [],
-        }
-      })
-      return [page]
-    }
-
-    const dayMap = new Map(normalizedAvailability.map((day) => [day.date, day]))
-    const firstDate = normalizedAvailability[0]?.date ?? todayIso
-    const base = new Date(firstDate)
-    base.setHours(0, 0, 0, 0)
-    const totalDays = Math.max(normalizedAvailability.length, chunkSize)
-    const pageCount = Math.max(1, Math.ceil(totalDays / chunkSize))
-    const pages: NormalizedDay[][] = []
-
-    for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
-      const page: NormalizedDay[] = []
-      for (let dayIndex = 0; dayIndex < chunkSize; dayIndex++) {
-        const offset = pageIndex * chunkSize + dayIndex
-        const date = new Date(base)
-        date.setDate(base.getDate() + offset)
-        const iso = date.toISOString().slice(0, 10)
-        const existing = dayMap.get(iso)
-        page.push(
-          existing ?? {
-            date: iso,
-            label: dayFormatter.format(date),
-            isToday: iso === todayIso,
-            slots: [],
-          },
-        )
-      }
-      pages.push(page)
-    }
-
-    return pages
-  }, [dayFormatter, normalizedAvailability, todayIso])
+  const schedulePages = useMemo(
+    () =>
+      calculateSchedulePages({
+        normalizedAvailability,
+        dayFormatter,
+        todayIso,
+      }),
+    [dayFormatter, normalizedAvailability, todayIso],
+  )
 
   const currentScheduleDays = useMemo(
     () => schedulePages[schedulePage] ?? schedulePages[0] ?? [],
@@ -339,6 +238,10 @@ export function useReservationOverlayState({
     return []
   }, [normalizedAvailability, selectedSlots])
 
+  const removeSlot = useCallback((startAt: string) => {
+    setSelectedSlots((prev) => prev.filter((item) => item.startAt !== startAt))
+  }, [])
+
   const openForm = useCallback(() => {
     ensureSelection()
     setSchedulePage(0)
@@ -372,6 +275,7 @@ export function useReservationOverlayState({
     timelineTimes,
     selectedSlots,
     toggleSlot,
+    removeSlot,
     ensureSelection,
     hasAvailability,
     formOpen,

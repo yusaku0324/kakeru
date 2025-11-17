@@ -79,6 +79,7 @@ export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCar
   const favorite = therapistId ? isFavorite(therapistId) : false
   const processing = therapistId ? isProcessing(therapistId) : false
   const dataTherapistId = therapistId ?? hit.staffId ?? null
+  const ariaPressed = favorite ? 'true' : 'false'
   const nextSlotPayload = hit.nextAvailableSlot ?? null
   const nextSlotEntity = nextSlotPayload ? nextSlotPayloadToScheduleSlot(nextSlotPayload) : null
   const formattedSlot = formatSlotJp(nextSlotEntity)
@@ -99,7 +100,7 @@ export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCar
       <button
         type="button"
         disabled={!therapistId || processing}
-        aria-pressed={favorite}
+        aria-pressed={ariaPressed}
         aria-label={favorite ? 'お気に入りから削除' : 'お気に入りに追加'}
         title={favorite ? 'お気に入りから削除' : 'お気に入りに追加'}
         onClick={(event) => {

@@ -93,4 +93,14 @@ describe('TherapistCard favorite button', () => {
     fireEvent.click(button)
     expect(toggleFavoriteMock).not.toHaveBeenCalled()
   })
+
+  it('exposes aria-pressed state explicitly', () => {
+    const { getByRole, rerender } = render(<TherapistCard hit={BASE_HIT} />)
+    const button = getByRole('button', { name: 'お気に入りに追加' })
+    expect(button).toHaveAttribute('aria-pressed', 'false')
+
+    isFavoriteMock.mockReturnValueOnce(true)
+    rerender(<TherapistCard hit={BASE_HIT} />)
+    expect(getByRole('button', { name: 'お気に入りから削除' })).toHaveAttribute('aria-pressed', 'true')
+  })
 })
