@@ -40,6 +40,51 @@ check-all:
 	python tools/check_artifacts.py
 	python tools/check_cycles.py
 
+# Alias for convenience (matches `just check-all`)
+checkall: check-all
+
+# --- Developer shortcuts for CI-equivalent checks ---
+
+# Run apps/web typecheck (matches CI)
+web-typecheck:
+	cd apps/web && pnpm run typecheck
+
+# Run apps/web lint (matches CI)
+web-lint:
+	cd apps/web && pnpm run lint
+
+# Run apps/web unit tests (Vitest)
+web-unit:
+	cd apps/web && pnpm run test:unit
+
+# Bring up admin E2E stack (db/api/web) via docker compose
+admin-e2e-up:
+	docker compose -f docker-compose.admin-e2e.yml up -d db meili redis api web
+
+# Tear down admin E2E stack
+admin-e2e-down:
+	docker compose -f docker-compose.admin-e2e.yml down
+
+# Full admin E2E flow: spin up stack, run Playwright, then stop services
+admin-e2e:
+	bash -c 'set -euo pipefail; just admin-e2e-up; trap "just admin-e2e-down" EXIT; just web-e2e'
+
+# Execute Playwright E2E (expects admin stack running or Doppler config)
+web-e2e:
+	doppler run --project osakamenesu --config dev_web -- \
+	  pnpm --dir apps/web run test:e2e
+
+# Run FastAPI pytest suite with Doppler env (same as CI backend job)
+api-pytest:
+	cd services/api && \
+	  PYTHONPATH=. doppler run --project osakamenesu --config dev_api -- \
+	  env TEST_AUTH_SECRET=secret E2E_TEST_AUTH_SECRET=secret \
+	  pytest app/tests app/tests_integration -q
+
+# Download and show CI job logs (usage: just ci-debug job=web-lint)
+ci-debug job='web-lint':
+	bash scripts/ci-debug.sh --job {{job}}
+
 # Ensure current shell is running under `doppler run -- ...`
 require-doppler:
 	python tools/require_doppler_env.py

@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .... import models
-from ....meili import index_bulk, index_profile, purge_all
+from ....meili import index_bulk, purge_all
 from ....schemas import (
     AvailabilityCalendar,
     AvailabilityCreate,
@@ -34,20 +34,25 @@ from ....schemas import (
 from ....utils.datetime import (
     JST,
     ensure_jst_datetime,
-    isoformat_jst,
     now_jst,
 )
-from ....utils.profiles import build_profile_doc, normalize_review_aspects
+from ....utils.profiles import normalize_review_aspects
 from ....utils.slug import slugify
 from .audit import AdminAuditContext, record_change
 from .errors import AdminServiceError
 from . import site_bridge
+from .profile_availability import (
+    ProfileServiceError,
+    create_availability_bulk as _create_availability_bulk,
+    create_single_availability as _create_single_availability,
+    get_availability_calendar as _get_availability_calendar,
+    slots_to_json,
+    upsert_availability as _upsert_availability,
+    upsert_bulk_availability,
+)
+from .profile_indexing import build_profile_document, reindex_profile_contact
 
 logger = logging.getLogger("app.admin.profile_service")
-
-
-class ProfileServiceError(AdminServiceError):
-    """Domain-level exception for admin profile operations."""
 
 
 async def reindex_profile(*, db: AsyncSession, profile_id: UUID) -> None:
@@ -55,9 +60,8 @@ async def reindex_profile(*, db: AsyncSession, profile_id: UUID) -> None:
     if not profile:
         raise ProfileServiceError(HTTPStatus.NOT_FOUND, detail="profile not found")
     await db.refresh(profile, attribute_names=["reviews"])
-    doc = await _build_profile_document(db=db, profile=profile)
     try:
-        index_profile(doc)
+        await _reindex_profile_contact(db=db, profile=profile)
     except Exception as exc:  # pragma: no cover - meili failure path
         raise ProfileServiceError(
             HTTPStatus.SERVICE_UNAVAILABLE, detail=f"meili_unavailable: {exc}"
@@ -105,44 +109,19 @@ async def create_single_availability(
     date_value: date,
     slots_json: Optional[dict[str, Any]] = None,
 ) -> str:
-    profile = await db.get(models.Profile, profile_id)
-    if not profile:
-        raise ProfileServiceError(HTTPStatus.NOT_FOUND, detail="profile not found")
-
-    availability = models.Availability(
-        profile_id=profile.id,
-        date=date_value,
-        slots_json=slots_json or {},
-        is_today=date_value == now_jst().date(),
+    return await _create_single_availability(
+        db=db,
+        profile_id=profile_id,
+        date_value=date_value,
+        slots_json=slots_json,
+        reindex=_reindex_profile_contact,
     )
-    db.add(availability)
-    await db.commit()
-    await _reindex_profile_contact(db=db, profile=profile)
-    return str(availability.id)
 
 
 async def create_availability_bulk(
     *, db: AsyncSession, payload: List[AvailabilityCreate]
 ) -> List[str]:
-    created: List[str] = []
-    today = now_jst().date()
-    for item in payload:
-        profile = await db.get(models.Profile, item.profile_id)
-        if not profile:
-            raise ProfileServiceError(
-                HTTPStatus.NOT_FOUND, detail=f"profile {item.profile_id} not found"
-            )
-        slots_json = _slots_to_json(item.slots)
-        availability = models.Availability(
-            profile_id=profile.id,
-            date=item.date,
-            slots_json=slots_json,
-            is_today=item.date == today,
-        )
-        db.add(availability)
-        created.append(str(availability.id))
-    await db.commit()
-    return created
+    return await _create_availability_bulk(db=db, payload=payload)
 
 
 async def create_outlink(
@@ -383,7 +362,7 @@ async def bulk_ingest_shop_content(
             )
 
         if entry.availability:
-            await _upsert_bulk_availability(
+            await upsert_bulk_availability(
                 db=db, profile=profile, availability=entry.availability, summary=summary
             )
 
@@ -423,43 +402,13 @@ async def upsert_availability(
     shop_id: UUID,
     payload: AvailabilityUpsert,
 ) -> str:
-    profile = await db.get(models.Profile, shop_id)
-    if not profile:
-        raise ProfileServiceError(HTTPStatus.NOT_FOUND, detail="shop not found")
-
-    slots_json = _slots_to_json(payload.slots)
-    stmt = (
-        select(models.Availability)
-        .where(models.Availability.profile_id == shop_id)
-        .where(models.Availability.date == payload.date)
+    return await _upsert_availability(
+        audit_context=audit_context,
+        db=db,
+        shop_id=shop_id,
+        payload=payload,
+        record_change=record_change,
     )
-    avail = (await db.execute(stmt)).scalar_one_or_none()
-    before_slots = avail.slots_json if avail else None
-    if avail:
-        avail.slots_json = slots_json
-        avail.is_today = payload.date == now_jst().date()
-    else:
-        avail = models.Availability(
-            profile_id=shop_id,
-            date=payload.date,
-            slots_json=slots_json,
-            is_today=payload.date == now_jst().date(),
-        )
-        db.add(avail)
-
-    await db.commit()
-
-    await record_change(
-        db,
-        context=audit_context,
-        target_type="availability",
-        target_id=avail.id,
-        action="upsert",
-        before=before_slots,
-        after=slots_json,
-    )
-
-    return str(avail.id)
 
 
 async def get_availability_calendar(
@@ -469,8 +418,8 @@ async def get_availability_calendar(
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> AvailabilityCalendar | None:
-    return await site_bridge.fetch_availability(
-        db, shop_id, start_date=start_date, end_date=end_date
+    return await _get_availability_calendar(
+        db=db, shop_id=shop_id, start_date=start_date, end_date=end_date
     )
 
 
@@ -491,59 +440,6 @@ async def resolve_profile_by_identifier(
         select(models.Profile).where(models.Profile.slug == identifier)
     )
     return result.scalar_one_or_none()
-
-
-async def _reindex_profile_contact(
-    *, db: AsyncSession, profile: models.Profile
-) -> None:
-    doc = await _build_profile_document(db=db, profile=profile)
-    try:
-        index_profile(doc)
-    except Exception:  # pragma: no cover
-        logger.exception("Failed to reindex profile %s", profile.id)
-
-
-async def _build_profile_document(
-    *, db: AsyncSession, profile: models.Profile
-) -> dict[str, Any]:
-    today = now_jst().date()
-    res_today = await db.execute(
-        select(func.count())
-        .select_from(models.Availability)
-        .where(
-            models.Availability.profile_id == profile.id,
-            models.Availability.date == today,
-        )
-    )
-    has_today = (res_today.scalar_one() or 0) > 0
-    res_out = await db.execute(
-        select(models.Outlink).where(models.Outlink.profile_id == profile.id)
-    )
-    outlinks = list(res_out.scalars().all())
-    return build_profile_doc(
-        profile,
-        today=has_today,
-        tag_score=0.0,
-        ctr7d=0.0,
-        outlinks=outlinks,
-    )
-
-
-def _slots_to_json(slots: List[AvailabilitySlotIn] | None) -> dict | None:
-    if not slots:
-        return None
-    return {
-        "slots": [
-            {
-                "start_at": isoformat_jst(slot.start_at),
-                "end_at": isoformat_jst(slot.end_at),
-                "status": slot.status,
-                "staff_id": str(slot.staff_id) if slot.staff_id else None,
-                "menu_id": str(slot.menu_id) if slot.menu_id else None,
-            }
-            for slot in slots
-        ]
-    }
 
 
 async def _upsert_reviews(
@@ -617,30 +513,8 @@ async def _upsert_diaries(
             target_diary.created_at = created_at
 
 
-async def _upsert_bulk_availability(
-    *,
-    db: AsyncSession,
-    profile: models.Profile,
-    availability: List[BulkAvailabilityInput],
-    summary: BulkShopIngestResult,
-) -> None:
-    for entry in availability:
-        slots_json = _slots_to_json(entry.slots)
-        stmt = select(models.Availability).where(
-            models.Availability.profile_id == profile.id,
-            models.Availability.date == entry.date,
-        )
-        existing = (await db.execute(stmt)).scalar_one_or_none()
-        if existing:
-            existing.slots_json = slots_json
-            existing.is_today = entry.date == now_jst().date()
-        else:
-            db.add(
-                models.Availability(
-                    profile_id=profile.id,
-                    date=entry.date,
-                    slots_json=slots_json,
-                    is_today=entry.date == now_jst().date(),
-                )
-            )
-        summary.availability_upserts += 1
+# Backwards compatibility aliases for tests and routers
+_reindex_profile_contact = reindex_profile_contact
+_build_profile_document = build_profile_document
+_slots_to_json = slots_to_json
+_upsert_bulk_availability = upsert_bulk_availability
