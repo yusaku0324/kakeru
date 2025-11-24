@@ -110,8 +110,7 @@ jobs:
         run: pytest -n auto app/tests -q
 
   integration-test:
-    # Uses GH secrets (no GCP Secret Manager). Set secrets.MEILI_MASTER_KEY to run; otherwise the job is skipped.
-    if: ${{ secrets.MEILI_MASTER_KEY != '' }}
+    # Uses GH secrets (no GCP Secret Manager). Set secrets.MEILI_MASTER_KEY to run; otherwise steps are skipped.
     needs:
       - test
     runs-on: ubuntu-latest
@@ -122,9 +121,15 @@ jobs:
       DOCKER_BUILDKIT: 1
       MEILI_MASTER_KEY: ${{ secrets.MEILI_MASTER_KEY }}
     steps:
+      - name: Skip when MEILI_MASTER_KEY is not set
+        if: ${{ env.MEILI_MASTER_KEY == '' }}
+        run: echo "Skipping integration-test: MEILI_MASTER_KEY secret is not configured."
+
       - uses: actions/checkout@v4
+        if: ${{ env.MEILI_MASTER_KEY != '' }}
 
       - name: Run docker-compose integration tests
+        if: ${{ env.MEILI_MASTER_KEY != '' }}
         run: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from osakamenesu-api-test osakamenesu-api-test
 
       - name: Teardown integration stack
