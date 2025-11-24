@@ -1,9 +1,11 @@
 """Site (customer-facing) domain routers."""
 
 from .favorites import router as favorites_router
+from .guest_matching import router as guest_matching_router
 from .shops import router as shops_router
 
 __all__ = [
     "favorites_router",
+    "guest_matching_router",
     "shops_router",
 ]

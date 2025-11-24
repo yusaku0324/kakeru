@@ -1,0 +1,55 @@
+info:
+  id: guest_matching.matching_logic
+  title: ゲスト×セラピスト マッチングロジック v1
+  summary: ルールベースのスコアリング仕様。将来のML/embeddingに置き換え前提。
+
+therapist_profile:
+  fields:
+    lookType: [cute, oneesan, beauty, gal, natural, cool]
+    moodTag: [calm, energetic, mature, friendly]
+    talkLevel: [quiet, normal, talkative]
+    styleTag: [relax, strong, exciting]
+    priceLevel: [value, standard, premium]
+    contactStyle: [strict, standard, relaxed]
+    hobbyTags: [string]
+
+guest_preference:
+  fields:
+    area
+    date
+    budget_level: [low, mid, high]
+    mood_pref: { calm, energetic, mature }
+    talk_pref: { quiet, normal, talkative }
+    style_pref: { relax, strong, exciting }
+    look_pref: { cute, oneesan, beauty, gal, natural, cool }
+
+score_components:
+  - id: core
+    weight: 0.4
+    description: エリア・日時・基本条件のマッチ度（従来の検索スコア）
+  - id: priceFit
+    weight: 0.15
+  - id: moodFit
+    weight: 0.15
+  - id: talkFit
+    weight: 0.1
+  - id: styleFit
+    weight: 0.1
+  - id: lookFit
+    weight: 0.05
+  - id: availability
+    weight: 0.05
+
+output:
+  type: MatchingResult
+  fields:
+    therapist_id
+    score
+    breakdown:
+      core
+      priceFit
+      moodFit
+      talkFit
+      styleFit
+      lookFit
+      availability

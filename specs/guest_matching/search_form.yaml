@@ -1,0 +1,50 @@
+info:
+  id: guest_matching.search_form
+  title: ゲスト検索フォーム仕様
+  summary: ゲストがエリア/日時/コース/予算/セラ指名有無で条件検索し、予約候補一覧を閲覧する。
+
+inputs:
+  - name: area
+    type: string
+    required: true
+    description: エリアコード or 店舗IDの配列でも可
+  - name: date
+    type: string
+    format: date
+    required: true
+  - name: time_range
+    type: object
+    required: false
+    properties:
+      from: string
+      to: string
+  - name: course_id
+    type: string
+    required: false
+  - name: budget_level
+    type: string
+    enum: [low, mid, high]
+    required: false
+  - name: therapist_id
+    type: string
+    required: false
+
+outputs:
+  - name: candidates
+    type: array
+    items:
+      type: object
+      properties:
+        therapist_id: string
+        therapist_name: string
+        shop_id: string
+        shop_name: string
+        course_id: string
+        price: number
+        available_slots:
+          type: array
+          items:
+            type: object
+            properties:
+              start_at: string
+              end_at: string

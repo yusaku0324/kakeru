@@ -22,7 +22,7 @@ from .domains.dashboard import (
 )
 from .domains.line import router as line_router
 from .domains.ops import router as ops_router
-from .domains.site import favorites_router, shops_router
+from .domains.site import favorites_router, guest_matching_router, shops_router
 from .domains.test import router as test_router
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -157,6 +157,7 @@ async def out_redirect(
 app.include_router(admin_profiles_router)
 app.include_router(admin_router)
 app.include_router(shops_router)
+app.include_router(guest_matching_router)
 app.include_router(admin_reservations_router)
 app.include_router(auth_router)
 app.include_router(favorites_router)
