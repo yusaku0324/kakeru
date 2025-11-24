@@ -110,31 +110,21 @@ jobs:
         run: pytest -n auto app/tests -q
 
   integration-test:
+    # Uses GH secrets (no GCP Secret Manager). Set secrets.MEILI_MASTER_KEY to run; otherwise the job is skipped.
+    if: ${{ secrets.MEILI_MASTER_KEY != '' }}
     needs:
       - test
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: osakamenesu
+    env:
+      DOCKER_BUILDKIT: 1
+      MEILI_MASTER_KEY: ${{ secrets.MEILI_MASTER_KEY }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Fetch Meilisearch master key
-        id: meili-secret
-        uses: google-github-actions/get-secretmanager-secrets@v2
-        with:
-          secrets: |
-            MEILI_MASTER_KEY:projects/${{ secrets.GCP_PROJECT_ID }}/secrets/MEILI_MASTER_KEY/versions/latest
-
       - name: Run docker-compose integration tests
-        env:
-          DOCKER_BUILDKIT: 1
-          MEILI_MASTER_KEY: ${{ steps.meili-secret.outputs.MEILI_MASTER_KEY }}
         run: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from osakamenesu-api-test osakamenesu-api-test
 
       - name: Teardown integration stack
