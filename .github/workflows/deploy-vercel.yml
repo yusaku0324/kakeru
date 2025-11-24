@@ -1,0 +1,6 @@
+name: Deploy to Vercel (placeholder)
+# NOTE: Actual deployments are handled by Vercel GitHub integration.
+# This workflow is reserved for future use if we decide to drive deploys from GitHub Actions.
+
+on:
+  workflow_dispatch: {}

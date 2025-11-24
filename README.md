@@ -47,6 +47,7 @@ python tools/check_proxy.py jp_pool
 API / Web 向けの環境変数は [Doppler 導入ガイド](docs/doppler-setup.md) に従って管理できます（`doppler run` で docker-compose や Next.js を起動）。  
 フロントエンド (`apps/web/`) は `pnpm` ベースです。セットアップは `cd apps/web && pnpm install`、ローカル開発は `doppler run --project osakamenesu --config dev_web -- pnpm dev` を実行してください。テストコマンドも `pnpm lint` / `pnpm test:unit` / `pnpm test:e2e` へ統一しています。  
 Next.js 16 では API フォワードや署名付与を `src/proxy.ts` で行っているため、従来の `middleware.ts` は不要になりました。Cloud Run へリクエストを転送する場合は `docs/api-proxy.md` の手順に従って `proxy.ts` を編集してください。
+Cloud Run へのデプロイはレガシー化しており、今後は Supabase（DB）＋ Vercel（Web/API）構成へ移行予定です。
 リポジトリクリーンアップ手順
 開発環境をクリーンに保つために、以下の手順を実行してください：
 bash# .gitignoreに無視すべきファイルパターンが含まれていることを確認

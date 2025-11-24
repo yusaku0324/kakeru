@@ -245,6 +245,9 @@ jobs:
         run: pnpm --dir apps/web run lint
 
   build-api-image:
+    name: "[LEGACY] build-api-image (Cloud Run)"
+    # NOTE: Cloud Run deploy is deprecated. We are migrating to Supabase + Vercel.
+    if: ${{ github.ref == 'refs/heads/__never__' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -290,6 +293,9 @@ jobs:
           echo "api_pushed=true" >> "$GITHUB_OUTPUT"
 
   build-web-image:
+    name: "[LEGACY] build-web-image (Cloud Run)"
+    # NOTE: Cloud Run deploy is deprecated. We are migrating to Supabase + Vercel.
+    if: ${{ github.ref == 'refs/heads/__never__' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -334,6 +340,9 @@ jobs:
           echo "web_pushed=true" >> "$GITHUB_OUTPUT"
 
   build-e2e-image:
+    name: "[LEGACY] build-e2e-image (Cloud Run)"
+    # NOTE: Cloud Run deploy is deprecated. We are migrating to Supabase + Vercel.
+    if: ${{ github.ref == 'refs/heads/__never__' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -555,10 +564,12 @@ jobs:
         run: docker compose -f docker-compose.admin-e2e.yml down -v
 
   deploy:
+    name: "[LEGACY] deploy (Cloud Run)"
+    # NOTE: Cloud Run deploy is deprecated. We are migrating to Supabase + Vercel.
     needs:
       - integration-test
       - admin-e2e
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ github.ref == 'refs/heads/__never__' }}
     runs-on: ubuntu-latest
     env:
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
