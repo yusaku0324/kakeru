@@ -63,6 +63,22 @@ envOPENAI_API_KEY=sk-...
 TWITTER_BEARER_TOKEN=AAAAAAAA...
 CHROME_PATH=/Applications/Google\ Chrome.app/...
 SHADOWBAN_YAML_PATH=bot/config/shadowban.yaml
+
+Spec Kit (dev-only)
+-------------------
+ローカル開発で Spec Kit CLI を使う場合（本番/CI には影響しません）:
+
+```
+# 永続インストール（推奨）
+uv tool install specify-cli --from git+https://github.com/github/spec-kit.git
+
+# 1回限り
+uvx --from git+https://github.com/github/spec-kit.git specify --help
+```
+
+- サンプル spec: `specs/sample-therapist-home.md`
+- ツールの補足: `spec-kit/README.md`
+
 テスト
 bash# テストを実行
 pytest
