@@ -67,6 +67,10 @@ export default function MatchChatPage() {
   }, [area, date, budget, mood, freeText])
 
   const handleSubmit = async () => {
+    if (!area || !date) {
+      setError('エリアと日付を入力してください。')
+      return
+    }
     setLoading(true)
     setError(null)
     setResult(null)
@@ -82,7 +86,7 @@ export default function MatchChatPage() {
       const data = (await resp.json()) as MatchingResponse
       setResult(data)
     } catch (err) {
-      setError('通信エラーが発生しました。時間をおいて再度お試しください。')
+      setError('おすすめ取得に失敗しました。時間をおいて再度お試しください。')
       console.error(err)
     } finally {
       setLoading(false)
@@ -193,7 +197,7 @@ export default function MatchChatPage() {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={loading || !area || !date}
+            disabled={loading}
             className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-5 py-2 font-semibold text-white shadow transition hover:from-brand-primary/90 hover:to-brand-secondary/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? 'おすすめを探しています...' : 'この条件でおすすめをみる'}
@@ -226,9 +230,7 @@ export default function MatchChatPage() {
                       <div className="text-base font-semibold text-neutral-text">{m.therapist_name}</div>
                       <div className="text-xs text-neutral-textMuted">{m.shop_name}</div>
                     </div>
-                    <div className="text-xs font-semibold text-brand-primary">
-                      スコア {m.score.toFixed(2)}
-                    </div>
+                    <div className="text-xs font-semibold text-brand-primary">あなたの条件に近い順</div>
                   </div>
                   {m.summary ? <p className="text-neutral-textMuted">{m.summary}</p> : null}
                   {m.slots && m.slots.length ? (

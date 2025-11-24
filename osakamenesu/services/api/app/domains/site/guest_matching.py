@@ -3,8 +3,12 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .services.shop.search_service import ShopSearchService
+from ...db import get_session
 
 router = APIRouter(prefix="/api/guest/matching", tags=["guest-matching"])
 
@@ -68,7 +72,9 @@ def _compute_price_fit(budget_level: str | None, therapist_price: str | None) ->
     price_map = {"value": "low", "standard": "mid", "premium": "high"}
     guest_idx = order.index(budget_level) if budget_level in order else -1
     therapist_idx = (
-        order.index(price_map[therapist_price]) if therapist_price in price_map else -1
+        order.index(price_map[therapist_price])
+        if therapist_price in price_map
+        else -1
     )
     if guest_idx < 0 or therapist_idx < 0:
         return 0.5
@@ -87,7 +93,10 @@ def _compute_choice_fit(pref: dict[str, float] | None, tag: str | None) -> float
 
 
 def _score_candidate(payload: GuestMatchingRequest, candidate: dict[str, Any]) -> float:
-    # Lightweight, rule-based scoring aligned with frontend computeMatchingScore.
+    """
+    v1: サーバ側で簡易スコアリング（フロントの computeMatchingScore と同趣旨）。
+    TODO: 検索rank/coreやプロファイルタグを取り込んで精度を上げる。
+    """
     price_fit = _compute_price_fit(
         payload.budget_level, candidate.get("price_level", None)
     )
@@ -95,7 +104,7 @@ def _score_candidate(payload: GuestMatchingRequest, candidate: dict[str, Any]) -
     talk_fit = _compute_choice_fit(payload.talk_pref, candidate.get("talk_level"))
     style_fit = _compute_choice_fit(payload.style_pref, candidate.get("style_tag"))
     look_fit = _compute_choice_fit(payload.look_pref, candidate.get("look_type"))
-    core_score = 0.6  # placeholder: real core score should come from search rank
+    core_score = 0.6  # TODO: search rank/core を反映する
     availability_score = 0.8 if candidate.get("slots") else 0.3
 
     score = (
@@ -119,63 +128,54 @@ def _score_candidate(payload: GuestMatchingRequest, candidate: dict[str, Any]) -
     return score
 
 
-def _build_sample_candidates() -> list[dict[str, Any]]:
-    return [
-        {
-            "therapist_id": "t-101",
-            "therapist_name": "ナツキ",
-            "shop_id": "s-01",
-            "shop_name": "ゆったりスパ本店",
-            "price_level": "standard",
-            "mood_tag": "calm",
-            "talk_level": "quiet",
-            "style_tag": "relax",
-            "look_type": "natural",
-            "slots": [
-                {
-                    "start_at": "2025-11-04T13:00:00+09:00",
-                    "end_at": "2025-11-04T14:00:00+09:00",
-                }
-            ],
-        },
-        {
-            "therapist_id": "t-202",
-            "therapist_name": "ミホ",
-            "shop_id": "s-02",
-            "shop_name": "アロマテラス心斎橋",
-            "price_level": "premium",
-            "mood_tag": "mature",
-            "talk_level": "normal",
-            "style_tag": "strong",
-            "look_type": "beauty",
-            "slots": [],
-        },
-        {
-            "therapist_id": "t-303",
-            "therapist_name": "ユイ",
-            "shop_id": "s-03",
-            "shop_name": "リラクセ梅田",
-            "price_level": "value",
-            "mood_tag": "friendly",
-            "talk_level": "talkative",
-            "style_tag": "relax",
-            "look_type": "cute",
-            "slots": [
-                {
-                    "start_at": "2025-11-04T18:00:00+09:00",
-                    "end_at": "2025-11-04T19:00:00+09:00",
-                }
-            ],
-        },
-    ]
+def _map_shop_to_candidate(shop: Any) -> dict[str, Any]:
+    """
+    ShopSearchService の結果をプレーンな candidate dict に変換する。
+    - staff_preview があれば先頭スタッフを仮に推薦対象とする（暫定）
+    - next_available_slot / staff_preview.next_available_slot を slots に反映
+    """
+    staff = None
+    if getattr(shop, "staff_preview", None):
+        staff = next((s for s in shop.staff_preview if getattr(s, "name", None)), None)
+    therapist_id = getattr(staff, "id", None) or getattr(shop, "id", None)
+    therapist_name = getattr(staff, "name", None) or getattr(shop, "name", "")
+
+    slot = None
+    if staff and getattr(staff, "next_available_slot", None):
+        slot = staff.next_available_slot
+    elif getattr(shop, "next_available_slot", None):
+        slot = shop.next_available_slot
+
+    slots = []
+    if slot:
+        slots.append(
+            {
+                "start_at": getattr(slot, "start_at", None),
+                "end_at": getattr(slot, "end_at", None),
+            }
+        )
+
+    return {
+        "therapist_id": str(therapist_id or ""),
+        "therapist_name": therapist_name or "",
+        "shop_id": str(getattr(shop, "id", "")),
+        "shop_name": getattr(shop, "name", "") or "",
+        "price_level": getattr(shop, "price_band", None),
+        "mood_tag": None,  # TODO: プロファイルタグ連携
+        "talk_level": None,
+        "style_tag": None,
+        "look_type": None,
+        "slots": slots,
+    }
 
 
 @router.post("/search", response_model=MatchingResponse)
-async def guest_matching_search(payload: GuestMatchingRequest) -> MatchingResponse:
+async def guest_matching_search(
+    payload: GuestMatchingRequest, db: AsyncSession = Depends(get_session)
+) -> MatchingResponse:
     """
-    v1: lightweight matching endpoint.
-    現状は簡易的なサンプル候補に対するルールベーススコアリングのみ。
-    将来的に既存検索ロジックの結果をスコアリングする形に差し替える。
+    v1: 既存ショップ検索をラップし、簡易スコアリングして返却。
+    現状はタグ不足のため雰囲気系タグは空（0.5のニュートラル）で計算。
     """
     if not payload.area or not payload.date:
         raise HTTPException(
@@ -183,15 +183,32 @@ async def guest_matching_search(payload: GuestMatchingRequest) -> MatchingRespon
             detail="area and date are required",
         )
 
-    candidates = _build_sample_candidates()
+    search_service = ShopSearchService(db)
+    try:
+        search_res = await search_service.search(
+            area=payload.area,
+            available_date=payload.date,
+            open_now=True,
+            page=1,
+            page_size=12,
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="matching search failed",
+        ) from exc
+
+    # search_res is dict-like from ShopSearchService.search
+    hits = search_res.get("results", []) if isinstance(search_res, dict) else []
+    candidates_raw = [_map_shop_to_candidate(shop) for shop in hits]
+
     scored: list[MatchingCandidate] = []
-    for c in candidates:
+    for c in candidates_raw:
         score = _score_candidate(payload, c)
         breakdown = c.get("__breakdown", {})
         summary = (
-            f"{c.get('shop_name', '')}所属。"
-            f"{c.get('mood_tag', '')} な雰囲気で"
-            f"{c.get('style_tag', '')} な施術が得意です。"
+            f"{c.get('shop_name', '')} のスタッフ候補です。"
+            "条件に近い順に並べています。"
         )
         scored.append(
             MatchingCandidate(

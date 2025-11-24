@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -23,6 +21,8 @@ def test_matching_search_ok(client: TestClient) -> None:
     body = resp.json()
     assert "top_matches" in body
     assert isinstance(body["top_matches"], list)
+    # v1はショップ検索結果に対する簡易スコアリングを行い、上位候補を返す
+    assert all("therapist_id" in c for c in body["top_matches"])
 
 
 def test_matching_search_requires_area_date(client: TestClient) -> None:
