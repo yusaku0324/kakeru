@@ -5,6 +5,9 @@ import path from 'node:path'
 import { ensureDashboardAuthenticated, resolveApiBase, SkipTestError } from './utils/dashboard-auth'
 import { resolveAdminExtraHeaders } from './utils/admin-headers'
 
+// NOTE: Legacy admin dashboard E2E. Kept for reference but fully skipped in CI/smoke suites.
+test.skip(true, 'Legacy admin dashboard suite is skipped (use smoke-admin.spec.ts instead)')
+
 const dashboardStoragePath =
   process.env.PLAYWRIGHT_DASHBOARD_STORAGE ?? path.resolve(__dirname, 'storage', 'dashboard.json')
 
