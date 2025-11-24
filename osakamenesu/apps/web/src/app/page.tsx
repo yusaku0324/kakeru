@@ -138,6 +138,50 @@ export default async function HomePage() {
           </div>
         </header>
 
+        <Section
+          id="home-discovery"
+          title="探し方を選ぶ"
+          subtitle="条件でさがす / 相談してさがす、どちらもお好きな方法でどうぞ"
+          className="border border-neutral-borderLight/70 bg-white/90 shadow-lg shadow-neutral-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/80"
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card interactive className="flex h-full flex-col gap-3 p-6">
+              <div className="flex items-center gap-2 text-sm font-semibold text-brand-primaryDark">
+                🔍 条件でさがす
+              </div>
+              <p className="text-sm text-neutral-textMuted">
+                エリア・日付・コース・予算・指名有無を指定して、空き枠をまとめてチェック。従来の検索フローをそのままご利用いただけます。
+              </p>
+              <div className="mt-auto">
+                <Link
+                  href="/search"
+                  className="inline-flex items-center gap-2 rounded-badge border border-brand-primary/40 bg-brand-primary/10 px-4 py-2 text-sm font-semibold text-brand-primary transition hover:bg-brand-primary/15"
+                >
+                  条件で探す
+                  <span aria-hidden>→</span>
+                </Link>
+              </div>
+            </Card>
+            <Card interactive className="flex h-full flex-col gap-3 p-6">
+              <div className="flex items-center gap-2 text-sm font-semibold text-brand-secondaryDark">
+                💬 相談してさがす
+              </div>
+              <p className="text-sm text-neutral-textMuted">
+                2〜3問の簡単な質問に答えるだけで、当日の空き枠や相性の良さをふまえたおすすめを提示します。はじめての方や迷っている方におすすめ。
+              </p>
+              <div className="mt-auto">
+                <Link
+                  href="/guest/match-chat"
+                  className="inline-flex items-center gap-2 rounded-badge border border-brand-secondary/40 bg-brand-secondary/10 px-4 py-2 text-sm font-semibold text-brand-secondary transition hover:bg-brand-secondary/15"
+                >
+                  コンシェルジュに相談する
+                  <span aria-hidden>→</span>
+                </Link>
+              </div>
+            </Card>
+          </div>
+        </Section>
+
         <SearchAvailableToday shops={availableToday} />
 
         <nav className="flex flex-wrap gap-3 text-sm font-semibold text-neutral-text">

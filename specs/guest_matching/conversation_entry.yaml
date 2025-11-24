@@ -1,0 +1,41 @@
+info:
+  id: guest_matching.conversation_entry
+  title: 会話型マッチング入口
+  summary: ゲストが2〜3問の質問に答えることで相性の良い候補を提案する。
+
+steps:
+  - id: ask_basic_conditions
+    description: エリア・日付・予算を聞く
+    inputs:
+      - question: "どのエリアで探しますか？"
+      - question: "ご利用日はいつですか？"
+      - question: "だいたいのご予算を教えてください（〜15,000円 / 15,000〜20,000円 / 20,000円以上）"
+    outputs:
+      - guest.area
+      - guest.date
+      - guest.budget_level
+
+  - id: ask_mood
+    description: 今日の気分・目的を聞く
+    inputs:
+      - question: "今日はどんな過ごし方がしたいですか？"
+        choices:
+          - id: relax
+            label: "とにかく癒やされたい"
+          - id: talk
+            label: "おしゃべりして発散したい"
+          - id: strong
+            label: "しっかりめにほぐしてほしい"
+          - id: unknown
+            label: "よく分からないのでお任せしたい"
+    outputs:
+      - guest.mood_pref
+      - guest.talk_pref
+      - guest.style_pref
+
+  - id: ask_optional_preference
+    description: 任意で好みの雰囲気を入力させる
+    inputs:
+      - question: "もしあれば、好みの雰囲気やNGなことがあれば教えてください。（例：静かめでおっとり / お姉さん系 / おしゃべり好き など）"
+    outputs:
+      - guest.free_text
