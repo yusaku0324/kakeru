@@ -1,20 +1,15 @@
-import { NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
+import { appendFile } from 'node:fs/promises'
+import { NextRequest, NextResponse } from 'next/server'
 
-const ADMIN_KEY = process.env.ADMIN_API_KEY || process.env.OSAKAMENESU_ADMIN_API_KEY
-const PUBLIC_BASE = process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE || process.env.NEXT_PUBLIC_API_BASE || '/api'
-const INTERNAL_BASE = process.env.OSAKAMENESU_API_INTERNAL_BASE || process.env.API_INTERNAL_BASE || 'http://osakamenesu-api:8000'
+import { ADMIN_KEY, adminBases, buildAdminHeaders } from '@/app/api/admin/client'
 
-function bases() {
-  return [INTERNAL_BASE, PUBLIC_BASE]
-}
-
-async function proxy(method: 'GET' | 'PATCH', request: Request, params: { id: string }) {
+async function proxy(method: 'GET' | 'PATCH', request: NextRequest, params: { id: string }) {
+  const requestLabel = `[admin-shops-bff:${method}:${params.id}:${randomUUID()}]`
   if (!ADMIN_KEY) {
     return NextResponse.json({ detail: 'admin key not configured' }, { status: 500 })
   }
-  const headers: Record<string, string> = {
-    'X-Admin-Key': ADMIN_KEY,
-  }
+  const headers: Record<string, string> = buildAdminHeaders()
   let body: string | undefined
   if (method === 'PATCH') {
     try {
@@ -26,48 +21,87 @@ async function proxy(method: 'GET' | 'PATCH', request: Request, params: { id: st
   }
 
   let lastError: any = null
-  const targetPaths =
-    method === 'PATCH'
-      ? [`/api/admin/shops/${params.id}`, `/api/admin/shops/${params.id}/content`]
-      : [`/api/admin/shops/${params.id}`]
+  const targetPath =
+    method === 'PATCH' ? `/api/admin/shops/${params.id}/content` : `/api/admin/shops/${params.id}`
+  const requestStart = Date.now()
+  const forwardPayload = {
+    targetPath,
+    body: method === 'PATCH' ? safelyLogBody(body) : undefined,
+  }
+  console.log(`${requestLabel} forwarding`, forwardPayload)
+  // temporary instrumentation removed
 
-  for (const targetPath of targetPaths) {
-    for (const base of bases()) {
-      try {
-        const resp = await fetch(`${base}${targetPath}`, {
-          method,
-          headers,
-          body,
-          cache: 'no-store',
-        })
-        const text = await resp.text()
-        let json: any = null
-        if (text) {
-          try {
-            json = JSON.parse(text)
-          } catch {
-            json = { detail: text }
-          }
+  for (const base of adminBases()) {
+    const hopStart = Date.now()
+    try {
+      const resp = await fetch(`${base}${targetPath}`, {
+        method,
+        headers,
+        body,
+        cache: 'no-store',
+      })
+      const text = await resp.text()
+      let json: any = null
+      if (text) {
+        try {
+          json = JSON.parse(text)
+        } catch {
+          json = { detail: text }
         }
-        if (resp.ok) {
-          return NextResponse.json(json)
-        }
-        lastError = { status: resp.status, body: json }
-      } catch (err) {
-        lastError = err
       }
+      const hopDuration = Date.now() - hopStart
+      const responseInfo = {
+        base,
+        status: resp.status,
+        durationMs: hopDuration,
+      }
+      console.log(`${requestLabel} response`, responseInfo)
+      if (resp.ok) {
+        const totalDuration = Date.now() - requestStart
+        const successInfo = { durationMs: totalDuration }
+        console.log(`${requestLabel} success`, successInfo)
+        return NextResponse.json(json)
+      }
+      lastError = { status: resp.status, body: json }
+    } catch (err) {
+      console.error(`${requestLabel} fetch failed`, { base, error: String(err) })
+      lastError = err
     }
   }
+  const totalDuration = Date.now() - requestStart
+  console.error(`${requestLabel} exhausted`, { durationMs: totalDuration, lastError })
   if (lastError?.status && lastError.body) {
     return NextResponse.json(lastError.body, { status: lastError.status })
   }
   return NextResponse.json({ detail: 'admin shop unavailable' }, { status: 503 })
 }
 
-export async function GET(request: Request, context: { params: { id: string } }) {
-  return proxy('GET', request, context.params)
+type RouteContext = { params: Promise<{ id: string }> }
+
+async function resolveParams(context: RouteContext) {
+  const params = await context.params
+  if (!params || !params.id) {
+    throw new Error('missing shop id in route params')
+  }
+  return params
 }
 
-export async function PATCH(request: Request, context: { params: { id: string } }) {
-  return proxy('PATCH', request, context.params)
+export async function GET(request: NextRequest, context: RouteContext) {
+  const params = await resolveParams(context)
+  return proxy('GET', request, params)
+}
+
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  const params = await resolveParams(context)
+  return proxy('PATCH', request, params)
+}
+
+function safelyLogBody(body?: string) {
+  if (!body) return undefined
+  try {
+    const parsed = JSON.parse(body)
+    return { ...parsed }
+  } catch {
+    return body
+  }
 }

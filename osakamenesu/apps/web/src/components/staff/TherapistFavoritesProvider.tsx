@@ -1,6 +1,14 @@
-"use client"
+'use client'
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import { ToastContainer, useToast } from '@/components/useToast'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
@@ -25,7 +33,9 @@ type TherapistFavoritesContextValue = {
   toggleFavorite: (payload: TogglePayload) => Promise<void>
 }
 
-const TherapistFavoritesContext = createContext<TherapistFavoritesContextValue | undefined>(undefined)
+const TherapistFavoritesContext = createContext<TherapistFavoritesContextValue | undefined>(
+  undefined,
+)
 
 function normalizeId(value: string | null | undefined): string | null {
   if (value == null) return null
@@ -33,10 +43,11 @@ function normalizeId(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null
 }
 
-const mockMode =
-  ((process.env.NEXT_PUBLIC_FAVORITES_API_MODE || process.env.FAVORITES_API_MODE || '') as string)
-    .toLowerCase()
-    .includes('mock')
+const mockMode = (
+  (process.env.NEXT_PUBLIC_FAVORITES_API_MODE || process.env.FAVORITES_API_MODE || '') as string
+)
+  .toLowerCase()
+  .includes('mock')
 
 export function TherapistFavoritesProvider({ children }: { children: React.ReactNode }) {
   const initialFavorites = useMemo(() => {
@@ -88,37 +99,40 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
   const keyVersionRef = useRef(new Map<string, number>())
   const apiTargetsRef = useRef(resolveApiBases())
 
-  const fetchWithFallback = useCallback(
-    async (path: string, init: RequestInit) => {
-      const targets = apiTargetsRef.current
-      let lastResponse: Response | null = null
-      let lastError: unknown = null
+  const fetchWithFallback = useCallback(async (path: string, init: RequestInit = {}) => {
+    const targets = apiTargetsRef.current
+    let lastResponse: Response | null = null
+    let lastError: unknown = null
 
-      for (const base of targets) {
-        const url = buildApiUrl(base, path)
-        try {
-          const response = await fetch(url, init)
-          if (
-            response.status === 404 &&
-            !(base?.startsWith('http://') || base?.startsWith('https://') || base?.startsWith('//'))
-          ) {
-            // 404 from relative base (same origin) — try next candidate such as the public API host
-            lastResponse = response
-            continue
-          }
-          return response
-        } catch (error) {
-          lastError = error
+    for (const base of targets) {
+      const url = buildApiUrl(base, path)
+      try {
+        const headers = new Headers(init.headers)
+        headers.delete('authorization')
+        headers.delete('Authorization')
+        headers.delete('x-admin-key')
+        headers.delete('X-Admin-Key')
+
+        const response = await fetch(url, init)
+        if (
+          response.status === 404 &&
+          !(base?.startsWith('http://') || base?.startsWith('https://') || base?.startsWith('//'))
+        ) {
+          // 404 from relative base (same origin) — try next candidate such as the public API host
+          lastResponse = response
+          continue
         }
+        return response
+      } catch (error) {
+        lastError = error
       }
+    }
 
-      if (lastResponse) {
-        return lastResponse
-      }
-      throw lastError ?? new Error('All API targets failed')
-    },
-    []
-  )
+    if (lastResponse) {
+      return lastResponse
+    }
+    throw lastError ?? new Error('All API targets failed')
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -220,7 +234,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
     return () => {
       active = false
     }
-  }, [push, fetchWithFallback, mockMode])
+  }, [push, fetchWithFallback])
 
   const isFavorite = useCallback(
     (therapistId: string) => {
@@ -228,7 +242,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
       if (!normalized) return false
       return favorites.has(normalized)
     },
-    [favorites]
+    [favorites],
   )
 
   const isProcessing = useCallback(
@@ -237,7 +251,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
       if (!normalized) return false
       return pending.has(normalized)
     },
-    [pending]
+    [pending],
   )
 
   const toggleFavorite = useCallback(
@@ -267,10 +281,13 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
 
       try {
         if (currentlyFavorite) {
-          const res = await fetchWithFallback(`/api/favorites/therapists/${encodeURIComponent(normalizedTherapistId)}`, {
-            method: 'DELETE',
-            credentials: 'include',
-          })
+          const res = await fetchWithFallback(
+            `/api/favorites/therapists/${encodeURIComponent(normalizedTherapistId)}`,
+            {
+              method: 'DELETE',
+              credentials: 'include',
+            },
+          )
 
           if (res.status === 401) {
             if (!mockMode) {
@@ -340,7 +357,9 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
           push('success', 'お気に入りに追加しました。')
         }
       } catch (error) {
-        const message = currentlyFavorite ? 'お気に入りの削除に失敗しました。' : 'お気に入りの追加に失敗しました。'
+        const message = currentlyFavorite
+          ? 'お気に入りの削除に失敗しました。'
+          : 'お気に入りの追加に失敗しました。'
         push('error', message)
       } finally {
         setPending((prev) => {
@@ -350,7 +369,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
         })
       }
     },
-    [favorites, isAuthenticated, push, fetchWithFallback]
+    [favorites, isAuthenticated, push, fetchWithFallback],
   )
 
   const value = useMemo<TherapistFavoritesContextValue>(
@@ -362,7 +381,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
       isProcessing,
       toggleFavorite,
     }),
-    [favorites, isAuthenticated, isFavorite, isProcessing, loading, toggleFavorite]
+    [favorites, isAuthenticated, isFavorite, isProcessing, loading, toggleFavorite],
   )
 
   return (

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, List, Optional
+from typing import Any, Iterable, List, Optional
 
 
 def strip_or_none(value: Optional[str]) -> Optional[str]:
@@ -30,8 +30,21 @@ def sanitize_photo_urls(values: Iterable[str] | None) -> List[str]:
     return sanitize_strings(values)
 
 
+def normalize_contact_value(
+    value: Any, *, allow_numeric: bool = False
+) -> Optional[str]:
+    """Trim contact fields and optionally coerce numeric types to strings."""
+    if allow_numeric and isinstance(value, (int, float)):
+        value = str(value)
+    if isinstance(value, str):
+        cleaned = value.strip()
+        return cleaned or None
+    return None
+
+
 __all__ = [
     "strip_or_none",
     "sanitize_strings",
     "sanitize_photo_urls",
+    "normalize_contact_value",
 ]

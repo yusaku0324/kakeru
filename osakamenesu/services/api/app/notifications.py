@@ -25,9 +25,12 @@ LINE_ENDPOINT = getattr(settings, "notify_line_endpoint", None)
 __all__ = (
     "ReservationNotification",
     "enqueue_reservation_notification",
+    "dispatch_delivery_by_id",
     "process_pending_notifications",
     "start_notification_worker",
     "stop_notification_worker",
+    "is_notification_worker_enabled",
+    "run_worker_forever",
 )
 
 
@@ -53,6 +56,9 @@ class ReservationNotification:
     email_recipients: Optional[List[str]] = None
     slack_webhook_url: Optional[str] = None
     line_notify_token: Optional[str] = None
+    reminder_at: Optional[str] = None
+    audience: Optional[str] = None
+    event: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -85,7 +91,9 @@ def _coerce_uuid(value: Any) -> uuid.UUID:
     return uuid.UUID(str(value))
 
 
-def _channel_configs(payload: ReservationNotification) -> List[tuple[str, Dict[str, Any]]]:
+def _channel_configs(
+    payload: ReservationNotification,
+) -> List[tuple[str, Dict[str, Any]]]:
     configs: List[tuple[str, Dict[str, Any]]] = []
 
     slack_url = payload.slack_webhook_url or SLACK_WEBHOOK
@@ -93,7 +101,9 @@ def _channel_configs(payload: ReservationNotification) -> List[tuple[str, Dict[s
         configs.append(("slack", {"webhook_url": slack_url}))
 
     if EMAIL_ENDPOINT:
-        recipients = [addr for addr in (payload.email_recipients or []) if isinstance(addr, str)]
+        recipients = [
+            addr for addr in (payload.email_recipients or []) if isinstance(addr, str)
+        ]
         configs.append(("email", {"recipients": recipients}))
 
     line_token = payload.line_notify_token
@@ -109,6 +119,8 @@ def _channel_configs(payload: ReservationNotification) -> List[tuple[str, Dict[s
 async def enqueue_reservation_notification(
     db: AsyncSession,
     payload: ReservationNotification,
+    *,
+    schedule_at: datetime | None = None,
 ) -> List[models.ReservationNotificationDelivery]:
     configs = _channel_configs(payload)
     if not configs:
@@ -118,6 +130,7 @@ async def enqueue_reservation_notification(
     message = _build_message(payload)
     base_payload = payload.to_dict()
     now = _now()
+    scheduled_for = schedule_at.astimezone(UTC) if schedule_at else now
 
     reservation_uuid = _coerce_uuid(payload.reservation_id)
 
@@ -133,7 +146,7 @@ async def enqueue_reservation_notification(
             status="pending",
             payload=job_payload,
             attempt_count=0,
-            next_attempt_at=now,
+            next_attempt_at=scheduled_for,
         )
         deliveries.append(delivery)
 
@@ -144,9 +157,11 @@ async def enqueue_reservation_notification(
 
 def _retry_delay_seconds(attempt: int) -> float:
     base = max(1, int(settings.reservation_notification_retry_base_seconds))
-    multiplier = max(1.0, float(settings.reservation_notification_retry_backoff_multiplier))
+    multiplier = max(
+        1.0, float(settings.reservation_notification_retry_backoff_multiplier)
+    )
     attempt_index = max(0, attempt - 1)
-    delay = base * (multiplier ** attempt_index)
+    delay = base * (multiplier**attempt_index)
     return float(min(delay, 3600))
 
 
@@ -185,7 +200,9 @@ async def _send_via_email(
         "reservation_id": payload.reservation_id,
         "shop_id": payload.shop_id,
     }
-    recipients = [addr for addr in config.get("recipients", []) if isinstance(addr, str)]
+    recipients = [
+        addr for addr in config.get("recipients", []) if isinstance(addr, str)
+    ]
     if recipients:
         email_payload["recipients"] = recipients
 
@@ -229,7 +246,9 @@ async def _send_via_log(
     return None
 
 
-ChannelSender = Callable[[ReservationNotification, str, Dict[str, Any]], Awaitable[Optional[httpx.Response]]]
+ChannelSender = Callable[
+    [ReservationNotification, str, Dict[str, Any]], Awaitable[Optional[httpx.Response]]
+]
 
 CHANNEL_SENDERS: Dict[str, ChannelSender] = {
     "slack": _send_via_slack,
@@ -313,6 +332,23 @@ async def _dispatch_delivery(
     return True
 
 
+async def dispatch_delivery_by_id(
+    session: AsyncSession,
+    delivery_id: uuid.UUID,
+    *,
+    senders: Optional[Dict[str, ChannelSender]] = None,
+) -> bool:
+    result = await session.execute(
+        select(models.ReservationNotificationDelivery).where(
+            models.ReservationNotificationDelivery.id == delivery_id
+        )
+    )
+    delivery = result.scalar_one_or_none()
+    if delivery is None:
+        raise LookupError("delivery_not_found")
+    return await _dispatch_delivery(session, delivery, senders=senders)
+
+
 async def process_pending_notifications(
     *,
     batch_size: Optional[int] = None,
@@ -341,7 +377,9 @@ async def process_pending_notifications(
             return 0
 
         for delivery in deliveries:
-            handled = await _dispatch_delivery(session, delivery, senders=senders, now=now)
+            handled = await _dispatch_delivery(
+                session, delivery, senders=senders, now=now
+            )
             if handled:
                 processed += 1
 
@@ -355,7 +393,9 @@ _worker_stop: Optional[asyncio.Event] = None
 
 
 async def _worker_loop(stop_event: asyncio.Event) -> None:
-    interval = max(0.5, float(settings.reservation_notification_worker_interval_seconds))
+    interval = max(
+        0.5, float(settings.reservation_notification_worker_interval_seconds)
+    )
     batch_size = settings.reservation_notification_batch_size
 
     while not stop_event.is_set():
@@ -373,6 +413,9 @@ async def _worker_loop(stop_event: asyncio.Event) -> None:
 
 
 async def start_notification_worker() -> None:
+    logger.warning(
+        "start_notification_worker is deprecated. Launch the dedicated notifications worker process instead.",
+    )
     global _worker_task, _worker_stop
     if _worker_task and not _worker_task.done():
         return
@@ -391,3 +434,13 @@ async def stop_notification_worker() -> None:
         finally:
             _worker_task = None
             _worker_stop = None
+
+
+def is_notification_worker_enabled() -> bool:
+    return _worker_task is not None and not _worker_task.done()
+
+
+async def run_worker_forever(stop_event: asyncio.Event | None = None) -> None:
+    """Entry point for the standalone notifications worker process."""
+    event = stop_event or asyncio.Event()
+    await _worker_loop(event)

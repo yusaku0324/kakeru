@@ -1,0 +1,99 @@
+set shell := ["bash", "-c"]
+
+# Start dependent containers (Postgres/Meili/Redis) with Doppler secrets
+ops-dev-up:
+	doppler run --project osakamenesu --config dev_docker -- \
+	  docker compose up osakamenesu-db osakamenesu-meili osakamenesu-redis -d
+
+# Stop and remove dependent containers
+ops-dev-down:
+	doppler run --project osakamenesu --config dev_docker -- docker compose down
+
+# Run FastAPI locally with Doppler secrets and Meilisearch override
+ops-dev-api:
+	cd services/api && \
+	  MEILI_HOST=http://127.0.0.1:7700 \
+	  doppler run --project osakamenesu --config dev_web -- \
+	    uvicorn app.main:app --reload --port 8000 --reload-exclude 'node_modules|.next|dist|venv|.git'
+
+# Convenience command to curl Ops endpoints once API is up
+ops-dev-check:
+	curl -sS http://127.0.0.1:8000/api/ops/queue | jq
+	curl -sS http://127.0.0.1:8000/api/ops/outbox | jq
+	curl -sS http://127.0.0.1:8000/api/ops/slots | jq
+
+# Surface oversized modules / hotspots for early refactor triage
+architecture-check:
+	python tools/architecture_check.py
+
+# Ensure generated artifacts aren't accidentally tracked
+check-artifacts:
+	python tools/check_artifacts.py
+
+# Detect import cycles within services/api/app
+check-cycles:
+	python tools/check_cycles.py
+
+# Run all architecture guard checks
+check-all:
+	python tools/architecture_check.py
+	python tools/check_artifacts.py
+	python tools/check_cycles.py
+
+# Alias for convenience (matches `just check-all`)
+checkall: check-all
+
+# --- Developer shortcuts for CI-equivalent checks ---
+
+# Run apps/web typecheck (matches CI)
+web-typecheck:
+	cd apps/web && pnpm run typecheck
+
+# Run apps/web lint (matches CI)
+web-lint:
+	cd apps/web && pnpm run lint
+
+# Run apps/web unit tests (Vitest)
+web-unit:
+	cd apps/web && pnpm run test:unit
+
+# Bring up admin E2E stack (db/api/web) via docker compose
+admin-e2e-up:
+	ADMIN_API_IMAGE=osakamenesu-api:local \
+	ADMIN_WEB_IMAGE=osakamenesu-web:local \
+	COMPOSE_PLATFORM=linux/amd64 \
+	COMPOSE_PULL_POLICY=never \
+	  docker compose -f docker-compose.admin-e2e.yml up -d db meili redis api web
+
+# Tear down admin E2E stack
+admin-e2e-down:
+	docker compose -f docker-compose.admin-e2e.yml down
+
+# Full admin E2E flow: spin up stack, run Playwright, then stop services
+admin-e2e:
+	bash -c 'set -euo pipefail; just admin-e2e-up; trap "just admin-e2e-down" EXIT; just web-e2e'
+
+# Execute Playwright E2E (expects admin stack running or Doppler config)
+web-e2e:
+	ADMIN_WEB_HOST=127.0.0.1 \
+	ADMIN_WEB_PORT=3000 \
+	API_INTERNAL_BASE=http://127.0.0.1:8000 \
+	OSAKAMENESU_API_INTERNAL_BASE=http://127.0.0.1:8000 \
+	E2E_SEED_API_BASE=http://127.0.0.1:8000 \
+	  doppler run --project osakamenesu --config dev_web -- \
+	  pnpm --dir apps/web run test:e2e
+
+# Run FastAPI pytest suite with Doppler env (same as CI backend job)
+api-pytest:
+	cd services/api && \
+	  PYTHONPATH=. doppler run --project osakamenesu --config dev_api -- \
+	  env TEST_AUTH_SECRET=secret E2E_TEST_AUTH_SECRET=secret \
+	  pytest app/tests app/tests_integration -q
+
+# Download and show CI job logs (usage: just ci-debug job=web-lint)
+ci-debug job='web-lint':
+	bash scripts/ci-debug.sh --job {{job}}
+
+# Ensure current shell is running under `doppler run -- ...`
+require-doppler:
+	python tools/require_doppler_env.py

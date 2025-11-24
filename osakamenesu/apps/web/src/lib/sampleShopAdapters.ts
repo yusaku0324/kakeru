@@ -1,10 +1,45 @@
 import { createHash } from 'crypto'
 
 import type { ShopHit } from '@/components/shop/ShopCard'
+import type { NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 
 import type { SampleShop } from './sampleShops'
+import { formatZonedIso, toZonedDayjs, type Dayjs } from '@/lib/timezone'
 
 const priceFormatter = new Intl.NumberFormat('ja-JP')
+
+const SAMPLE_REBASE_SOURCE = toZonedDayjs('2025-10-07T00:00:00').startOf('day')
+const SAMPLE_REBASE_TARGET = toZonedDayjs().startOf('day')
+
+function rebaseDate(original: Dayjs | string | Date): Dayjs {
+  const base = toZonedDayjs(original)
+  if (!base.isValid()) return base
+  const diff = base.valueOf() - SAMPLE_REBASE_SOURCE.valueOf()
+  return SAMPLE_REBASE_TARGET.add(diff, 'millisecond')
+}
+
+function rebaseIsoDate(value?: string | null): string | null | undefined {
+  if (!value) return value
+  const parsed = toZonedDayjs(`${value}T00:00:00`)
+  if (!parsed.isValid()) return value
+  const rebased = rebaseDate(parsed)
+  return rebased.isValid() ? rebased.format('YYYY-MM-DD') : value
+}
+
+function rebaseIsoDateTime(value?: string | null): string | null | undefined {
+  if (!value) return value
+  const parsed = toZonedDayjs(value)
+  if (!parsed.isValid()) return value
+  const rebased = rebaseDate(parsed)
+  return rebased.isValid() ? formatZonedIso(rebased) : value
+}
+
+function rebaseNextSlot(slot?: SampleNextSlot | null): SampleNextSlot | null {
+  if (!slot) return null
+  const rebasedStart = rebaseIsoDateTime(slot.start_at)
+  if (!rebasedStart) return slot
+  return { ...slot, start_at: rebasedStart }
+}
 
 type PriceBandDefinition = {
   key: string
@@ -124,6 +159,7 @@ export type ShopDetail = {
   availability_calendar?: AvailabilityCalendar | null
   badges?: string[] | null
   today_available?: boolean | null
+  next_available_slot?: NextAvailableSlotPayload | null
   service_tags?: string[] | null
   metadata?: Record<string, unknown> | null
   store_name?: string | null
@@ -133,6 +169,49 @@ export type ShopDetail = {
   diary_count?: number | null
   has_diaries?: boolean | null
   diaries?: DiaryEntry[] | null
+}
+
+type SampleNextSlot = NextAvailableSlotPayload
+
+function normalizeSlotStatus(
+  status: 'open' | 'tentative' | 'blocked',
+): SampleNextSlot['status'] | null {
+  if (status === 'open') return 'ok'
+  if (status === 'tentative') return 'maybe'
+  return null
+}
+
+function computeSampleNextSlots(sample: SampleShop): {
+  shopSlot: SampleNextSlot | null
+  staffSlots: Map<string, SampleNextSlot>
+} {
+  const staffSlots = new Map<string, SampleNextSlot>()
+  let computedShopSlot: { ts: number; slot: SampleNextSlot } | null = null
+  const calendar = sample.availability_calendar
+  if (!calendar?.days?.length) {
+    return { shopSlot: null, staffSlots }
+  }
+  const now = Date.now()
+  for (const day of calendar.days) {
+    const slots = Array.isArray(day.slots) ? day.slots : []
+    for (const slot of slots) {
+      const normalizedStatus = normalizeSlotStatus(slot.status)
+      if (!normalizedStatus) continue
+      const ts = Date.parse(slot.start_at)
+      if (Number.isNaN(ts) || ts < now) continue
+      const payload: SampleNextSlot = { start_at: slot.start_at, status: normalizedStatus }
+      if (!computedShopSlot || ts < computedShopSlot.ts) {
+        computedShopSlot = { ts, slot: payload }
+      }
+      if (slot.staff_id) {
+        const existing = staffSlots.get(slot.staff_id)
+        if (!existing || Date.parse(existing.start_at) > ts) {
+          staffSlots.set(slot.staff_id, payload)
+        }
+      }
+    }
+  }
+  return { shopSlot: computedShopSlot?.slot ?? null, staffSlots }
 }
 
 function uuidFromString(input: string): string {
@@ -195,24 +274,47 @@ function fallbackPriceBandLabel(sample: SampleShop): string | null {
 export function sampleShopToHit(sample: SampleShop): ShopHit {
   const { key: priceBandKey, label: computedPriceBandLabel } = computePriceBand(sample)
   const priceBandLabel = computedPriceBandLabel ?? fallbackPriceBandLabel(sample)
+  const { shopSlot: computedShopSlot, staffSlots } = computeSampleNextSlots(sample)
   const staffPreview = Array.isArray(sample.staff)
     ? sample.staff
         .filter((member) => Boolean(member?.name))
         .slice(0, 3)
-        .map((member) => ({
-          id: member.id,
-          name: member.name,
-          alias: member.alias ?? null,
-          headline: member.headline ?? null,
-          rating: member.rating ?? null,
-          review_count: member.review_count ?? null,
-          avatar_url: member.avatar_url ?? null,
-          specialties: member.specialties ?? null,
-        }))
+        .map((member, index) => {
+          const originalId = member.id ?? null
+          const previewId = member.id || uuidFromString(`staff:${sample.id}:${index}`)
+          const staffSlot = originalId ? (staffSlots.get(originalId) ?? null) : null
+          const mergedSlot = member.next_available_slot ?? staffSlot ?? null
+          const rebasedSlot = rebaseNextSlot(mergedSlot)
+          const nextAvailableAt =
+            rebaseIsoDateTime(member.next_available_at ?? staffSlot?.start_at ?? null) ??
+            member.next_available_at ??
+            staffSlot?.start_at ??
+            null
+          return {
+            id: previewId,
+            name: member.name,
+            alias: member.alias ?? null,
+            headline: member.headline ?? null,
+            rating: member.rating ?? null,
+            review_count: member.review_count ?? null,
+            avatar_url: member.avatar_url ?? null,
+            specialties: member.specialties ?? null,
+            today_available: member.today_available ?? null,
+            next_available_slot: rebasedSlot,
+            next_available_at: nextAvailableAt,
+          }
+        })
     : null
 
   const hasPromotions = sample.has_promotions ?? Boolean(sample.promotions?.length)
   const promotionCount = sample.promotion_count ?? sample.promotions?.length ?? 0
+  const rawShopSlot = sample.next_available_slot ?? computedShopSlot ?? null
+  const shopSlot = rebaseNextSlot(rawShopSlot)
+  const nextAvailableAt =
+    rebaseIsoDateTime(sample.next_available_at ?? rawShopSlot?.start_at ?? null) ??
+    sample.next_available_at ??
+    rawShopSlot?.start_at ??
+    null
 
   return {
     id: sample.id,
@@ -231,7 +333,8 @@ export function sampleShopToHit(sample: SampleShop): ShopHit {
     lead_image_url: sample.photos?.[0]?.url ?? null,
     badges: sample.badges ?? null,
     today_available: sample.today_available ?? null,
-    next_available_at: sample.next_available_at ?? null,
+    next_available_at: nextAvailableAt,
+    next_available_slot: shopSlot,
     distance_km: sample.distance_km ?? null,
     online_reservation:
       sample.online_reservation ??
@@ -251,17 +354,25 @@ export function sampleShopToHit(sample: SampleShop): ShopHit {
 }
 
 export function sampleShopToDetail(sample: SampleShop): ShopDetail {
+  const { shopSlot: detailComputedSlot, staffSlots: detailStaffSlots } =
+    computeSampleNextSlots(sample)
   const staff: StaffSummary[] | null = Array.isArray(sample.staff)
-    ? sample.staff.map((member, index) => ({
-        id: member.id || uuidFromString(`staff:${sample.id}:${index}`),
-        name: member.name,
-        alias: member.alias ?? null,
-        avatar_url: member.avatar_url ?? null,
-        headline: member.headline ?? null,
-        rating: member.rating ?? null,
-        review_count: member.review_count ?? null,
-        specialties: member.specialties ?? null,
-      }))
+    ? sample.staff.map((member, index) => {
+        const staffId = member.id || uuidFromString(`staff:${sample.id}:${index}`)
+        const staffSlot = member.id ? (detailStaffSlots.get(member.id) ?? null) : null
+        const mergedSlot = member.next_available_slot ?? staffSlot ?? null
+        return {
+          id: staffId,
+          name: member.name,
+          alias: member.alias ?? null,
+          avatar_url: member.avatar_url ?? null,
+          headline: member.headline ?? null,
+          rating: member.rating ?? null,
+          review_count: member.review_count ?? null,
+          specialties: member.specialties ?? null,
+          next_available_slot: rebaseNextSlot(mergedSlot),
+        }
+      })
     : null
 
   const staffIdMap = new Map<string, string>()
@@ -273,13 +384,15 @@ export function sampleShopToDetail(sample: SampleShop): ShopDetail {
   const availability_calendar: AvailabilityCalendar | null = sample.availability_calendar
     ? {
         shop_id: sample.id,
-        generated_at: sample.availability_calendar.generated_at,
+        generated_at:
+          rebaseIsoDateTime(sample.availability_calendar.generated_at) ??
+          sample.availability_calendar.generated_at,
         days: sample.availability_calendar.days.map((day, dayIndex) => ({
-          date: day.date,
+          date: rebaseIsoDate(day.date) ?? day.date,
           is_today: day.is_today ?? null,
           slots: day.slots.map((slot, slotIndex) => ({
-            start_at: slot.start_at,
-            end_at: slot.end_at,
+            start_at: rebaseIsoDateTime(slot.start_at) ?? slot.start_at,
+            end_at: rebaseIsoDateTime(slot.end_at) ?? slot.end_at,
             status: slot.status,
             staff_id: slot.staff_id ? staffIdMap.get(slot.staff_id) || slot.staff_id : null,
             menu_id: slot.menu_id || uuidFromString(`menu:${sample.id}:${dayIndex}:${slotIndex}`),
@@ -326,6 +439,8 @@ export function sampleShopToDetail(sample: SampleShop): ShopDetail {
       }))
     : null
 
+  const detailShopSlot = rebaseNextSlot(sample.next_available_slot ?? detailComputedSlot ?? null)
+
   const photos = Array.isArray(sample.photos)
     ? sample.photos.map((photo) => ({
         url: photo.url,
@@ -351,11 +466,17 @@ export function sampleShopToDetail(sample: SampleShop): ShopDetail {
     availability_calendar,
     badges: sample.badges ?? null,
     today_available: sample.today_available ?? null,
+    next_available_slot: detailShopSlot,
     service_tags: sample.service_tags ?? null,
     metadata: {
       updated_at: sample.updated_at ?? null,
       distance_km: sample.distance_km ?? null,
-      next_available_at: sample.next_available_at ?? null,
+      next_available_at:
+        rebaseIsoDateTime(sample.next_available_at ?? detailComputedSlot?.start_at ?? null) ??
+        sample.next_available_at ??
+        detailComputedSlot?.start_at ??
+        detailShopSlot?.start_at ??
+        null,
     },
     store_name: sample.store_name ?? null,
     promotions: sample.promotions ?? null,

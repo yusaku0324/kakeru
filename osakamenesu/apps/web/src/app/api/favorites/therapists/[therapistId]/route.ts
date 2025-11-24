@@ -1,29 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readMockFavorites, removeMockFavorite, isMockFavoritesMode, writeMockFavorites } from '../../mockStore'
 
-const API_BASE =
-  process.env.OSAKAMENESU_API_INTERNAL_BASE ||
-  process.env.API_INTERNAL_BASE ||
-  process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE
+import { resolveInternalApiBase } from '@/lib/server-config'
 
-function ensureApiBase(): string {
-  if (!API_BASE) {
-    throw new Error('API base URL is not configured for favorites proxy')
-  }
-  return API_BASE.replace(/\/+$/, '')
-}
+import {
+  readMockFavorites,
+  removeMockFavorite,
+  isMockFavoritesMode,
+  writeMockFavorites,
+} from '../../mockStore'
+
+const API_BASE = resolveInternalApiBase().replace(/\/+$/, '')
 
 function buildBackendUrl(path: string): string {
-  const base = ensureApiBase()
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
-  return `${base}${normalizedPath}`
+  return `${API_BASE}${normalizedPath}`
 }
 
-async function forwardDelete(
-  req: NextRequest,
-  therapistId: string,
-): Promise<NextResponse> {
+async function forwardDelete(req: NextRequest, therapistId: string): Promise<NextResponse> {
   const url = buildBackendUrl(`/api/favorites/therapists/${encodeURIComponent(therapistId)}`)
   const headers = new Headers()
 
@@ -64,11 +57,12 @@ async function forwardDelete(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { therapistId: string } },
+  context: { params: Promise<{ therapistId: string }> },
 ): Promise<NextResponse> {
+  const { therapistId } = await context.params
   if (isMockFavoritesMode()) {
     const favorites = readMockFavorites(req)
-    removeMockFavorite(favorites, params.therapistId)
+    removeMockFavorite(favorites, therapistId)
     const response = new NextResponse(null, { status: 204 })
     writeMockFavorites(response, favorites)
     return response
@@ -79,7 +73,7 @@ export async function DELETE(
   }
 
   try {
-    const response = await forwardDelete(req, params.therapistId)
+    const response = await forwardDelete(req, therapistId)
     if (shouldFallbackForStatus(response.status)) {
       return response
     }

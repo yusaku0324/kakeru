@@ -1,6 +1,14 @@
-"use client"
+'use client'
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import { ToastContainer, useToast } from '@/components/useToast'
 
@@ -133,7 +141,7 @@ export function ShopFavoritesProvider({ children }: { children: React.ReactNode 
       if (!normalized) return false
       return favorites.has(normalized)
     },
-    [favorites]
+    [favorites],
   )
 
   const isProcessing = useCallback(
@@ -142,7 +150,7 @@ export function ShopFavoritesProvider({ children }: { children: React.ReactNode 
       if (!normalized) return false
       return pending.has(normalized)
     },
-    [pending]
+    [pending],
   )
 
   const toggleFavorite = useCallback(
@@ -237,7 +245,9 @@ export function ShopFavoritesProvider({ children }: { children: React.ReactNode 
           push('success', 'お気に入りに追加しました。')
         }
       } catch (error) {
-        const message = currentlyFavorite ? 'お気に入りの削除に失敗しました。' : 'お気に入りの追加に失敗しました。'
+        const message = currentlyFavorite
+          ? 'お気に入りの削除に失敗しました。'
+          : 'お気に入りの追加に失敗しました。'
         push('error', message)
       } finally {
         setPending((prev) => {
@@ -247,7 +257,7 @@ export function ShopFavoritesProvider({ children }: { children: React.ReactNode 
         })
       }
     },
-    [favorites, isAuthenticated, push]
+    [favorites, isAuthenticated, push],
   )
 
   const value = useMemo<ShopFavoritesContextValue>(
@@ -259,7 +269,7 @@ export function ShopFavoritesProvider({ children }: { children: React.ReactNode 
       isProcessing,
       toggleFavorite,
     }),
-    [favorites, isAuthenticated, isFavorite, isProcessing, loading, toggleFavorite]
+    [favorites, isAuthenticated, isFavorite, isProcessing, loading, toggleFavorite],
   )
 
   return (

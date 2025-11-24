@@ -31,6 +31,13 @@ recruit_posts.log
 .env.test.local
 .env.production.local
 .env.osakamenesu
+.env.admin-e2e
+doppler.env
+.pnpm-store/
+codex/
+codex-aarch64-apple-darwin
+codex.tar.gz
+*.tsbuildinfo
 
 # pytest
 .pytest_cache/
@@ -56,6 +63,8 @@ debug/
 videos/
 *.png
 *.json
+!osakamenesu/package.json
+!osakamenesu/pnpm-lock.yaml
 !osakamenesu/apps/web/package.json
 !osakamenesu/apps/web/package-lock.json
 !osakamenesu/apps/web/tsconfig.json
@@ -70,6 +79,8 @@ node_modules/
 **/.turbo/
 **/dist/
 db_data/
+osakamenesu/apps/web/e2e/storage/
+osakamenesu/docker-compose.admin-e2e.local.yml
 
 # Browser profiles
 profiles/*/

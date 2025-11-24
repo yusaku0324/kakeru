@@ -5,7 +5,7 @@ from typing import Optional, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ... import models
@@ -13,16 +13,26 @@ from ...db import get_session
 from ...schemas import (
     Reservation as ReservationSchema,
     ReservationCreateRequest,
+    ReservationPreferredSlot,
     ReservationStatusEvent,
     ReservationUpdateRequest,
 )
 from ...deps import require_admin, audit_admin, get_optional_user
-from ...notifications import ReservationNotification, enqueue_reservation_notification
+from ...services import reservation_notifications as reservation_notifications_service
 
 
 router = APIRouter(prefix="/api/v1/reservations", tags=["reservations"])
 
-_DEFAULT_NOTIFICATION_STATUSES = ("pending", "confirmed")
+
+_resolve_notification_channels = (
+    reservation_notifications_service.resolve_notification_channels
+)
+_build_reservation_notification_payload = (
+    reservation_notifications_service.build_reservation_notification_payload
+)
+_enqueue_reservation_notification_for_reservation = (
+    reservation_notifications_service.enqueue_reservation_notification_for_reservation
+)
 
 
 def _reservation_to_schema(reservation: models.Reservation) -> ReservationSchema:
@@ -34,6 +44,18 @@ def _reservation_to_schema(reservation: models.Reservation) -> ReservationSchema
             note=event.note,
         )
         for event in sorted(reservation.status_events, key=lambda e: e.changed_at)
+    ]
+    preferred_slots = [
+        ReservationPreferredSlot(
+            id=slot.id,
+            desired_start=slot.desired_start,
+            desired_end=slot.desired_end,
+            status=slot.status,  # type: ignore[arg-type]
+            created_at=slot.created_at,
+        )
+        for slot in sorted(
+            getattr(reservation, "preferred_slots", []), key=lambda s: s.desired_start
+        )
     ]
 
     customer = {
@@ -60,7 +82,21 @@ def _reservation_to_schema(reservation: models.Reservation) -> ReservationSchema
         marketing_opt_in=reservation.marketing_opt_in,
         created_at=reservation.created_at,
         updated_at=reservation.updated_at,
+        preferred_slots=preferred_slots,
     )
+
+
+@router.delete("")
+async def delete_reservations(
+    shop_id: UUID,
+    db: AsyncSession = Depends(get_session),
+    _: None = Depends(require_admin),
+) -> dict[str, int]:
+    stmt = delete(models.Reservation).where(models.Reservation.shop_id == shop_id)
+    result = await db.execute(stmt)
+    await db.commit()
+    deleted = result.rowcount or 0
+    return {"deleted": deleted}
 
 
 async def _ensure_shop(db: AsyncSession, shop_id: UUID) -> models.Profile:
@@ -89,47 +125,6 @@ async def _check_overlap(
     return res.scalar_one_or_none() is not None
 
 
-async def _resolve_notification_channels(
-    db: AsyncSession,
-    shop_id: UUID,
-    status: str,
-) -> dict[str, Any]:
-    setting = await db.get(models.DashboardNotificationSetting, shop_id)
-    if not setting:
-        return {"emails": [], "slack": None, "line": None}
-
-    if setting.trigger_status is None:
-        trigger_status = list(_DEFAULT_NOTIFICATION_STATUSES)
-    else:
-        trigger_status = list(setting.trigger_status)
-
-    if status not in trigger_status:
-        return {"emails": [], "slack": None, "line": None}
-
-    channels = setting.channels or {}
-
-    email_conf = channels.get("email") or {}
-    emails = email_conf.get("recipients", []) if email_conf.get("enabled") else []
-    if not isinstance(emails, list):
-        emails = []
-
-    slack_conf = channels.get("slack") or {}
-    slack_url = slack_conf.get("webhook_url") if slack_conf.get("enabled") else None
-    if isinstance(slack_url, str):
-        slack_url = slack_url.strip() or None
-    else:
-        slack_url = None
-
-    line_conf = channels.get("line") or {}
-    line_token = line_conf.get("token") if line_conf.get("enabled") else None
-    if isinstance(line_token, str):
-        line_token = line_token.strip() or None
-    else:
-        line_token = None
-
-    return {"emails": emails, "slack": slack_url, "line": line_token}
-
-
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_reservation(
     payload: ReservationCreateRequest,
@@ -137,11 +132,15 @@ async def create_reservation(
     user: Optional[models.User] = Depends(get_optional_user),
 ):
     if payload.desired_end <= payload.desired_start:
-        raise HTTPException(status_code=400, detail="desired_end must be after desired_start")
+        raise HTTPException(
+            status_code=400, detail="desired_end must be after desired_start"
+        )
 
     shop = await _ensure_shop(db, payload.shop_id)
 
-    has_overlap = await _check_overlap(db, payload.shop_id, payload.desired_start, payload.desired_end)
+    has_overlap = await _check_overlap(
+        db, payload.shop_id, payload.desired_start, payload.desired_end
+    )
     if has_overlap:
         raise HTTPException(status_code=409, detail="conflicting reservation slot")
 
@@ -163,7 +162,7 @@ async def create_reservation(
     if user:
         reservation.user_id = user.id
     if not reservation.status:
-        reservation.status = 'pending'
+        reservation.status = "pending"
     initial_status = reservation.status
     status_event = models.ReservationStatusEvent(
         status=initial_status,
@@ -173,48 +172,23 @@ async def create_reservation(
     )
     reservation.status_events.append(status_event)
 
+    if payload.preferred_slots:
+        for slot in payload.preferred_slots:
+            reservation.preferred_slots.append(
+                models.ReservationPreferredSlot(
+                    desired_start=slot.desired_start,
+                    desired_end=slot.desired_end,
+                    status=slot.status,
+                )
+            )
+
     db.add(reservation)
+    await db.flush()
+    await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
+
+    await _enqueue_reservation_notification_for_reservation(db, reservation, shop)
     await db.commit()
-    await db.refresh(reservation)
-    await db.refresh(reservation, attribute_names=["status_events"])
-
-    channels_config = await _resolve_notification_channels(db, reservation.shop_id, reservation.status)
-
-    contact = getattr(shop, "contact_json", None) or {}
-    shop_phone = contact.get("phone") or contact.get("tel")
-    if isinstance(shop_phone, (int, float)):
-        shop_phone = str(shop_phone)
-    if isinstance(shop_phone, str):
-        shop_phone = shop_phone.strip() or None
-    else:
-        shop_phone = None
-
-    shop_line_contact = contact.get("line") or contact.get("line_url") or contact.get("line_id")
-    if isinstance(shop_line_contact, str):
-        shop_line_contact = shop_line_contact.strip() or None
-    else:
-        shop_line_contact = None
-
-    notification = ReservationNotification(
-        reservation_id=str(reservation.id),
-        shop_id=str(reservation.shop_id),
-        shop_name=getattr(shop, "name", None) or str(reservation.shop_id),
-        customer_name=reservation.customer_name,
-        customer_phone=reservation.customer_phone,
-        desired_start=reservation.desired_start.isoformat(),
-        desired_end=reservation.desired_end.isoformat(),
-        status=reservation.status,
-        channel=reservation.channel or "web",
-        notes=reservation.notes,
-        customer_email=reservation.customer_email,
-        shop_phone=shop_phone,
-        shop_line_contact=shop_line_contact,
-        email_recipients=[addr for addr in channels_config.get("emails", []) if isinstance(addr, str)],
-        slack_webhook_url=channels_config.get("slack"),
-        line_notify_token=channels_config.get("line"),
-    )
-    await enqueue_reservation_notification(db, notification)
-    await db.commit()
+    await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
 
     return _reservation_to_schema(reservation).model_dump()
 
@@ -257,13 +231,21 @@ async def update_reservation(
         reservation.notes = payload.notes
         note = payload.notes
     if payload.status is not None and payload.status != reservation.status:
-        if payload.status not in {"pending", "confirmed", "declined", "cancelled", "expired"}:
+        if payload.status not in {
+            "pending",
+            "confirmed",
+            "declined",
+            "cancelled",
+            "expired",
+        }:
             raise HTTPException(status_code=400, detail="invalid status")
         reservation.status = payload.status
         status_changed = True
 
     if payload.response_message:
-        note = (note or "") + (f"\n{payload.response_message}" if note else payload.response_message)
+        note = (note or "") + (
+            f"\n{payload.response_message}" if note else payload.response_message
+        )
 
     if status_changed or note:
         event = models.ReservationStatusEvent(
@@ -277,46 +259,16 @@ async def update_reservation(
 
     await db.commit()
     await db.refresh(reservation)
-    await db.refresh(reservation, attribute_names=["status_events"])
+    await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
 
     if status_changed:
         shop = await _ensure_shop(db, reservation.shop_id)
-        channels_config = await _resolve_notification_channels(db, reservation.shop_id, reservation.status)
-
-        contact = getattr(shop, "contact_json", None) or {}
-        shop_phone = contact.get("phone") or contact.get("tel")
-        if isinstance(shop_phone, (int, float)):
-            shop_phone = str(shop_phone)
-        if isinstance(shop_phone, str):
-            shop_phone = shop_phone.strip() or None
-        else:
-            shop_phone = None
-
-        shop_line_contact = contact.get("line") or contact.get("line_url") or contact.get("line_id")
-        if isinstance(shop_line_contact, str):
-            shop_line_contact = shop_line_contact.strip() or None
-        else:
-            shop_line_contact = None
-
-        notification = ReservationNotification(
-            reservation_id=str(reservation.id),
-            shop_id=str(reservation.shop_id),
-            shop_name=getattr(shop, "name", None) or str(reservation.shop_id),
-            customer_name=reservation.customer_name,
-            customer_phone=reservation.customer_phone,
-            desired_start=reservation.desired_start.isoformat(),
-            desired_end=reservation.desired_end.isoformat(),
-            status=reservation.status,
-            channel=reservation.channel or "web",
-            notes=note or reservation.notes,
-            customer_email=reservation.customer_email,
-            shop_phone=shop_phone,
-            shop_line_contact=shop_line_contact,
-            email_recipients=[addr for addr in channels_config.get("emails", []) if isinstance(addr, str)],
-            slack_webhook_url=channels_config.get("slack"),
-            line_notify_token=channels_config.get("line"),
+        await _enqueue_reservation_notification_for_reservation(
+            db,
+            reservation,
+            shop,
+            note_override=note,
         )
-        await enqueue_reservation_notification(db, notification)
         await db.commit()
 
     return _reservation_to_schema(reservation).model_dump()

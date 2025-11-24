@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import clsx from 'clsx'
 import {
@@ -73,7 +73,11 @@ export function GlassSelect({
   const labelId = useId()
   const listboxId = useId()
   const portalRef = useRef<HTMLDivElement | null>(null)
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 })
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number }>({
+    top: 0,
+    left: 0,
+    width: 0,
+  })
   useFocusOutline(open)
 
   useEffect(() => {
@@ -141,8 +145,10 @@ export function GlassSelect({
     }
   }, [open, updateMenuPosition])
 
-
-  const currentOption = useMemo(() => options.find((option) => option.value === value) ?? null, [value, options])
+  const currentOption = useMemo(
+    () => options.find((option) => option.value === value) ?? null,
+    [value, options],
+  )
 
   const handleSelect = useCallback(
     (nextValue: string) => {
@@ -203,9 +209,9 @@ export function GlassSelect({
         ref={buttonRef}
         type="button"
         disabled={disabled}
-      aria-haspopup="listbox"
-      aria-expanded={open}
-      aria-labelledby={ariaLabelledby ?? (label ? labelId : undefined)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-labelledby={ariaLabelledby ?? (label ? labelId : undefined)}
         aria-controls={listboxId}
         onClick={() => {
           if (disabled) return
@@ -227,7 +233,8 @@ export function GlassSelect({
         <span
           className={clsx(
             'inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/60 bg-white/80 text-sm text-brand-primary transition',
-            open && 'border-brand-primary bg-brand-primary text-white shadow-[0_12px_28px_rgba(37,99,235,0.22)]',
+            open &&
+              'border-brand-primary bg-brand-primary text-white shadow-[0_12px_28px_rgba(37,99,235,0.22)]',
           )}
           aria-hidden
         >
@@ -274,7 +281,9 @@ export function GlassSelect({
                     onClick={() => handleSelect(option.value)}
                   >
                     <span className="flex items-center gap-2">
-                      {option.icon ? <span className="text-brand-primary">{option.icon}</span> : null}
+                      {option.icon ? (
+                        <span className="text-brand-primary">{option.icon}</span>
+                      ) : null}
                       {option.label}
                     </span>
                     {selected ? (
@@ -294,9 +303,9 @@ export function GlassSelect({
 }
 
 type GlassSelectWrapperProps = GlassSelectProps & { label?: string; hint?: string } & Omit<
-  HTMLAttributes<HTMLDivElement>,
-  keyof GlassSelectProps | 'children'
->
+    HTMLAttributes<HTMLDivElement>,
+    keyof GlassSelectProps | 'children'
+  >
 
 export function GlassSelectField({ label, hint, className, ...props }: GlassSelectWrapperProps) {
   const labelId = useId()

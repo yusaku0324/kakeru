@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -14,7 +14,10 @@ type PollingResult<T> = {
   refresh: () => void
 }
 
-export function usePolling<T>(fetcher: () => Promise<T>, { intervalMs = 30000, enabled = true }: Options = {}): PollingResult<T> {
+export function usePolling<T>(
+  fetcher: () => Promise<T>,
+  { intervalMs = 30000, enabled = true }: Options = {},
+): PollingResult<T> {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState<boolean>(false)

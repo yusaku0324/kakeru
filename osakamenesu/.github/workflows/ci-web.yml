@@ -1,0 +1,109 @@
+name: Web CI
+
+on:
+  push:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/ci-web.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/ci-web.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+jobs:
+  web-ci:
+    runs-on: ubuntu-latest
+    env:
+      DOPPLER_PROJECT: osakamenesu
+      DOPPLER_CONFIG: stg_web
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_STG_TOKEN }}
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v1
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Type check
+        working-directory: apps/web
+        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- pnpm exec tsc --noEmit
+
+      - name: Unit tests
+        working-directory: apps/web
+        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- pnpm test:unit
+
+      - name: E2E smoke - reservations MVP
+        working-directory: apps/web
+        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- \
+          pnpm exec playwright test e2e/reservations-mvp.spec.ts
+        env:
+          SKIP_E2E_SETUP: '1'
+
+      - name: E2E smoke - admin dashboard save
+        working-directory: apps/web
+        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- \
+          pnpm exec playwright test e2e/admin-dashboard.spec.ts --grep "店舗情報を更新して元に戻せる"
+        env:
+          SKIP_E2E_SETUP: '1'
+
+  web-storybook:
+    runs-on: ubuntu-latest
+    needs: web-ci
+    env:
+      DOPPLER_PROJECT: osakamenesu
+      DOPPLER_CONFIG: stg_web
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_STG_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v1
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Storybook
+        working-directory: apps/web
+        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- pnpm build-storybook
+
+      - name: Upload to Chromatic (if token configured)
+        working-directory: apps/web
+        env:
+          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN || '' }}
+        run: |
+          if [ -z "$CHROMATIC_PROJECT_TOKEN" ]; then
+            echo "Chromatic token is not configured. Skipping upload."
+            exit 0
+          fi
+          doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- \
+            pnpm exec chromatic --storybook-dist-dir=storybook-static --only-changed --exit-zero-on-changes --exit-once-uploaded

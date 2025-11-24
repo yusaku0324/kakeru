@@ -5,9 +5,14 @@ import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Section } from '@/components/ui/Section'
 
-export default function ThankYouPage({ searchParams }: { searchParams: { reservation?: string; shop?: string } }) {
-  const reservationId = searchParams.reservation || ''
-  const shopId = searchParams.shop || ''
+export default async function ThankYouPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reservation?: string; shop?: string }>
+}) {
+  const resolvedSearchParams = await searchParams
+  const reservationId = resolvedSearchParams.reservation || ''
+  const shopId = resolvedSearchParams.shop || ''
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-10 text-center">
@@ -16,7 +21,9 @@ export default function ThankYouPage({ searchParams }: { searchParams: { reserva
         title="ご予約リクエストありがとうございます"
         subtitle="担当スタッフが内容を確認し折り返しご連絡いたします"
         className="shadow-none border border-neutral-borderLight bg-neutral-surface"
-        actions={reservationId ? <Badge variant="outline">受付番号: {reservationId}</Badge> : undefined}
+        actions={
+          reservationId ? <Badge variant="outline">受付番号: {reservationId}</Badge> : undefined
+        }
       >
         <p className="text-sm leading-relaxed text-neutral-textMuted">
           1〜2時間以内に返信がない場合は、お手数ですがお電話またはLINEで直接お問い合わせください。迷惑メールフォルダのご確認もお願いいたします。

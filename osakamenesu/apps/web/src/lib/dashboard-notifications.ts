@@ -15,6 +15,7 @@ export type DashboardNotificationChannelEmail = {
 export type DashboardNotificationChannelLine = {
   enabled: boolean
   token: string | null
+  webhook_url?: string | null
 }
 
 export type DashboardNotificationChannelSlack = {
@@ -112,7 +113,7 @@ export type DashboardNotificationsTestResult =
 function createRequestInit(
   method: string,
   options?: DashboardNotificationsRequestOptions,
-  body?: unknown
+  body?: unknown,
 ): RequestInit {
   const headers: Record<string, string> = {}
   if (options?.cookieHeader) {
@@ -142,7 +143,7 @@ function createRequestInit(
 async function requestJson<T>(
   path: string,
   init: RequestInit,
-  successStatuses: number[]
+  successStatuses: number[],
 ): Promise<{ response: Response; data?: T }> {
   let lastError: DashboardNotificationsError | null = null
 
@@ -180,27 +181,28 @@ async function requestJson<T>(
     } catch (error) {
       lastError = {
         status: 'error',
-        message:
-          error instanceof Error ? error.message : 'リクエスト中にエラーが発生しました',
+        message: error instanceof Error ? error.message : 'リクエスト中にエラーが発生しました',
       }
     }
   }
 
-  throw lastError ?? {
-    status: 'error',
-    message: 'API リクエストが完了しませんでした',
-  }
+  throw (
+    lastError ?? {
+      status: 'error',
+      message: 'API リクエストが完了しませんでした',
+    }
+  )
 }
 
 export async function fetchDashboardNotificationSettings(
   profileId: string,
-  options?: DashboardNotificationsRequestOptions
+  options?: DashboardNotificationsRequestOptions,
 ): Promise<DashboardNotificationsFetchResult> {
   try {
     const { response, data } = await requestJson<DashboardNotificationSettingsResponse>(
       `api/dashboard/shops/${profileId}/notifications`,
       createRequestInit('GET', options),
-      [200]
+      [200],
     )
 
     switch (response.status) {
@@ -235,7 +237,7 @@ export async function fetchDashboardNotificationSettings(
 export async function updateDashboardNotificationSettings(
   profileId: string,
   payload: DashboardNotificationSettingsUpdatePayload,
-  options?: DashboardNotificationsRequestOptions
+  options?: DashboardNotificationsRequestOptions,
 ): Promise<DashboardNotificationsUpdateResult> {
   try {
     const { response, data } = await requestJson<
@@ -244,7 +246,7 @@ export async function updateDashboardNotificationSettings(
     >(
       `api/dashboard/shops/${profileId}/notifications`,
       createRequestInit('PUT', options, payload),
-      [200]
+      [200],
     )
 
     switch (response.status) {
@@ -260,7 +262,9 @@ export async function updateDashboardNotificationSettings(
       case 404:
         return { status: 'not_found' }
       case 409: {
-        const detail = data as { detail?: { current?: DashboardNotificationSettingsResponse } } | undefined
+        const detail = data as
+          | { detail?: { current?: DashboardNotificationSettingsResponse } }
+          | undefined
         if (detail?.detail?.current) {
           return { status: 'conflict', current: detail.detail.current }
         }
@@ -268,8 +272,8 @@ export async function updateDashboardNotificationSettings(
         if (refreshed.status === 'success') {
           return { status: 'conflict', current: refreshed.data }
         }
-        const fallbackCurrent =
-          (detail?.detail?.current ?? (data as DashboardNotificationSettingsResponse | undefined)) ?? {
+        const fallbackCurrent = detail?.detail?.current ??
+          (data as DashboardNotificationSettingsResponse | undefined) ?? {
             profile_id: profileId,
             updated_at: payload.updated_at,
             trigger_status: payload.trigger_status,
@@ -299,13 +303,13 @@ export async function updateDashboardNotificationSettings(
 export async function testDashboardNotificationSettings(
   profileId: string,
   payload: DashboardNotificationSettingsTestPayload,
-  options?: DashboardNotificationsRequestOptions
+  options?: DashboardNotificationsRequestOptions,
 ): Promise<DashboardNotificationsTestResult> {
   try {
     const { response, data } = await requestJson<unknown>(
       `api/dashboard/shops/${profileId}/notifications/test`,
       createRequestInit('POST', options, payload),
-      [204]
+      [204],
     )
 
     switch (response.status) {

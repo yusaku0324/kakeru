@@ -1,4 +1,6 @@
 import { test, expect, BrowserContext, Page } from '@playwright/test'
+import fs from 'node:fs'
+import path from 'node:path'
 
 type CookieInput = {
   name: string
@@ -12,9 +14,37 @@ type CookieInput = {
 }
 
 function parseCookieHeader(header: string, origin: URL): CookieInput[] {
+  const trimmed = header.trim()
+  if (!trimmed) {
+    return []
+  }
+
+  let normalizedHeader = trimmed
+  if (
+    (normalizedHeader.startsWith('"') && normalizedHeader.endsWith('"')) ||
+    (normalizedHeader.startsWith("'") && normalizedHeader.endsWith("'"))
+  ) {
+    normalizedHeader = normalizedHeader.slice(1, -1).trim()
+  }
+
   const domain = origin.hostname
   const secure = origin.protocol === 'https:'
-  return header
+  const looksLikeSetCookie =
+    /^set-cookie\s*:/i.test(normalizedHeader) ||
+    /;\s*(path|domain|max-age|expires|httponly|secure|samesite)=?/i.test(normalizedHeader)
+
+  if (looksLikeSetCookie) {
+    const normalized = normalizedHeader.replace(/^set-cookie\s*:/i, '').trim()
+    const parsed = parseSetCookieHeaders([normalized], origin)
+    return parsed.length
+      ? parsed.map((cookie) => ({
+          ...cookie,
+          domain: cookie.domain || domain,
+        }))
+      : []
+  }
+
+  return normalizedHeader
     .split(';')
     .map((part) => part.trim())
     .filter(Boolean)
@@ -40,7 +70,10 @@ function parseSetCookieHeaders(setCookieValues: string[], origin: URL): CookieIn
   const nowSeconds = Math.floor(Date.now() / 1000)
   return setCookieValues
     .map((raw) => {
-      const segments = raw.split(';').map((segment) => segment.trim()).filter(Boolean)
+      const segments = raw
+        .split(';')
+        .map((segment) => segment.trim())
+        .filter(Boolean)
       if (!segments.length) return null
       const [nameValue, ...attributes] = segments
       const separatorIndex = nameValue.indexOf('=')
@@ -106,6 +139,10 @@ function parseSetCookieHeaders(setCookieValues: string[], origin: URL): CookieIn
         }
       }
 
+      // テスト環境では Next.js(web) コンテナのホスト名 (例: web) と API が返す cookie の設定が
+      // 一致しないことがあるため、最終的にベースURL由来のホスト名・プロトコルに合わせて補正する。
+      cookie.domain = origin.hostname
+      cookie.secure = origin.protocol === 'https:'
       return cookie
     })
     .filter((cookie): cookie is CookieInput => cookie !== null)
@@ -122,6 +159,20 @@ function normalizeBaseURL(baseURL: string): string {
   return baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL
 }
 
+function resolveApiBase(baseURL?: string): string {
+  const envBase =
+    process.env.OSAKAMENESU_API_INTERNAL_BASE ||
+    process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
+    process.env.E2E_API_BASE
+  if (envBase) {
+    return envBase.replace(/\/$/, '')
+  }
+  if (baseURL) {
+    return baseURL.replace(/\/$/, '')
+  }
+  return 'http://127.0.0.1:8000'
+}
+
 async function buildCookieHeader(context: BrowserContext, baseURL: string): Promise<string> {
   const origin = new URL(baseURL)
   const cookies = await context.cookies(`${origin.protocol}//${origin.host}`)
@@ -131,7 +182,11 @@ async function buildCookieHeader(context: BrowserContext, baseURL: string): Prom
   return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ')
 }
 
-async function ensureAuthenticated(context: BrowserContext, page: Page, baseURL: string): Promise<string> {
+async function ensureAuthenticated(
+  context: BrowserContext,
+  page: Page,
+  baseURL: string,
+): Promise<string> {
   if (IS_MOCK_MODE) {
     return ''
   }
@@ -143,282 +198,288 @@ async function ensureAuthenticated(context: BrowserContext, page: Page, baseURL:
       throw new Error('E2E_SITE_COOKIE must contain at least one cookie pair (name=value)')
     }
     await context.addCookies(cookies)
-    return cookieHeader
+    const hasSiteSession = cookies.some((cookie) => /site/i.test(cookie.name))
+    if (hasSiteSession) {
+      return cookieHeader
+    }
   }
 
   const email = process.env.E2E_TEST_AUTH_EMAIL ?? 'playwright-site-user@example.com'
   const displayName = process.env.E2E_TEST_AUTH_DISPLAY_NAME ?? 'Playwright Test User'
   const normalizedBase = normalizeBaseURL(baseURL)
+  const apiBase = resolveApiBase(baseURL)
 
-  const secretCandidates = [
-    process.env.E2E_TEST_AUTH_SECRET,
-    process.env.TEST_AUTH_SECRET,
-  ].filter((value): value is string => Boolean(value && value.trim()))
+  const secretCandidates = [process.env.E2E_TEST_AUTH_SECRET, process.env.TEST_AUTH_SECRET].filter(
+    (value): value is string => Boolean(value && value.trim()),
+  )
 
   if (!secretCandidates.length) {
     secretCandidates.push('secret')
   }
 
   let unauthorized = false
+  let lastErrorMessage: string | null = null
+  const endpointCandidates = Array.from(
+    new Set(
+      [
+        baseURL ? `${normalizedBase}/api/auth/test-login` : null,
+        `${apiBase}/api/auth/test-login`,
+      ].filter((value): value is string => Boolean(value)),
+    ),
+  )
 
-  for (const secret of secretCandidates) {
-    const response = await page.request.post(`${normalizedBase}/api/auth/test-login`, {
-      data: {
-        email,
-        display_name: displayName,
-        scope: 'site',
-      },
-      headers: {
-        'X-Test-Auth-Secret': secret,
-      },
-    })
+  for (const endpoint of endpointCandidates) {
+    let endpointHandled = false
+    for (const secret of secretCandidates) {
+      const response = await page.request.post(endpoint, {
+        data: {
+          email,
+          display_name: displayName,
+          scope: 'site',
+        },
+        headers: {
+          'X-Test-Auth-Secret': secret,
+        },
+      })
 
-    if (response.status() === 503) {
-      throw new SkipTestError('テストログイン API が無効化されているためスキップします')
+      if (response.status() === 503) {
+        throw new SkipTestError('テストログイン API が無効化されているためスキップします')
+      }
+
+      if (response.status() === 404 || response.status() === 405) {
+        break
+      }
+
+      if (response.status() === 401) {
+        unauthorized = true
+        continue
+      }
+
+      if (!response.ok()) {
+        lastErrorMessage = await response.text()
+        continue
+      }
+
+      const cookieHeaders = response
+        .headersArray()
+        .filter((header) => header.name.toLowerCase() === 'set-cookie')
+        .map((header) => header.value)
+
+      if (!cookieHeaders.length) {
+        lastErrorMessage = 'test-login API から Set-Cookie が返されませんでした'
+        continue
+      }
+
+      const cookies = parseSetCookieHeaders(cookieHeaders, target)
+      if (!cookies.length) {
+        lastErrorMessage = 'Set-Cookie の解析に失敗しました'
+        continue
+      }
+
+      await context.addCookies(cookies)
+      const serialized = cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ')
+      endpointHandled = true
+      return serialized
     }
 
-    if (response.status() === 401) {
-      unauthorized = true
-      continue
+    if (endpointHandled) {
+      break
     }
-
-    if (!response.ok()) {
-      const message = await response.text()
-      throw new Error(`test-login API が失敗しました (${response.status()}): ${message}`)
-    }
-
-    const cookieHeaders = response
-      .headersArray()
-      .filter((header) => header.name.toLowerCase() === 'set-cookie')
-      .map((header) => header.value)
-
-    if (!cookieHeaders.length) {
-      throw new Error('test-login API から Set-Cookie が返されませんでした')
-    }
-
-    const cookies = parseSetCookieHeaders(cookieHeaders, target)
-    if (!cookies.length) {
-      throw new Error('Set-Cookie の解析に失敗しました')
-    }
-
-    await context.addCookies(cookies)
-    const serialized = cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ')
-    return serialized
   }
 
   if (unauthorized) {
-    throw new Error('テストログインのシークレットが一致しません。E2E_TEST_AUTH_SECRET を設定してください。')
-  }
-
-  throw new Error('test-login API が利用できませんでした')
-}
-
-async function ensureSampleTherapistViaApi(context: BrowserContext, baseURL: string, cookieHeader: string) {
-  if (IS_MOCK_MODE) {
-    await context.request.post(`${normalizeBaseURL(baseURL)}/api/test/favorites/reset`)
-    return
-  }
-  const normalizedBase = normalizeBaseURL(baseURL)
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (cookieHeader) {
-    headers.Cookie = cookieHeader
-  }
-
-  const postResponse = await context.request.post(`${normalizedBase}/api/favorites/therapists`, {
-    data: { therapist_id: THERAPIST_ID },
-    headers,
-  })
-
-  if (![201, 409].includes(postResponse.status())) {
-    const body = await postResponse.text()
-    throw new Error(`Failed to bootstrap sample therapist (status ${postResponse.status()}): ${body}`)
-  }
-
-  const postCookies = postResponse
-    .headersArray()
-    .filter((header) => header.name.toLowerCase() === 'set-cookie')
-    .map((header) => header.value)
-  if (postCookies.length) {
-    const cookies = parseSetCookieHeaders(postCookies, new URL(baseURL))
-    if (cookies.length) {
-      await context.addCookies(cookies)
-    }
-  }
-
-  const deleteHeaders: Record<string, string> = {}
-  if (cookieHeader) {
-    deleteHeaders.Cookie = cookieHeader
-  }
-
-  const deleteResponse = await context.request.delete(
-    `${normalizedBase}/api/favorites/therapists/${encodeURIComponent(THERAPIST_ID)}`,
-    { headers: deleteHeaders },
-  )
-
-  if (![204, 404].includes(deleteResponse.status())) {
-    const body = await deleteResponse.text()
-    throw new Error(`Failed to reset sample therapist favorite (status ${deleteResponse.status()}): ${body}`)
-  }
-
-  const deleteCookies = deleteResponse
-    .headersArray()
-    .filter((header) => header.name.toLowerCase() === 'set-cookie')
-    .map((header) => header.value)
-  if (deleteCookies.length) {
-    const cookies = parseSetCookieHeaders(deleteCookies, new URL(baseURL))
-    if (cookies.length) {
-      await context.addCookies(cookies)
-    }
-  }
-}
-
-async function addTherapistFavoriteViaApi(context: BrowserContext, baseURL: string, cookieHeader: string) {
-  if (IS_MOCK_MODE) {
-    await context.request.post(`${normalizeBaseURL(baseURL)}/api/test/favorites/therapists`, {
-      headers: { 'Content-Type': 'application/json' },
-      data: { therapist_id: THERAPIST_ID },
-    })
-    return
-  }
-  const normalizedBase = normalizeBaseURL(baseURL)
-  const response = await context.request.post(`${normalizedBase}/api/favorites/therapists`, {
-    headers: cookieHeader
-      ? {
-          Cookie: cookieHeader,
-          'Content-Type': 'application/json',
-        }
-      : { 'Content-Type': 'application/json' },
-    data: { therapist_id: THERAPIST_ID },
-  })
-  if (!response.ok()) {
-    const body = await response.text()
-    throw new Error(`Failed to add therapist favorite via API (${response.status()}): ${body}`)
-  }
-
-  const setCookieHeaders = response.headersArray().filter((header) => header.name.toLowerCase() === 'set-cookie')
-  if (setCookieHeaders.length) {
-    const target = new URL(baseURL)
-    const cookies = parseSetCookieHeaders(
-      setCookieHeaders.map((header) => header.value),
-      target,
+    throw new Error(
+      'テストログインのシークレットが一致しません。E2E_TEST_AUTH_SECRET を設定してください。',
     )
-    if (cookies.length) {
-      await context.addCookies(cookies)
-    }
   }
+
+  throw new Error(lastErrorMessage ?? 'test-login API が利用できませんでした')
 }
 
-async function removeTherapistFavoriteViaApi(context: BrowserContext, baseURL: string, cookieHeader: string) {
-  if (IS_MOCK_MODE) {
-    await context.request.delete(
-      `${normalizeBaseURL(baseURL)}/api/test/favorites/therapists?therapist_id=${encodeURIComponent(THERAPIST_ID)}`,
-    )
-    return
-  }
-  const normalizedBase = normalizeBaseURL(baseURL)
-  const response = await context.request.delete(
-    `${normalizedBase}/api/favorites/therapists/${encodeURIComponent(THERAPIST_ID)}`,
-    {
-      headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
-    },
-  )
-  if (!(response.ok() || response.status() === 404)) {
-    const body = await response.text()
-    throw new Error(`Failed to remove therapist favorite via API (${response.status()}): ${body}`)
-  }
+const AREA_QUERY = '/search?tab=therapists&force_samples=1'
+const FORCE_REAL_MODE = (process.env.FAVORITES_E2E_MODE || '').toLowerCase() === 'real'
+const resolvedFavoritesMode = (
+  process.env.FAVORITES_API_MODE ||
+  process.env.NEXT_PUBLIC_FAVORITES_API_MODE ||
+  ''
+).toLowerCase()
+const IS_MOCK_MODE = !FORCE_REAL_MODE && resolvedFavoritesMode.includes('mock')
 
-  const setCookieHeaders = response.headersArray().filter((header) => header.name.toLowerCase() === 'set-cookie')
-  if (setCookieHeaders.length) {
-    const target = new URL(baseURL)
-    const cookies = parseSetCookieHeaders(
-      setCookieHeaders.map((header) => header.value),
-      target,
-    )
-    if (cookies.length) {
-      await context.addCookies(cookies)
+const siteStoragePath =
+  process.env.PLAYWRIGHT_SITE_STORAGE ?? path.resolve(__dirname, 'storage', 'site.json')
+
+function loadSiteStorageCookies(): CookieInput[] | null {
+  try {
+    if (!fs.existsSync(siteStoragePath)) {
+      return null
     }
+    const raw = fs.readFileSync(siteStoragePath, 'utf8')
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed?.cookies) && parsed.cookies.length > 0) {
+      return parsed.cookies as CookieInput[]
+    }
+  } catch (error) {
+    console.warn('[favorites] failed to load site storage', error)
   }
+  return null
 }
 
-const AREA_QUERY = '/?area=京橋&page=1&force_samples=1'
-const THERAPIST_NAME = '葵'
-const THERAPIST_ID = '11111111-1111-1111-8888-111111111111'
-const IS_MOCK_MODE =
-  (process.env.FAVORITES_API_MODE || process.env.NEXT_PUBLIC_FAVORITES_API_MODE || '')
-    .toLowerCase()
-    .includes('mock') || process.env.NODE_ENV !== 'production'
+function buildCookieVariants(cookies: CookieInput[], baseURL: string): CookieInput[] {
+  if (!cookies.length) {
+    return cookies
+  }
+  const variants: CookieInput[] = []
+  const hostnames = new Set<string>()
+  try {
+    const hostname = new URL(baseURL).hostname
+    if (hostname) {
+      hostnames.add(hostname)
+    }
+  } catch {
+    /* ignore */
+  }
+  hostnames.add('localhost')
+
+  for (const host of hostnames) {
+    for (const cookie of cookies) {
+      const nextDomain = cookie.domain === host ? cookie.domain : host
+      variants.push({ ...cookie, domain: nextDomain })
+    }
+  }
+  return variants
+}
 
 test.describe('お気に入り（実API）', () => {
-  test('ログイン済みユーザーがセラピストのお気に入りをトグルできる', async ({ page, context, baseURL }) => {
+  test('ログイン済みユーザーがセラピストのお気に入りをトグルできる', async ({
+    page,
+    context,
+    baseURL,
+  }) => {
     if (!baseURL) throw new Error('baseURL is not defined')
-
-    let sessionCookie: string
-    try {
-      sessionCookie = await ensureAuthenticated(context, page, baseURL)
-    } catch (error) {
-      if (error instanceof SkipTestError) {
-        test.skip(true, error.message)
-      }
-      throw error
+    const siteCookies = loadSiteStorageCookies()
+    if (siteCookies?.length) {
+      console.log('[favorites] loaded site cookies count=', siteCookies.length)
+      console.log('[favorites] context cookies before:', await context.cookies())
+      const cookiesForBase = buildCookieVariants(siteCookies, baseURL)
+      await context.addCookies(cookiesForBase)
+      console.log('[favorites] context cookies after:', await context.cookies())
+    } else {
+      await ensureAuthenticated(context, page, baseURL)
     }
-
     const normalizedBase = normalizeBaseURL(baseURL)
-    const initialCookieHeader = (await buildCookieHeader(context, baseURL)) || sessionCookie
-    await ensureSampleTherapistViaApi(context, baseURL, initialCookieHeader)
-    const areaUrl = IS_MOCK_MODE ? `${normalizedBase}/test/favorites` : `${normalizedBase}${AREA_QUERY}`
+    const areaUrl = IS_MOCK_MODE
+      ? `${normalizedBase}/test/favorites`
+      : `${normalizedBase}${AREA_QUERY}`
 
-    await page.goto(areaUrl, { waitUntil: 'networkidle' })
+    await page.goto(areaUrl, { waitUntil: 'domcontentloaded' })
 
     await waitForTherapistCard(page)
 
-    const locateCard = () =>
-      IS_MOCK_MODE
-        ? page.locator('[data-testid="test-therapist-card-wrapper"] [data-testid="therapist-card"]').first()
-        : page.getByTestId('therapist-card').filter({ hasText: THERAPIST_NAME }).first()
-    const locateToggle = () => locateCard().getByRole('button', { name: /お気に入り/ })
-
-    await expect(locateCard()).toBeVisible()
-    await expect(locateToggle()).toHaveAttribute('aria-pressed', 'false', { timeout: 15000 })
-
-    const addCookieHeader = (await buildCookieHeader(context, baseURL)) || sessionCookie
-    await addTherapistFavoriteViaApi(context, baseURL, addCookieHeader)
-    await page.reload({ waitUntil: 'networkidle' })
-    await waitForTherapistCard(page)
-    await expect(locateToggle()).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 })
-
-    if (!IS_MOCK_MODE) {
-      await page.goto(`${normalizedBase}/dashboard/favorites`, { waitUntil: 'networkidle' })
-      await expect(page.getByRole('heading', { name: THERAPIST_NAME })).toBeVisible()
+    const { therapistId, therapistName } = await resolveTherapistTarget(page)
+    const locateToggle = () => buildFavoriteToggleLocator(page, therapistId)
+    const waitForToggleState = async (state: 'true' | 'false') => {
+      await expect
+        .poll(
+          async () => {
+            const toggle = locateToggle()
+            try {
+              if (!(await toggle.isVisible({ timeout: 1000 }))) {
+                return 'hidden'
+              }
+              if (await toggle.isDisabled()) {
+                return 'processing'
+              }
+              return (await toggle.getAttribute('aria-pressed')) ?? 'missing'
+            } catch {
+              return 'missing'
+            }
+          },
+          { timeout: 20000 },
+        )
+        .toBe(state)
     }
 
-    await page.goto(areaUrl, { waitUntil: 'networkidle' })
-    await waitForTherapistCard(page)
-
-    const removeCookieHeader = (await buildCookieHeader(context, baseURL)) || sessionCookie
-    await removeTherapistFavoriteViaApi(context, baseURL, removeCookieHeader)
-    await page.reload({ waitUntil: 'networkidle' })
-    await waitForTherapistCard(page)
-    await expect(locateToggle()).toHaveAttribute('aria-pressed', 'false', { timeout: 15000 })
-
-    if (!IS_MOCK_MODE) {
-      await page.goto(`${normalizedBase}/dashboard/favorites`, { waitUntil: 'networkidle' })
-      const emptyState = page.getByText('お気に入りに登録した店舗はまだありません。')
-      await expect(emptyState.or(page.getByRole('heading', { name: THERAPIST_NAME })).first()).toBeVisible()
+    const revertIfNeeded = async () => {
+      const initialState = await locateToggle().getAttribute('aria-pressed')
+      if (initialState === 'true') {
+        await Promise.all([
+          page
+            .waitForResponse((response) =>
+              IS_MOCK_MODE
+                ? true
+                : response.url().includes('/api/favorites/therapists') &&
+                  response.request().method() === 'DELETE',
+            )
+            .catch(() => null),
+          locateToggle().click(),
+        ])
+        await waitForToggleState('false')
+      }
     }
+
+    await revertIfNeeded()
+    await waitForToggleState('false')
+
+    await Promise.all([
+      page
+        .waitForResponse((response) =>
+          IS_MOCK_MODE
+            ? true
+            : response.url().includes('/api/favorites/therapists') &&
+              response.request().method() === 'POST',
+        )
+        .catch(() => null),
+      locateToggle().click(),
+    ])
+    await waitForToggleState('true')
+
+    await page.goto(`${normalizedBase}/dashboard/favorites`, { waitUntil: 'domcontentloaded' })
+    await expect(page.getByRole('heading', { name: therapistName, exact: false })).toBeVisible()
+
+    await page.goto(areaUrl, { waitUntil: 'domcontentloaded' })
+    await waitForTherapistCard(page, { therapistId })
+    await waitForToggleState('true')
+
+    await Promise.all([
+      page
+        .waitForResponse((response) =>
+          IS_MOCK_MODE
+            ? true
+            : response.url().includes('/api/favorites/therapists') &&
+              response.request().method() === 'DELETE',
+        )
+        .catch(() => null),
+      locateToggle().click(),
+    ])
+    await waitForToggleState('false')
+
+    await page.goto(`${normalizedBase}/dashboard/favorites`, { waitUntil: 'domcontentloaded' })
+    const emptyState = page.getByText(/まだお気に入りの店舗がありません/)
+    await expect(
+      emptyState.or(page.getByRole('heading', { name: therapistName, exact: false })).first(),
+    ).toBeVisible({
+      timeout: 15000,
+    })
   })
 })
-async function waitForTherapistCard(page: Page) {
+async function waitForTherapistCard(page: Page, options: { therapistId?: string | null } = {}) {
   const currentUrl = page.url()
   const isTestPage = IS_MOCK_MODE && currentUrl.includes('/test/favorites')
 
   if (isTestPage) {
     try {
       await expect
-        .poll(async () => {
-          return page.evaluate(() =>
-            document.querySelectorAll('[data-testid="test-therapist-card-wrapper"] [data-testid="therapist-card"]').length,
-          )
-        }, { timeout: 15_000 })
+        .poll(
+          async () => {
+            return page.evaluate(
+              () =>
+                document.querySelectorAll(
+                  '[data-testid="test-therapist-card-wrapper"] [data-testid="therapist-card"]',
+                ).length,
+            )
+          },
+          { timeout: 15_000 },
+        )
         .toBeGreaterThan(0)
     } catch (error) {
       const html = await page.content()
@@ -428,7 +489,42 @@ async function waitForTherapistCard(page: Page) {
       )
     }
   } else {
-    await page.waitForSelector('[data-testid="therapist-card"]', { timeout: 15000 })
-    await expect(page.getByText(THERAPIST_NAME)).toBeVisible()
+    if (options.therapistId) {
+      await expect(buildFavoriteToggleLocator(page, options.therapistId)).toBeVisible({
+        timeout: 15000,
+      })
+    } else {
+      await expect(page.getByTestId('therapist-card').first()).toBeVisible({ timeout: 15000 })
+    }
   }
+}
+
+function buildFavoriteToggleLocator(page: Page, therapistId: string | null) {
+  if (therapistId) {
+    return page
+      .locator(`[data-testid="therapist-favorite-toggle"][data-therapist-id="${therapistId}"]`)
+      .first()
+  }
+  return page.getByTestId('therapist-favorite-toggle').first()
+}
+
+async function resolveTherapistTarget(page: Page) {
+  if (IS_MOCK_MODE && page.url().includes('/test/favorites')) {
+    const mockCard = page
+      .locator('[data-testid="test-therapist-card-wrapper"] [data-testid="therapist-card"]')
+      .first()
+    await expect(mockCard).toBeVisible({ timeout: 15000 })
+    const headingText =
+      ((await mockCard.getByRole('heading').first().innerText()) ?? '').trim() || 'セラピスト'
+    return { therapistId: null, therapistName: headingText }
+  }
+
+  const card = page.getByTestId('therapist-card').first()
+  await expect(card).toBeVisible({ timeout: 15000 })
+  const toggle = card.getByTestId('therapist-favorite-toggle').first()
+  await expect(toggle).toBeVisible({ timeout: 15000 })
+  const therapistId = (await toggle.getAttribute('data-therapist-id'))?.trim() ?? null
+  const headingText =
+    ((await card.getByRole('heading').first().innerText()) ?? '').trim() || 'セラピスト'
+  return { therapistId, therapistName: headingText }
 }

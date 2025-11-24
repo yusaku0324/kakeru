@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 export const GLASS_CARD_CLASS =
   'relative overflow-visible rounded-[32px] border border-white/45 bg-white/45 p-6 shadow-[0_24px_70px_rgba(37,99,235,0.18)] backdrop-blur'

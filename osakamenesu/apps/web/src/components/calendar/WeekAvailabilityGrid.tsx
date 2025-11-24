@@ -1,8 +1,9 @@
-"use client"
+'use client'
 
 import clsx from 'clsx'
 import { Fragment, useMemo } from 'react'
 
+import { getJaFormatter } from '@/utils/date'
 import {
   AVAILABILITY_STATUS_META,
   type AvailabilityDay,
@@ -28,8 +29,8 @@ type WeekAvailabilityGridProps = {
   variant?: 'desktop' | 'mobile'
 }
 
-const WEEKDAY_FORMATTER = new Intl.DateTimeFormat('ja-JP', { weekday: 'short' })
-const MONTH_FORMATTER = new Intl.DateTimeFormat('ja-JP', { month: 'short' })
+const WEEKDAY_FORMATTER = getJaFormatter('weekday')
+const MONTH_FORMATTER = getJaFormatter('monthShort')
 
 function buildSlotKey(day: AvailabilityDay, slot: AvailabilitySlot) {
   const key = slot.timeKey ?? slot.start_at.slice(11, 16)
@@ -45,8 +46,14 @@ export function WeekAvailabilityGrid({
   maxSelection = 3,
   variant = 'desktop',
 }: WeekAvailabilityGridProps) {
-  const days = useMemo<AvailabilityDay[]>(() => (Array.isArray(daysInput) ? daysInput : []), [daysInput])
-  const timeline = useMemo<CalendarTime[]>(() => (Array.isArray(timelineInput) ? timelineInput : []), [timelineInput])
+  const days = useMemo<AvailabilityDay[]>(
+    () => (Array.isArray(daysInput) ? daysInput : []),
+    [daysInput],
+  )
+  const timeline = useMemo<CalendarTime[]>(
+    () => (Array.isArray(timelineInput) ? timelineInput : []),
+    [timelineInput],
+  )
   const selected = useMemo<SelectedSlot[]>(
     () => (Array.isArray(selectedInput) ? selectedInput : []),
     [selectedInput],
@@ -73,10 +80,7 @@ export function WeekAvailabilityGrid({
   }
 
   const columnTemplate = `minmax(84px,auto) repeat(${days.length}, minmax(0,1fr))`
-  const containerClass =
-    variant === 'desktop'
-      ? 'grid'
-      : 'grid min-w-[640px] sm:min-w-[720px]'
+  const containerClass = variant === 'desktop' ? 'grid' : 'grid min-w-[640px] sm:min-w-[720px]'
 
   const timeCellClass =
     variant === 'desktop'
@@ -92,7 +96,10 @@ export function WeekAvailabilityGrid({
   const buildIconClass = (status: AvailabilityStatus, selectedNow: boolean) =>
     clsx(
       'flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold transition',
-      status === 'open' && (selectedNow ? 'border-brand-primary bg-brand-primary text-white shadow-[0_12px_28px_rgba(37,99,235,0.25)]' : 'border-emerald-400 bg-emerald-100 text-emerald-600'),
+      status === 'open' &&
+        (selectedNow
+          ? 'border-brand-primary bg-brand-primary text-white shadow-[0_12px_28px_rgba(37,99,235,0.25)]'
+          : 'border-emerald-400 bg-emerald-100 text-emerald-600'),
       status === 'tentative' &&
         (selectedNow
           ? 'border-brand-secondary bg-brand-secondary text-white shadow-[0_12px_28px_rgba(37,99,235,0.25)]'
@@ -122,12 +129,21 @@ export function WeekAvailabilityGrid({
               key={day.date}
               className={clsx(
                 dayHeaderClass,
-                day.isToday ? 'bg-gradient-to-b from-brand-primary/15 to-transparent text-brand-primary' : undefined,
+                day.isToday
+                  ? 'bg-gradient-to-b from-brand-primary/15 to-transparent text-brand-primary'
+                  : undefined,
               )}
             >
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-textMuted">{monthLabel}</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-textMuted">
+                {monthLabel}
+              </span>
               <span className="text-lg font-semibold text-neutral-text">{dayNumber}</span>
-              <span className={clsx('text-[11px] font-medium', day.isToday ? 'text-brand-primary' : 'text-neutral-textMuted')}>
+              <span
+                className={clsx(
+                  'text-[11px] font-medium',
+                  day.isToday ? 'text-brand-primary' : 'text-neutral-textMuted',
+                )}
+              >
                 {weekday}
                 {day.isToday ? '・今日' : ''}
               </span>
@@ -156,7 +172,7 @@ export function WeekAvailabilityGrid({
               }
 
               const statusMeta = AVAILABILITY_STATUS_META[slot.status]
-              const disabled = slot.status === 'blocked' || (!selectedNow && selected.length >= maxSelection)
+              const disabled = !selectedNow && selected.length >= maxSelection
               const iconClass = buildIconClass(slot.status, selectedNow)
 
               return (

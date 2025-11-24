@@ -2,20 +2,16 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
-    "jsx": "preserve",
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "noEmit": true,
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"],
+      "@proxy": ["./proxy"]
     },
     "allowJs": true,
     "strict": false,
@@ -31,10 +27,9 @@
   "include": [
     "next-env.d.ts",
     "src/**/*",
-    "src/middleware.ts",
-    ".next/types/**/*.ts"
+    "src/proxy.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }

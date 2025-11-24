@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React from 'react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
@@ -32,7 +32,7 @@ vi.mock('next/link', () => ({
 
 vi.mock('next/image', () => ({
   __esModule: true,
-  default: (props: any) => <img {...props} alt={props.alt || ''} />,
+  default: (props: any) => <span data-next-image="true" {...props} />,
 }))
 
 const BASE_HIT: TherapistHit = {
@@ -52,7 +52,10 @@ const BASE_HIT: TherapistHit = {
   shopArea: '大阪',
   shopAreaName: null,
   todayAvailable: true,
-  nextAvailableAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+  nextAvailableSlot: {
+    start_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    status: 'ok',
+  },
 }
 
 describe('TherapistCard favorite button', () => {
@@ -75,7 +78,10 @@ describe('TherapistCard favorite button', () => {
 
     fireEvent.click(button)
     expect(toggleFavoriteMock).toHaveBeenCalledTimes(1)
-    expect(toggleFavoriteMock).toHaveBeenCalledWith({ therapistId: 'therapist-uuid', shopId: 'shop-uuid' })
+    expect(toggleFavoriteMock).toHaveBeenCalledWith({
+      therapistId: 'therapist-uuid',
+      shopId: 'shop-uuid',
+    })
   })
 
   it('disables the button when therapistId is missing', () => {
@@ -86,5 +92,15 @@ describe('TherapistCard favorite button', () => {
 
     fireEvent.click(button)
     expect(toggleFavoriteMock).not.toHaveBeenCalled()
+  })
+
+  it('exposes aria-pressed state explicitly', () => {
+    const { getByRole, rerender } = render(<TherapistCard hit={BASE_HIT} />)
+    const button = getByRole('button', { name: 'お気に入りに追加' })
+    expect(button).toHaveAttribute('aria-pressed', 'false')
+
+    isFavoriteMock.mockReturnValueOnce(true)
+    rerender(<TherapistCard hit={BASE_HIT} />)
+    expect(getByRole('button', { name: 'お気に入りから削除' })).toHaveAttribute('aria-pressed', 'true')
   })
 })

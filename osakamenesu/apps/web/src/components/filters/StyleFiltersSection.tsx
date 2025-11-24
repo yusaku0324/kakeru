@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import clsx from 'clsx'
 import {
@@ -35,6 +35,9 @@ type StyleFiltersSectionProps = {
   heightMinLimit: number
   heightMaxLimit: number
   onReset: () => void
+  className?: string
+  showHeader?: boolean
+  showResetButton?: boolean
 }
 
 export function StyleFiltersSection({
@@ -58,30 +61,54 @@ export function StyleFiltersSection({
   heightMinLimit,
   heightMaxLimit,
   onReset,
+  className,
+  showHeader = true,
+  showResetButton = true,
 }: StyleFiltersSectionProps) {
+  const wrapperClass = className
+    ? className
+    : 'relative overflow-visible rounded-[32px] border border-white/45 bg-white/45 p-6 shadow-[0_24px_70px_rgba(37,99,235,0.18)] backdrop-blur'
   return (
-    <section className="relative overflow-visible rounded-[32px] border border-white/45 bg-white/45 p-6 shadow-[0_24px_70px_rgba(37,99,235,0.18)] backdrop-blur">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(147,197,253,0.2)_0%,rgba(147,197,253,0)_60%)]" />
-      <header className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#fee2f2] text-[#ec4899] shadow-[0_12px_28px_rgba(236,72,153,0.25)]">
-            ♡
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-neutral-text">外見・スタイル</p>
-            <p className="text-xs text-neutral-textMuted">バストサイズ・年齢・身長の範囲を設定できます</p>
+    <section className={wrapperClass}>
+      {!className ? (
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(147,197,253,0.2)_0%,rgba(147,197,253,0)_60%)]" />
+      ) : null}
+      {showHeader ? (
+        <header className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#fee2f2] text-[#ec4899] shadow-[0_12px_28px_rgba(236,72,153,0.25)]">
+              ♡
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-neutral-text">外見・スタイル</p>
+              <p className="text-xs text-neutral-textMuted">
+                バストサイズ・年齢・身長の範囲を設定できます
+              </p>
+            </div>
           </div>
+          {showResetButton ? (
+            <button
+              type="button"
+              onClick={onReset}
+              className="inline-flex items-center gap-1 rounded-full border border-white/40 bg-white/50 px-3 py-1 text-xs font-semibold text-brand-primary shadow-[0_10px_24px_rgba(37,99,235,0.15)] transition hover:border-brand-primary hover:bg-brand-primary/10"
+            >
+              リセット
+            </button>
+          ) : null}
+        </header>
+      ) : showResetButton ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onReset}
+            className="inline-flex items-center gap-1 rounded-full border border-white/40 bg-white/50 px-3 py-1 text-xs font-semibold text-brand-primary shadow-[0_10px_24px_rgba(37,99,235,0.15)] transition hover:border-brand-primary hover:bg-brand-primary/10"
+          >
+            リセット
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onReset}
-          className="inline-flex items-center gap-1 rounded-full border border-white/40 bg-white/50 px-3 py-1 text-xs font-semibold text-brand-primary shadow-[0_10px_24px_rgba(37,99,235,0.15)] transition hover:border-brand-primary hover:bg-brand-primary/10"
-        >
-          リセット
-        </button>
-      </header>
+      ) : null}
 
-      <div className="mt-6 space-y-8">
+      <div className={clsx('space-y-8', showHeader ? 'mt-6' : 'mt-0')}>
         <div className="space-y-5 rounded-[32px] border border-white/55 bg-white/75 p-6 shadow-[0_22px_60px_rgba(37,99,235,0.2)]">
           <div className="flex items-center justify-between text-sm font-semibold text-neutral-text">
             <span>バストサイズ（カップ）</span>
@@ -105,7 +132,7 @@ export function StyleFiltersSection({
               accentColor="#3b82f6"
               minLabel="バストサイズの下限"
               maxLabel="バストサイズの上限"
-              trackInset={24}
+              trackInset={6}
             />
           </div>
           <div className="flex items-center justify-between text-[11px] text-neutral-textMuted uppercase">
@@ -139,7 +166,7 @@ export function StyleFiltersSection({
                 accentColor="#ec4899"
                 minLabel="年齢の下限"
                 maxLabel="年齢の上限"
-                trackInset={24}
+                trackInset={6}
               />
             </div>
             <div className="flex items-center justify-between text-[11px] text-[#ec4899]">
@@ -171,7 +198,7 @@ export function StyleFiltersSection({
                 accentColor="#10b981"
                 minLabel="身長の下限"
                 maxLabel="身長の上限"
-                trackInset={24}
+                trackInset={6}
               />
             </div>
             <div className="flex items-center justify-between text-[11px] text-[#10b981]">
@@ -203,7 +230,13 @@ const percentStyle = (value: number) => `${clampPercent(value)}%`
 
 const hexToRgba = (hex: string, alpha: number) => {
   const raw = hex.replace('#', '')
-  const normalized = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw
+  const normalized =
+    raw.length === 3
+      ? raw
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : raw
   if (normalized.length !== 6) return `rgba(59,130,246,${alpha})`
   const r = Number.parseInt(normalized.slice(0, 2), 16)
   const g = Number.parseInt(normalized.slice(2, 4), 16)
@@ -226,10 +259,7 @@ export function DualSlider({
   const trackRef = useRef<HTMLDivElement | null>(null)
   const [activeIndex, setActiveIndex] = useState<0 | 1>(0)
 
-  const clampValue = useCallback(
-    (value: number) => Math.min(Math.max(value, min), max),
-    [min, max],
-  )
+  const clampValue = useCallback((value: number) => Math.min(Math.max(value, min), max), [min, max])
 
   const valueFromClientX = useCallback(
     (clientX: number) => {
@@ -243,33 +273,29 @@ export function DualSlider({
     [clampValue, max, min, step],
   )
 
-  const handlePointer =
-    (handle: 0 | 1) =>
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      event.preventDefault()
-      const value = valueFromClientX(event.clientX)
-      if (value == null) return
-      setActiveIndex(handle)
-      if (handle === 0) {
-        onChange(value, Math.max(value, maxValue))
-      } else {
-        onChange(Math.min(value, minValue), value)
-      }
-      event.currentTarget.setPointerCapture(event.pointerId)
+  const handlePointer = (handle: 0 | 1) => (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    const value = valueFromClientX(event.clientX)
+    if (value == null) return
+    setActiveIndex(handle)
+    if (handle === 0) {
+      onChange(value, Math.max(value, maxValue))
+    } else {
+      onChange(Math.min(value, minValue), value)
     }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
 
-  const handleMove =
-    (handle: 0 | 1) =>
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
-      const value = valueFromClientX(event.clientX)
-      if (value == null) return
-      if (handle === 0) {
-        onChange(value, Math.max(value, maxValue))
-      } else {
-        onChange(Math.min(value, minValue), value)
-      }
+  const handleMove = (handle: 0 | 1) => (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+    const value = valueFromClientX(event.clientX)
+    if (value == null) return
+    if (handle === 0) {
+      onChange(value, Math.max(value, maxValue))
+    } else {
+      onChange(Math.min(value, minValue), value)
     }
+  }
 
   const handlePointerEnd = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -277,20 +303,18 @@ export function DualSlider({
     }
   }
 
-  const handleKey =
-    (handle: 0 | 1) =>
-    (event: KeyboardEvent<HTMLButtonElement>) => {
-      let delta = 0
-      if (event.key === 'ArrowRight' || event.key === 'ArrowUp') delta = step
-      else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') delta = -step
-      else if (event.key === 'Home') delta = handle === 0 ? min - minValue : min - maxValue
-      else if (event.key === 'End') delta = handle === 0 ? max - minValue : max - maxValue
-      if (delta === 0) return
-      event.preventDefault()
-      if (handle === 0) onChange(clampValue(minValue + delta), maxValue)
-      else onChange(minValue, clampValue(maxValue + delta))
-      setActiveIndex(handle)
-    }
+  const handleKey = (handle: 0 | 1) => (event: KeyboardEvent<HTMLButtonElement>) => {
+    let delta = 0
+    if (event.key === 'ArrowRight' || event.key === 'ArrowUp') delta = step
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') delta = -step
+    else if (event.key === 'Home') delta = handle === 0 ? min - minValue : min - maxValue
+    else if (event.key === 'End') delta = handle === 0 ? max - minValue : max - maxValue
+    if (delta === 0) return
+    event.preventDefault()
+    if (handle === 0) onChange(clampValue(minValue + delta), maxValue)
+    else onChange(minValue, clampValue(maxValue + delta))
+    setActiveIndex(handle)
+  }
 
   const minPercent = percentStyle(((minValue - min) / (max - min)) * 100)
   const maxPercent = percentStyle(((maxValue - min) / (max - min)) * 100)
@@ -338,10 +362,7 @@ export function DualSlider({
             boxShadow: `0 12px 32px ${hexToRgba(accentColor, 0.4)}, 0 0 0 6px ${hexToRgba(accentColor, 0.22)}`,
           }}
         >
-          <span
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ background: accentColor }}
-          />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: accentColor }} />
         </span>
       </button>
       <button
@@ -366,10 +387,7 @@ export function DualSlider({
             boxShadow: `0 12px 32px ${hexToRgba(accentColor, 0.4)}, 0 0 0 6px ${hexToRgba(accentColor, 0.22)}`,
           }}
         >
-          <span
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ background: accentColor }}
-          />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: accentColor }} />
         </span>
       </button>
     </div>

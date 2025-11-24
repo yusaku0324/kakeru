@@ -23,7 +23,7 @@ describe('TherapistPhotoField', () => {
         onRemove={onRemove}
         onMove={onMove}
         onAddUrl={onAddUrl}
-      />
+      />,
     )
 
     expect(screen.getByText('画像をアップロード')).toBeInTheDocument()

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 
-const PUBLIC_BASE = process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE || process.env.NEXT_PUBLIC_API_BASE || '/api'
-const INTERNAL_BASE = process.env.OSAKAMENESU_API_INTERNAL_BASE || process.env.API_INTERNAL_BASE || 'http://osakamenesu-api:8000'
+import { getServerConfig } from '@/lib/server-config'
+
+const SERVER_CONFIG = getServerConfig()
 
 function resolveBases(): string[] {
-  // Always prefer internal base when available (SSR environment)
-  return [INTERNAL_BASE, PUBLIC_BASE]
+  return [SERVER_CONFIG.internalApiBase, SERVER_CONFIG.publicApiBase]
 }
 
 export async function POST(req: Request) {

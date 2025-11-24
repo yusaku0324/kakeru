@@ -2,16 +2,10 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { buildApiUrl } from '@/lib/api'
+import { resolveInternalApiBase } from '@/lib/server-config'
 
-const INTERNAL_API_BASE =
-  process.env.OSAKAMENESU_API_INTERNAL_BASE ||
-  process.env.API_INTERNAL_BASE ||
-  process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE ||
-  '/api'
-
-function serializeCookieHeader(): string | undefined {
-  const store = cookies()
+async function serializeCookieHeader(): Promise<string | undefined> {
+  const store = await cookies()
   const entries = store.getAll()
   if (!entries.length) {
     return undefined
@@ -25,37 +19,42 @@ type DashboardResolveResult =
   | { status: 'empty' }
 
 async function resolveFirstDashboardShopId(): Promise<DashboardResolveResult> {
-  const cookieHeader = serializeCookieHeader()
-  const url = buildApiUrl(INTERNAL_API_BASE, 'api/dashboard/shops?limit=1')
+  const cookieHeader = await serializeCookieHeader()
+  const bases = ['/api', resolveInternalApiBase()]
 
-  try {
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
-      cache: 'no-store',
-      credentials: cookieHeader ? 'omit' : 'include',
-    })
+  for (const base of bases) {
+    const url = buildApiUrl(base, 'api/dashboard/shops?limit=1')
 
-    if (res.status === 401 || res.status === 403) {
-      return { status: 'unauthorized' }
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+        cache: 'no-store',
+        credentials: cookieHeader ? 'omit' : 'include',
+      })
+
+      if (res.status === 401 || res.status === 403) {
+        return { status: 'unauthorized' }
+      }
+
+      if (!res.ok) {
+        continue
+      }
+
+      const data = (await res.json().catch(() => undefined)) as
+        | { shops?: Array<{ id?: string }> }
+        | undefined
+
+      const first = data?.shops?.[0]
+      if (first && typeof first?.id === 'string') {
+        return { status: 'shop', id: first.id }
+      }
+    } catch {
+      continue
     }
-
-    if (!res.ok) {
-      return { status: 'empty' }
-    }
-
-    const data = (await res.json().catch(() => undefined)) as
-      | { shops?: Array<{ id?: string }> }
-      | undefined
-
-    const first = data?.shops?.[0]
-    if (first && typeof first?.id === 'string') {
-      return { status: 'shop', id: first.id }
-    }
-    return { status: 'empty' }
-  } catch {
-    return { status: 'empty' }
   }
+
+  return { status: 'empty' }
 }
 
 export const dynamic = 'force-dynamic'

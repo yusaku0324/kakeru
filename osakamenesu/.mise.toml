@@ -20,10 +20,34 @@ run = "services/api/scripts/dev_magic_link.sh"
 [tasks.fix_quarantine]
 description = "Remove macOS quarantine/provenance attributes"
 script = [
-  "if [ \"${1:-} \" = \"\" ]; then", 
-  "  echo 'usage: mise run fix_quarantine <path>' >&2", 
-  "  exit 1", 
-  "fi", 
+  "if [ \"${1:-} \" = \"\" ]; then",
+  "  echo 'usage: mise run fix_quarantine <path>' >&2",
+  "  exit 1",
+  "fi",
   "./tools/fix-quarantine.sh $1"
 ]
 arguments = ["path"]
+
+[tasks.dev_full]
+description = "FastAPI + Next.js を Doppler(dev_web) で同時起動"
+run = "doppler run --project osakamenesu --config dev_web -- pnpm dev"
+
+[tasks.dev_api]
+description = "FastAPI (uvicorn) を Doppler(dev_web) で起動"
+run = "doppler run --project osakamenesu --config dev_web -- pnpm dev:api"
+
+[tasks.dev_web]
+description = "Next.js を Doppler(dev_web) で起動"
+run = "doppler run --project osakamenesu --config dev_web -- pnpm dev:web"
+
+[tasks.web_test_unit]
+description = "apps/web の unit テスト (Doppler dev_web)"
+run = "doppler run --project osakamenesu --config dev_web -- pnpm --dir apps/web run test:unit"
+
+[tasks.web_lint]
+description = "apps/web の ESLint (Doppler dev_web)"
+run = "doppler run --project osakamenesu --config dev_web -- pnpm --dir apps/web run lint"
+
+[tasks.web_typecheck]
+description = "apps/web の TypeScript typecheck (Doppler dev_web)"
+run = "doppler run --project osakamenesu --config dev_web -- pnpm --dir apps/web run typecheck"

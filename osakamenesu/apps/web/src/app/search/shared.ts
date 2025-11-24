@@ -1,8 +1,33 @@
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { buildStaffIdentifier } from '@/lib/staff'
+import { toNextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 
 import type { ShopHit } from '@/components/shop/ShopCard'
 import type { TherapistHit } from '@/components/staff/TherapistCard'
+
+export type FacetValue = {
+  value: string
+  label: string
+  count: number
+  selected?: boolean | null
+}
+
+export type SearchResponse = {
+  page: number
+  page_size: number
+  total: number
+  results: ShopHit[]
+  facets: Record<string, FacetValue[]>
+  _error?: string
+}
+
+function toQueryString(p: Record<string, string | undefined>) {
+  const q = Object.entries(p)
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`)
+    .join('&')
+  return q ? `?${q}` : ''
+}
 
 function isoHoursFromNow(hours: number): string {
   return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
@@ -23,14 +48,13 @@ export const SAMPLE_RESULTS: ShopHit[] = [
     max_price: 18000,
     rating: 4.7,
     review_count: 128,
-    lead_image_url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
+    lead_image_url:
+      'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
     badges: ['人気店', '駅チカ'],
     today_available: true,
     online_reservation: true,
     has_promotions: true,
-    promotions: [
-      { label: 'プレミアム体験 ¥2,000OFF', expires_at: '2025-12-31' },
-    ],
+    promotions: [{ label: 'プレミアム体験 ¥2,000OFF', expires_at: '2025-12-31' }],
     promotion_count: 2,
     ranking_reason: '口コミ評価4.7★。プレミアム個室で極上リラクゼーション体験。',
     price_band_label: '90分 12,000円〜',
@@ -46,8 +70,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.6,
         review_count: 87,
         specialties: ['リンパ', 'ホットストーン'],
-        avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=640&q=80',
-        today_available: true,
+        avatar_url:
+          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=640&q=80',
         next_available_at: isoHoursFromNow(2),
       },
       {
@@ -58,8 +82,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.3,
         review_count: 52,
         specialties: ['ストレッチ', '指圧'],
-        avatar_url: 'https://images.unsplash.com/photo-1487412912498-0447578fcca8?auto=format&fit=crop&w=400&q=80',
-        today_available: true,
+        avatar_url:
+          'https://images.unsplash.com/photo-1487412912498-0447578fcca8?auto=format&fit=crop&w=400&q=80',
         next_available_at: isoHoursFromNow(5),
       },
     ],
@@ -78,7 +102,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
     max_price: 22000,
     rating: 4.9,
     review_count: 86,
-    lead_image_url: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=900&q=80',
+    lead_image_url:
+      'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=900&q=80',
     badges: ['上質空間'],
     today_available: false,
     next_available_at: isoHoursFromNow(28),
@@ -97,7 +122,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.9,
         review_count: 64,
         specialties: ['ホットストーン', 'ディープリンパ'],
-        avatar_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=640&q=80',
+        avatar_url:
+          'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=640&q=80',
         next_available_at: isoHoursFromNow(28),
       },
     ],
@@ -116,14 +142,13 @@ export const SAMPLE_RESULTS: ShopHit[] = [
     max_price: 16000,
     rating: 4.5,
     review_count: 54,
-    lead_image_url: 'https://images.unsplash.com/photo-1507537417841-1ae12265b9c9?auto=format&fit=crop&w=900&q=80',
+    lead_image_url:
+      'https://images.unsplash.com/photo-1507537417841-1ae12265b9c9?auto=format&fit=crop&w=900&q=80',
     today_available: true,
     next_available_at: isoHoursFromNow(4),
     online_reservation: true,
     has_promotions: true,
-    promotions: [
-      { label: '平日昼割 ¥2,000OFF', expires_at: '2025-10-31' },
-    ],
+    promotions: [{ label: '平日昼割 ¥2,000OFF', expires_at: '2025-10-31' }],
     ranking_reason: 'ビジネス帰りの利用多数。21時以降のクイックコース人気。',
     price_band_label: '75分 9,000円〜',
     diary_count: 8,
@@ -138,8 +163,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.4,
         review_count: 38,
         specialties: ['ドライヘッドスパ', 'ストレッチ'],
-        avatar_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=640&q=80',
-        today_available: true,
+        avatar_url:
+          'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=640&q=80',
         next_available_at: isoHoursFromNow(3),
       },
       {
@@ -149,7 +174,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.5,
         review_count: 44,
         specialties: ['肩こりケア', 'アロマトリートメント'],
-        avatar_url: 'https://images.unsplash.com/photo-1554384645-13eab165c24b?auto=format&fit=crop&w=640&q=80',
+        avatar_url:
+          'https://images.unsplash.com/photo-1554384645-13eab165c24b?auto=format&fit=crop&w=640&q=80',
         next_available_at: isoHoursFromNow(6),
       },
     ],
@@ -168,15 +194,14 @@ export const SAMPLE_RESULTS: ShopHit[] = [
     max_price: 17000,
     rating: 4.4,
     review_count: 61,
-    lead_image_url: 'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=900&q=80',
+    lead_image_url:
+      'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=900&q=80',
     badges: ['本日空きあり'],
     today_available: true,
     next_available_at: isoHoursFromNow(2.5),
     online_reservation: true,
     has_promotions: true,
-    promotions: [
-      { label: '平日フリー指名 ¥1,000OFF', expires_at: '2025-11-30' },
-    ],
+    promotions: [{ label: '平日フリー指名 ¥1,000OFF', expires_at: '2025-11-30' }],
     ranking_reason: '天王寺駅徒歩5分。観葉植物に囲まれた癒やし空間でゆったりと。',
     price_band_label: '90分 11,000円〜',
     diary_count: 6,
@@ -191,7 +216,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.7,
         review_count: 48,
         specialties: ['ストレッチ', 'ホットストーン'],
-        avatar_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=640&q=80',
+        avatar_url:
+          'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=640&q=80',
         today_available: true,
         next_available_at: isoHoursFromNow(2.5),
       },
@@ -211,7 +237,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
     max_price: 21000,
     rating: 4.2,
     review_count: 45,
-    lead_image_url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=900&q=80',
+    lead_image_url:
+      'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=900&q=80',
     badges: ['駅チカ'],
     today_available: false,
     next_available_at: isoHoursFromNow(40),
@@ -230,7 +257,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.5,
         review_count: 37,
         specialties: ['リンパドレナージュ', 'ドライヘッドスパ'],
-        avatar_url: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=640&q=80',
+        avatar_url:
+          'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=640&q=80',
         next_available_at: isoHoursFromNow(40),
       },
     ],
@@ -249,7 +277,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
     max_price: 24000,
     rating: 4.8,
     review_count: 72,
-    lead_image_url: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80',
+    lead_image_url:
+      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80',
     badges: ['上質空間', '口コミ高評価'],
     today_available: true,
     next_available_at: isoHoursFromNow(6),
@@ -273,7 +302,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.9,
         review_count: 58,
         specialties: ['ディープリンパ', 'アロマトリートメント'],
-        avatar_url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=640&q=80',
+        avatar_url:
+          'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=640&q=80',
         today_available: true,
         next_available_at: isoHoursFromNow(6),
       },
@@ -281,21 +311,18 @@ export const SAMPLE_RESULTS: ShopHit[] = [
   },
 ]
 
-export type FacetValue = {
-  value: string
-  label?: string | null
-  count: number
-  selected?: boolean | null
-}
-
-export type SearchResponse = {
-  page: number
-  page_size: number
-  total: number
-  results: ShopHit[]
-  facets: Record<string, FacetValue[]>
-  _error?: string
-}
+SAMPLE_RESULTS.forEach((hit) => {
+  if (!hit.next_available_slot && hit.next_available_at) {
+    hit.next_available_slot = toNextAvailableSlotPayload(hit.next_available_at)
+  }
+  if (Array.isArray(hit.staff_preview)) {
+    hit.staff_preview.forEach((staff) => {
+      if (!staff.next_available_slot && staff.next_available_at) {
+        staff.next_available_slot = toNextAvailableSlotPayload(staff.next_available_at)
+      }
+    })
+  }
+})
 
 export type Params = {
   q?: string
@@ -320,13 +347,7 @@ export type Params = {
   force_samples?: string
 }
 
-function toQueryString(p: Record<string, string | undefined>) {
-  const q = Object.entries(p)
-    .filter(([, v]) => v !== undefined && v !== '')
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`)
-    .join('&')
-  return q ? `?${q}` : ''
-}
+export type SearchParams = Params
 
 function parseNumber(value?: string): number | null {
   if (!value) return null
@@ -342,7 +363,8 @@ export function applyClientFilters(params: Params, hits: ShopHit[]): ShopHit[] {
     }
 
     if (params.today && parseBoolParam(params.today)) {
-      if (!hit.today_available && !hit.next_available_at) return false
+      const hasNextSlot = Boolean(hit.next_available_slot?.start_at)
+      if (!hit.today_available && !hasNextSlot) return false
     }
 
     if (params.promotions_only && parseBoolParam(params.promotions_only)) {
@@ -420,6 +442,8 @@ export async function fetchSearchResults(params: Params): Promise<SearchResponse
   }
 }
 
+export const fetchProfiles = fetchSearchResults
+
 export function parseBoolParam(value?: string): boolean {
   if (!value) return false
   const lowered = value.toLowerCase()
@@ -436,7 +460,11 @@ export function buildSampleFacets(hits: ShopHit[]): Record<string, FacetValue[]>
 
   const facets: Record<string, FacetValue[]> = {}
   if (Object.keys(areaCounts).length) {
-    facets.area = Object.entries(areaCounts).map(([value, count]) => ({ value, label: value, count }))
+    facets.area = Object.entries(areaCounts).map(([value, count]) => ({
+      value,
+      label: value,
+      count,
+    }))
   }
   return facets
 }
@@ -456,7 +484,9 @@ export function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
   return hits.flatMap((hit) => {
     if (!Array.isArray(hit.staff_preview) || hit.staff_preview.length === 0) return []
     return hit.staff_preview
-      .filter((staff): staff is NonNullable<typeof hit.staff_preview>[number] & { name: string } => Boolean(staff && staff.name))
+      .filter((staff): staff is NonNullable<typeof hit.staff_preview>[number] & { name: string } =>
+        Boolean(staff && staff.name),
+      )
       .map((staff, index) => {
         const staffIdentifier = buildStaffIdentifier(
           { id: staff.id ?? null, alias: staff.alias ?? null, name: staff.name },
@@ -464,15 +494,18 @@ export function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
         )
         const uniqueId = `${hit.id}-${staffIdentifier}`
         const specialties = Array.isArray(staff.specialties)
-          ? staff.specialties.filter((tag): tag is string => Boolean(tag)).map((tag) => tag.trim()).filter(Boolean)
+          ? staff.specialties
+              .filter((tag): tag is string => Boolean(tag))
+              .map((tag) => tag.trim())
+              .filter(Boolean)
           : []
         const todayAvailable =
           typeof staff.today_available === 'boolean'
             ? staff.today_available
             : typeof hit.today_available === 'boolean'
-            ? hit.today_available
-            : null
-        const nextAvailableAt = staff.next_available_at ?? hit.next_available_at ?? null
+              ? hit.today_available
+              : null
+        const nextAvailableSlot = staff.next_available_slot ?? hit.next_available_slot ?? null
         return {
           id: uniqueId,
           therapistId: staff.id ? String(staff.id) : null,
@@ -490,7 +523,7 @@ export function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
           shopArea: hit.area,
           shopAreaName: hit.area_name ?? null,
           todayAvailable,
-          nextAvailableAt,
+          nextAvailableSlot,
         } satisfies TherapistHit
       })
   })

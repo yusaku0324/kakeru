@@ -1,10 +1,17 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, conint, constr, EmailStr
-from typing import Optional, List, Dict, Any, Literal
-from uuid import UUID
+import re
 from datetime import datetime, date
-from .constants import ReservationStatusLiteral
+from typing import Any, Dict, List, Literal, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, EmailStr, Field, conint, constr, field_validator, model_validator
+
+from .constants import (
+    RESERVATION_SLOT_STATUS_SET,
+    ReservationSlotStatusLiteral,
+    ReservationStatusLiteral,
+)
 
 
 REVIEW_ASPECT_KEYS = ("therapist_service", "staff_response", "room_cleanliness")
@@ -179,6 +186,11 @@ class FacetValue(BaseModel):
     selected: Optional[bool] = None
 
 
+class NextAvailableSlot(BaseModel):
+    start_at: datetime
+    status: Literal['ok', 'maybe']
+
+
 class ShopStaffPreview(BaseModel):
     id: Optional[str] = None
     name: str
@@ -188,6 +200,9 @@ class ShopStaffPreview(BaseModel):
     review_count: Optional[int] = None
     avatar_url: Optional[str] = None
     specialties: List[str] = Field(default_factory=list)
+    today_available: Optional[bool] = None
+    next_available_at: Optional[datetime] = None
+    next_available_slot: Optional[NextAvailableSlot] = None
 
 
 class ShopSummary(BaseModel):
@@ -214,6 +229,7 @@ class ShopSummary(BaseModel):
     badges: List[str] = Field(default_factory=list)
     today_available: Optional[bool] = None
     next_available_at: Optional[datetime] = None
+    next_available_slot: Optional[NextAvailableSlot] = None
     distance_km: Optional[float] = None
     online_reservation: Optional[bool] = None
     updated_at: Optional[datetime] = None
@@ -295,6 +311,7 @@ class StaffSummary(BaseModel):
     next_shift: Optional[StaffShift] = None
     specialties: List[str] = Field(default_factory=list)
     is_pickup: Optional[bool] = None
+    next_available_slot: Optional[NextAvailableSlot] = None
 
 
 class AvailabilitySlot(BaseModel):
@@ -425,9 +442,66 @@ class ReservationCustomerInput(BaseModel):
     line_id: Optional[str] = None
     remark: Optional[str] = None
 
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("name is required")
+        normalized = value.strip()
+        if len(normalized) > 80:
+            raise ValueError("name must be 80 characters or fewer")
+        return normalized
+
+    @field_validator("phone")
+    @classmethod
+    def _validate_phone(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("phone is required")
+        normalized = value.strip()
+        digits = re.sub(r"\D+", "", normalized)
+        if len(digits) < 10 or len(digits) > 13:
+            raise ValueError("phone must include 10-13 numeric digits")
+        return normalized
+
+    @field_validator("email")
+    @classmethod
+    def _normalize_email(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
+
 
 class ReservationCustomer(ReservationCustomerInput):
     id: Optional[UUID] = None
+
+
+class ReservationPreferredSlotBase(BaseModel):
+    desired_start: datetime
+    desired_end: datetime
+    status: ReservationSlotStatusLiteral = "open"
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, value: str) -> ReservationSlotStatusLiteral:
+        if value not in RESERVATION_SLOT_STATUS_SET:
+            raise ValueError("invalid slot status")
+        return value  # type: ignore[return-value]
+
+    @model_validator(mode="after")
+    def _validate_range(self) -> "ReservationPreferredSlotBase":
+        if self.desired_end <= self.desired_start:
+            raise ValueError("desired_end must be after desired_start")
+        return self
+
+
+class ReservationPreferredSlotInput(ReservationPreferredSlotBase):
+    pass
+
+
+class ReservationPreferredSlot(ReservationPreferredSlotBase):
+    id: UUID
+    created_at: datetime
 
 
 class ReservationStatusEvent(BaseModel):
@@ -452,6 +526,7 @@ class Reservation(BaseModel):
     marketing_opt_in: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
+    preferred_slots: List[ReservationPreferredSlot] = Field(default_factory=list)
 
 
 class ReservationCreateRequest(BaseModel):
@@ -464,6 +539,7 @@ class ReservationCreateRequest(BaseModel):
     notes: Optional[str] = None
     customer: ReservationCustomerInput
     marketing_opt_in: Optional[bool] = None
+    preferred_slots: Optional[List[ReservationPreferredSlotInput]] = None
 
 
 class ReservationUpdateRequest(BaseModel):
@@ -793,6 +869,70 @@ class DashboardShopProfileUpdatePayload(BaseModel):
     menus: Optional[List[DashboardShopMenu]] = None
     staff: Optional[List[DashboardShopStaff]] = None
     status: Optional[str] = None
+
+
+class DashboardReservationPreferredSlot(BaseModel):
+    desired_start: datetime
+    desired_end: datetime
+    status: ReservationSlotStatusLiteral
+
+
+class DashboardReservationItem(BaseModel):
+    id: UUID
+    status: ReservationStatusLiteral
+    channel: Optional[str] = None
+    desired_start: datetime
+    desired_end: datetime
+    customer_name: str
+    customer_phone: str
+    customer_email: Optional[str] = None
+    notes: Optional[str] = None
+    marketing_opt_in: Optional[bool] = None
+    staff_id: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+    approval_decision: Optional[str] = None
+    approval_decided_at: Optional[datetime] = None
+    approval_decided_by: Optional[str] = None
+    reminder_scheduled_at: Optional[datetime] = None
+    preferred_slots: List[DashboardReservationPreferredSlot] = Field(default_factory=list)
+
+
+class DashboardReservationListResponse(BaseModel):
+    profile_id: UUID
+    total: int
+    reservations: List[DashboardReservationItem] = Field(default_factory=list)
+    next_cursor: Optional[str] = None
+    prev_cursor: Optional[str] = None
+
+
+class DashboardReservationUpdateRequest(BaseModel):
+    status: ReservationStatusLiteral
+    note: Optional[str] = None
+
+
+class OpsQueueStats(BaseModel):
+    pending: int = Field(ge=0)
+    lag_seconds: float = Field(ge=0.0)
+    oldest_created_at: Optional[datetime] = None
+    next_attempt_at: Optional[datetime] = None
+
+
+class OpsOutboxChannelSummary(BaseModel):
+    channel: str
+    pending: int = Field(ge=0)
+
+
+class OpsOutboxSummary(BaseModel):
+    channels: List[OpsOutboxChannelSummary] = Field(default_factory=list)
+
+
+class OpsSlotsSummary(BaseModel):
+    pending_total: int = Field(ge=0)
+    pending_stale: int = Field(ge=0)
+    confirmed_next_24h: int = Field(ge=0)
+    window_start: datetime
+    window_end: datetime
 
 
 class DashboardTherapistSummary(BaseModel):

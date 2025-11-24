@@ -1,10 +1,11 @@
-name: Deploy to Cloud Run
+# NOTE: This workflow is deprecated. Supabase + Vercel migration is in progress.
+name: Deploy to Cloud Run (LEGACY)
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+  workflow_dispatch: {}
+  # push:
+  #   branches:
+  #     - main
 
 jobs:
   deploy-api:

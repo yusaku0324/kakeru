@@ -5,7 +5,10 @@ export type MagicLinkRequestResult =
   | { status: 'rate_limited' }
   | { status: 'error'; message: string }
 
-async function requestMagicLink(email: string, scope: 'dashboard' | 'site'): Promise<MagicLinkRequestResult> {
+async function requestMagicLink(
+  email: string,
+  scope: 'dashboard' | 'site',
+): Promise<MagicLinkRequestResult> {
   const payload = JSON.stringify({ email: email.trim(), scope })
   let lastError: string | null = null
 
@@ -34,9 +37,7 @@ async function requestMagicLink(email: string, scope: 'dashboard' | 'site'): Pro
         .then((data) => (data && (data.detail || data.message)) as string | undefined)
         .catch(() => undefined)
 
-      lastError =
-        detail ??
-        `ログインリンクの送信に失敗しました (status=${response.status})`
+      lastError = detail ?? `ログインリンクの送信に失敗しました (status=${response.status})`
     } catch (error) {
       lastError =
         error instanceof Error ? error.message : 'ログインリンクの送信中にエラーが発生しました'

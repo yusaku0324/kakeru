@@ -1,13 +1,14 @@
-"use client"
+'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import SafeImage from '@/components/SafeImage'
 import { Card } from '@/components/ui/Card'
 import { RECENTLY_VIEWED_STORAGE_KEY, RECENTLY_VIEWED_UPDATE_EVENT } from './RecentlyViewedRecorder'
+import { getJaFormatter } from '@/utils/date'
 
-const dateFormatter = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'short', timeStyle: 'short' })
+const dateFormatter = getJaFormatter('dateTimeShort')
 
 type Entry = {
   shopId: string
@@ -74,10 +75,15 @@ export default function RecentlyViewedList({ className }: Props) {
     <section className={className} aria-labelledby="recently-viewed-heading">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 id="recently-viewed-heading" className="text-xl font-semibold tracking-tight text-neutral-900">
+          <h2
+            id="recently-viewed-heading"
+            className="text-xl font-semibold tracking-tight text-neutral-900"
+          >
             最近見た店舗
           </h2>
-          <p className="text-sm text-neutral-600">直近で閲覧した店舗を最大8件まで保存しています。</p>
+          <p className="text-sm text-neutral-600">
+            直近で閲覧した店舗を最大8件まで保存しています。
+          </p>
         </div>
         <button
           type="button"
@@ -110,7 +116,7 @@ export default function RecentlyViewedList({ className }: Props) {
                 <Link href={href} className="group block h-full">
                   <div className="relative h-40 w-full overflow-hidden bg-neutral-100">
                     {item.imageUrl ? (
-                      <Image
+                      <SafeImage
                         src={item.imageUrl}
                         alt={`${item.name}の写真`}
                         fill
@@ -124,9 +130,13 @@ export default function RecentlyViewedList({ className }: Props) {
                     )}
                   </div>
                   <div className="space-y-1 p-4">
-                    <div className="text-sm font-semibold text-neutral-900 group-hover:text-brand-primary">{item.name}</div>
+                    <div className="text-sm font-semibold text-neutral-900 group-hover:text-brand-primary">
+                      {item.name}
+                    </div>
                     {item.area ? <div className="text-xs text-neutral-600">{item.area}</div> : null}
-                    {viewedLabel ? <div className="text-xs text-neutral-500">最終閲覧: {viewedLabel}</div> : null}
+                    {viewedLabel ? (
+                      <div className="text-xs text-neutral-500">最終閲覧: {viewedLabel}</div>
+                    ) : null}
                   </div>
                 </Link>
               </Card>

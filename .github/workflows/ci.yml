@@ -17,6 +17,7 @@ on:
     branches:
       - main
       - feat/admin-dashboard-editor
+      - feat/raycast-commands
   pull_request:
     branches:
       - main
@@ -25,8 +26,18 @@ on:
       - main
   workflow_dispatch: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   test:
+    # Temporarily disable legacy Python CI until the old /app service is maintained again
+    if: ${{ false }}
     runs-on: ubuntu-latest
     services:
       osakamenesu-db:
@@ -66,7 +77,9 @@ jobs:
           python-version: '3.11'
 
       - name: Install deps
-        run: pip install -q -r requirements-test.txt
+        run: |
+          pip install -q -r requirements.txt
+          pip install -q -r ../../requirements-test.txt
 
       - name: Wait for Postgres
         env:
@@ -109,49 +122,106 @@ jobs:
       - name: Run pytest
         run: pytest -n auto app/tests -q
 
+      - name: Run shop detail/availability integration tests
+        run: pytest app/tests/test_site_shops.py app/tests/test_admin_site_integration.py -q
+
   integration-test:
-    needs:
-      - test
+    # Temporarily disabled alongside the legacy Python pipeline above
+    if: ${{ false }}
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: osakamenesu
+    env:
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
+      CACHE_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api-test-cache
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          registry: ghcr.io
+          username: yusaku0324
+          password: ${{ secrets.GHCR_PAT }}
 
-      - name: Fetch Meilisearch master key
-        id: meili-secret
-        uses: google-github-actions/get-secretmanager-secrets@v2
+      - name: Write integration env file from secrets
+        working-directory: osakamenesu
+        run: |
+          set -euo pipefail
+          printf "%s\n" \
+            "MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}" \
+            "MEILI_HOST=${{ secrets.INTEGRATION_MEILI_HOST || 'http://meili:7700' }}" \
+            "DATABASE_URL=${{ secrets.INTEGRATION_DATABASE_URL || 'postgresql+asyncpg://app:app@db:5432/osaka_menesu' }}" \
+            "POSTGRES_USER=${{ secrets.POSTGRES_USER || 'app' }}" \
+            "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'app' }}" \
+            "POSTGRES_DB=${{ secrets.POSTGRES_DB || 'osaka_menesu' }}" \
+            "ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY || 'dev_admin_key' }}" \
+            "ASYNC_WORKER_TOKEN=${{ secrets.ASYNC_WORKER_TOKEN || '' }}" \
+            > .env.integration
+          printf "%s\n" \
+            "MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}" \
+            "MEILI_HOST=${{ secrets.INTEGRATION_MEILI_HOST || 'http://meili:7700' }}" \
+            > "$GITHUB_ENV"
+
+      - name: Inspect integration env (masked)
+        if: always()
+        working-directory: osakamenesu
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            key="${line%%=*}"
+            value="${line#*=}"
+            if [ -n "$value" ]; then
+              echo "::add-mask::$value"
+            fi
+            echo "$key=***"
+          done < .env.integration
+
+      - name: Upload integration env artifact
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          secrets: |
-            MEILI_MASTER_KEY:projects/${{ secrets.GCP_PROJECT_ID }}/secrets/MEILI_MASTER_KEY/versions/latest
+          name: integration-env
+          path: osakamenesu/.env.integration
+          retention-days: 1
+
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
+
+      - name: Build api-test image with cache
+        uses: docker/build-push-action@v6
+        with:
+          context: ./osakamenesu
+          file: ./osakamenesu/docker/api.Dockerfile
+          target: api-test
+          tags: osakamenesu-api-test
+          push: false
+          load: true
+          cache-from: type=gha,scope=api-test
+          cache-to: type=gha,scope=api-test,mode=max
 
       - name: Run docker-compose integration tests
-        env:
-          DOCKER_BUILDKIT: 1
-          MEILI_MASTER_KEY: ${{ steps.meili-secret.outputs.MEILI_MASTER_KEY }}
-        run: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from osakamenesu-api-test osakamenesu-api-test
+        working-directory: osakamenesu
+        run: docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from api-test api-test
 
       - name: Teardown integration stack
         if: always()
+        working-directory: osakamenesu
         run: docker compose -f docker-compose.test.yml down -v
 
   web-lint:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: osakamenesu/apps/web
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
 
       - name: Export web env
         run: |
@@ -163,13 +233,16 @@ jobs:
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
 
       - name: Install dependencies
-        run: npm ci
+        working-directory: osakamenesu
+        run: pnpm install
 
       - name: Run unit tests
-        run: npm run test:unit
+        working-directory: osakamenesu
+        run: pnpm --dir apps/web run test:unit
 
       - name: Run lint (placeholder)
-        run: npm run lint
+        working-directory: osakamenesu
+        run: pnpm --dir apps/web run lint
 
   frontend-lint:
     needs:
@@ -194,225 +267,332 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-  admin-e2e:
-    needs:
-      - web-lint
+  build-api-image:
+    name: "[LEGACY] build-api-image (Cloud Run)"
+    # NOTE: Cloud Run deploy is deprecated. We are migrating to Supabase + Vercel.
+    if: ${{ github.ref == 'refs/heads/__never__' }}
     runs-on: ubuntu-latest
-    services:
-      osakamenesu-db:
-        image: postgres:15
-        env:
-          POSTGRES_USER: app
-          POSTGRES_PASSWORD: app
-          POSTGRES_DB: osaka_menesu
-        options: >-
-          --health-cmd "pg_isready -U app -d osaka_menesu"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-      meilisearch:
-        image: getmeili/meilisearch:v1.7
-        env:
-          MEILI_MASTER_KEY: dev_meili_master_key
-          MEILI_ENV: development
-          MEILI_NO_ANALYTICS: "true"
-        ports:
-          - 7700:7700
+    defaults:
+      run:
+        working-directory: osakamenesu
     env:
-      DATABASE_URL: postgresql+asyncpg://app:app@127.0.0.1:5432/osaka_menesu
-      MEILI_HOST: http://127.0.0.1:7700
-      MEILI_MASTER_KEY: dev_meili_master_key
-      ANYIO_BACKEND: asyncio
-      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
-      ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-      OSAKAMENESU_ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-      TEST_AUTH_ENABLED: "1"
-      TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
-      E2E_TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
+      DOCKER_BUILDKIT: 1
+      API_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:${{ github.sha }}
+      API_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-api:ci-${{ github.sha }}
+    outputs:
+      api_image: ${{ steps.set_api_image.outputs.api_image }}
+      api_pushed: ${{ steps.set_api_image.outputs.api_pushed }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          python-version: '3.11'
+          registry: ghcr.io
+          username: yusaku0324
+          password: ${{ secrets.GHCR_PAT }}
 
-      - name: Install API dependencies
-        run: pip install -r requirements.txt
-        working-directory: osakamenesu/services/api
-
-      - name: Configure API endpoints
+      - name: Set up Docker Buildx
         run: |
-          internal_base="${API_INTERNAL_BASE:-http://127.0.0.1:8000}"
-          public_base="${PUBLIC_API_BASE:-$internal_base}"
-          seed_base="${SEED_API_BASE:-$internal_base}"
-          {
-            echo "OSAKAMENESU_API_INTERNAL_BASE=${internal_base}"
-            echo "NEXT_PUBLIC_OSAKAMENESU_API_BASE=${public_base}"
-            echo "E2E_SEED_API_BASE=${seed_base}"
-          } >> "$GITHUB_ENV"
+          docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
+
+      - name: Build API runtime image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./osakamenesu
+          file: ./osakamenesu/docker/api.Dockerfile
+          target: api-runtime
+          tags: |
+            ${{ env.API_IMAGE }}
+            ${{ env.API_CI_IMAGE }}
+          push: true
+          cache-from: type=gha,scope=api-runtime
+          cache-to: type=gha,scope=api-runtime,mode=max
+      - name: Set API image outputs
+        id: set_api_image
+        run: |
+          echo "api_image=${API_CI_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "api_pushed=true" >> "$GITHUB_OUTPUT"
+
+  build-web-image:
+    name: "[LEGACY] build-web-image (Cloud Run)"
+    # NOTE: Cloud Run deploy is deprecated. We are migrating to Supabase + Vercel.
+    if: ${{ github.ref == 'refs/heads/__never__' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: osakamenesu
+    env:
+      DOCKER_BUILDKIT: 1
+      WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:${{ github.sha }}
+      WEB_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-web:ci-${{ github.sha }}
+    outputs:
+      web_image: ${{ steps.set_web_image.outputs.web_image }}
+      web_pushed: ${{ steps.set_web_image.outputs.web_pushed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: yusaku0324
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
+
+      - name: Build web runtime image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./osakamenesu
+          file: ./osakamenesu/docker/web.Dockerfile
+          tags: |
+            ${{ env.WEB_IMAGE }}
+            ${{ env.WEB_CI_IMAGE }}
+          push: true
+          cache-from: type=gha,scope=web-runtime
+          cache-to: type=gha,scope=web-runtime,mode=max
+      - name: Set web image outputs
+        id: set_web_image
+        run: |
+          echo "web_image=${WEB_CI_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "web_pushed=true" >> "$GITHUB_OUTPUT"
+
+  build-e2e-image:
+    name: "[LEGACY] build-e2e-image (Cloud Run)"
+    # NOTE: Cloud Run deploy is deprecated. We are migrating to Supabase + Vercel.
+    if: ${{ github.ref == 'refs/heads/__never__' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: osakamenesu
+    env:
+      DOCKER_BUILDKIT: 1
+      E2E_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-e2e-runner:${{ github.sha }}
+      E2E_CI_IMAGE: ghcr.io/${{ github.repository_owner }}/osakamenesu-e2e-runner:ci-${{ github.sha }}
+    outputs:
+      e2e_image: ${{ steps.set_e2e_image.outputs.e2e_image }}
+      e2e_pushed: ${{ steps.set_e2e_image.outputs.e2e_pushed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: yusaku0324
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx create --driver docker-container --driver-opt network=host --use --name osakamenesu-builder || docker buildx use osakamenesu-builder
+
+      - name: Build E2E runner image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./osakamenesu
+          file: ./osakamenesu/docker/e2e-runner.Dockerfile
+          tags: |
+            ${{ env.E2E_IMAGE }}
+            ${{ env.E2E_CI_IMAGE }}
+          push: true
+          cache-from: type=gha,scope=e2e-runner
+          cache-to: type=gha,scope=e2e-runner,mode=max
+      - name: Set E2E image outputs
+        id: set_e2e_image
+        run: |
+          echo "e2e_image=${E2E_CI_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "e2e_pushed=true" >> "$GITHUB_OUTPUT"
+
+  admin-e2e:
+    needs:
+      - build-api-image
+      - build-web-image
+      - build-e2e-image
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    runs-on: ubuntu-latest
+    env:
+      ADMIN_WEB_IMAGE: ${{ needs.build-web-image.outputs.web_image || format('ghcr.io/{0}/osakamenesu-web:ci-{1}', github.repository_owner, github.sha) }}
+      ADMIN_API_IMAGE: ${{ needs.build-api-image.outputs.api_image || format('ghcr.io/{0}/osakamenesu-api:ci-{1}', github.repository_owner, github.sha) }}
+      ADMIN_E2E_IMAGE: ${{ needs.build-e2e-image.outputs.e2e_image || format('ghcr.io/{0}/osakamenesu-e2e-runner:ci-{1}', github.repository_owner, github.sha) }}
+      PLAYWRIGHT_TOTAL_SHARDS: 2
+      PLAYWRIGHT_SHARD_INDEX: ${{ matrix.shard }}
+      PLAYWRIGHT_WORKERS: 4
+      ADMIN_SOURCE_REPOSITORY: https://github.com/yusaku0324/kakeru.git
+      ADMIN_SOURCE_REF: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: yusaku0324
+          password: ${{ secrets.GHCR_PAT }}
+
+      - uses: dopplerhq/cli-action@v1
         env:
-          API_INTERNAL_BASE: ${{ secrets.OSAKAMENESU_API_INTERNAL_BASE }}
-          PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_OSAKAMENESU_API_BASE }}
-          SEED_API_BASE: ${{ secrets.E2E_SEED_API_BASE }}
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_STG_TOKEN }}
 
-      - name: Install Postgres client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-
-      - name: Wait for Postgres
+      - name: Write admin env file from Doppler (stg)
+        working-directory: osakamenesu
         env:
-          PGPASSWORD: app
-        run: |
-          for i in {1..60}; do
-            if pg_isready -h 127.0.0.1 -p 5432 -U app -d osaka_menesu; then
-              echo "Postgres is ready"
-              exit 0
-            fi
-            echo "Waiting for Postgres..."
-            sleep 2
-          done
-          echo "Postgres did not become ready in time" >&2
-          exit 1
-
-      - name: Wait for Meilisearch
-        run: |
-          for i in {1..30}; do
-            if curl -fsS "$MEILI_HOST/health" >/dev/null; then
-              echo "Meilisearch is ready"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Meilisearch did not become ready in time" >&2
-          exit 1
-
-      - name: Run Alembic migrations
-        run: alembic upgrade head
-        working-directory: osakamenesu/services/api
-
-      - name: Start API server
-        run: |
-          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          echo $! > /tmp/osakamenesu-api.pid
-        working-directory: osakamenesu/services/api
-
-      - name: Wait for API health
-        run: |
-          for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/healthz >/dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "API did not become ready in time" >&2
-          exit 1
-
-      - name: Generate site login cookie
-        id: generate-site-cookie
-        env:
-          TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_STG_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${TEST_AUTH_SECRET:-}" ]; then
-            echo "::error::TEST_AUTH_SECRET secret is not configured. Configure it in the repository secrets to enable site login automation." >&2
-            exit 1
-          fi
+          doppler secrets download --project osakamenesu --config stg --format env --no-file > .env.admin-e2e
+          required_keys=(
+            POSTGRES_USER
+            POSTGRES_PASSWORD
+            POSTGRES_DB
+            DATABASE_URL
+            ADMIN_API_KEY
+            ADMIN_BASIC_USER
+            ADMIN_BASIC_PASS
+            TEST_AUTH_SECRET
+            E2E_TEST_AUTH_SECRET
+            MEILI_MASTER_KEY
+            NEXT_PUBLIC_OSAKAMENESU_API_BASE
+            NEXT_PUBLIC_SITE_URL
+            FAVORITES_API_MODE
+            NEXT_PUBLIC_FAVORITES_API_MODE
+          )
+          for key in "${required_keys[@]}"; do
+            if ! grep -q "^${key}=" .env.admin-e2e; then
+              echo "::error::${key} missing from env file" >&2
+              exit 1
+            fi
+            value=$(grep "^${key}=" .env.admin-e2e | tail -n1 | cut -d= -f2-)
+            if [ -z "${value}" ]; then
+              echo "::error::${key} is empty" >&2
+              exit 1
+            fi
+          done
 
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
-          headers_file="$tmpdir/headers"
-          body_file="$tmpdir/body.json"
-
-          curl -sS -D "$headers_file" -o "$body_file" \
-            -H "Content-Type: application/json" \
-            -H "X-Test-Auth-Secret: ${TEST_AUTH_SECRET}" \
-            --data '{"email":"ci-favorites@example.com","display_name":"CI Favorites User","scope":"site"}' \
-            http://127.0.0.1:8000/api/auth/test-login
-
-          if ! status_code=$(awk 'NR==1 {print $2}' "$headers_file"); then
-            echo "::error::Failed to read response status from /api/auth/test-login" >&2
-            cat "$body_file" >&2 || true
-            exit 1
-          fi
-
-          if [ "$status_code" != "200" ]; then
-            echo "::error::/api/auth/test-login responded with status $status_code" >&2
-            cat "$body_file" >&2 || true
-            exit 1
-          fi
-
-          cookie_value=$(
-            python osakamenesu/services/api/scripts/extract_cookie.py \
-              --headers "$headers_file"
-          ) || {
-            echo "::error::Failed to parse Set-Cookie header from /api/auth/test-login response." >&2
-            cat "$body_file" >&2 || true
-            exit 1
-          }
-
-          cookie_value="$(printf '%s' "$cookie_value" | tr -d '\r')"
-
-          if [ -z "$cookie_value" ]; then
-            echo "::error::Cookie value could not be derived from /api/auth/test-login response." >&2
-            cat "$body_file" >&2 || true
-            exit 1
-          fi
-
-          echo "::add-mask::${cookie_value}"
-          echo "E2E_SITE_COOKIE=${cookie_value}" >> "$GITHUB_ENV"
-
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install web dependencies
-        run: npm ci
-        working-directory: osakamenesu/apps/web
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-        working-directory: osakamenesu/apps/web
-
-      - name: Seed admin data
-        env:
-          ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER }}
-          ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS }}
-          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-        run: npm run e2e:setup
-        working-directory: osakamenesu/apps/web
-
-      - name: Run web E2E (non-admin)
-        env:
-          ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER }}
-          ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS }}
-          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-        run: npm run test:e2e -- --grep-invert "Admin"
-        working-directory: osakamenesu/apps/web
-
-      - name: Run admin E2E tests
-        env:
-          ADMIN_BASIC_USER: ${{ secrets.ADMIN_BASIC_USER }}
-          ADMIN_BASIC_PASS: ${{ secrets.ADMIN_BASIC_PASS }}
-          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-        run: npm run test:e2e -- --grep "Admin"
-        working-directory: osakamenesu/apps/web
-
-      - name: Stop API server
-        if: always()
+      - name: Pull admin runtime images
+        working-directory: osakamenesu
         run: |
-          if [ -f /tmp/osakamenesu-api.pid ]; then
-            kill "$(cat /tmp/osakamenesu-api.pid)" || true
+          set -euo pipefail
+          docker pull "${ADMIN_API_IMAGE}"
+          docker pull "${ADMIN_WEB_IMAGE}"
+          docker pull "${ADMIN_E2E_IMAGE}"
+
+      - name: Prefetch base services
+        working-directory: osakamenesu
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.admin-e2e.yml pull db meili redis || true
+
+      - name: Sanity-check compose rendering
+        working-directory: osakamenesu
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.admin-e2e.yml config > /tmp/admin-e2e-compose.yml
+          if ! grep -q "POSTGRES_DB: app" /tmp/admin-e2e-compose.yml; then
+            echo '::error::Rendered compose config is not pinning POSTGRES_DB to app' >&2
+            exit 1
           fi
+          if ! grep -q "DATABASE_URL: postgresql+asyncpg://app:app@db:5432/app" /tmp/admin-e2e-compose.yml; then
+            echo '::error::Rendered compose config has unexpected DATABASE_URL' >&2
+            exit 1
+          fi
+
+      - name: Start admin stack (db/meili/redis/api/web)
+        working-directory: osakamenesu
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.admin-e2e.yml up -d db meili redis api web
+
+      - name: Run admin E2E via docker-compose
+        working-directory: osakamenesu
+        env:
+          DOCKER_BUILDKIT: 1
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.admin-e2e.yml up \
+            --no-deps \
+            --abort-on-container-exit \
+            --exit-code-from e2e \
+            --no-build \
+            e2e || FAILURE=$?
+          echo "::group::Playwright logs (shard ${{ matrix.shard }})"
+          docker compose -f docker-compose.admin-e2e.yml logs e2e
+          echo "::endgroup::"
+          if [ -n "${FAILURE:-}" ]; then
+            exit "${FAILURE}"
+          fi
+
+      - name: Collect Playwright artifacts
+        if: always()
+        working-directory: osakamenesu
+        env:
+          SHARD_ID: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          CONTAINER_ID=$(docker compose -f docker-compose.admin-e2e.yml ps -q e2e || true)
+          if [ -z "$CONTAINER_ID" ]; then
+            echo "No e2e container found; skipping artifact copy"
+            exit 0
+          fi
+          ARTIFACT_DIR="../artifacts/playwright-shard-${SHARD_ID}"
+          mkdir -p "$ARTIFACT_DIR"
+          docker cp "$CONTAINER_ID:/workspace/apps/web/test-results" "$ARTIFACT_DIR/" >/dev/null 2>&1 || true
+          docker cp "$CONTAINER_ID:/workspace/apps/web/playwright-report" "$ARTIFACT_DIR/" >/dev/null 2>&1 || true
+          docker cp "$CONTAINER_ID:/workspace/apps/web/blob-report" "$ARTIFACT_DIR/" >/dev/null 2>&1 || true
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-shard-${{ matrix.shard }}
+          path: artifacts/playwright-shard-${{ matrix.shard }}
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Collect compose logs
+        if: always()
+        working-directory: osakamenesu
+        env:
+          SHARD_ID: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          LOG_DIR="../artifacts/playwright-shard-${SHARD_ID}/compose"
+          mkdir -p "$LOG_DIR"
+          docker compose -f docker-compose.admin-e2e.yml logs --no-color > "$LOG_DIR/compose.log" || true
+          docker compose -f docker-compose.admin-e2e.yml ps > "$LOG_DIR/ps.txt" || true
+          for s in web api meili db redis; do
+            docker compose -f docker-compose.admin-e2e.yml logs --no-color "$s" > "$LOG_DIR/$s.log" 2>/dev/null || true
+          done
+
+      - name: Upload compose logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-logs-shard-${{ matrix.shard }}
+          path: artifacts/playwright-shard-${{ matrix.shard }}/compose
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Teardown admin e2e stack
+        if: always()
+        working-directory: osakamenesu
+        run: docker compose -f docker-compose.admin-e2e.yml down -v
 
   deploy:
+    name: "[LEGACY] deploy (Cloud Run)"
+    # NOTE: Cloud Run deploy is deprecated. We are migrating to Supabase + Vercel.
     needs:
       - integration-test
       - admin-e2e
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ github.ref == 'refs/heads/__never__' }}
     runs-on: ubuntu-latest
     env:
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}

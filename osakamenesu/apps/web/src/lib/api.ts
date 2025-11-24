@@ -1,19 +1,37 @@
 const DEFAULT_SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || 'http://127.0.0.1:3000'
 
+type ServerBases = {
+  internal: string
+  publicBase: string
+}
+
+let cachedServerBases: ServerBases | null = null
+
+function loadServerBases(): ServerBases {
+  if (cachedServerBases) {
+    return cachedServerBases
+  }
+  const { getServerConfig } = require('./server-config') as typeof import('./server-config')
+  const config = getServerConfig()
+  cachedServerBases = {
+    internal: config.internalApiBase,
+    publicBase: config.publicApiBase || '/api',
+  }
+  return cachedServerBases
+}
+
 function normalizeBase(base: string): string {
   return base.replace(/\/+$/, '')
 }
 
-export function resolveApiBases(): string[] {
-  const internal =
-    process.env.OSAKAMENESU_API_INTERNAL_BASE ||
-    process.env.API_INTERNAL_BASE ||
-    ''
-  const publicBase =
-    process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE ||
-    process.env.NEXT_PUBLIC_API_BASE ||
-    ''
+function resolveSiteOrigin(): string {
+  if (typeof window !== 'undefined' && typeof window.location?.origin === 'string') {
+    return normalizeBase(window.location.origin)
+  }
+  return normalizeBase(DEFAULT_SITE_ORIGIN)
+}
 
+export function resolveApiBases(): string[] {
   const bases: string[] = []
   const isBrowser = typeof window !== 'undefined'
 
@@ -24,13 +42,15 @@ export function resolveApiBases(): string[] {
   }
 
   if (isBrowser) {
+    const publicBase =
+      process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE || process.env.NEXT_PUBLIC_API_BASE || '/api'
     addBase('/api')
     addBase(publicBase || '/api')
-    addBase(internal)
   } else {
-    addBase('/api')
+    const { internal, publicBase } = loadServerBases()
     addBase(internal)
     addBase(publicBase || '/api')
+    addBase('/api')
   }
 
   if (!bases.length) {
@@ -69,7 +89,7 @@ export function buildApiUrl(base: string, path: string): string {
     return `https:${candidate}`
   }
 
-  const origin = normalizeBase(DEFAULT_SITE_ORIGIN)
+  const origin = resolveSiteOrigin()
   const absolute = candidate.startsWith('/')
     ? `${origin}${candidate}`
     : `${origin}/${candidate.replace(/^\/+/, '')}`

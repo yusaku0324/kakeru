@@ -68,7 +68,9 @@ describe('ShopFavoritesProvider', () => {
 
   it('removes a favorite via toggleFavorite', async () => {
     const fetchMock = vi.fn()
-    fetchMock.mockResolvedValueOnce(jsonResponse([{ shop_id: 's-remove', created_at: '2024-03-03T09:00:00Z' }]))
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([{ shop_id: 's-remove', created_at: '2024-03-03T09:00:00Z' }]),
+    )
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
     global.fetch = fetchMock
 

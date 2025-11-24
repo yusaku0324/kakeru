@@ -18,15 +18,19 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Sequence
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 from urllib.parse import urljoin
+from zoneinfo import ZoneInfo
 
 PLAYWRIGHT_SHOP_SLUG = "playwright-seed-shop"
 DEFAULT_TIMEOUT = 30
+# NOTE: ZoneInfo("Asia/Tokyo") stays as-is; tzdata is supplied by the
+# admin e2e runner container, so no script-level fallback is necessary.
+JST = ZoneInfo("Asia/Tokyo")
 
 
 def _log(message: str) -> None:
@@ -46,6 +50,8 @@ def _resolve_api_base(explicit: Optional[str]) -> Optional[str]:
         if not candidate:
             continue
         candidate = candidate.strip()
+        if candidate and candidate[0] in "\"'" and candidate[-1] == candidate[0]:
+            candidate = candidate[1:-1].strip()
         if candidate.startswith(("http://", "https://")):
             return candidate.rstrip("/")
     return None
@@ -125,8 +131,8 @@ def _ensure_shop(
             "service_type": "store",
             "body_tags": ["清楚", "スレンダー"],
             "photos": [
-                "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=960&q=80",
-                "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=960&q=80",
+                "/images/demo-shop-1.svg",
+                "/images/demo-shop-2.svg",
             ],
             "contact_json": {
                 "store_name": "Playwright Seed Spa",
@@ -238,8 +244,8 @@ def _ensure_shop(
         "description": "梅田駅徒歩3分。完全個室のプレイライト向けメンエス体験。",
         "catch_copy": "都会の喧騒を忘れる上質な癒やしを。",
         "photos": [
-            "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=960&q=80",
-            "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=960&q=80",
+            "/images/demo-shop-1.svg",
+            "/images/demo-shop-2.svg",
         ],
     }
 
@@ -274,7 +280,7 @@ def _ensure_reservation(base: str, headers: Dict[str, str], shop_id: str) -> Non
                 _log("reservation already present; skipping creation")
                 return
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(JST)
     desired_start = (now + timedelta(hours=1)).isoformat()
     desired_end = (now + timedelta(hours=2)).isoformat()
 
@@ -303,18 +309,23 @@ def _ensure_reservation(base: str, headers: Dict[str, str], shop_id: str) -> Non
         _log("seed reservation created")
     except RuntimeError as exc:
         message = str(exc)
-        if 'conflicting reservation slot' in message or '409' in message:
+        if "conflicting reservation slot" in message or "409" in message:
             _log("reservation conflict detected; assuming seed data already present")
         else:
             raise
 
 
 def main(argv: Sequence[str]) -> int:
-    parser = argparse.ArgumentParser(description="Seed admin data for Playwright E2E tests")
-    parser.add_argument("--api-base", help="Base URL for the API (e.g. https://api.example.com)")
+    parser = argparse.ArgumentParser(
+        description="Seed admin data for Playwright E2E tests"
+    )
+    parser.add_argument(
+        "--api-base", help="Base URL for the API (e.g. https://api.example.com)"
+    )
     parser.add_argument(
         "--admin-key",
-        default=os.environ.get("OSAKAMENESU_ADMIN_API_KEY") or os.environ.get("ADMIN_API_KEY"),
+        default=os.environ.get("OSAKAMENESU_ADMIN_API_KEY")
+        or os.environ.get("ADMIN_API_KEY"),
         help="X-Admin-Key header value",
     )
     parser.add_argument(

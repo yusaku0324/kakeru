@@ -47,10 +47,9 @@ Use `--exclude pattern` to add more exclusions if needed.
 
 ## tools/install-dev-tools.sh
 
-Installs recommended CLI utilities via Homebrew (`direnv`, `mise`, `pre-commit`, `bat`,
+Installs recommended CLI utilities via Homebrew (`direnv`, `mise`, `lefthook`, `bat`,
 `fd`, `ripgrep`, `exa`).
 
 ```bash
 ./tools/install-dev-tools.sh
 ```
-

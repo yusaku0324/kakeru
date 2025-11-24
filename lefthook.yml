@@ -1,0 +1,36 @@
+pre-commit:
+  parallel: true
+  commands:
+    osk-check-added-large-files:
+      files: git diff --cached --name-only -- osakamenesu
+      run: python3 osakamenesu/tools/hooks/vendor/pre_commit_hooks/check_added_large_files.py {files}
+    osk-trailing-whitespace:
+      files: git diff --cached --name-only -- osakamenesu
+      run: python3 osakamenesu/tools/hooks/vendor/pre_commit_hooks/trailing_whitespace_fixer.py {files}
+    osk-end-of-file-fixer:
+      files: git diff --cached --name-only -- osakamenesu
+      run: python3 osakamenesu/tools/hooks/vendor/pre_commit_hooks/end_of_file_fixer.py {files}
+    osk-detect-private-key:
+      files: git diff --cached --name-only -- osakamenesu
+      run: python3 osakamenesu/tools/hooks/vendor/pre_commit_hooks/detect_private_key.py {files}
+    osk-ruff:
+      files: git diff --cached --name-only -- osakamenesu/services/api
+      glob: "*.py"
+      run: ruff check --force-exclude {files}
+    osk-ruff-format:
+      files: git diff --cached --name-only -- osakamenesu/services/api
+      glob: "*.py"
+      run: ruff format {files}
+      stage_fixed: true
+    osk-npm-lint:
+      files: git diff --cached --name-only -- osakamenesu/apps/web
+      glob: "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}"
+      run: cd osakamenesu/apps/web && pnpm run lint
+    osk-npm-typecheck:
+      files: git diff --cached --name-only -- osakamenesu/apps/web
+      glob: "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}"
+      run: cd osakamenesu/apps/web && pnpm run typecheck
+    osk-backend-pytest:
+      files: git diff --cached --name-only -- osakamenesu/services/api
+      glob: "*.py"
+      run: cd osakamenesu/services/api && pytest

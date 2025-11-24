@@ -4,8 +4,8 @@ import { cookies } from 'next/headers'
 import { NotificationSettingsForm } from './NotificationSettingsForm'
 import { fetchDashboardNotificationSettings } from '@/lib/dashboard-notifications'
 
-function cookieHeaderFromStore(): string | undefined {
-  const store = cookies()
+async function cookieHeaderFromStore(): Promise<string | undefined> {
+  const store = await cookies()
   const entries = store.getAll()
   if (!entries.length) {
     return undefined
@@ -19,10 +19,11 @@ export const revalidate = 0
 export default async function DashboardNotificationsPage({
   params,
 }: {
-  params: { profileId: string }
+  params: Promise<{ profileId: string }>
 }) {
-  const cookieHeader = cookieHeaderFromStore()
-  const result = await fetchDashboardNotificationSettings(params.profileId, { cookieHeader })
+  const { profileId } = await params
+  const cookieHeader = await cookieHeaderFromStore()
+  const result = await fetchDashboardNotificationSettings(profileId, { cookieHeader })
 
   if (result.status === 'unauthorized') {
     return (
@@ -32,7 +33,10 @@ export default async function DashboardNotificationsPage({
           通知設定を確認するにはログインが必要です。ログインページからマジックリンクを送信し、メール経由でログインした後にこのページを再読み込みしてください。
         </p>
         <div className="flex flex-wrap gap-3">
-          <Link href="/dashboard/login" className="inline-flex rounded bg-black px-4 py-2 text-sm font-medium text-white">
+          <Link
+            href="/dashboard/login"
+            className="inline-flex rounded bg-black px-4 py-2 text-sm font-medium text-white"
+          >
             ログインページへ
           </Link>
           <Link
@@ -50,7 +54,9 @@ export default async function DashboardNotificationsPage({
     return (
       <main className="mx-auto max-w-4xl space-y-6 px-6 py-12">
         <h1 className="text-2xl font-semibold">通知設定</h1>
-        <p className="text-neutral-600">このプロフィールの通知設定を閲覧する権限がありません。運営に問い合わせてアクセス権を付与してください。</p>
+        <p className="text-neutral-600">
+          このプロフィールの通知設定を閲覧する権限がありません。運営に問い合わせてアクセス権を付与してください。
+        </p>
       </main>
     )
   }

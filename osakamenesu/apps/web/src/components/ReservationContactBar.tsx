@@ -1,6 +1,12 @@
-"use client"
+'use client'
 
 import { useMemo } from 'react'
+
+import type { ReservationContactItem } from '@/components/reservation'
+import {
+  buildLineContactUrl,
+  buildReservationContactItems,
+} from '@/components/reservationOverlay/utils'
 
 type Props = {
   tel?: string | null
@@ -14,17 +20,17 @@ type Props = {
   } | null
 }
 
-function buildLineLink(lineId: string, message: string | null) {
-  const base = lineId.startsWith('http') ? lineId : `https://line.me/R/ti/p/${lineId}`
-  if (!message) return base
-  const encoded = encodeURIComponent(message)
-  return base.includes('?') ? `${base}&text=${encoded}` : `${base}?text=${encoded}`
-}
-
-export default function ReservationContactBar({ tel, lineId, reservationId, shopName, lastPayload }: Props) {
+export default function ReservationContactBar({
+  tel,
+  lineId,
+  reservationId,
+  shopName,
+  lastPayload,
+}: Props) {
   const lineUrl = useMemo(() => {
     if (!lineId) return null
-    if (!lastPayload && !reservationId) return buildLineLink(lineId, shopName ? `${shopName}の件で` : null)
+    if (!lastPayload && !reservationId)
+      return buildLineContactUrl(lineId, shopName ? `${shopName}の件で` : null)
     const parts: string[] = []
     if (shopName) parts.push(`${shopName}の件で`)
     if (lastPayload?.desiredStart) {
@@ -45,26 +51,48 @@ export default function ReservationContactBar({ tel, lineId, reservationId, shop
       parts.push(`メモ: ${lastPayload.notes}`)
     }
     const message = parts.length ? parts.join(' / ') : null
-    return buildLineLink(lineId, message)
+    return buildLineContactUrl(lineId, message)
   }, [lineId, reservationId, shopName, lastPayload])
 
-  const telUrl = tel ? `tel:${tel}` : null
+  const telUrl = useMemo(() => (tel ? `tel:${tel}` : null), [tel])
 
-  if (!telUrl && !lineUrl) return null
+  const contactItems = useMemo<ReservationContactItem[]>(
+    () =>
+      buildReservationContactItems({
+        tel,
+        lineId,
+        telHref: telUrl,
+        lineHref: lineUrl,
+      }),
+    [lineId, lineUrl, tel, telUrl],
+  )
+
+  const actionableItems = contactItems.filter((item) => item.href)
+
+  if (!actionableItems.length) return null
 
   return (
     <div className="text-sm text-slate-600">
       <div className="flex flex-col gap-2">
-        {telUrl ? (
-          <a className="inline-flex items-center justify-center gap-2 rounded bg-blue-600 text-white px-3 py-2" href={telUrl}>
-            TELで問い合わせる{reservationId ? `（ID: ${reservationId} をお伝えください）` : ''}
-          </a>
-        ) : null}
-        {lineUrl ? (
-          <a className="inline-flex items-center justify-center gap-2 rounded bg-[#06C755] text-white px-3 py-2" href={lineUrl} target="_blank" rel="noopener noreferrer">
-            LINEで問い合わせる{reservationId ? `（ID: ${reservationId}）` : ''}
-          </a>
-        ) : null}
+        {actionableItems.map((item) => {
+          const isLine = item.key === 'line'
+          const buttonLabel = isLine
+            ? `LINEで問い合わせる${reservationId ? `（ID: ${reservationId}）` : ''}`
+            : `TELで問い合わせる${reservationId ? `（ID: ${reservationId} をお伝えください）` : ''}`
+          return (
+            <a
+              key={item.key}
+              className={`inline-flex items-center justify-center gap-2 rounded px-3 py-2 text-white ${
+                isLine ? 'bg-[#06C755]' : 'bg-blue-600'
+              }`}
+              href={item.href}
+              target={isLine ? '_blank' : undefined}
+              rel={isLine ? 'noopener noreferrer' : undefined}
+            >
+              {buttonLabel}
+            </a>
+          )
+        })}
       </div>
     </div>
   )

@@ -3,8 +3,49 @@ import { describe, expect, it, vi } from 'vitest'
 
 import ReservationOverlay from '@/components/ReservationOverlay'
 import type { ReservationOverlayProps } from '@/components/ReservationOverlay'
+import type { TherapistHit } from '@/components/staff/TherapistCard'
 
-const baseHit = {
+vi.mock('@/components/calendar/WeekAvailabilityGrid', () => {
+  const React = require('react') as typeof import('react')
+
+  type Props = {
+    onToggle?: (day: any, slot: any) => void
+  }
+
+  const MockWeekAvailabilityGrid: React.FC<Props> = ({ onToggle }) => {
+    const handleClick = () => {
+      onToggle?.(
+        {
+          date: '2025-11-04',
+          label: '11/4(火)',
+          isToday: true,
+          slots: [],
+        },
+        {
+          start_at: '2025-11-04T13:00:00+09:00',
+          end_at: '2025-11-04T13:30:00+09:00',
+          status: 'open',
+          timeKey: '13:00',
+        },
+      )
+    }
+
+    return (
+      <div data-testid="mock-week-availability-grid">
+        <button type="button" onClick={handleClick}>
+          11/4(火) 13:00
+        </button>
+      </div>
+    )
+  }
+
+  return {
+    __esModule: true,
+    WeekAvailabilityGrid: MockWeekAvailabilityGrid,
+  }
+})
+
+const baseHit: TherapistHit = {
   id: 'shop-staff',
   therapistId: 'staff-1',
   staffId: 'staff-1',
@@ -21,23 +62,38 @@ const baseHit = {
   shopArea: '大阪',
   shopAreaName: '梅田・北新地',
   todayAvailable: true,
-  nextAvailableAt: '2025-11-04T12:00:00+09:00',
-} as const
+  nextAvailableSlot: {
+    start_at: '2025-11-04T12:00:00+09:00',
+    status: 'ok',
+  },
+}
 
 const availabilityDays = [
   {
     date: '2025-11-04',
     is_today: true,
     slots: [
-      { start_at: '2025-11-04T12:00:00+09:00', end_at: '2025-11-04T12:30:00+09:00', status: 'open' as const },
-      { start_at: '2025-11-04T13:00:00+09:00', end_at: '2025-11-04T13:30:00+09:00', status: 'tentative' as const },
+      {
+        start_at: '2025-11-04T12:00:00+09:00',
+        end_at: '2025-11-04T12:30:00+09:00',
+        status: 'open' as const,
+      },
+      {
+        start_at: '2025-11-04T13:00:00+09:00',
+        end_at: '2025-11-04T13:30:00+09:00',
+        status: 'tentative' as const,
+      },
     ],
   },
   {
     date: '2025-11-05',
     is_today: false,
     slots: [
-      { start_at: '2025-11-05T10:00:00+09:00', end_at: '2025-11-05T10:30:00+09:00', status: 'open' as const },
+      {
+        start_at: '2025-11-05T10:00:00+09:00',
+        end_at: '2025-11-05T10:30:00+09:00',
+        status: 'open' as const,
+      },
     ],
   },
 ] satisfies NonNullable<ReservationOverlayProps['availabilityDays']>
@@ -55,14 +111,15 @@ describe('ReservationOverlay schedule selection', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /予約フォームを開く/ }))
+    const detailOverlay = await screen.findByRole('dialog', { name: /りなの予約詳細/ })
+    fireEvent.click(within(detailOverlay).getByRole('button', { name: '空き状況・予約' }))
 
-    // schedule tab should be active by default when availability exists
-    const formOverlay = await screen.findByRole('dialog', { name: /りな.+予約フォーム/ })
-    const targetSlotButtons = within(formOverlay).getAllByRole('button', { name: /11\/4.*13:00/ })
-    fireEvent.click(targetSlotButtons[0])
+    const scheduleButtons = await within(detailOverlay).findAllByRole('button', {
+      name: /11\/4.*13:00/,
+    })
+    fireEvent.click(scheduleButtons[0])
 
-    const candidateBadges = await within(formOverlay).findAllByText(/第\d候補/)
+    const candidateBadges = await within(detailOverlay).findAllByText(/第\d候補/)
     expect(candidateBadges.length).toBeGreaterThan(1)
   })
 })

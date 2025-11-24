@@ -1,11 +1,9 @@
-
 from __future__ import annotations
 
 import logging
 from typing import List
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,7 +38,15 @@ logger = logging.getLogger("app.site.favorites")
 class FavoritesService:
     """Business logic for site favorites routes."""
 
-    async def list_favorites(self, *, user: models.User, db: AsyncSession) -> List[FavoriteItem]:
+    class Error(Exception):
+        def __init__(self, status_code: int, detail: str) -> None:
+            super().__init__(detail)
+            self.status_code = status_code
+            self.detail = detail
+
+    async def list_favorites(
+        self, *, user: models.User, db: AsyncSession
+    ) -> List[FavoriteItem]:
         stmt = (
             select(models.UserFavorite)
             .where(models.UserFavorite.user_id == user.id)
@@ -48,7 +54,9 @@ class FavoritesService:
         )
         result = await db.execute(stmt)
         favorites = result.scalars().all()
-        return [FavoriteItem(shop_id=f.shop_id, created_at=f.created_at) for f in favorites]
+        return [
+            FavoriteItem(shop_id=f.shop_id, created_at=f.created_at) for f in favorites
+        ]
 
     async def add_favorite(
         self,
@@ -59,7 +67,7 @@ class FavoritesService:
     ) -> FavoriteItem:
         profile = await db.get(models.Profile, payload.shop_id)
         if not profile:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="shop_not_found")
+            raise FavoritesService.Error(404, "shop_not_found")
 
         favorite = models.UserFavorite(user_id=user.id, shop_id=payload.shop_id)
         db.add(favorite)
@@ -78,7 +86,9 @@ class FavoritesService:
 
         return FavoriteItem(shop_id=favorite.shop_id, created_at=favorite.created_at)
 
-    async def remove_favorite(self, *, shop_id: UUID, user: models.User, db: AsyncSession) -> None:
+    async def remove_favorite(
+        self, *, shop_id: UUID, user: models.User, db: AsyncSession
+    ) -> None:
         stmt = delete(models.UserFavorite).where(
             models.UserFavorite.user_id == user.id,
             models.UserFavorite.shop_id == shop_id,
@@ -132,13 +142,18 @@ class FavoritesService:
     ) -> TherapistFavoriteItem:
         therapist = await db.get(models.Therapist, payload.therapist_id)
         if therapist is None:
-            logger.info("therapist %s not found; attempting sample bootstrap", payload.therapist_id)
+            logger.info(
+                "therapist %s not found; attempting sample bootstrap",
+                payload.therapist_id,
+            )
             therapist = await self._ensure_sample_therapist(payload.therapist_id, db)
         if not therapist:
             logger.warning("therapist %s missing; returning 404", payload.therapist_id)
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="therapist_not_found")
+            raise FavoritesService.Error(404, "therapist_not_found")
 
-        favorite = models.UserTherapistFavorite(user_id=user.id, therapist_id=payload.therapist_id)
+        favorite = models.UserTherapistFavorite(
+            user_id=user.id, therapist_id=payload.therapist_id
+        )
         db.add(favorite)
 
         try:
@@ -172,11 +187,15 @@ class FavoritesService:
             return None
 
         result = await db.execute(
-            select(models.Profile).where(models.Profile.slug == PLAYWRIGHT_SEED_SHOP_SLUG)
+            select(models.Profile).where(
+                models.Profile.slug == PLAYWRIGHT_SEED_SHOP_SLUG
+            )
         )
         profile = result.scalar_one_or_none()
         if not profile:
-            logger.warning("sample therapist %s requested but seed shop missing", therapist_id)
+            logger.warning(
+                "sample therapist %s requested but seed shop missing", therapist_id
+            )
             return None
 
         existing = await db.execute(
@@ -200,7 +219,9 @@ class FavoritesService:
         db.add(therapist)
         await db.commit()
         await db.refresh(therapist)
-        logger.info("bootstrapped sample therapist %s for profile %s", therapist_id, profile.id)
+        logger.info(
+            "bootstrapped sample therapist %s for profile %s", therapist_id, profile.id
+        )
         return therapist
 
     async def remove_therapist_favorite(

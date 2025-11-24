@@ -4,13 +4,13 @@
 
 ## 必要な環境変数
 
-| 変数 | 説明 |
-| --- | --- |
-| `ADMIN_BASIC_USER`, `ADMIN_BASIC_PASS` | 管理画面の Basic 認証。Playwright が UI にアクセスする際に使用します。 |
-| `ADMIN_API_KEY` | `/api/admin/*` 系エンドポイントへアクセスするためのキー。シードスクリプトもこのキーで認証します。 |
-| `OSAKAMENESU_API_INTERNAL_BASE` (優先) / `NEXT_PUBLIC_OSAKAMENESU_API_BASE` | API のベース URL。Cloud Run / Docker Compose など実行環境に合わせて設定してください。 |
-| `CLOUD_RUN_ID_TOKEN` など | IAM 認証が必要な場合に Bearer トークンを渡します（不要な環境では未設定で問題ありません）。 |
-| `E2E_SITE_COOKIE` | サイト利用者としてログイン済みのセッション Cookie。お気に入り実 API テストで使用します。 |
+| 変数                                                                        | 説明                                                                                              |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `ADMIN_BASIC_USER`, `ADMIN_BASIC_PASS`                                      | 管理画面の Basic 認証。Playwright が UI にアクセスする際に使用します。                            |
+| `ADMIN_API_KEY`                                                             | `/api/admin/*` 系エンドポイントへアクセスするためのキー。シードスクリプトもこのキーで認証します。 |
+| `OSAKAMENESU_API_INTERNAL_BASE` (優先) / `NEXT_PUBLIC_OSAKAMENESU_API_BASE` | API のベース URL。Cloud Run / Docker Compose など実行環境に合わせて設定してください。             |
+| `CLOUD_RUN_ID_TOKEN` など                                                   | IAM 認証が必要な場合に Bearer トークンを渡します（不要な環境では未設定で問題ありません）。        |
+| `E2E_SITE_COOKIE`                                                           | サイト利用者としてログイン済みのセッション Cookie。お気に入り実 API テストで使用します。          |
 
 ※ 上記のいずれも設定されていない場合、シードスクリプトは何も行わず終了します。
 
@@ -52,4 +52,3 @@ E2E_SITE_COOKIE='session_token=...; another_cookie=...' npm run test:e2e -- favo
 ```
 
 Cookie が指定されていない場合、このテストは自動的に `skip` されます。
-

@@ -59,7 +59,10 @@ function encodeFavorites(favorites: Map<string, FavoriteRecord>): string {
   return encodeURIComponent(payload)
 }
 
-export function writeMockFavorites(response: NextResponse, favorites: Map<string, FavoriteRecord>): void {
+export function writeMockFavorites(
+  response: NextResponse,
+  favorites: Map<string, FavoriteRecord>,
+): void {
   response.cookies.set({
     name: COOKIE_NAME,
     value: encodeFavorites(favorites),
@@ -84,14 +87,26 @@ export function addMockFavorite(
   return record
 }
 
-export function removeMockFavorite(favorites: Map<string, FavoriteRecord>, therapistId: string): boolean {
+export function removeMockFavorite(
+  favorites: Map<string, FavoriteRecord>,
+  therapistId: string,
+): boolean {
   return favorites.delete(therapistId)
 }
 
 export function isMockFavoritesMode(): boolean {
-  const mode = (process.env.FAVORITES_API_MODE ||
+  const forced = (process.env.FAVORITES_E2E_MODE || '').toLowerCase()
+  if (forced === 'real') {
+    return false
+  }
+  if (forced === 'mock') {
+    return true
+  }
+  const mode = (
+    process.env.FAVORITES_API_MODE ||
     process.env.NEXT_PUBLIC_FAVORITES_API_MODE ||
-    '').toLowerCase()
+    ''
+  ).toLowerCase()
   return mode === 'mock'
 }
 

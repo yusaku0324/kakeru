@@ -135,7 +135,10 @@ describe('ShopReviews', () => {
     render(<ShopReviews shopId="11111111-1111-1111-1111-111111111111" summary={null} />)
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/auth/me/site', expect.objectContaining({ credentials: 'include' }))
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/auth/me/site',
+        expect.objectContaining({ credentials: 'include' }),
+      )
     })
 
     expect(await screen.findByText('初訪問')).toBeInTheDocument()
@@ -151,7 +154,9 @@ describe('ShopReviews', () => {
     expect(await screen.findByText('三度目')).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: 'さらに口コミを読み込む' })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'さらに口コミを読み込む' }),
+      ).not.toBeInTheDocument()
     })
   })
 
@@ -169,7 +174,10 @@ describe('ShopReviews', () => {
           aspect_counts: {},
         })
       }
-      if (url === '/api/v1/shops/22222222-2222-2222-2222-222222222222/reviews' && init?.method === 'POST') {
+      if (
+        url === '/api/v1/shops/22222222-2222-2222-2222-222222222222/reviews' &&
+        init?.method === 'POST'
+      ) {
         return jsonResponse(
           {
             id: 'new-review',
@@ -197,9 +205,13 @@ describe('ShopReviews', () => {
 
     render(<ShopReviews shopId="22222222-2222-2222-2222-222222222222" summary={null} />)
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/auth/me/site', expect.anything()))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/me/site', expect.anything()),
+    )
 
-    const bodyField = await screen.findByPlaceholderText('利用したコースや接客の印象などを教えてください。')
+    const bodyField = await screen.findByPlaceholderText(
+      '利用したコースや接客の印象などを教えてください。',
+    )
     await user.type(bodyField, 'テスト本文')
 
     const titleField = screen.getByPlaceholderText('接客が丁寧でした など')
@@ -218,7 +230,7 @@ describe('ShopReviews', () => {
     await user.type(aspectNote, '最高でした')
 
     const submitButton = screen.getByRole('button', { name: '口コミを投稿する' })
-   await user.click(submitButton)
+    await user.click(submitButton)
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -229,7 +241,9 @@ describe('ShopReviews', () => {
 
     expect(await screen.findByText('投稿テスト')).toBeInTheDocument()
     expect(screen.getByText('テスト本文')).toBeInTheDocument()
-    expect(screen.getByText('店舗での確認後に掲載されます。反映まで少し時間がかかる場合があります。')).toBeInTheDocument()
+    expect(
+      screen.getByText('店舗での確認後に掲載されます。反映まで少し時間がかかる場合があります。'),
+    ).toBeInTheDocument()
   })
 
   it('shows an error toast when submission fails', async () => {
@@ -246,7 +260,10 @@ describe('ShopReviews', () => {
           aspect_counts: {},
         })
       }
-      if (url === '/api/v1/shops/33333333-3333-3333-3333-333333333333/reviews' && init?.method === 'POST') {
+      if (
+        url === '/api/v1/shops/33333333-3333-3333-3333-333333333333/reviews' &&
+        init?.method === 'POST'
+      ) {
         return jsonResponse({ detail: '入力内容を確認してください。' }, { status: 422 })
       }
       return new Response('not found', { status: 404 })
@@ -257,9 +274,13 @@ describe('ShopReviews', () => {
 
     render(<ShopReviews shopId="33333333-3333-3333-3333-333333333333" summary={null} />)
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/auth/me/site', expect.anything()))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/me/site', expect.anything()),
+    )
 
-    const bodyField = await screen.findByPlaceholderText('利用したコースや接客の印象などを教えてください。')
+    const bodyField = await screen.findByPlaceholderText(
+      '利用したコースや接客の印象などを教えてください。',
+    )
     await user.type(bodyField, '失敗テスト本文')
 
     const submitButton = screen.getByRole('button', { name: '口コミを投稿する' })

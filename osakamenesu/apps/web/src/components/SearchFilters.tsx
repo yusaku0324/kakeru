@@ -1,14 +1,27 @@
-"use client"
+'use client'
 
 import clsx from 'clsx'
-import { type FormEventHandler, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import {
+  type FormEventHandler,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { BasicSearchSection } from '@/components/filters/BasicSearchSection'
 import { FilterChipsSection } from '@/components/filters/FilterChipsSection'
 import { StyleFiltersSection } from '@/components/filters/StyleFiltersSection'
 import {
-  GLASS_CARD_CLASS,
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import {
   GLASS_SELECT_BUTTON_CLASS,
   GLASS_SELECT_MENU_CLASS,
   GLASS_SELECT_OPTION_CLASS,
@@ -29,6 +42,7 @@ type Props = {
   sticky?: boolean
   className?: string
   resultCount?: number
+  resultSummaryLabel?: string
 }
 
 const AREA_ORDER = [
@@ -62,8 +76,14 @@ const DEFAULT_TAG = '指定なし'
 const HAIR_COLOR_OPTIONS = [DEFAULT_TAG, '黒髪', '茶髪', '明るめ', '金髪', 'ピンク', 'その他']
 const HAIR_STYLE_OPTIONS = [DEFAULT_TAG, 'ロング', 'ミディアム', 'ショート', 'ボブ', 'ポニーテール']
 const BODY_TYPE_OPTIONS = [DEFAULT_TAG, 'スレンダー', '普通', 'グラマー', 'ぽっちゃり']
+const TAB_VALUE_SET = new Set(['all', 'therapists', 'shops'])
 
-const buildHighlightStyle = (minValue: number, maxValue: number, minBound: number, maxBound: number) => {
+const buildHighlightStyle = (
+  minValue: number,
+  maxValue: number,
+  minBound: number,
+  maxBound: number,
+) => {
   const range = maxBound - minBound
   if (range <= 0) return { left: '0%', right: '0%' }
   const start = ((minValue - minBound) / range) * 100
@@ -78,7 +98,8 @@ const glassSelectButtonClass = GLASS_SELECT_BUTTON_CLASS
 const glassSelectMenuClass = GLASS_SELECT_MENU_CLASS
 const glassSelectOptionClass = GLASS_SELECT_OPTION_CLASS
 
-const glassCard = GLASS_CARD_CLASS
+const accordionPanelCardClass =
+  'relative overflow-hidden rounded-[28px] border border-white/50 bg-white/70 p-5 shadow-[0_28px_80px_rgba(37,99,235,0.16)] backdrop-blur'
 
 const AREA_SELECT_OPTIONS_DEFAULT = [{ value: '', label: 'すべて' }]
 const SERVICE_SELECT_OPTIONS = [
@@ -86,16 +107,16 @@ const SERVICE_SELECT_OPTIONS = [
   { value: 'store', label: '店舗型' },
   { value: 'dispatch', label: '派遣型' },
 ]
-const SORT_SELECT_OPTIONS = [
-  { value: 'recommended', label: "おすすめ順" },
-  { value: 'price_asc', label: "料金が安い順" },
-  { value: 'price_desc', label: "料金が高い順" },
-  { value: 'rating', label: "クチコミ評価順" },
-  { value: 'reviews', label: "口コミ件数順" },
-  { value: 'availability', label: "予約可能枠が多い順" },
-  { value: 'new', label: "更新が新しい順" },
-  { value: 'favorites', label: "お気に入り数順" },
-]
+export const SORT_SELECT_OPTIONS = [
+  { value: 'recommended', label: 'おすすめ順' },
+  { value: 'price_asc', label: '料金が安い順' },
+  { value: 'price_desc', label: '料金が高い順' },
+  { value: 'rating', label: 'クチコミ評価順' },
+  { value: 'reviews', label: '口コミ件数順' },
+  { value: 'availability', label: '予約可能枠が多い順' },
+  { value: 'new', label: '更新が新しい順' },
+  { value: 'favorites', label: 'お気に入り数順' },
+] as const
 
 const tagClass = (active: boolean) =>
   clsx(
@@ -104,7 +125,14 @@ const tagClass = (active: boolean) =>
       ? 'border-brand-primary bg-brand-primary/15 text-brand-primary shadow-[0_10px_24px_rgba(37,99,235,0.22)]'
       : 'border-white/55 bg-white/55 text-neutral-text hover:border-brand-primary/40',
   )
-export default function SearchFilters({ init, facets, sticky = false, className, resultCount }: Props) {
+export default function SearchFilters({
+  init,
+  facets,
+  sticky = false,
+  className,
+  resultCount,
+  resultSummaryLabel,
+}: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const sp = useSearchParams()
@@ -124,9 +152,15 @@ export default function SearchFilters({ init, facets, sticky = false, className,
   const [area, setArea] = useState<string>(() => extractParam('area'))
   const [service, setService] = useState<string>(() => extractParam('service'))
   const [today, setToday] = useState<boolean>(() => extractParam('today') === 'true')
-  const [promotionsOnly, setPromotionsOnly] = useState<boolean>(() => extractParam('promotions_only') === 'true')
-  const [discountsOnly, setDiscountsOnly] = useState<boolean>(() => extractParam('discounts_only') === 'true')
-  const [diariesOnly, setDiariesOnly] = useState<boolean>(() => extractParam('diaries_only') === 'true')
+  const [promotionsOnly, setPromotionsOnly] = useState<boolean>(
+    () => extractParam('promotions_only') === 'true',
+  )
+  const [discountsOnly, setDiscountsOnly] = useState<boolean>(
+    () => extractParam('discounts_only') === 'true',
+  )
+  const [diariesOnly, setDiariesOnly] = useState<boolean>(
+    () => extractParam('diaries_only') === 'true',
+  )
   const [sort, setSort] = useState<string>(() => extractParam('sort') || 'recommended')
   const [bustMinIndex, setBustMinIndex] = useState<number>(() => {
     const minPreset = BUST_SIZES.indexOf(extractParam('bust_min').toUpperCase())
@@ -144,31 +178,49 @@ export default function SearchFilters({ init, facets, sticky = false, className,
   })
   const [ageMin, setAgeMin] = useState<number>(() => {
     const value = Number.parseInt(extractParam('age_min'), 10)
-    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, AGE_MIN), AGE_MAX_LIMIT) : AGE_MIN
+    const normalized = Number.isFinite(value)
+      ? Math.min(Math.max(value, AGE_MIN), AGE_MAX_LIMIT)
+      : AGE_MIN
     const valueMax = Number.parseInt(extractParam('age_max'), 10)
-    const normalizedMax = Number.isFinite(valueMax) ? Math.min(Math.max(valueMax, AGE_MIN), AGE_MAX_LIMIT) : AGE_DEFAULT_MAX
+    const normalizedMax = Number.isFinite(valueMax)
+      ? Math.min(Math.max(valueMax, AGE_MIN), AGE_MAX_LIMIT)
+      : AGE_DEFAULT_MAX
     return Math.min(normalized, normalizedMax)
   })
   const [ageMax, setAgeMax] = useState<number>(() => {
     const value = Number.parseInt(extractParam('age_max'), 10)
-    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, AGE_MIN), AGE_MAX_LIMIT) : AGE_DEFAULT_MAX
+    const normalized = Number.isFinite(value)
+      ? Math.min(Math.max(value, AGE_MIN), AGE_MAX_LIMIT)
+      : AGE_DEFAULT_MAX
     return normalized
   })
   const [heightMin, setHeightMin] = useState<number>(() => {
     const value = Number.parseInt(extractParam('height_min'), 10)
-    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_MIN
+    const normalized = Number.isFinite(value)
+      ? Math.min(Math.max(value, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+      : HEIGHT_MIN
     const valueMax = Number.parseInt(extractParam('height_max'), 10)
-    const normalizedMax = Number.isFinite(valueMax) ? Math.min(Math.max(valueMax, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_DEFAULT_MAX
+    const normalizedMax = Number.isFinite(valueMax)
+      ? Math.min(Math.max(valueMax, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+      : HEIGHT_DEFAULT_MAX
     return Math.min(normalized, normalizedMax)
   })
   const [heightMax, setHeightMax] = useState<number>(() => {
     const value = Number.parseInt(extractParam('height_max'), 10)
-    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_DEFAULT_MAX
+    const normalized = Number.isFinite(value)
+      ? Math.min(Math.max(value, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+      : HEIGHT_DEFAULT_MAX
     return normalized
   })
-  const [hairColor, setHairColor] = useState<string>(() => extractParam('hair_color') || DEFAULT_TAG)
-  const [hairStyle, setHairStyle] = useState<string>(() => extractParam('hair_style') || DEFAULT_TAG)
-  const [bodyShape, setBodyShape] = useState<string>(() => extractParam('body_shape') || DEFAULT_TAG)
+  const [hairColor, setHairColor] = useState<string>(
+    () => extractParam('hair_color') || DEFAULT_TAG,
+  )
+  const [hairStyle, setHairStyle] = useState<string>(
+    () => extractParam('hair_style') || DEFAULT_TAG,
+  )
+  const [bodyShape, setBodyShape] = useState<string>(
+    () => extractParam('body_shape') || DEFAULT_TAG,
+  )
   const firstRender = useRef(true)
 
   useEffect(() => {
@@ -184,13 +236,13 @@ export default function SearchFilters({ init, facets, sticky = false, className,
     return () => media.removeEventListener('change', listener)
   }, [])
 
-  const scrollToResults = () => {
+  const scrollToResults = useCallback(() => {
     if (typeof window === 'undefined') return
     requestAnimationFrame(() => {
-      const el = document.getElementById('therapist-results')
+      const el = document.getElementById('search-results')
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
-  }
+  }, [])
 
   function push() {
     const params = new URLSearchParams()
@@ -211,6 +263,14 @@ export default function SearchFilters({ init, facets, sticky = false, className,
     if (hairStyle && hairStyle !== DEFAULT_TAG) params.set('hair_style', hairStyle)
     if (bodyShape && bodyShape !== DEFAULT_TAG) params.set('body_shape', bodyShape)
     if (sort && sort !== 'recommended') params.set('sort', sort)
+    const currentTab = extractParam('tab') || sp.get('tab') || ''
+    if (currentTab && TAB_VALUE_SET.has(currentTab)) {
+      if (currentTab === 'all') {
+        params.delete('tab')
+      } else {
+        params.set('tab', currentTab)
+      }
+    }
     params.set('page', '1')
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`)
@@ -270,15 +330,23 @@ export default function SearchFilters({ init, facets, sticky = false, className,
     setBustMinIndex(Math.min(minValue, maxValue))
     setBustMaxIndex(Math.max(minValue, maxValue))
     const parsedAgeMin = Number.parseInt(extractParam('age_min'), 10)
-    const normalizedAgeMin = Number.isFinite(parsedAgeMin) ? Math.min(Math.max(parsedAgeMin, AGE_MIN), AGE_MAX_LIMIT) : AGE_MIN
+    const normalizedAgeMin = Number.isFinite(parsedAgeMin)
+      ? Math.min(Math.max(parsedAgeMin, AGE_MIN), AGE_MAX_LIMIT)
+      : AGE_MIN
     const parsedAgeMax = Number.parseInt(extractParam('age_max'), 10)
-    const normalizedAgeMax = Number.isFinite(parsedAgeMax) ? Math.min(Math.max(parsedAgeMax, AGE_MIN), AGE_MAX_LIMIT) : AGE_DEFAULT_MAX
+    const normalizedAgeMax = Number.isFinite(parsedAgeMax)
+      ? Math.min(Math.max(parsedAgeMax, AGE_MIN), AGE_MAX_LIMIT)
+      : AGE_DEFAULT_MAX
     setAgeMin(Math.min(normalizedAgeMin, normalizedAgeMax))
     setAgeMax(Math.max(normalizedAgeMin, normalizedAgeMax))
     const parsedHeightMin = Number.parseInt(extractParam('height_min'), 10)
-    const normalizedHeightMin = Number.isFinite(parsedHeightMin) ? Math.min(Math.max(parsedHeightMin, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_MIN
+    const normalizedHeightMin = Number.isFinite(parsedHeightMin)
+      ? Math.min(Math.max(parsedHeightMin, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+      : HEIGHT_MIN
     const parsedHeightMax = Number.parseInt(extractParam('height_max'), 10)
-    const normalizedHeightMax = Number.isFinite(parsedHeightMax) ? Math.min(Math.max(parsedHeightMax, HEIGHT_MIN), HEIGHT_MAX_LIMIT) : HEIGHT_DEFAULT_MAX
+    const normalizedHeightMax = Number.isFinite(parsedHeightMax)
+      ? Math.min(Math.max(parsedHeightMax, HEIGHT_MIN), HEIGHT_MAX_LIMIT)
+      : HEIGHT_DEFAULT_MAX
     setHeightMin(Math.min(normalizedHeightMin, normalizedHeightMax))
     setHeightMax(Math.max(normalizedHeightMin, normalizedHeightMax))
     setHairColor(extractParam('hair_color') || DEFAULT_TAG)
@@ -304,8 +372,7 @@ export default function SearchFilters({ init, facets, sticky = false, className,
       setShowFilters(false)
       scrollToResults()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spKey, isMobile])
+  }, [spKey, isMobile, scrollToResults])
 
   const areaSelectOptions = useMemo(() => {
     const facetList = facets?.area ?? []
@@ -342,11 +409,19 @@ export default function SearchFilters({ init, facets, sticky = false, className,
     return options
   }, [service])
 
-  const sortSelectOptions = useMemo(() => SORT_SELECT_OPTIONS, [])
-
-  const bustHighlightStyle = buildHighlightStyle(bustMinIndex, bustMaxIndex, BUST_MIN_INDEX, BUST_MAX_INDEX)
+  const bustHighlightStyle = buildHighlightStyle(
+    bustMinIndex,
+    bustMaxIndex,
+    BUST_MIN_INDEX,
+    BUST_MAX_INDEX,
+  )
   const ageHighlightStyle = buildHighlightStyle(ageMin, ageMax, AGE_MIN, AGE_MAX_LIMIT)
-  const heightHighlightStyle = buildHighlightStyle(heightMin, heightMax, HEIGHT_MIN, HEIGHT_MAX_LIMIT)
+  const heightHighlightStyle = buildHighlightStyle(
+    heightMin,
+    heightMax,
+    HEIGHT_MIN,
+    HEIGHT_MAX_LIMIT,
+  )
 
   const diariesFacetCount = useMemo(
     () => (facets?.has_diaries || []).find((facet) => facet.value === 'true')?.count ?? 0,
@@ -389,16 +464,18 @@ export default function SearchFilters({ init, facets, sticky = false, className,
   const fieldClass =
     'w-full rounded-[24px] border border-white/50 bg-white/60 px-4 py-2.5 text-sm text-neutral-text shadow-[0_12px_32px_rgba(37,99,235,0.13)] transition focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30'
 
-
   const onSubmit: FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault()
     push()
   }
-  const formattedResult = typeof resultCount === 'number'
-    ? `${numberFormatter.format(resultCount)} 名のセラピストが該当`
-    : diariesFacetCount
-      ? `写メ日記あり: ${numberFormatter.format(diariesFacetCount)} 名`
-      : '条件を設定すると結果が表示されます'
+  const currentConditionText =
+    resultSummaryLabel ??
+    (typeof resultCount === 'number'
+      ? `現在の条件: ${numberFormatter.format(resultCount)}件ヒット`
+      : diariesFacetCount
+        ? `現在の条件: 写メ日記あり ${numberFormatter.format(diariesFacetCount)} 名`
+        : '現在の条件: すべて表示')
+  const helperText = '現在の検索結果に、条件を追加して絞り込めます。'
   return (
     <section
       className={clsx(
@@ -417,8 +494,12 @@ export default function SearchFilters({ init, facets, sticky = false, className,
             🔍
           </span>
           <div className="space-y-1">
-            <p className="text-lg font-semibold">詳細検索</p>
-            <p className="text-sm text-neutral-textMuted">複数条件を組み合わせて、希望に合ったセラピストを見つけましょう。</p>
+            <p className="text-lg font-semibold">検索フィルター</p>
+            <p className="text-sm text-neutral-textMuted">
+              必要な条件だけを開いて設定できるよう、セクションをアコーディオンにまとめました。
+            </p>
+            <p className="text-sm font-semibold text-neutral-text">{currentConditionText}</p>
+            <p className="text-xs text-neutral-textMuted">{helperText}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 text-sm">
@@ -428,18 +509,9 @@ export default function SearchFilters({ init, facets, sticky = false, className,
               onClick={() => setShowFilters((prev) => !prev)}
               className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/55 px-3 py-1.5 font-semibold text-brand-primary shadow-[0_10px_28px_rgba(37,99,235,0.18)] transition hover:border-brand-primary hover:bg-brand-primary/10"
             >
-              {showFilters ? '条件を閉じる' : '条件を開く'}
+              {showFilters ? 'フィルターを閉じる' : 'フィルターを開く'}
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={reset}
-              disabled={isPending}
-              className="inline-flex items-center gap-2 rounded-full border border-white/55 bg-white/55 px-3 py-1.5 font-semibold text-brand-primary shadow-[0_10px_28px_rgba(37,99,235,0.18)] transition hover:border-brand-primary hover:bg-brand-primary/10 disabled:opacity-60"
-            >
-              すべてクリア
-            </button>
-          )}
+          ) : null}
         </div>
       </header>
 
@@ -450,171 +522,222 @@ export default function SearchFilters({ init, facets, sticky = false, className,
         aria-busy={isPending}
         className={clsx('mt-8 space-y-8', isMobile && !showFilters && 'hidden')}
       >
+        <Accordion type="multiple" defaultValue={['basic', 'special']} className="space-y-4">
+          <AccordionItem value="basic">
+            <AccordionTrigger>基本検索</AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <BasicSearchSection
+                keyword={q}
+                onKeywordChange={setQ}
+                area={area}
+                onAreaChange={setArea}
+                service={service}
+                onServiceChange={setService}
+                areaOptions={areaSelectOptions}
+                serviceOptions={serviceSelectOptions}
+                fieldClass={fieldClass}
+                selectButtonClass={glassSelectButtonClass}
+                selectMenuClass={glassSelectMenuClass}
+                selectOptionClass={glassSelectOptionClass}
+                className={clsx(accordionPanelCardClass, 'space-y-4')}
+                showHeader={false}
+                showAreaField={false}
+                showServiceField={false}
+              />
+            </AccordionContent>
+          </AccordionItem>
 
+          <AccordionItem value="special">
+            <AccordionTrigger>特別条件</AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <FilterChipsSection
+                todayOnly={today}
+                onToggleToday={setToday}
+                promotionsOnly={promotionsOnly}
+                onTogglePromotions={setPromotionsOnly}
+                discountsOnly={discountsOnly}
+                onToggleDiscounts={setDiscountsOnly}
+                diariesOnly={diariesOnly}
+                onToggleDiaries={setDiariesOnly}
+                className={clsx(accordionPanelCardClass, 'space-y-5')}
+                showHeader={false}
+              />
+            </AccordionContent>
+          </AccordionItem>
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <BasicSearchSection
-            keyword={q}
-            onKeywordChange={setQ}
-            area={area}
-            onAreaChange={setArea}
-            service={service}
-            onServiceChange={setService}
-            areaOptions={areaSelectOptions}
-            serviceOptions={serviceSelectOptions}
-            fieldClass={fieldClass}
-            selectButtonClass={glassSelectButtonClass}
-            selectMenuClass={glassSelectMenuClass}
-            selectOptionClass={glassSelectOptionClass}
-          />
+          <AccordionItem value="style">
+            <AccordionTrigger>外見・スタイル</AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <StyleFiltersSection
+                bustSizes={BUST_SIZES}
+                bustMinIndex={bustMinIndex}
+                bustMaxIndex={bustMaxIndex}
+                bustHighlightStyle={bustHighlightStyle}
+                onBustChange={handleBustRangeChange}
+                bustMinLimit={BUST_MIN_INDEX}
+                bustMaxLimit={BUST_MAX_INDEX}
+                ageMin={ageMin}
+                ageMax={ageMax}
+                ageHighlightStyle={ageHighlightStyle}
+                onAgeChange={handleAgeRangeChange}
+                ageMinLimit={AGE_MIN}
+                ageMaxLimit={AGE_MAX_LIMIT}
+                heightMin={heightMin}
+                heightMax={heightMax}
+                heightHighlightStyle={heightHighlightStyle}
+                onHeightChange={handleHeightRangeChange}
+                heightMinLimit={HEIGHT_MIN}
+                heightMaxLimit={HEIGHT_MAX_LIMIT}
+                onReset={resetStyleFilters}
+                className={accordionPanelCardClass}
+                showHeader={false}
+              />
 
-          <FilterChipsSection
-            todayOnly={today}
-            onToggleToday={setToday}
-            promotionsOnly={promotionsOnly}
-            onTogglePromotions={setPromotionsOnly}
-            discountsOnly={discountsOnly}
-            onToggleDiscounts={setDiscountsOnly}
-            diariesOnly={diariesOnly}
-            onToggleDiaries={setDiariesOnly}
-            sort={sort}
-            sortOptions={sortSelectOptions}
-            onSortChange={setSort}
-            selectButtonClass={glassSelectButtonClass}
-            selectMenuClass={glassSelectMenuClass}
-            selectOptionClass={glassSelectOptionClass}
-          />
-        </div>
+              <section
+                className={clsx(accordionPanelCardClass, 'space-y-5 text-sm text-neutral-text')}
+              >
+                <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(191,219,254,0.25)_0%,rgba(191,219,254,0)_60%)]" />
+                <header className="flex items-center gap-3">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary">
+                    🎨
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-text">スタイルタグ</p>
+                    <p className="text-xs text-neutral-textMuted">
+                      髪色・髪型・体型などのタグを選択できます
+                    </p>
+                  </div>
+                </header>
 
-        <StyleFiltersSection
-          bustSizes={BUST_SIZES}
-          bustMinIndex={bustMinIndex}
-          bustMaxIndex={bustMaxIndex}
-          bustHighlightStyle={bustHighlightStyle}
-          onBustChange={handleBustRangeChange}
-          bustMinLimit={BUST_MIN_INDEX}
-          bustMaxLimit={BUST_MAX_INDEX}
-          ageMin={ageMin}
-          ageMax={ageMax}
-          ageHighlightStyle={ageHighlightStyle}
-          onAgeChange={handleAgeRangeChange}
-          ageMinLimit={AGE_MIN}
-          ageMaxLimit={AGE_MAX_LIMIT}
-          heightMin={heightMin}
-          heightMax={heightMax}
-          heightHighlightStyle={heightHighlightStyle}
-          onHeightChange={handleHeightRangeChange}
-          heightMinLimit={HEIGHT_MIN}
-          heightMaxLimit={HEIGHT_MAX_LIMIT}
-          onReset={resetStyleFilters}
-        />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">髪色</span>
+                    {hairColor !== DEFAULT_TAG ? (
+                      <button
+                        type="button"
+                        onClick={() => setHairColor(DEFAULT_TAG)}
+                        className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
+                      >
+                        指定を解除
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {HAIR_COLOR_OPTIONS.map((option) => (
+                      <button
+                        key={`hair-color-${option}`}
+                        type="button"
+                        onClick={() => setHairColor(option)}
+                        className={tagClass(hairColor === option)}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">髪型</span>
+                    {hairStyle !== DEFAULT_TAG ? (
+                      <button
+                        type="button"
+                        onClick={() => setHairStyle(DEFAULT_TAG)}
+                        className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
+                      >
+                        指定を解除
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {HAIR_STYLE_OPTIONS.map((option) => (
+                      <button
+                        key={`hair-style-${option}`}
+                        type="button"
+                        onClick={() => setHairStyle(option)}
+                        className={tagClass(hairStyle === option)}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">体型</span>
+                    {bodyShape !== DEFAULT_TAG ? (
+                      <button
+                        type="button"
+                        onClick={() => setBodyShape(DEFAULT_TAG)}
+                        className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
+                      >
+                        指定を解除
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {BODY_TYPE_OPTIONS.map((option) => (
+                      <button
+                        key={`body-shape-${option}`}
+                        type="button"
+                        onClick={() => setBodyShape(option)}
+                        className={tagClass(bodyShape === option)}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            </AccordionContent>
+          </AccordionItem>
 
-        <section className={glassCard}>
-          <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(191,219,254,0.25)_0%,rgba(191,219,254,0)_60%)]" />
-          <header className="flex items-center gap-3">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary">
-              🎨
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-neutral-text">スタイルタグ</p>
-              <p className="text-xs text-neutral-textMuted">髪色・髪型・体型などのタグを選択できます</p>
-            </div>
-          </header>
-          <div className="mt-6 space-y-5 text-sm text-neutral-text">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold">髪色</span>
-                {hairColor !== DEFAULT_TAG ? (
-                  <button
-                    type="button"
-                    onClick={() => setHairColor(DEFAULT_TAG)}
-                    className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
-                  >
-                    指定を解除
-                  </button>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {HAIR_COLOR_OPTIONS.map((option) => (
-                  <button
-                    key={`hair-color-${option}`}
-                    type="button"
-                    onClick={() => setHairColor(option)}
-                    className={tagClass(hairColor === option)}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold">髪型</span>
-                {hairStyle !== DEFAULT_TAG ? (
-                  <button
-                    type="button"
-                    onClick={() => setHairStyle(DEFAULT_TAG)}
-                    className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
-                  >
-                    指定を解除
-                  </button>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {HAIR_STYLE_OPTIONS.map((option) => (
-                  <button
-                    key={`hair-style-${option}`}
-                    type="button"
-                    onClick={() => setHairStyle(option)}
-                    className={tagClass(hairStyle === option)}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold">体型</span>
-                {bodyShape !== DEFAULT_TAG ? (
-                  <button
-                    type="button"
-                    onClick={() => setBodyShape(DEFAULT_TAG)}
-                    className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
-                  >
-                    指定を解除
-                  </button>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {BODY_TYPE_OPTIONS.map((option) => (
-                  <button
-                    key={`body-shape-${option}`}
-                    type="button"
-                    onClick={() => setBodyShape(option)}
-                    className={tagClass(bodyShape === option)}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
+          <AccordionItem value="area">
+            <AccordionTrigger>エリア / サービス形態</AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <BasicSearchSection
+                keyword={q}
+                onKeywordChange={setQ}
+                area={area}
+                onAreaChange={setArea}
+                service={service}
+                onServiceChange={setService}
+                areaOptions={areaSelectOptions}
+                serviceOptions={serviceSelectOptions}
+                fieldClass={fieldClass}
+                selectButtonClass={glassSelectButtonClass}
+                selectMenuClass={glassSelectMenuClass}
+                selectOptionClass={glassSelectOptionClass}
+                className={clsx(accordionPanelCardClass, 'space-y-4')}
+                showHeader={false}
+                showKeywordField={false}
+              />
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
 
         <footer className="flex flex-wrap items-center justify-between gap-4 rounded-[32px] border border-white/45 bg-white/45 px-6 py-4 shadow-[0_24px_70px_rgba(37,99,235,0.18)] backdrop-blur">
-          <div className="text-sm text-neutral-textMuted">{formattedResult}</div>
-          <button
-            type="submit"
-            disabled={isPending}
-            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-6 py-2.5 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(37,99,235,0.26)] transition hover:from-brand-primary/90 hover:to-brand-secondary/90 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            この条件で検索する
-          </button>
+          <div className="text-sm text-neutral-textMuted" aria-live="polite">
+            {helperText}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={reset}
+              disabled={isPending}
+              className="inline-flex items-center gap-2 rounded-full border border-white/55 bg-white/55 px-4 py-2 text-sm font-semibold text-brand-primary shadow-[0_10px_28px_rgba(37,99,235,0.18)] transition hover:border-brand-primary hover:bg-brand-primary/10 disabled:opacity-60"
+            >
+              すべてクリア
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-6 py-2.5 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(37,99,235,0.26)] transition hover:from-brand-primary/90 hover:to-brand-secondary/90 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              この条件で検索する
+            </button>
+          </div>
         </footer>
       </form>
     </section>

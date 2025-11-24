@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import uuid
 from datetime import datetime
+from http import HTTPStatus
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,12 +27,30 @@ from ..schemas import (
 from ..utils.datetime import ensure_aware_datetime
 from ..utils.profiles import build_profile_doc
 from ..utils.slug import slugify
-from ..utils.text import sanitize_strings, strip_or_none
+from ..utils.text import normalize_contact_value, sanitize_strings, strip_or_none
+from .dashboard_shop_helpers import (
+    extract_contact,
+    extract_menus,
+    extract_staff,
+    menus_to_contact_json,
+    sanitize_photos,
+    sanitize_service_tags,
+    staff_to_contact_json,
+    update_contact_json,
+    update_optional_field,
+)
 
 JST = ZoneInfo("Asia/Tokyo")
 
 DEFAULT_BUST_TAG = "UNSPECIFIED"
 ALLOWED_PROFILE_STATUSES = {"draft", "published", "hidden"}
+
+
+class DashboardShopError(Exception):
+    def __init__(self, status_code: int, detail: Any) -> None:
+        super().__init__(str(detail))
+        self.status_code = status_code
+        self.detail = detail
 
 
 class DashboardShopService:
@@ -40,7 +59,9 @@ class DashboardShopService:
     def __init__(self, *, indexer=index_profile) -> None:
         self._indexer = indexer
 
-    async def list_shops(self, *, limit: int, db: AsyncSession) -> DashboardShopListResponse:
+    async def list_shops(
+        self, *, limit: int, db: AsyncSession
+    ) -> DashboardShopListResponse:
         limit_value = max(1, min(limit, 100))
         stmt = (
             select(models.Profile)
@@ -64,7 +85,7 @@ class DashboardShopService:
     async def create_profile(
         self,
         *,
-        request: Request,
+        request: Any,
         payload: DashboardShopProfileCreatePayload,
         db: AsyncSession,
         user: models.User,
@@ -73,38 +94,41 @@ class DashboardShopService:
     ) -> DashboardShopProfileResponse:
         name = strip_or_none(payload.name)
         if not name:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"field": "name", "message": "店舗名を入力してください。"},
+            raise DashboardShopError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                {"field": "name", "message": "店舗名を入力してください。"},
             )
         area = strip_or_none(payload.area)
         if not area:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"field": "area", "message": "エリアを入力してください。"},
+            raise DashboardShopError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                {"field": "area", "message": "エリアを入力してください。"},
             )
 
         try:
             price_min = max(0, int(payload.price_min))
             price_max = max(0, int(payload.price_max))
         except Exception as exc:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"field": "price", "message": "料金は数値で入力してください。"},
+            raise DashboardShopError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                {"field": "price", "message": "料金は数値で入力してください。"},
             ) from exc
 
         if price_max < price_min:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"field": "price_max", "message": "料金の上限は下限以上に設定してください。"},
+            raise DashboardShopError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                {
+                    "field": "price_max",
+                    "message": "料金の上限は下限以上に設定してください。",
+                },
             )
 
         service_type = strip_or_none(payload.service_type) or "store"
         if service_type not in {"store", "dispatch"}:
             service_type = "store"
 
-        service_tags = self._sanitize_service_tags(payload.service_tags)
-        photos = self._sanitize_photos(payload.photos)
+        service_tags = sanitize_service_tags(payload.service_tags)
+        photos = sanitize_photos(payload.photos)
         contact_json: Dict[str, Any] = {}
         if payload.contact:
             contact_json.update(payload.contact.model_dump(exclude_none=True))
@@ -116,8 +140,8 @@ class DashboardShopService:
         if payload.address:
             contact_json["address"] = payload.address
 
-        contact_json["menus"] = self._menus_to_contact_json(payload.menus or [])
-        contact_json["staff"] = self._staff_to_contact_json(payload.staff or [])
+        contact_json["menus"] = menus_to_contact_json(payload.menus or [])
+        contact_json["staff"] = staff_to_contact_json(payload.staff or [])
         contact_json["service_tags"] = service_tags
         contact_json.setdefault("store_name", name)
 
@@ -165,7 +189,7 @@ class DashboardShopService:
     async def update_profile(
         self,
         *,
-        request: Request,
+        request: Any,
         profile_id: UUID,
         payload: DashboardShopProfileUpdatePayload,
         db: AsyncSession,
@@ -179,9 +203,9 @@ class DashboardShopService:
         incoming_updated_at = ensure_aware_datetime(payload.updated_at)
         if incoming_updated_at != current_updated_at:
             current = self.serialize_profile(profile)
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail={"current": current.model_dump()},
+            raise DashboardShopError(
+                HTTPStatus.CONFLICT,
+                {"current": current.model_dump()},
             )
 
         before_state = self.serialize_profile(profile).model_dump()
@@ -218,9 +242,9 @@ class DashboardShopService:
                     )
                 )
                 if conflict.scalar_one_or_none():
-                    raise HTTPException(
-                        status.HTTP_400_BAD_REQUEST,
-                        detail="slug_already_exists",
+                    raise DashboardShopError(
+                        HTTPStatus.BAD_REQUEST,
+                        "slug_already_exists",
                     )
                 profile.slug = candidate
             else:
@@ -229,18 +253,20 @@ class DashboardShopService:
         if payload.status is not None:
             status_value = strip_or_none(payload.status)
             if not status_value or status_value.lower() not in ALLOWED_PROFILE_STATUSES:
-                raise HTTPException(
-                    status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail={"field": "status", "message": "ステータスの指定が不正です。"},
+                raise DashboardShopError(
+                    HTTPStatus.UNPROCESSABLE_ENTITY,
+                    {"field": "status", "message": "ステータスの指定が不正です。"},
                 )
             profile.status = status_value.lower()
 
         contact_json = dict(profile.contact_json or {})
         if payload.contact is not None:
-            self._update_contact_json(contact_json, payload.contact)
+            update_contact_json(contact_json, payload.contact)
 
         if payload.description is not None:
-            self._update_optional_field(contact_json, "description", payload.description)
+            self._update_optional_field(
+                contact_json, "description", payload.description
+            )
 
         if payload.catch_copy is not None:
             self._update_optional_field(contact_json, "catch_copy", payload.catch_copy)
@@ -252,10 +278,10 @@ class DashboardShopService:
             profile.photos = [photo for photo in payload.photos if photo]
 
         if payload.menus is not None:
-            contact_json["menus"] = self._menus_to_contact_json(payload.menus)
+            contact_json["menus"] = menus_to_contact_json(payload.menus)
 
         if payload.staff is not None:
-            contact_json["staff"] = self._staff_to_contact_json(payload.staff)
+            contact_json["staff"] = staff_to_contact_json(payload.staff)
 
         if payload.service_tags is not None:
             tags = [tag.strip() for tag in payload.service_tags if tag.strip()]
@@ -282,17 +308,25 @@ class DashboardShopService:
         )
         return response
 
-    async def get_profile(self, *, db: AsyncSession, profile_id: UUID) -> models.Profile:
+    async def get_profile(
+        self, *, db: AsyncSession, profile_id: UUID
+    ) -> models.Profile:
         profile = await db.get(models.Profile, profile_id)
         if not profile:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="profile_not_found")
+            raise DashboardShopError(HTTPStatus.NOT_FOUND, "profile_not_found")
         return profile
 
-    def extract_contact(self, contact_json: Dict[str, Any] | None) -> Optional[DashboardShopContact]:
+    def extract_contact(
+        self, contact_json: Dict[str, Any] | None
+    ) -> Optional[DashboardShopContact]:
         if not isinstance(contact_json, dict):
             return None
-        phone = contact_json.get("phone") or contact_json.get("tel")
-        line_id = contact_json.get("line_id") or contact_json.get("line")
+        phone = normalize_contact_value(
+            contact_json.get("phone") or contact_json.get("tel"), allow_numeric=True
+        )
+        line_id = normalize_contact_value(
+            contact_json.get("line_id") or contact_json.get("line")
+        )
         website_url = contact_json.get("website_url") or contact_json.get("web")
         reservation_form_url = contact_json.get("reservation_form_url")
         if not any([phone, line_id, website_url, reservation_form_url]):
@@ -326,7 +360,9 @@ class DashboardShopService:
             tags = []
             raw_tags = entry.get("tags") or []
             if isinstance(raw_tags, list):
-                tags = [tag for tag in sanitize_strings([str(item) for item in raw_tags])]
+                tags = [
+                    tag for tag in sanitize_strings([str(item) for item in raw_tags])
+                ]
             items.append(
                 DashboardShopMenu(
                     id=str(entry.get("id")) if entry.get("id") else None,
@@ -355,7 +391,9 @@ class DashboardShopService:
             if isinstance(raw_specialties, list):
                 specialties = [
                     cleaned
-                    for cleaned in (strip_or_none(str(item)) for item in raw_specialties)
+                    for cleaned in (
+                        strip_or_none(str(item)) for item in raw_specialties
+                    )
                     if cleaned
                 ]
             members.append(
@@ -369,11 +407,13 @@ class DashboardShopService:
             )
         return members
 
-    def serialize_profile(self, profile: models.Profile) -> DashboardShopProfileResponse:
+    def serialize_profile(
+        self, profile: models.Profile
+    ) -> DashboardShopProfileResponse:
         contact_json = profile.contact_json or {}
-        contact = self.extract_contact(contact_json)
-        menus = self.extract_menus(contact_json.get("menus"))
-        staff = self.extract_staff(contact_json.get("staff"))
+        contact = extract_contact(contact_json)
+        menus = extract_menus(contact_json.get("menus"))
+        staff = extract_staff(contact_json.get("staff"))
         service_tags = contact_json.get("service_tags") or profile.body_tags or []
         photos = [str(url) for url in (profile.photos or [])]
 
@@ -412,21 +452,6 @@ class DashboardShopService:
         after: Any,
     ) -> None:
         await self._record_change(request, db, target_id, action, before, after)
-
-    def update_contact_json(self, contact_json: Dict[str, Any], contact: Optional[DashboardShopContact]) -> None:
-        self._update_contact_json(contact_json, contact)
-
-    def sanitize_service_tags(self, raw: Optional[List[str]]) -> List[str]:
-        return self._sanitize_service_tags(raw)
-
-    def sanitize_photos(self, raw: Optional[List[str]]) -> List[str]:
-        return self._sanitize_photos(raw)
-
-    def menus_to_contact_json(self, items: List[DashboardShopMenu]) -> List[Dict[str, Any]]:
-        return self._menus_to_contact_json(items)
-
-    def staff_to_contact_json(self, items: List[DashboardShopStaff]) -> List[Dict[str, Any]]:
-        return self._staff_to_contact_json(items)
 
     # Internal helpers -------------------------------------------------
 
@@ -485,125 +510,25 @@ class DashboardShopService:
         except Exception:
             pass
 
-    def _update_contact_json(
-        self,
-        contact_json: Dict[str, Any],
-        contact: Optional[DashboardShopContact],
+    def _update_optional_field(
+        self, contact_json: Dict[str, Any], key: str, value: Optional[str]
     ) -> None:
-        if contact is None:
-            for key in [
-                "phone",
-                "tel",
-                "line_id",
-                "line",
-                "website_url",
-                "web",
-                "reservation_form_url",
-            ]:
-                contact_json.pop(key, None)
-            return
-
-        if contact.phone is not None:
-            if contact.phone:
-                contact_json["phone"] = contact.phone
-                contact_json["tel"] = contact.phone
-            else:
-                contact_json.pop("phone", None)
-                contact_json.pop("tel", None)
-        if contact.line_id is not None:
-            if contact.line_id:
-                contact_json["line_id"] = contact.line_id
-                contact_json["line"] = contact.line_id
-            else:
-                contact_json.pop("line_id", None)
-                contact_json.pop("line", None)
-        if contact.website_url is not None:
-            if contact.website_url:
-                contact_json["website_url"] = contact.website_url
-                contact_json["web"] = contact.website_url
-            else:
-                contact_json.pop("website_url", None)
-                contact_json.pop("web", None)
-        if contact.reservation_form_url is not None:
-            if contact.reservation_form_url:
-                contact_json["reservation_form_url"] = contact.reservation_form_url
-            else:
-                contact_json.pop("reservation_form_url", None)
-
-    def _sanitize_service_tags(self, raw: Optional[List[str]]) -> List[str]:
-        if not raw:
-            return []
-        return sanitize_strings([str(item) for item in raw])
-
-    def _sanitize_photos(self, raw: Optional[List[str]]) -> List[str]:
-        if not raw:
-            return []
-        photos: List[str] = []
-        for url in raw:
-            cleaned = strip_or_none(url if isinstance(url, str) else str(url))
-            if cleaned:
-                photos.append(cleaned)
-        return photos
-
-    def _menus_to_contact_json(self, items: List[DashboardShopMenu]) -> List[Dict[str, Any]]:
-        payload: List[Dict[str, Any]] = []
-        for item in items:
-            name = strip_or_none(item.name)
-            if not name:
-                continue
-            try:
-                price = int(item.price)
-            except Exception:
-                price = 0
-            try:
-                duration = (
-                    int(item.duration_minutes)
-                    if item.duration_minutes is not None
-                    else None
-                )
-            except Exception:
-                duration = None
-            tags = sanitize_strings(item.tags or [])
-            payload.append(
-                {
-                    "id": item.id or str(uuid.uuid4()),
-                    "name": name,
-                    "price": max(0, price),
-                    "duration_minutes": duration,
-                    "description": item.description,
-                    "tags": tags,
-                    "is_reservable_online": item.is_reservable_online,
-                }
-            )
-        return payload
-
-    def _staff_to_contact_json(self, items: List[DashboardShopStaff]) -> List[Dict[str, Any]]:
-        payload: List[Dict[str, Any]] = []
-        for member in items:
-            name = strip_or_none(member.name)
-            if not name:
-                continue
-            specialties = sanitize_strings(member.specialties or [])
-            payload.append(
-                {
-                    "id": member.id or str(uuid.uuid4()),
-                    "name": name,
-                    "alias": member.alias or None,
-                    "headline": member.headline or None,
-                    "specialties": specialties,
-                }
-            )
-        return payload
-
-    def _update_optional_field(self, contact_json: Dict[str, Any], key: str, value: Optional[str]) -> None:
-        if value:
-            contact_json[key] = value
-        else:
-            contact_json.pop(key, None)
+        update_optional_field(contact_json, key, value)
 
 
 __all__ = [
     "DashboardShopService",
+    "DashboardShopError",
     "DEFAULT_BUST_TAG",
     "ALLOWED_PROFILE_STATUSES",
 ]
+
+# Expose helper utilities for backwards compatibility (tests import via router)
+DashboardShopService.extract_contact = staticmethod(extract_contact)
+DashboardShopService.extract_menus = staticmethod(extract_menus)
+DashboardShopService.extract_staff = staticmethod(extract_staff)
+DashboardShopService.update_contact_json = staticmethod(update_contact_json)
+DashboardShopService.sanitize_service_tags = staticmethod(sanitize_service_tags)
+DashboardShopService.sanitize_photos = staticmethod(sanitize_photos)
+DashboardShopService.menus_to_contact_json = staticmethod(menus_to_contact_json)
+DashboardShopService.staff_to_contact_json = staticmethod(staff_to_contact_json)

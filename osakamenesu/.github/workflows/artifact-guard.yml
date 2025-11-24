@@ -1,0 +1,13 @@
+name: Artifact Guard
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure no build artifacts are tracked
+        run: python tools/check_artifacts.py

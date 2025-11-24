@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import models
 from ..schemas import REVIEW_ASPECT_KEYS
+from .staff_preview import _build_staff_preview, _safe_float, _safe_int
 
 PRICE_BANDS: list[tuple[str, int, int | None, str]] = [
     ("under_10k", 0, 10000, "〜1万円"),
@@ -18,7 +19,9 @@ PRICE_BANDS: list[tuple[str, int, int | None, str]] = [
 ]
 
 
-def _compute_price_band(min_price: Optional[int], max_price: Optional[int]) -> tuple[str, str]:
+def _compute_price_band(
+    min_price: Optional[int], max_price: Optional[int]
+) -> tuple[str, str]:
     if min_price is None and max_price is None:
         return "unknown", "価格未設定"
     # prefer min price for banding; fall back to max if min missing
@@ -48,13 +51,21 @@ def _compute_ranking_score(
     today_boost = 10.0 if today else 0.0
     ctr_boost = min(max(ctr7d, 0.0) * 100.0, 40.0)
     tag_boost = min(max(tag_score, 0.0) * 10.0, 20.0)
-    return base_weight + rating_boost + review_boost + promotion_boost + today_boost + ctr_boost + tag_boost
+    return (
+        base_weight
+        + rating_boost
+        + review_boost
+        + promotion_boost
+        + today_boost
+        + ctr_boost
+        + tag_boost
+    )
 
 
 def _count_published_diaries(profile: models.Profile, contact_json: dict) -> int:
     try:
         diaries = getattr(profile, "diaries", []) or []
-        published = [d for d in diaries if getattr(d, "status", None) == 'published']
+        published = [d for d in diaries if getattr(d, "status", None) == "published"]
         if published:
             return len(published)
     except Exception:
@@ -64,236 +75,6 @@ def _count_published_diaries(profile: models.Profile, contact_json: dict) -> int
     if isinstance(raw, list):
         return len([entry for entry in raw if isinstance(entry, dict)])
     return 0
-
-def _normalize_text(value: Any) -> Optional[str]:
-    if isinstance(value, str):
-        trimmed = value.strip()
-        return trimmed or None
-    if value is None:
-        return None
-    candidate = str(value).strip()
-    return candidate or None
-
-
-def _collect_staff_specialties(raw: Any) -> list[str]:
-    if not isinstance(raw, list):
-        return []
-    cleaned: list[str] = []
-    for entry in raw:
-        normalized = _normalize_text(entry)
-        if normalized:
-            cleaned.append(normalized)
-    return cleaned
-
-
-
-def _build_staff_preview(profile: models.Profile, contact_json: dict[str, Any]) -> list[dict[str, Any]]:
-    """Serialize staff preview with therapist UUIDs when available."""
-    therapists: list[models.Therapist] = []
-    try:
-        cached = profile.__dict__.get('therapists')
-        if cached:
-            therapists = list(cached or [])
-    except Exception:
-        therapists = []
-
-    published = [t for t in therapists if getattr(t, 'status', None) == 'published']
-    therapist_by_id: dict[str, models.Therapist] = {str(t.id): t for t in published}
-    therapist_by_name: dict[str, list[models.Therapist]] = defaultdict(list)
-    for therapist in published:
-        key = (_normalize_text(therapist.name) or '').casefold()
-        if key:
-            therapist_by_name[key].append(therapist)
-
-    raw_staff = contact_json.get('staff') if isinstance(contact_json, dict) else None
-    contact_entries: list[dict[str, Any]] = []
-    if isinstance(raw_staff, list):
-        contact_entries = [entry for entry in raw_staff if isinstance(entry, dict)]
-
-    preview: list[dict[str, Any]] = []
-    used_ids: set[str] = set()
-
-    for entry in contact_entries:
-        name = _normalize_text(entry.get('name') or entry.get('staff_name'))
-        if not name:
-            continue
-        alias = _normalize_text(entry.get('alias'))
-        headline = _normalize_text(entry.get('headline'))
-        avatar_url = _normalize_text(entry.get('avatar_url') or entry.get('photo_url') or entry.get('image'))
-        rating = _safe_float(entry.get('rating'))
-        review_count = _safe_int(entry.get('review_count'))
-        specialties = _collect_staff_specialties(entry.get('specialties'))
-
-        raw_id = entry.get('id')
-        therapist_id = _normalize_text(raw_id) if raw_id is not None else None
-        matched: Optional[models.Therapist] = None
-        if therapist_id and therapist_id in therapist_by_id:
-            matched = therapist_by_id[therapist_id]
-        else:
-            key = name.casefold()
-            candidates = therapist_by_name.get(key, [])
-            matched = next((candidate for candidate in candidates if str(candidate.id) not in used_ids), None)
-
-        if matched:
-            therapist_id = str(matched.id)
-            used_ids.add(therapist_id)
-
-        preview.append(
-            {
-                'id': therapist_id,
-                'name': name,
-                'alias': alias,
-                'headline': headline,
-                'rating': rating,
-                'review_count': review_count,
-                'avatar_url': avatar_url,
-                'specialties': specialties,
-            }
-        )
-
-    unmatched = [t for t in published if str(t.id) not in used_ids]
-    for therapist in unmatched:
-        specialties = _collect_staff_specialties(list(getattr(therapist, 'specialties', []) or []))
-        photo_urls = list(getattr(therapist, 'photo_urls', []) or [])
-        preview.append(
-            {
-                'id': str(therapist.id),
-                'name': therapist.name,
-                'alias': _normalize_text(therapist.alias),
-                'headline': _normalize_text(therapist.headline),
-                'rating': None,
-                'review_count': None,
-                'avatar_url': _normalize_text(photo_urls[0]) if photo_urls else None,
-                'specialties': specialties,
-            }
-        )
-
-    return preview
-
-
-
-def _normalize_text(value: Any) -> Optional[str]:
-    if isinstance(value, str):
-        trimmed = value.strip()
-        return trimmed or None
-    if value is None:
-        return None
-    candidate = str(value).strip()
-    return candidate or None
-
-
-def _collect_staff_specialties(raw: Any) -> list[str]:
-    if not isinstance(raw, list):
-        return []
-    cleaned: list[str] = []
-    for entry in raw:
-        normalized = _normalize_text(entry)
-        if normalized:
-            cleaned.append(normalized)
-    return cleaned
-
-
-
-def _build_staff_preview(profile: models.Profile, contact_json: dict[str, Any]) -> list[dict[str, Any]]:
-    """Serialize staff preview with therapist UUIDs when available."""
-    therapists: list[models.Therapist] = []
-    try:
-        cached = profile.__dict__.get('therapists')
-        if cached:
-            therapists = list(cached or [])
-    except Exception:
-        therapists = []
-
-    published = [t for t in therapists if getattr(t, 'status', None) == 'published']
-    therapist_by_id: dict[str, models.Therapist] = {str(t.id): t for t in published}
-    therapist_by_name: dict[str, list[models.Therapist]] = defaultdict(list)
-    for therapist in published:
-        key = (_normalize_text(therapist.name) or '').casefold()
-        if key:
-            therapist_by_name[key].append(therapist)
-
-    raw_staff = contact_json.get('staff') if isinstance(contact_json, dict) else None
-    contact_entries: list[dict[str, Any]] = []
-    if isinstance(raw_staff, list):
-        contact_entries = [entry for entry in raw_staff if isinstance(entry, dict)]
-
-    preview: list[dict[str, Any]] = []
-    used_ids: set[str] = set()
-
-    for entry in contact_entries:
-        name = _normalize_text(entry.get('name') or entry.get('staff_name'))
-        if not name:
-            continue
-        alias = _normalize_text(entry.get('alias'))
-        headline = _normalize_text(entry.get('headline'))
-        avatar_url = _normalize_text(entry.get('avatar_url') or entry.get('photo_url') or entry.get('image'))
-        rating = _safe_float(entry.get('rating'))
-        review_count = _safe_int(entry.get('review_count'))
-        specialties = _collect_staff_specialties(entry.get('specialties'))
-
-        raw_id = entry.get('id')
-        therapist_id = _normalize_text(raw_id) if raw_id is not None else None
-        matched: Optional[models.Therapist] = None
-        if therapist_id and therapist_id in therapist_by_id:
-            matched = therapist_by_id[therapist_id]
-        else:
-            key = name.casefold()
-            candidates = therapist_by_name.get(key, [])
-            matched = next((candidate for candidate in candidates if str(candidate.id) not in used_ids), None)
-
-        if matched:
-            therapist_id = str(matched.id)
-            used_ids.add(therapist_id)
-
-        preview.append(
-            {
-                'id': therapist_id,
-                'name': name,
-                'alias': alias,
-                'headline': headline,
-                'rating': rating,
-                'review_count': review_count,
-                'avatar_url': avatar_url,
-                'specialties': specialties,
-            }
-        )
-
-    unmatched = [t for t in published if str(t.id) not in used_ids]
-    for therapist in unmatched:
-        specialties = _collect_staff_specialties(list(getattr(therapist, 'specialties', []) or []))
-        photo_urls = list(getattr(therapist, 'photo_urls', []) or [])
-        preview.append(
-            {
-                'id': str(therapist.id),
-                'name': therapist.name,
-                'alias': _normalize_text(therapist.alias),
-                'headline': _normalize_text(therapist.headline),
-                'rating': None,
-                'review_count': None,
-                'avatar_url': _normalize_text(photo_urls[0]) if photo_urls else None,
-                'specialties': specialties,
-            }
-        )
-
-    return preview
-
-
-def _safe_int(v: object) -> Optional[int]:
-    try:
-        if v is None:
-            return None
-        return int(v)  # type: ignore[arg-type]
-    except Exception:
-        return None
-
-
-def _safe_float(v: object) -> Optional[float]:
-    try:
-        if v is None:
-            return None
-        return float(v)  # type: ignore[arg-type]
-    except Exception:
-        return None
 
 
 def normalize_review_aspects(raw: Any) -> dict[str, dict[str, Any]]:
@@ -315,7 +96,9 @@ def normalize_review_aspects(raw: Any) -> dict[str, dict[str, Any]]:
     return normalized
 
 
-def _calculate_aspect_stats(score_map: Dict[str, list[int]]) -> tuple[dict[str, float], dict[str, int]]:
+def _calculate_aspect_stats(
+    score_map: Dict[str, list[int]],
+) -> tuple[dict[str, float], dict[str, int]]:
     averages: dict[str, float] = {}
     counts: dict[str, int] = {}
     for key, scores in score_map.items():
@@ -329,7 +112,13 @@ def _calculate_aspect_stats(score_map: Dict[str, list[int]]) -> tuple[dict[str, 
 
 def _extract_review_stats(
     reviews: Any,
-) -> tuple[Optional[float], Optional[int], list[dict[str, Any]], dict[str, float], dict[str, int]]:
+) -> tuple[
+    Optional[float],
+    Optional[int],
+    list[dict[str, Any]],
+    dict[str, float],
+    dict[str, int],
+]:
     average: Optional[float] = None
     count: Optional[int] = None
     items: list[dict[str, Any]] = []
@@ -338,14 +127,18 @@ def _extract_review_stats(
     if isinstance(reviews, dict):
         average = _safe_float(reviews.get("average_score") or reviews.get("score"))
         count = _safe_int(reviews.get("review_count") or reviews.get("count"))
-        raw_items = reviews.get("highlighted") or reviews.get("reviews") or reviews.get("items")
+        raw_items = (
+            reviews.get("highlighted") or reviews.get("reviews") or reviews.get("items")
+        )
         if isinstance(raw_items, list):
             items = [x for x in raw_items if isinstance(x, dict)]
     elif isinstance(reviews, list):
         items = [x for x in reviews if isinstance(x, dict)]
 
     if average is None and items:
-        scores = [_safe_float(item.get("score") or item.get("rating")) for item in items]
+        scores = [
+            _safe_float(item.get("score") or item.get("rating")) for item in items
+        ]
         scores = [s for s in scores if s is not None]
         if scores:
             average = round(sum(scores) / len(scores), 1)
@@ -370,10 +163,12 @@ def _published_reviews(profile: models.Profile) -> list[models.Review]:
         reviews = list(getattr(profile, "reviews", []) or [])
     except Exception:
         return []
-    return [r for r in reviews if getattr(r, "status", None) == 'published']
+    return [r for r in reviews if getattr(r, "status", None) == "published"]
 
 
-def _review_highlights(reviews: list[models.Review], limit: int = 3) -> list[dict[str, Any]]:
+def _review_highlights(
+    reviews: list[models.Review], limit: int = 3
+) -> list[dict[str, Any]]:
     sorted_reviews = sorted(
         reviews,
         key=lambda r: (r.visited_at or r.created_at, r.created_at),
@@ -387,9 +182,13 @@ def _review_highlights(reviews: list[models.Review], limit: int = 3) -> list[dic
                 "title": review.title or review.body[:40],
                 "body": review.body,
                 "score": review.score,
-                "visited_at": review.visited_at.isoformat() if review.visited_at else None,
+                "visited_at": review.visited_at.isoformat()
+                if review.visited_at
+                else None,
                 "author_alias": review.author_alias,
-                "aspects": normalize_review_aspects(getattr(review, "aspect_scores", {})),
+                "aspects": normalize_review_aspects(
+                    getattr(review, "aspect_scores", {})
+                ),
             }
         )
     return highlights
@@ -402,8 +201,13 @@ def compute_review_summary(
     *,
     highlight_limit: int = 3,
     include_aspects: Literal[True],
-) -> tuple[Optional[float], Optional[int], list[dict[str, Any]], dict[str, float], dict[str, int]]:
-    ...
+) -> tuple[
+    Optional[float],
+    Optional[int],
+    list[dict[str, Any]],
+    dict[str, float],
+    dict[str, int],
+]: ...
 
 
 @overload
@@ -413,8 +217,7 @@ def compute_review_summary(
     *,
     highlight_limit: int = 3,
     include_aspects: Literal[False] = False,
-) -> tuple[Optional[float], Optional[int], list[dict[str, Any]]]:
-    ...
+) -> tuple[Optional[float], Optional[int], list[dict[str, Any]]]: ...
 
 
 def compute_review_summary(
@@ -425,11 +228,19 @@ def compute_review_summary(
     include_aspects: bool = False,
 ) -> Union[
     tuple[Optional[float], Optional[int], list[dict[str, Any]]],
-    tuple[Optional[float], Optional[int], list[dict[str, Any]], dict[str, float], dict[str, int]],
+    tuple[
+        Optional[float],
+        Optional[int],
+        list[dict[str, Any]],
+        dict[str, float],
+        dict[str, int],
+    ],
 ]:
     published_reviews = _published_reviews(profile)
     if published_reviews:
-        average = round(sum(r.score for r in published_reviews) / len(published_reviews), 1)
+        average = round(
+            sum(r.score for r in published_reviews) / len(published_reviews), 1
+        )
         count = len(published_reviews)
         highlights = _review_highlights(published_reviews, limit=highlight_limit)
         aspect_scores: Dict[str, list[int]] = defaultdict(list)
@@ -445,7 +256,9 @@ def compute_review_summary(
             return average, count, highlights, aspect_averages, aspect_counts
         return average, count, highlights
 
-    average, count, fallback_items, aspect_averages, aspect_counts = _extract_review_stats(fallback_reviews)
+    average, count, fallback_items, aspect_averages, aspect_counts = (
+        _extract_review_stats(fallback_reviews)
+    )
     highlights = fallback_items[:highlight_limit]
     if include_aspects:
         return average, count, highlights, aspect_averages, aspect_counts
@@ -561,7 +374,9 @@ def build_profile_doc(
                 }
             )
 
-    price_band_key, price_band_label = _compute_price_band(profile.price_min, profile.price_max)
+    price_band_key, price_band_label = _compute_price_band(
+        profile.price_min, profile.price_max
+    )
 
     (
         review_score,
@@ -575,7 +390,9 @@ def build_profile_doc(
         highlight_limit=3,
         include_aspects=True,
     )
-    ranking_reason = contact_json.get("ranking_reason") or contact_json.get("ranking_message")
+    ranking_reason = contact_json.get("ranking_reason") or contact_json.get(
+        "ranking_message"
+    )
     ranking_score = _compute_ranking_score(
         profile,
         today=today,

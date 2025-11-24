@@ -9,7 +9,7 @@ fi
 PACKAGES=(
   direnv
   mise
-  pre-commit
+  lefthook
   bat
   fd
   ripgrep

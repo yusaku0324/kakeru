@@ -1,10 +1,11 @@
-"use client"
+'use client'
 
 import Link from 'next/link'
 import React, { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { ToastContainer, useToast } from '@/components/useToast'
+import { getJaFormatter } from '@/utils/date'
 
 type ReviewAspectKey = 'therapist_service' | 'staff_response' | 'room_cleanliness'
 
@@ -105,11 +106,13 @@ function toDisplayKey(prefix: string, unique?: string | null, fallback?: number)
   return `${prefix}-fallback-${fallback ?? Date.now()}`
 }
 
+const visitedDateFormatter = getJaFormatter('dateNumeric')
+
 function formatVisitedLabel(input?: string | null) {
   if (!input) return null
   const date = new Date(input)
   if (Number.isNaN(date.getTime())) return input
-  return new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' }).format(date)
+  return visitedDateFormatter.format(date)
 }
 
 function starLabel(score: number) {
@@ -170,7 +173,11 @@ function buildInitialForm(): ReviewFormState {
   }
 }
 
-export default function ShopReviews({ shopId, summary, forceRemoteFetch = false }: ShopReviewsProps) {
+export default function ShopReviews({
+  shopId,
+  summary,
+  forceRemoteFetch = false,
+}: ShopReviewsProps) {
   const { toasts, push, remove } = useToast()
   const [reviews, setReviews] = useState<ReviewDisplay[]>([])
   const [total, setTotal] = useState<number>(summary?.review_count ?? 0)
@@ -187,7 +194,10 @@ export default function ShopReviews({ shopId, summary, forceRemoteFetch = false 
     summary?.aspect_counts ?? {},
   )
 
-  const isDemoEnvironment = useMemo(() => !uuidPattern.test(shopId) && !forceRemoteFetch, [shopId, forceRemoteFetch])
+  const isDemoEnvironment = useMemo(
+    () => !uuidPattern.test(shopId) && !forceRemoteFetch,
+    [shopId, forceRemoteFetch],
+  )
 
   const highlightedReviews = useMemo(() => {
     const items = summary?.highlighted ?? []
@@ -275,7 +285,10 @@ export default function ShopReviews({ shopId, summary, forceRemoteFetch = false 
     }
   }, [shopId, isDemoEnvironment, highlightedReviews, push])
 
-  async function fetchReviews(targetShopId: string, targetPage: number): Promise<ReviewListResponse | null> {
+  async function fetchReviews(
+    targetShopId: string,
+    targetPage: number,
+  ): Promise<ReviewListResponse | null> {
     const resp = await fetch(`/api/v1/shops/${targetShopId}/reviews?page=${targetPage}`)
     if (resp.status === 404) {
       return {
@@ -418,7 +431,8 @@ export default function ShopReviews({ shopId, summary, forceRemoteFetch = false 
           return
         }
         const message = (() => {
-          if (data && typeof (data as any)?.detail === 'string') return (data as any).detail as string
+          if (data && typeof (data as any)?.detail === 'string')
+            return (data as any).detail as string
           if (!text) return '口コミの送信に失敗しました。再度お試しください。'
           return text
         })()
@@ -465,7 +479,9 @@ export default function ShopReviews({ shopId, summary, forceRemoteFetch = false 
                 <div className="text-2xl font-semibold text-brand-primaryDark">
                   {item.average != null ? item.average.toFixed(1) : '-'}
                 </div>
-                {item.average != null ? <span className="text-sm text-neutral-textMuted">{starLabel(item.average)}</span> : null}
+                {item.average != null ? (
+                  <span className="text-sm text-neutral-textMuted">{starLabel(item.average)}</span>
+                ) : null}
               </div>
               <div className="text-xs text-neutral-textMuted">
                 {item.count ? `${item.count}件の評価` : 'まだ評価がありません'}
@@ -487,9 +503,15 @@ export default function ShopReviews({ shopId, summary, forceRemoteFetch = false 
                   <div>
                     <div className="flex items-center gap-2">
                       <Badge variant="success">{review.score}★</Badge>
-                      {review.title ? <span className="text-sm font-semibold text-neutral-text">{review.title}</span> : null}
+                      {review.title ? (
+                        <span className="text-sm font-semibold text-neutral-text">
+                          {review.title}
+                        </span>
+                      ) : null}
                     </div>
-                    <p className="mt-2 text-sm leading-relaxed text-neutral-textMuted whitespace-pre-line">{review.body}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-neutral-textMuted whitespace-pre-line">
+                      {review.body}
+                    </p>
                   </div>
                   <div className="text-right text-xs text-neutral-textMuted">
                     {review.author || visited ? (
@@ -509,7 +531,9 @@ export default function ShopReviews({ shopId, summary, forceRemoteFetch = false 
                       >
                         <span>{ASPECT_LABELS[aspect.key].label}</span>
                         <span className="font-semibold">{aspect.score}★</span>
-                        {aspect.note ? <span className="text-neutral-textMuted">({aspect.note})</span> : null}
+                        {aspect.note ? (
+                          <span className="text-neutral-textMuted">({aspect.note})</span>
+                        ) : null}
                       </span>
                     ))}
                   </div>
@@ -525,7 +549,9 @@ export default function ShopReviews({ shopId, summary, forceRemoteFetch = false 
         ) : isLoading ? (
           <Card className="p-4 text-sm text-neutral-textMuted">口コミを読み込み中です…</Card>
         ) : (
-          <Card className="p-4 text-sm text-neutral-textMuted">まだ口コミはありません。最初のレビューを投稿してみませんか？</Card>
+          <Card className="p-4 text-sm text-neutral-textMuted">
+            まだ口コミはありません。最初のレビューを投稿してみませんか？
+          </Card>
         )}
 
         {hasMore ? (
@@ -540,7 +566,10 @@ export default function ShopReviews({ shopId, summary, forceRemoteFetch = false 
         ) : null}
       </div>
 
-      <form onSubmit={submitReview} className="space-y-4 rounded-card border border-neutral-borderLight bg-neutral-surfaceAlt p-4">
+      <form
+        onSubmit={submitReview}
+        className="space-y-4 rounded-card border border-neutral-borderLight bg-neutral-surfaceAlt p-4"
+      >
         <fieldset disabled={formDisabled} className="space-y-4">
           <div>
             <div className="text-sm font-semibold text-neutral-text">口コミを投稿する</div>
@@ -548,7 +577,9 @@ export default function ShopReviews({ shopId, summary, forceRemoteFetch = false 
               店舗スタッフが内容を確認し、問題がなければ掲載されます。個人情報や誹謗中傷は掲載できません。
             </p>
             {isDemoEnvironment ? (
-              <p className="mt-2 text-xs text-brand-primaryDark">サンプル表示中のため投稿機能はご利用いただけません。</p>
+              <p className="mt-2 text-xs text-brand-primaryDark">
+                サンプル表示中のため投稿機能はご利用いただけません。
+              </p>
             ) : null}
           </div>
 
@@ -620,9 +651,14 @@ export default function ShopReviews({ shopId, summary, forceRemoteFetch = false 
             <div className="text-sm font-semibold text-neutral-text">項目別の評価（任意）</div>
             <div className="grid gap-3 md:grid-cols-3">
               {(Object.keys(ASPECT_LABELS) as ReviewAspectKey[]).map((key) => (
-                <div key={key} className="space-y-2 rounded-card border border-neutral-borderLight bg-white p-3">
+                <div
+                  key={key}
+                  className="space-y-2 rounded-card border border-neutral-borderLight bg-white p-3"
+                >
                   <div className="space-y-1 text-sm">
-                    <div className="font-semibold text-neutral-text">{ASPECT_LABELS[key].label}</div>
+                    <div className="font-semibold text-neutral-text">
+                      {ASPECT_LABELS[key].label}
+                    </div>
                     <div className="text-xs text-neutral-textMuted">{ASPECT_LABELS[key].help}</div>
                   </div>
                   <select

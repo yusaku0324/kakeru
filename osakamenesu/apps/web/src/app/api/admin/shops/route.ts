@@ -1,24 +1,14 @@
 import { NextResponse } from 'next/server'
 
-const ADMIN_KEY = process.env.ADMIN_API_KEY || process.env.OSAKAMENESU_ADMIN_API_KEY
-const PUBLIC_BASE = process.env.NEXT_PUBLIC_OSAKAMENESU_API_BASE || process.env.NEXT_PUBLIC_API_BASE || '/api'
-const INTERNAL_BASE = process.env.OSAKAMENESU_API_INTERNAL_BASE || process.env.API_INTERNAL_BASE || 'http://osakamenesu-api:8000'
-
-if (!ADMIN_KEY) {
-  console.warn('[api/admin/shops] ADMIN_API_KEY (or OSAKAMENESU_ADMIN_API_KEY) is not set; admin requests will fail')
-}
-
-function bases() {
-  return [INTERNAL_BASE, PUBLIC_BASE]
-}
+import { ADMIN_KEY, adminBases, buildAdminHeaders } from '@/app/api/admin/client'
 
 export async function GET() {
   if (!ADMIN_KEY) {
     return NextResponse.json({ detail: 'admin key not configured' }, { status: 500 })
   }
-  const headers = { 'X-Admin-Key': ADMIN_KEY }
+  const headers = buildAdminHeaders()
   let lastError: any = null
-  for (const base of bases()) {
+  for (const base of adminBases()) {
     try {
       const resp = await fetch(`${base}/api/admin/shops`, {
         method: 'GET',
@@ -60,13 +50,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ detail: 'invalid JSON body' }, { status: 400 })
   }
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'X-Admin-Key': ADMIN_KEY,
-  }
+  const headers = buildAdminHeaders({ 'Content-Type': 'application/json' })
 
   let lastError: any = null
-  for (const base of bases()) {
+  for (const base of adminBases()) {
     try {
       const resp = await fetch(`${base}/api/admin/profiles?skip_index=1`, {
         method: 'POST',

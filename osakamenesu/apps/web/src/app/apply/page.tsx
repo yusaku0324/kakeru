@@ -15,7 +15,8 @@ export default function ApplyPage() {
       >
         <div className="space-y-4 text-sm leading-relaxed text-neutral-text">
           <p>
-            大阪メンエス.com では、CityHeaven 同等の露出設計でユーザーの集客導線を最適化します。PR枠への掲載をご希望の店舗様は、下記の概要をご確認のうえお問い合わせください。
+            大阪メンエス.com では、CityHeaven
+            同等の露出設計でユーザーの集客導線を最適化します。PR枠への掲載をご希望の店舗様は、下記の概要をご確認のうえお問い合わせください。
           </p>
           <div className="grid gap-3 md:grid-cols-2">
             <Card className="space-y-2">
@@ -65,7 +66,10 @@ export default function ApplyPage() {
       </Card>
 
       <div className="text-center text-sm">
-        <Link href="/" className="inline-flex items-center gap-1 text-brand-primaryDark underline-offset-2 hover:underline">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1 text-brand-primaryDark underline-offset-2 hover:underline"
+        >
           トップページへ戻る
         </Link>
       </div>

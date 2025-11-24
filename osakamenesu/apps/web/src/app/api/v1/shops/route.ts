@@ -156,7 +156,9 @@ export async function GET(request: Request) {
 
   if (areaParam) {
     hits = hits.filter((hit) => {
-      const candidates = [hit.area, hit.area_name].filter(Boolean).map((value) => value!.toLowerCase())
+      const candidates = [hit.area, hit.area_name]
+        .filter(Boolean)
+        .map((value) => value!.toLowerCase())
       return candidates.some((value) => value.includes(areaParam.toLowerCase()))
     })
   }
@@ -207,7 +209,7 @@ export async function GET(request: Request) {
   }
 
   if (openNow) {
-    hits = hits.filter((hit) => hit.today_available || Boolean(hit.next_available_at))
+    hits = hits.filter((hit) => hit.today_available || Boolean(hit.next_available_slot?.start_at))
   }
 
   if (promotionsOnly) {
