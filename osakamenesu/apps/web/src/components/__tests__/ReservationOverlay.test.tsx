@@ -5,6 +5,46 @@ import ReservationOverlay from '@/components/ReservationOverlay'
 import type { ReservationOverlayProps } from '@/components/ReservationOverlay'
 import type { TherapistHit } from '@/components/staff/TherapistCard'
 
+vi.mock('@/components/calendar/WeekAvailabilityGrid', () => {
+  const React = require('react') as typeof import('react')
+
+  type Props = {
+    onToggle?: (day: any, slot: any) => void
+  }
+
+  const MockWeekAvailabilityGrid: React.FC<Props> = ({ onToggle }) => {
+    const handleClick = () => {
+      onToggle?.(
+        {
+          date: '2025-11-04',
+          label: '11/4(火)',
+          isToday: true,
+          slots: [],
+        },
+        {
+          start_at: '2025-11-04T13:00:00+09:00',
+          end_at: '2025-11-04T13:30:00+09:00',
+          status: 'open',
+          timeKey: '13:00',
+        },
+      )
+    }
+
+    return (
+      <div data-testid="mock-week-availability-grid">
+        <button type="button" onClick={handleClick}>
+          11/4(火) 13:00
+        </button>
+      </div>
+    )
+  }
+
+  return {
+    __esModule: true,
+    WeekAvailabilityGrid: MockWeekAvailabilityGrid,
+  }
+})
+
 const baseHit: TherapistHit = {
   id: 'shop-staff',
   therapistId: 'staff-1',
