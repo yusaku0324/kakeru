@@ -244,6 +244,29 @@ jobs:
         working-directory: osakamenesu
         run: pnpm --dir apps/web run lint
 
+  frontend-lint:
+    needs:
+      - web-lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: osakamenesu/apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Enable pnpm via corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
   build-api-image:
     name: "[LEGACY] build-api-image (Cloud Run)"
     # NOTE: Cloud Run deploy is deprecated. We are migrating to Supabase + Vercel.
