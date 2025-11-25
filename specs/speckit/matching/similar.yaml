@@ -1,0 +1,48 @@
+id: matching-similar-happy
+summary: Returns therapists similar to a target therapist with tag-based scores.
+domain: matching
+links:
+  - spec: specs/matching/base.md
+  - diff: specs/matching/diffs/144-similar-therapist-api.md
+endpoint:
+  method: GET
+  path: /api/guest/matching/similar
+  query:
+    therapist_id: 11111111-1111-1111-8888-111111111111
+    limit: 3
+expect:
+  status: 200
+  json:
+    base_therapist:
+      therapist_id: uuid
+      therapist_name: string
+      profile_id: uuid
+      profile_name: string
+      mood_tag: string
+      talk_level: string
+      style_tag: string
+      look_type: string
+      contact_style: string
+      hobby_tags: []
+    similar:
+      - therapist_id: uuid
+        therapist_name: string
+        profile_id: uuid
+        profile_name: string
+        score: number
+        breakdown:
+          mood: number
+          talk: number
+          style: number
+          look: number
+          contact: number
+          hobby: number
+  rules:
+    - path: $.similar
+      description: excludes base therapist
+      assert: all(item['therapist_id'] != $.base_therapist.therapist_id for item in value)
+    - path: $.similar
+      description: sorted by similarity score descending
+      assert: value == sorted(value, key=lambda i: i['score'], reverse=True)
+notes:
+  - Reflects implemented `/api/guest/matching/similar` (PR #150); focuses on ids/tags/score/breakdown. Allow extra fields as needed.

@@ -1,0 +1,74 @@
+id: reservations-search-and-book
+summary: Guest checks availability and creates a reservation.
+domain: reservations
+links:
+  - spec: specs/reservations/base.md
+steps:
+  - id: availability
+    endpoint:
+      method: GET
+      path: /api/v1/shops/{shop_id}/availability
+      path_params:
+        shop_id: 11111111-1111-1111-8888-111111111111
+      query:
+        date_from: 2025-12-01
+        date_to: 2025-12-02
+    expect:
+      status: 200
+      json:
+        days:
+          - date: string
+            slots:
+              - start_at: string
+                end_at: string
+                staff_id: uuid
+                menu_id: uuid
+      rules:
+        - path: $.days[*].slots
+          description: at least one open slot exists across requested range
+          assert: any(len(slots) > 0 for slots in value)
+  - id: create-reservation
+    endpoint:
+      method: POST
+      path: /api/v1/reservations
+      headers:
+        Content-Type: application/json
+      body:
+        shop_id: 11111111-1111-1111-8888-111111111111
+        staff_id: 22222222-2222-2222-8888-222222222222
+        menu_id: 33333333-3333-3333-8888-333333333333
+        channel: web
+        desired_start: 2025-12-01T15:00:00Z
+        desired_end: 2025-12-01T16:00:00Z
+        notes: speckit demo booking
+        marketing_opt_in: false
+        customer:
+          name: Guest User
+          phone: "+819012345678"
+          email: guest@example.com
+          line_id: null
+          remark: null
+        preferred_slots:
+          - desired_start: 2025-12-01T15:00:00Z
+            desired_end: 2025-12-01T16:00:00Z
+            status: pending
+    expect:
+      status: 201
+      json:
+        id: uuid
+        status: string
+        shop_id: uuid
+        staff_id: uuid
+        menu_id: uuid
+        desired_start: string
+        desired_end: string
+        customer:
+          name: string
+          email: string
+      rules:
+        - path: $.status
+          description: reservation starts as pending or confirmed depending on rules
+          assert: value in ["pending", "confirmed"]
+notes:
+  - Happy-path scaffold; adjust ids/dates per fixtures when running locally.
+  - Allow additional fields (status_history, preferred_slots, timestamps, etc.).
