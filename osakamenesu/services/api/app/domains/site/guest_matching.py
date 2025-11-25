@@ -4,8 +4,9 @@ import logging
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .services.shop.search_service import ShopSearchService
@@ -14,6 +15,10 @@ from ...db import get_session
 
 router = APIRouter(prefix="/api/guest/matching", tags=["guest-matching"])
 logger = logging.getLogger(__name__)
+
+SIMILAR_DEFAULT_LIMIT = 8
+SIMILAR_MAX_LIMIT = 20
+SIMILAR_DEFAULT_MIN_SCORE = 0.4
 
 
 class GuestMatchingRequest(BaseModel):
@@ -67,6 +72,34 @@ class MatchingCandidate(BaseModel):
 class MatchingResponse(BaseModel):
     top_matches: list[MatchingCandidate]
     other_candidates: list[MatchingCandidate]
+
+
+class SimilarTherapistItem(BaseModel):
+    """Response item for /similar. All scores are normalized to 0..1.
+
+    photo_similarity is a placeholder that will later be replaced with an embedding
+    similarity score; v1 mirrors tag_similarity.
+    """
+
+    id: str
+    name: str
+    age: int | None = None
+    price_rank: int | None = None
+    mood_tag: str | None = None
+    style_tag: str | None = None
+    look_type: str | None = None
+    contact_style: str | None = None
+    hobby_tags: list[str] = Field(default_factory=list)
+    photo_url: str | None = None
+    is_available_now: bool = True
+    score: float
+    photo_similarity: float
+    tag_similarity: float
+
+
+class SimilarResponse(BaseModel):
+    base_staff_id: str
+    items: list[SimilarTherapistItem]
 
 
 def _normalize_score(value: float | None) -> float:
@@ -135,6 +168,200 @@ def _score_candidate(payload: GuestMatchingRequest, candidate: dict[str, Any]) -
         "availability": availability_score,
     }
     return score
+
+
+# ---- Similar therapists (GET /api/guest/matching/similar) ----
+
+
+def _jaccard(a: list[str] | None, b: list[str] | None) -> float:
+    if not a or not b:
+        return 0.0
+    set_a, set_b = set(a), set(b)
+    if not set_a or not set_b:
+        return 0.0
+    union = len(set_a | set_b)
+    if union == 0:
+        return 0.0
+    return len(set_a & set_b) / union
+
+
+def _compute_tag_similarity(base: dict[str, Any], candidate: dict[str, Any]) -> float:
+    weights = {
+        "mood_tag": 0.30,
+        "style_tag": 0.25,
+        "look_type": 0.25,
+        "contact_style": 0.10,
+    }
+    hobby_weight = 0.10
+
+    def _single_score(key: str) -> float:
+        base_val = base.get(key)
+        cand_val = candidate.get(key)
+        if base_val is None or cand_val is None:
+            return 0.0
+        return 1.0 if base_val == cand_val else 0.0
+
+    tag_score = 0.0
+    for key, weight in weights.items():
+        tag_score += weight * _single_score(key)
+
+    hobby_score = _jaccard(
+        base.get("hobby_tags") or [], candidate.get("hobby_tags") or []
+    )
+    tag_score += hobby_weight * hobby_score
+    return max(0.0, min(1.0, tag_score))
+
+
+def _compute_price_score(base_rank: int | None, candidate_rank: int | None) -> float:
+    if base_rank is None or candidate_rank is None:
+        return 0.5
+    diff = abs(base_rank - candidate_rank)
+    return max(0.0, 1.0 - diff * 0.4)
+
+
+def _compute_age_score(base_age: int | None, candidate_age: int | None) -> float:
+    if base_age is None or candidate_age is None:
+        return 0.5
+    diff = abs(base_age - candidate_age)
+    return max(0.0, 1.0 - diff / 15.0)
+
+
+def _compute_similar_scores(
+    base: dict[str, Any], candidate: dict[str, Any]
+) -> dict[str, float]:
+    """Compute tag/price/age similarity and final score (0..1).
+
+    photo_similarity mirrors tag_similarity for v1 so we can swap in embeddings later
+    without changing the response shape.
+    """
+    tag_similarity = _compute_tag_similarity(base, candidate)
+    price_score = _compute_price_score(
+        base.get("price_rank"), candidate.get("price_rank")
+    )
+    age_score = _compute_age_score(base.get("age"), candidate.get("age"))
+    photo_similarity = (
+        tag_similarity  # v1: tag proxy, future: replace with embedding score
+    )
+
+    final_score = (
+        0.6 * photo_similarity
+        + 0.2 * tag_similarity
+        + 0.1 * price_score
+        + 0.1 * age_score
+    )
+    final_score = max(0.0, min(1.0, final_score))
+    return {
+        "score": final_score,
+        "tag_similarity": tag_similarity,
+        "photo_similarity": photo_similarity,
+        "price_score": price_score,
+        "age_score": age_score,
+    }
+
+
+def _is_available(candidate: dict[str, Any]) -> bool:
+    if candidate.get("is_available_now") is False:
+        return False
+    slots = candidate.get("slots")
+    if isinstance(slots, list) and slots:
+        return True
+    return True
+
+
+async def _get_base_staff(db: AsyncSession | None, staff_id: str) -> dict[str, Any]:
+    """Fetch the base therapist; raise 404 if missing."""
+    if not db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="staff not found"
+        )
+
+    res = await db.execute(
+        select(models.Therapist, models.Profile)
+        .join(models.Profile, models.Therapist.profile_id == models.Profile.id)
+        .where(
+            models.Therapist.id == staff_id,
+            models.Therapist.status == "published",
+            models.Profile.status == "published",
+        )
+    )
+    row = res.first()
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="staff not found"
+        )
+
+    therapist, profile = row
+    hobby_tags = (
+        getattr(therapist, "specialties", None)
+        or getattr(profile, "body_tags", None)
+        or []
+    )
+    photo_url = None
+    photos = getattr(profile, "photos", None) or getattr(therapist, "photo_urls", None)
+    if photos:
+        photo_url = photos[0]
+    return {
+        "id": str(therapist.id),
+        "name": therapist.name,
+        "shop_id": str(getattr(therapist, "profile_id", "")),
+        "age": getattr(profile, "age", None),
+        "price_rank": getattr(profile, "ranking_weight", None),
+        "mood_tag": getattr(therapist, "mood_tag", None),
+        "style_tag": getattr(therapist, "style_tag", None),
+        "look_type": getattr(therapist, "look_type", None),
+        "contact_style": getattr(therapist, "contact_style", None),
+        "hobby_tags": hobby_tags or [],
+        "photo_url": photo_url,
+        "is_available_now": bool(getattr(therapist, "is_booking_enabled", True)),
+    }
+
+
+async def _fetch_similar_candidates(
+    db: AsyncSession | None,
+    base: dict[str, Any],
+    shop_id: str | None,
+    exclude_unavailable: bool,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Fetch candidate therapists (published) from DB, optionally scoped to a shop."""
+    if not db:
+        return []
+
+    stmt = (
+        select(models.Therapist, models.Profile)
+        .join(models.Profile, models.Therapist.profile_id == models.Profile.id)
+        .where(
+            models.Therapist.status == "published",
+            models.Profile.status == "published",
+            models.Therapist.id != base.get("id"),
+        )
+    )
+    if shop_id:
+        stmt = stmt.where(models.Therapist.profile_id == shop_id)
+
+    res = await db.execute(stmt.limit(limit * 5))
+    candidates: list[dict[str, Any]] = []
+    for therapist, profile in res.all():
+        cand = {
+            "id": str(therapist.id),
+            "name": therapist.name,
+            "shop_id": str(getattr(therapist, "profile_id", "")),
+            "age": getattr(profile, "age", None),
+            "price_rank": getattr(profile, "ranking_weight", None),
+            "mood_tag": getattr(therapist, "mood_tag", None),
+            "style_tag": getattr(therapist, "style_tag", None),
+            "look_type": getattr(therapist, "look_type", None),
+            "contact_style": getattr(therapist, "contact_style", None),
+            "hobby_tags": getattr(therapist, "specialties", None)
+            or getattr(profile, "body_tags", None)
+            or [],
+            "photo_url": (getattr(profile, "photos", None) or [None])[0],
+            "is_available_now": bool(getattr(therapist, "is_booking_enabled", True)),
+        }
+        if exclude_unavailable and not _is_available(cand):
+            continue
+        candidates.append(cand)
+    return candidates
 
 
 def _map_shop_to_candidate(shop: Any) -> dict[str, Any]:
@@ -291,3 +518,90 @@ async def guest_matching_search(
     except Exception:
         logger.debug("guest_matching_log_skip")
     return MatchingResponse(top_matches=top, other_candidates=rest)
+
+
+@router.get("/similar", response_model=SimilarResponse)
+async def guest_matching_similar(
+    staff_id: str = Query(..., description="Base staff/therapist id"),
+    limit: int = Query(
+        SIMILAR_DEFAULT_LIMIT,
+        ge=1,
+        le=SIMILAR_MAX_LIMIT,
+        description="Maximum similar candidates to return",
+    ),
+    shop_id: str | None = Query(
+        default=None, description="If set, restricts search to this shop/profile"
+    ),
+    exclude_unavailable: bool = Query(
+        default=True,
+        description="Exclude therapists with no availability",
+    ),
+    min_score: float = Query(
+        SIMILAR_DEFAULT_MIN_SCORE,
+        ge=0.0,
+        le=1.0,
+        description="Drop candidates below this score",
+    ),
+    db: AsyncSession = Depends(get_session),
+) -> SimilarResponse:
+    base = await _get_base_staff(db, staff_id)
+    pool = await _fetch_similar_candidates(
+        db,
+        base=base,
+        shop_id=shop_id,
+        exclude_unavailable=exclude_unavailable,
+        limit=limit,
+    )
+
+    scored: list[dict[str, Any]] = []
+    for cand in pool:
+        if cand.get("id") == base.get("id"):
+            continue
+        available = _is_available(cand)
+        if exclude_unavailable and not available:
+            continue
+        scores = _compute_similar_scores(base, cand)
+        if scores["score"] < min_score:
+            continue
+        scored.append(
+            {
+                **cand,
+                "score": scores["score"],
+                "tag_similarity": scores["tag_similarity"],
+                "photo_similarity": scores["photo_similarity"],
+                "is_available_now": available,
+            }
+        )
+
+    base_shop_id = base.get("shop_id")
+    scored_sorted = sorted(
+        scored,
+        key=lambda c: (
+            -c["score"],
+            0 if c.get("shop_id") == base_shop_id else 1,
+            c.get("id"),
+        ),
+    )
+    limited = scored_sorted[:limit]
+    items: list[SimilarTherapistItem] = []
+    for c in limited:
+        items.append(
+            SimilarTherapistItem(
+                id=c.get("id"),
+                name=c.get("name"),
+                age=c.get("age"),
+                price_rank=c.get("price_rank"),
+                mood_tag=c.get("mood_tag"),
+                style_tag=c.get("style_tag"),
+                look_type=c.get("look_type"),
+                contact_style=c.get("contact_style"),
+                hobby_tags=c.get("hobby_tags") or [],
+                photo_url=c.get("photo_url"),
+                is_available_now=c.get("is_available_now", True),
+                score=c.get("score", 0.0),
+                photo_similarity=c.get("photo_similarity", 0.0),
+                tag_similarity=c.get("tag_similarity", 0.0),
+            )
+        )
+
+    return SimilarResponse(base_staff_id=base.get("id", staff_id), items=items)

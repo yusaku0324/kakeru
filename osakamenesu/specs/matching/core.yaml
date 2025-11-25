@@ -18,6 +18,14 @@ contexts:
       look_pref: { type: object, additionalProperties: number, required: false }
       free_text: { type: string, required: false }
       guest_token: { type: string, required: false }
+  SimilarQuery:
+    description: Query params for similar therapist recommendations.
+    fields:
+      staff_id: { type: string, required: true }
+      limit: { type: integer, required: false, default: 8, minimum: 1, maximum: 20 }
+      shop_id: { type: string, required: false }
+      exclude_unavailable: { type: boolean, required: false, default: true }
+      min_score: { type: number, required: false, default: 0.4 }
 
 entities:
   MatchingBreakdown:
@@ -61,6 +69,30 @@ entities:
       other_candidates:
         type: array
         items: MatchingCandidate
+  SimilarTherapistItem:
+    fields:
+      id: string
+      name: string
+      age: { type: integer, required: false, nullable: true }
+      price_rank: { type: integer, required: false, nullable: true }
+      mood_tag: { type: string, required: false, nullable: true }
+      style_tag: { type: string, required: false, nullable: true }
+      look_type: { type: string, required: false, nullable: true }
+      contact_style: { type: string, required: false, nullable: true }
+      hobby_tags:
+        type: array
+        items: string
+      photo_url: { type: string, required: false, nullable: true }
+      is_available_now: boolean
+      score: number
+      photo_similarity: number
+      tag_similarity: number
+  SimilarResponse:
+    fields:
+      base_staff_id: string
+      items:
+        type: array
+        items: SimilarTherapistItem
 
 endpoints:
   - id: matching.search
@@ -71,3 +103,15 @@ endpoints:
     notes:
       - Scoring weights: core 0.4, priceFit 0.15, moodFit 0.15, talkFit 0.1, styleFit 0.1, lookFit 0.05, availability 0.05; missing signals are treated as neutral 0.5.
       - Tags used in scoring: mood/style/look/talk. contact_style/hobby_tags are included for display/logging but are not currently scored.
+  - id: matching.similar
+    method: GET
+    path: /api/guest/matching/similar
+    query: SimilarQuery
+    response: SimilarResponse
+    notes:
+      - Final score = 0.6 * photo_similarity + 0.2 * tag_similarity + 0.1 * price_score + 0.1 * age_score (0..1 clipped).
+      - tag_similarity weights: mood 0.30, style 0.25, look 0.25, contact 0.10, hobby_tags 0.10 (Jaccard, empty => 0).
+      - price_score: diff 0 => 1.0, diff 1 => 0.6, diff 2 => 0.2, diff >=3 => 0.0; missing => 0.5.
+      - age_score: 1 - |age diff| / 15 (missing => 0.5).
+      - photo_similarity is a placeholder for embeddings; v1 mirrors tag_similarity.
+      - Candidates with score < min_score or base_staff_id are excluded; tie-break prefers same shop then id asc.
