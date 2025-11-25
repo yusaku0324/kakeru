@@ -204,6 +204,78 @@ def test_search_v2_non_recommended_keeps_order(monkeypatch, matching_module):
     assert ids == ["first", "second"]
 
 
+def test_search_v2_handles_missing_fields(monkeypatch, matching_module):
+    missing = _mk_candidate(
+        "missing", {"price_rank": None, "age": None, "mood_tag": None}
+    )
+
+    async def fake_search(self: Any, *args: Any, **kwargs: Any) -> dict[str, list[Any]]:
+        return {"results": [missing]}
+
+    monkeypatch.setattr(matching_module.ShopSearchService, "search", fake_search)
+
+    app = FastAPI()
+    app.include_router(matching_module.router)
+    client = TestClient(app)
+
+    resp = client.get(
+        "/api/guest/matching/search",
+        params={"area": "osaka", "date": "2025-01-01", "sort": "recommended"},
+    )
+    assert resp.status_code == 200
+    item = resp.json()["items"][0]
+    assert 0.0 <= item["score"] <= 1.0
+    assert 0.0 <= item.get("photo_similarity", 0) <= 1.0
+
+
+def test_search_v2_base_staff_not_found_returns_404(monkeypatch, matching_module):
+    async def fake_base(db, staff_id):
+        raise matching_module.HTTPException(status_code=404, detail="staff not found")
+
+    async def fake_search(self: Any, *args: Any, **kwargs: Any) -> dict[str, list[Any]]:
+        return {"results": []}
+
+    monkeypatch.setattr(matching_module, "_get_base_staff", fake_base)
+    monkeypatch.setattr(matching_module.ShopSearchService, "search", fake_search)
+
+    app = FastAPI()
+    app.include_router(matching_module.router)
+    client = TestClient(app)
+
+    resp = client.get(
+        "/api/guest/matching/search",
+        params={
+            "area": "osaka",
+            "date": "2025-01-01",
+            "sort": "recommended",
+            "base_staff_id": "missing",
+        },
+    )
+    assert resp.status_code == 404
+
+
+def test_search_v2_unknown_sort_fallback(monkeypatch, matching_module):
+    first = _mk_candidate("first")
+    second = _mk_candidate("second")
+
+    async def fake_search(self: Any, *args: Any, **kwargs: Any) -> dict[str, list[Any]]:
+        return {"results": [first, second]}
+
+    monkeypatch.setattr(matching_module.ShopSearchService, "search", fake_search)
+
+    app = FastAPI()
+    app.include_router(matching_module.router)
+    client = TestClient(app)
+
+    resp = client.get(
+        "/api/guest/matching/search",
+        params={"area": "osaka", "date": "2025-01-01", "sort": "unknown"},
+    )
+    assert resp.status_code == 200
+    ids = [item["id"] for item in resp.json()["items"]]
+    assert ids == ["first", "second"]
+
+
 # ---- similar tests (unchanged behavior) ----
 
 

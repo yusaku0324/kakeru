@@ -81,7 +81,9 @@ export default function MatchChatPage() {
         body: JSON.stringify(payload),
       })
       if (!resp.ok) {
-        throw new Error(`Request failed (${resp.status})`)
+        console.error('match-chat search failed', resp.status)
+        setError('おすすめ取得に失敗しました。時間をおいて再度お試しください。')
+        return
       }
       const data = (await resp.json()) as MatchingResponse
       setResult(data)

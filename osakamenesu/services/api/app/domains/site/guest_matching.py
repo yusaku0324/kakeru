@@ -286,10 +286,37 @@ def _compute_similar_scores(
 def _score_photo_similarity(
     base: dict[str, Any] | None, candidate: dict[str, Any]
 ) -> float:
-    # Placeholder: embedding similarity hook. v1 returns 0.5 when base missing.
-    if not base:
+    """
+    Placeholder embedding similarity.
+    - If base or candidate lacks embeddings, return neutral 0.5.
+    - If embeddings exist, compute cosine similarity and clip to 0..1 (negatives -> 0).
+    """
+    base_vec = (
+        base.get("photo_embedding")
+        if isinstance(base, dict)
+        else getattr(base, "photo_embedding", None)
+        if base
+        else None
+    )
+    cand_vec = (
+        candidate.get("photo_embedding")
+        if isinstance(candidate, dict)
+        else getattr(candidate, "photo_embedding", None)
+    )
+    if not base_vec or not cand_vec:
         return 0.5
-    return 0.5
+    try:
+        import math
+
+        dot = sum(float(a) * float(b) for a, b in zip(base_vec, cand_vec))
+        norm_base = math.sqrt(sum(float(a) ** 2 for a in base_vec))
+        norm_cand = math.sqrt(sum(float(b) ** 2 for b in cand_vec))
+        if norm_base == 0 or norm_cand == 0:
+            return 0.5
+        cos = dot / (norm_base * norm_cand)
+        return max(0.0, min(1.0, cos))
+    except Exception:
+        return 0.5
 
 
 def _score_tags_v2(payload: GuestMatchingRequest, candidate: dict[str, Any]) -> float:
@@ -645,7 +672,9 @@ async def guest_matching_search(
     if payload.base_staff_id:
         try:
             base_ctx = await _get_base_staff(db, payload.base_staff_id)
-        except HTTPException:
+        except HTTPException as exc:
+            raise exc
+        except Exception:
             base_ctx = None
 
     v2_items: list[MatchingCandidate] = []
@@ -683,7 +712,8 @@ async def guest_matching_search(
             )
         )
 
-    if (payload.sort or "recommended") == "recommended":
+    sort_value = (payload.sort or "recommended").lower()
+    if sort_value == "recommended":
         v2_items = sorted(
             v2_items,
             key=lambda x: (
