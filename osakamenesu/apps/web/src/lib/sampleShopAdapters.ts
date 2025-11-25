@@ -91,6 +91,12 @@ export type StaffSummary = {
   rating?: number | null
   review_count?: number | null
   specialties?: string[] | null
+  mood_tag?: string | null
+  talk_level?: string | null
+  style_tag?: string | null
+  look_type?: string | null
+  contact_style?: string | null
+  hobby_tags?: string[] | null
 }
 
 type AvailabilitySlot = {

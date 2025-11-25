@@ -10,6 +10,7 @@ import {
   ShopSummary,
   StaffItem,
 } from '@/features/shops/model'
+import { normalizeHobbyTags } from '@/features/therapist/profileTags'
 import {
   createAdminShop,
   fetchAdminShopDetail,
@@ -404,6 +405,12 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
       alias: member.alias,
       headline: member.headline,
       specialties: member.specialties,
+      mood_tag: member.mood_tag ?? null,
+      talk_level: member.talk_level ?? null,
+      style_tag: member.style_tag ?? null,
+      look_type: member.look_type ?? null,
+      contact_style: member.contact_style ?? null,
+      hobby_tags: normalizeHobbyTags(member.hobby_tags),
     }))
 
     const contactPayload: ContactInfo = {

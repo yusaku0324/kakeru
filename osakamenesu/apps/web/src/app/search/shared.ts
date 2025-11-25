@@ -1,6 +1,7 @@
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { buildStaffIdentifier } from '@/lib/staff'
 import { toNextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
+import { normalizeHobbyTags } from '@/features/therapist/profileTags'
 
 import type { ShopHit } from '@/components/shop/ShopCard'
 import type { TherapistHit } from '@/components/staff/TherapistCard'
@@ -499,6 +500,7 @@ export function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
               .map((tag) => tag.trim())
               .filter(Boolean)
           : []
+        const hobbyTags = normalizeHobbyTags(staff.hobby_tags)
         const todayAvailable =
           typeof staff.today_available === 'boolean'
             ? staff.today_available
@@ -524,6 +526,12 @@ export function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
           shopAreaName: hit.area_name ?? null,
           todayAvailable,
           nextAvailableSlot,
+          mood_tag: staff.mood_tag ?? null,
+          style_tag: staff.style_tag ?? null,
+          look_type: staff.look_type ?? null,
+          contact_style: staff.contact_style ?? null,
+          hobby_tags: hobbyTags,
+          talk_level: staff.talk_level ?? null,
         } satisfies TherapistHit
       })
   })

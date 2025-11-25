@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
+import { ProfileTagList } from '@/components/staff/ProfileTagList'
 import { TherapistSchedule } from '@/features/therapist/ui/TherapistSchedule'
 import { buildStaffIdentifier, staffMatchesIdentifier, slugifyStaffIdentifier } from '@/lib/staff'
 import { toLocalDateISO } from '@/lib/date'
@@ -365,6 +366,13 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
                   ))}
                 </div>
               ) : null}
+              <ProfileTagList
+                mood_tag={staff.mood_tag}
+                style_tag={staff.style_tag}
+                look_type={staff.look_type}
+                contact_style={staff.contact_style}
+                hobby_tags={staff.hobby_tags}
+              />
               {staff.headline ? (
                 <p className="text-sm leading-relaxed text-neutral-text">{staff.headline}</p>
               ) : null}
@@ -558,6 +566,14 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
                         {member.specialties.slice(0, 2).join(' / ')}
                       </div>
                     ) : null}
+                    <ProfileTagList
+                      mood_tag={member.mood_tag}
+                      style_tag={member.style_tag}
+                      look_type={member.look_type}
+                      contact_style={member.contact_style}
+                      hobby_tags={member.hobby_tags}
+                      className="mt-1 text-[11px]"
+                    />
                   </div>
                   <span className="text-xs text-brand-primary">詳細 →</span>
                 </Link>

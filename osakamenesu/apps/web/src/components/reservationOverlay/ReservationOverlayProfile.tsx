@@ -1,3 +1,4 @@
+import { ProfileTagList } from '@/components/staff/ProfileTagList'
 import type { TherapistHit } from '@/components/staff/TherapistCard'
 
 type ReservationOverlayProfileProps = {
@@ -51,6 +52,13 @@ export default function ReservationOverlayProfile({
                   ))}
                 </div>
               ) : null}
+              <ProfileTagList
+                mood_tag={hit.mood_tag}
+                style_tag={hit.style_tag}
+                look_type={hit.look_type}
+                contact_style={hit.contact_style}
+                hobby_tags={hit.hobby_tags}
+              />
             </div>
             {detailItems.length || optionsList.length ? (
               <div className="grid gap-3">

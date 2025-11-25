@@ -12,6 +12,7 @@ import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { buildStaffIdentifier } from '@/lib/staff'
 import { toNextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { ResultsSortControl } from '@/features/search/ui/ResultsSortControl'
+import { normalizeHobbyTags } from '@/features/therapist/profileTags'
 import { SearchAvailableToday, type SpotlightItem } from './_components/SearchHeroSections'
 import { SearchTabs, type SearchTabValue } from './_components/SearchTabs'
 
@@ -196,6 +197,12 @@ type StaffPreview = {
     start_at: string
     status: 'ok' | 'maybe'
   } | null
+  mood_tag?: string | null
+  talk_level?: string | null
+  style_tag?: string | null
+  look_type?: string | null
+  contact_style?: string | null
+  hobby_tags?: string[] | null
 }
 
 type Params = {
@@ -438,6 +445,7 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
               .map((tag) => tag.trim())
               .filter(Boolean)
           : []
+        const hobbyTags = normalizeHobbyTags(staff.hobby_tags)
         const todayAvailable =
           typeof staff.today_available === 'boolean'
             ? staff.today_available
@@ -463,6 +471,12 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
           shopAreaName: hit.area_name ?? null,
           todayAvailable,
           nextAvailableSlot,
+          mood_tag: staff.mood_tag ?? null,
+          style_tag: staff.style_tag ?? null,
+          look_type: staff.look_type ?? null,
+          contact_style: staff.contact_style ?? null,
+          hobby_tags: hobbyTags,
+          talk_level: staff.talk_level ?? null,
         } satisfies TherapistHit
       })
   })

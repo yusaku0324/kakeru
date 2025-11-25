@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { nextSlotPayloadToScheduleSlot, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { formatSlotJp } from '@/lib/schedule'
+import { ProfileTagList } from './ProfileTagList'
 import { useTherapistFavorites } from './TherapistFavoritesProvider'
 
 export type TherapistHit = {
@@ -28,6 +29,12 @@ export type TherapistHit = {
   shopAreaName: string | null
   todayAvailable: boolean | null
   nextAvailableSlot: NextAvailableSlotPayload | null
+  mood_tag?: string | null
+  style_tag?: string | null
+  look_type?: string | null
+  contact_style?: string | null
+  hobby_tags?: string[] | null
+  talk_level?: string | null
 }
 
 const formatter = new Intl.NumberFormat('ja-JP')
@@ -186,6 +193,13 @@ export function TherapistCard({ hit, variant = 'grid', onReserve }: TherapistCar
             ))}
           </div>
         ) : null}
+        <ProfileTagList
+          mood_tag={hit.mood_tag}
+          style_tag={hit.style_tag}
+          look_type={hit.look_type}
+          contact_style={hit.contact_style}
+          hobby_tags={hit.hobby_tags}
+        />
 
         <div className="flex items-center justify-between gap-2 text-sm text-neutral-text">
           <div>

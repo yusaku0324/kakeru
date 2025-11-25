@@ -13,6 +13,7 @@ import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
 import type { TherapistHit } from '@/components/staff/TherapistCard'
+import { ProfileTagList } from '@/components/staff/ProfileTagList'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { nextSlotPayloadToScheduleSlot, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { formatSlotJp } from '@/lib/schedule'
@@ -65,6 +66,12 @@ export type StaffSummary = {
   today_available?: boolean | null
   next_available_slot?: NextAvailableSlotPayload | null
   next_available_at?: string | null
+  mood_tag?: string | null
+  talk_level?: string | null
+  style_tag?: string | null
+  look_type?: string | null
+  contact_style?: string | null
+  hobby_tags?: string[] | null
 }
 type AvailabilitySlot = {
   start_at: string
@@ -758,6 +765,13 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                       ))}
                     </div>
                   ) : null}
+                  <ProfileTagList
+                    mood_tag={member.mood_tag}
+                    style_tag={member.style_tag}
+                    look_type={member.look_type}
+                    contact_style={member.contact_style}
+                    hobby_tags={member.hobby_tags}
+                  />
                 </Card>
               )
             })}
