@@ -23,6 +23,12 @@ export type StaffItem = {
   alias?: string | null
   headline?: string | null
   specialties?: string[]
+  mood_tag?: string | null
+  talk_level?: string | null
+  style_tag?: string | null
+  look_type?: string | null
+  contact_style?: string | null
+  hobby_tags?: string[] | null
 }
 
 export type AvailabilitySlot = {

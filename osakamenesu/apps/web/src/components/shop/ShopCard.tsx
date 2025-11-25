@@ -60,6 +60,12 @@ export type ShopHit = {
     today_available?: boolean | null
     next_available_at?: string | null
     next_available_slot?: NextAvailableSlotPayload | null
+    mood_tag?: string | null
+    talk_level?: string | null
+    style_tag?: string | null
+    look_type?: string | null
+    contact_style?: string | null
+    hobby_tags?: string[] | null
   }> | null
 }
 

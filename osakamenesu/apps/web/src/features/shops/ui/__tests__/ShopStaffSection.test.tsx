@@ -39,6 +39,15 @@ describe('ShopStaffSection', () => {
     })
     expect(onUpdateStaff).toHaveBeenCalledWith(0, { specialties: ['オイル', 'ストレッチ'] })
 
+    fireEvent.change(screen.getByLabelText('雰囲気タグ'), { target: { value: 'calm' } })
+    expect(onUpdateStaff).toHaveBeenCalledWith(0, { mood_tag: 'calm' })
+
+    fireEvent.change(screen.getByPlaceholderText('趣味タグを入力して追加'), {
+      target: { value: '映画' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '追加' }))
+    expect(onUpdateStaff).toHaveBeenCalledWith(0, { hobby_tags: ['映画'] })
+
     fireEvent.click(screen.getByRole('button', { name: 'スタッフを追加' }))
     expect(onAddStaff).toHaveBeenCalledTimes(1)
 
