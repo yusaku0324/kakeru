@@ -44,10 +44,8 @@ function normalizeId(value: string | null | undefined): string | null {
 }
 
 const mockMode = (
-  (process.env.NEXT_PUBLIC_FAVORITES_API_MODE || process.env.FAVORITES_API_MODE || '') as string
-)
-  .toLowerCase()
-  .includes('mock')
+  process.env.NEXT_PUBLIC_FAVORITES_API_MODE || process.env.FAVORITES_API_MODE || ''
+).toLowerCase().includes('mock')
 
 export function TherapistFavoritesProvider({ children }: { children: React.ReactNode }) {
   const initialFavorites = useMemo(() => {
@@ -145,22 +143,15 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
           credentials: 'include',
         })
 
-        if (!active) return
+    if (!active) return
 
-        if (res.status === 401) {
-          if (mockMode) {
-            setIsAuthenticated(true)
-            setFavorites(new Map())
-            keyVersionRef.current.clear()
-            setLoading(false)
-            return
-          }
-          setIsAuthenticated(false)
-          setFavorites(new Map())
-          keyVersionRef.current.clear()
-          setLoading(false)
-          return
-        }
+    if (res.status === 401) {
+      setIsAuthenticated(false)
+      setFavorites(new Map())
+      keyVersionRef.current.clear()
+      setLoading(false)
+      return
+    }
 
         if (!res.ok) {
           throw new Error(`failed_to_fetch_therapist_favorites_${res.status}`)
@@ -264,9 +255,7 @@ export function TherapistFavoritesProvider({ children }: { children: React.React
         return
       }
 
-      if (mockMode && isAuthenticated === false) {
-        setIsAuthenticated(true)
-      } else if (isAuthenticated === false) {
+      if (isAuthenticated === false) {
         push('error', 'お気に入り機能を利用するにはログインが必要です。')
         return
       }
