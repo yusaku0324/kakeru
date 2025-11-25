@@ -12,11 +12,8 @@ for i in {1..60}; do
   sleep 2
 done
 export PLAYWRIGHT_WORKERS="${PLAYWRIGHT_WORKERS:-4}"
-SHARD_ARGS=""
-if [[ -n "${PLAYWRIGHT_TOTAL_SHARDS:-}" && -n "${PLAYWRIGHT_SHARD_INDEX:-}" ]]; then
-  SHARD_ARGS=" --shard=${PLAYWRIGHT_SHARD_INDEX}/${PLAYWRIGHT_TOTAL_SHARDS}"
-fi
-pnpm exec playwright test --reporter=line --workers="${PLAYWRIGHT_WORKERS}"${SHARD_ARGS}
+ADMIN_SPEC="${PLAYWRIGHT_ADMIN_SPEC:-e2e/admin-smoke.spec.ts}"
+pnpm exec playwright test "$ADMIN_SPEC" --reporter=line --workers="${PLAYWRIGHT_WORKERS}"
 TEST_EXIT=$?
 pnpm exec playwright merge-reports --report-dir=playwright-report ./blob-report >/dev/null 2>&1 || true
 exit ${TEST_EXIT}

@@ -22,7 +22,12 @@ from .domains.dashboard import (
 )
 from .domains.line import router as line_router
 from .domains.ops import router as ops_router
-from .domains.site import favorites_router, guest_matching_router, shops_router
+from .domains.site import (
+    favorites_router,
+    guest_matching_router,
+    matching_router,
+    shops_router,
+)
 from .domains.test import router as test_router
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -161,6 +166,7 @@ app.include_router(guest_matching_router)
 app.include_router(admin_reservations_router)
 app.include_router(auth_router)
 app.include_router(favorites_router)
+app.include_router(matching_router)
 app.include_router(async_tasks_router)
 app.include_router(line_router)
 app.include_router(ops_router)

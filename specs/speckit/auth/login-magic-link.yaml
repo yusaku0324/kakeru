@@ -1,0 +1,43 @@
+id: auth-magic-link-dashboard
+summary: Dashboard login via magic-link request + verify issuing a scoped session.
+domain: auth
+links:
+  - spec: specs/auth/base.md
+  - diff: specs/auth/diffs/85-magic-link-auth.md
+  - diff: specs/auth/diffs/88-split-admin-site-auth.md
+steps:
+  - id: request-link
+    endpoint:
+      method: POST
+      path: /api/auth/request-link
+      headers:
+        Content-Type: application/json
+      body:
+        email: admin@example.com
+        scope: dashboard
+    expect:
+      status: 202
+      json:
+        ok: true
+      notes:
+        - Envelope may include message_id or rate-limit info; accept additional fields.
+  - id: verify-link
+    endpoint:
+      method: POST
+      path: /api/auth/verify
+      headers:
+        Content-Type: application/json
+      body:
+        token: EXAMPLE-TOKEN
+    expect:
+      status: 200
+      json:
+        ok: true
+        scope: dashboard
+      cookies:
+        contains:
+          - name: auth_session
+      notes:
+        - Session cookie name may be scope-specific; accept either site or dashboard cookie names from settings.
+notes:
+  - Happy-path scaffold for #85/#88; token/email to be wired via fixtures when running checks.
