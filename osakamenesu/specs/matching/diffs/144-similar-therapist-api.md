@@ -5,7 +5,7 @@
 - Recommendations rely on manual browsing; similarity to a chosen therapist is not exposed.
 
 ## Change in this issue (diff)
-- Planned: add a read-only endpoint (e.g., `GET /api/guest/matching/similar?therapist_id=...` or `/api/therapists/{id}/similar`) that returns a small list of similar therapists with similarity scores.
+- Planned (not yet implemented): add a read-only endpoint (e.g., `GET /api/guest/matching/similar?therapist_id=...` or `/api/therapists/{id}/similar`) that returns a small list of similar therapists with similarity scores.
 - Planned: compute similarity using existing profile signals (mood/style/look/contact/hobby tags, price level, shop/area proximity) and the same scoring breakdown shape used in matching responses.
 - Planned: response shape mirrors matching candidates (therapist/shop ids, name, tags, optional availability plus score/breakdown) so the frontend can reuse components.
 
@@ -15,5 +15,5 @@
 - Does not alter booking or availability logic; similarity is informational and does not reserve slots.
 
 ## Links
-- Issue: #144
-- Issue URL: https://github.com/osakamenesu/kakeru/issues/144
+- Issue: #144 (https://github.com/osakamenesu/kakeru/issues/144)
+- Status: planned; no implementing PR yet

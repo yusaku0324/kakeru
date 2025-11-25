@@ -1,7 +1,7 @@
 # Diff Spec: Matching score alignment (#143)
 
 ## Current behavior (as of main)
-- Backend `_score_candidate` matches frontend `computeMatchingScore` weights and defaults.
+- Backend `_score_candidate` matches frontend `computeMatchingScore` weights and defaults, including tag-based fits for mood/style/look/talk.
 - Missing tags or preferences default to a neutral 0.5 so incomplete data is not penalized.
 - API responses include a breakdown (`core`, `priceFit`, `moodFit`, `talkFit`, `styleFit`, `lookFit`, `availability`) used for ranking and debugging.
 
@@ -16,6 +16,6 @@
 - Response shape is unchanged beyond the existing breakdown fields.
 
 ## Links
-- Issue: #143
-- Issue URL: https://github.com/osakamenesu/kakeru/issues/143
+- Issue: #143 (https://github.com/osakamenesu/kakeru/issues/143)
+- Implemented by: #147, #146
 - Frontend helper: `osakamenesu/apps/web/src/features/matching/computeMatchingScore.ts`

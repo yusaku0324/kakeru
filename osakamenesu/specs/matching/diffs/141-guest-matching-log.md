@@ -1,14 +1,15 @@
 # Diff Spec: Log guest matching preferences and selections (#141)
 
 ## Current behavior (as of main)
-- Backend matching now records search payloads and results in `guest_match_logs` (created with `GuestMatchLog` model and migration), keyed by guest token when available.
-- Stored fields include area/date/budget, mood/talk/style/look prefs, free_text, top matches and other candidates with scores.
-- When a guest selects a therapist/slot, selection ids/slot details are appended to the same log entry.
-- Logging is best-effort; matching responses are not blocked by log write failures.
+- `GuestMatchLog` table and `_log_matching` helper persist search payloads and ranked candidates (keyed by guest token when available) without blocking responses.
+- Stored fields include area/date/budget, mood/talk/style/look prefs, free_text, and candidate arrays (top + other) with scores/breakdowns.
+- When a guest selects a therapist/slot, selection ids and slot details are appended to the same log entry to close the loop.
+- Logging tolerates missing optional fields and failures; matching responses still return.
 
 ## Change in this issue (diff)
-- Ensure all guest matching entry points invoke the logging helper so searches and selections land in `guest_match_logs` consistently.
-- Keep logging non-blocking and tolerant to missing optional fields; prioritize capturing enough context for analytics/tuning.
+- Added `guest_match_logs` schema + helper to capture search payloads, ranking results, and subsequent selections for analytics/tuning.
+- Wired matching entry points to invoke logging on search and on selection using the request token/guest token for correlation.
+- Kept logging non-blocking and tolerant to partial payloads to avoid impacting user flow.
 
 ## Non-goals
 - No PII beyond an anonymized guest token; do not store emails or phone numbers.
@@ -16,6 +17,6 @@
 - No change to search ranking or response payload besides optional logging.
 
 ## Links
-- Issue: #141
-- Issue URL: https://github.com/osakamenesu/kakeru/issues/141
+- Issue: #141 (https://github.com/osakamenesu/kakeru/issues/141)
+- Implemented by: #148, #149
 - Schema reference: `osakamenesu/services/api/app/models.py` (GuestMatchLog)
