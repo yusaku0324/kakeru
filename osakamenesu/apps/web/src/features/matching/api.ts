@@ -60,18 +60,24 @@ export async function fetchSimilarTherapists(
     search.set('exclude_unavailable', String(excludeUnavailable))
   }
 
-  const resp = await fetch(`/api/guest/matching/similar?${search.toString()}`, {
-    cache: 'no-store',
-  })
+  try {
+    const resp = await fetch(`/api/guest/matching/similar?${search.toString()}`, {
+      cache: 'no-store',
+    })
 
-  if (resp.status === 404) {
+    if (resp.status === 404) {
+      return { baseStaffId: staffId, items: [] }
+    }
+    if (!resp.ok) {
+      console.error('fetchSimilarTherapists failed', resp.status)
+      return { baseStaffId: staffId, items: [] }
+    }
+    const body = await resp.json()
+    const items = Array.isArray(body.items) ? body.items.map(normalizeItem) : []
+    const baseStaffId = body.base_staff_id ?? body.baseStaffId ?? staffId
+    return { baseStaffId, items }
+  } catch (e) {
+    console.error('fetchSimilarTherapists error', e)
     return { baseStaffId: staffId, items: [] }
   }
-  if (!resp.ok) {
-    throw new Error(`fetchSimilarTherapists failed (${resp.status})`)
-  }
-  const body = await resp.json()
-  const items = Array.isArray(body.items) ? body.items.map(normalizeItem) : []
-  const baseStaffId = body.base_staff_id ?? body.baseStaffId ?? staffId
-  return { baseStaffId, items }
 }

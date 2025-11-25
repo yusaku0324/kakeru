@@ -1,0 +1,64 @@
+info:
+  id: matching.search
+  title: Guest matching search v2
+  summary: Search therapists for guests with photo/tag/price/age scoring.
+
+contexts:
+  MatchingSearchQuery:
+    fields:
+      shop_id: { type: string, required: false }
+      date: { type: string, format: date, required: false }
+      start_time: { type: string, required: false }
+      duration_minutes: { type: integer, required: false }
+      mood_tags: { type: array, items: string, required: false }
+      style_tags: { type: array, items: string, required: false }
+      look_types: { type: array, items: string, required: false }
+      contact_styles: { type: array, items: string, required: false }
+      hobby_tags: { type: array, items: string, required: false }
+      price_rank_min: { type: integer, required: false }
+      price_rank_max: { type: integer, required: false }
+      age_min: { type: integer, required: false }
+      age_max: { type: integer, required: false }
+      base_staff_id: { type: string, required: false }
+      sort: { type: string, required: false, default: recommended }
+      limit: { type: integer, required: false, default: 30, maximum: 100, minimum: 1 }
+      offset: { type: integer, required: false, default: 0, minimum: 0 }
+
+entities:
+  MatchingSearchItem:
+    fields:
+      id: string
+      name: string
+      age: { type: integer, required: false, nullable: true }
+      price_rank: { type: integer, required: false, nullable: true }
+      mood_tag: { type: string, required: false, nullable: true }
+      style_tag: { type: string, required: false, nullable: true }
+      look_type: { type: string, required: false, nullable: true }
+      contact_style: { type: string, required: false, nullable: true }
+      hobby_tags:
+        type: array
+        items: string
+      photo_url: { type: string, required: false, nullable: true }
+      is_available: boolean
+      score: number
+      photo_similarity: number
+  MatchingSearchResponse:
+    fields:
+      items:
+        type: array
+        items: MatchingSearchItem
+      total: integer
+
+endpoints:
+  - id: matching.search
+    method: GET
+    path: /api/guest/matching/search
+    query: MatchingSearchQuery
+    response: MatchingSearchResponse
+    notes:
+      - sort=recommended uses v2 scoring: score = 0.60 * photo_score + 0.25 * tag_score + 0.10 * price_score + 0.05 * age_score (clipped 0..1).
+      - photo_score mirrors photo_similarity; when base_staff_id is missing, photo_similarity is neutral 0.5.
+      - tag weights: mood 0.25, style 0.20, look 0.30, contact 0.10, hobby_tags 0.15 (Jaccard; empty/empty => 0.5, one empty => 0.0).
+      - price_score: ideal=(min+max)/2; diff 0=>1.0, 1=>0.6, 2=>0.2, >=3=>0.0; missing =>0.5.
+      - age_score: ideal=(min+max)/2; 1 - |diff|/15; missing =>0.5.
+      - Candidates filtered by existing availability/profile visibility; score/tie-break only apply when sort=recommended.

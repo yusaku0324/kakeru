@@ -96,13 +96,15 @@ entities:
 
 endpoints:
   - id: matching.search
-    method: POST
+    method: GET
     path: /api/guest/matching/search
-    request: MatchingRequest
-    response: MatchingResponse
+    request: null
+    query: MatchingSearchQuery
+    response: MatchingSearchResponse
     notes:
-      - Scoring weights: core 0.4, priceFit 0.15, moodFit 0.15, talkFit 0.1, styleFit 0.1, lookFit 0.05, availability 0.05; missing signals are treated as neutral 0.5.
-      - Tags used in scoring: mood/style/look/talk. contact_style/hobby_tags are included for display/logging but are not currently scored.
+      - Scoring v2 (sort=recommended): score = 0.60 * photo_score + 0.25 * tag_score + 0.10 * price_score + 0.05 * age_score (clipped 0..1).
+      - photo_similarity is 0.5 when base_staff_id is missing; otherwise computed via embeddings (TODO).
+      - Non-recommended sorts keep existing ordering and may ignore score.
   - id: matching.similar
     method: GET
     path: /api/guest/matching/similar

@@ -75,16 +75,42 @@ export default function MatchChatPage() {
     setError(null)
     setResult(null)
     try {
-      const resp = await fetch('/api/guest/matching/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const params = new URLSearchParams()
+      params.set('area', area)
+      params.set('date', date)
+      params.set('sort', 'recommended')
+      if (budget) params.set('budget_level', budget)
+      if (freeText) params.set('free_text', freeText)
+
+      const resp = await fetch(`/api/guest/matching/search?${params.toString()}`, {
+        method: 'GET',
       })
       if (!resp.ok) {
-        throw new Error(`Request failed (${resp.status})`)
+        console.error('match-chat search failed', resp.status)
+        setError('おすすめ取得に失敗しました。時間をおいて再度お試しください。')
+        return
       }
-      const data = (await resp.json()) as MatchingResponse
-      setResult(data)
+      const data = await resp.json()
+      const items = Array.isArray(data.items) ? data.items : []
+      const top_matches: MatchingCandidate[] = items.slice(0, 3).map((m: any) => ({
+        therapist_id: m.therapist_id || m.id || '',
+        therapist_name: m.therapist_name || m.name || '',
+        shop_id: m.shop_id || '',
+        shop_name: m.shop_name || '',
+        score: m.score ?? 0,
+        summary: m.summary,
+        slots: m.slots || [],
+      }))
+      const other_candidates: MatchingCandidate[] = items.slice(3).map((m: any) => ({
+        therapist_id: m.therapist_id || m.id || '',
+        therapist_name: m.therapist_name || m.name || '',
+        shop_id: m.shop_id || '',
+        shop_name: m.shop_name || '',
+        score: m.score ?? 0,
+        summary: m.summary,
+        slots: m.slots || [],
+      }))
+      setResult({ top_matches, other_candidates })
     } catch (err) {
       setError('おすすめ取得に失敗しました。時間をおいて再度お試しください。')
       console.error(err)

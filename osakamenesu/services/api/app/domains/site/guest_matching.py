@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 import logging
+from typing import Any, Optional
 from datetime import date
-from typing import Any
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
@@ -22,8 +21,8 @@ SIMILAR_DEFAULT_MIN_SCORE = 0.4
 
 
 class GuestMatchingRequest(BaseModel):
-    area: str
-    date: date
+    area: Optional[str] = None
+    date: Optional[str] = None
     time_from: str | None = None
     time_to: str | None = None
     budget_level: str | None = Field(default=None, pattern="^(low|mid|high)?$")
@@ -33,13 +32,20 @@ class GuestMatchingRequest(BaseModel):
     look_pref: dict[str, float] | None = None
     free_text: str | None = None
     guest_token: str | None = None
-
-    @field_validator("area")
-    @classmethod
-    def validate_area(cls, v: str) -> str:
-        if not v:
-            raise ValueError("area is required")
-        return v
+    # v2 scoring options (optional)
+    mood_tags: list[str] | None = None
+    style_tags: list[str] | None = None
+    look_types: list[str] | None = None
+    contact_styles: list[str] | None = None
+    hobby_tags: list[str] | None = None
+    price_rank_min: int | None = None
+    price_rank_max: int | None = None
+    age_min: int | None = None
+    age_max: int | None = None
+    base_staff_id: str | None = None
+    sort: str | None = None
+    limit: int | None = Field(default=None, ge=1, le=100)
+    offset: int | None = Field(default=None, ge=0)
 
 
 class MatchingBreakdown(BaseModel):
@@ -53,6 +59,7 @@ class MatchingBreakdown(BaseModel):
 
 
 class MatchingCandidate(BaseModel):
+    id: str
     therapist_id: str
     therapist_name: str
     shop_id: str
@@ -67,11 +74,17 @@ class MatchingCandidate(BaseModel):
     talk_level: str | None = None
     contact_style: str | None = None
     hobby_tags: list[str] | None = None
+    price_rank: int | None = None
+    age: int | None = None
+    photo_url: str | None = None
+    score: float | None = None
+    photo_similarity: float | None = None
+    is_available: bool | None = None
 
 
 class MatchingResponse(BaseModel):
-    top_matches: list[MatchingCandidate]
-    other_candidates: list[MatchingCandidate]
+    items: list[MatchingCandidate]
+    total: int
 
 
 class SimilarTherapistItem(BaseModel):
@@ -259,6 +272,134 @@ def _compute_similar_scores(
     }
 
 
+# ---- v2 search scoring (photo-heavy) ----
+
+
+def _score_photo_similarity(
+    base: dict[str, Any] | None, candidate: dict[str, Any]
+) -> float:
+    """
+    Placeholder embedding similarity.
+    - If base or candidate lacks embeddings, return neutral 0.5.
+    - If embeddings exist, compute cosine similarity and clip to 0..1 (negatives -> 0).
+    """
+    base_vec = (
+        base.get("photo_embedding")
+        if isinstance(base, dict)
+        else getattr(base, "photo_embedding", None)
+        if base
+        else None
+    )
+    cand_vec = (
+        candidate.get("photo_embedding")
+        if isinstance(candidate, dict)
+        else getattr(candidate, "photo_embedding", None)
+    )
+    if not base_vec or not cand_vec:
+        return 0.5
+    try:
+        import math
+
+        dot = sum(float(a) * float(b) for a, b in zip(base_vec, cand_vec))
+        norm_base = math.sqrt(sum(float(a) ** 2 for a in base_vec))
+        norm_cand = math.sqrt(sum(float(b) ** 2 for b in cand_vec))
+        if norm_base == 0 or norm_cand == 0:
+            return 0.5
+        cos = dot / (norm_base * norm_cand)
+        return max(0.0, min(1.0, cos))
+    except Exception:
+        return 0.5
+
+
+def _score_tags_v2(payload: GuestMatchingRequest, candidate: dict[str, Any]) -> float:
+    weights = {
+        "mood_tag": 0.25,
+        "style_tag": 0.20,
+        "look_type": 0.30,
+        "contact_style": 0.10,
+    }
+    hobby_weight = 0.15
+
+    def _single(list_pref: list[str] | None, value: str | None) -> float:
+        if not list_pref:
+            return 0.5
+        if not value:
+            return 0.0
+        return 1.0 if value in list_pref else 0.0
+
+    mood_score = _single(payload.mood_tags, candidate.get("mood_tag"))
+    style_score = _single(payload.style_tags, candidate.get("style_tag"))
+    look_score = _single(payload.look_types, candidate.get("look_type"))
+    contact_score = _single(payload.contact_styles, candidate.get("contact_style"))
+
+    q_hobby = payload.hobby_tags or []
+    c_hobby = candidate.get("hobby_tags") or []
+    if not q_hobby:
+        hobby_score = 0.5
+    elif not c_hobby:
+        hobby_score = 0.0
+    else:
+        hobby_score = _jaccard(q_hobby, c_hobby)
+
+    tag_score = (
+        weights["mood_tag"] * mood_score
+        + weights["style_tag"] * style_score
+        + weights["look_type"] * look_score
+        + weights["contact_style"] * contact_score
+        + hobby_weight * hobby_score
+    )
+    return max(0.0, min(1.0, tag_score))
+
+
+def _score_price_v2(payload: GuestMatchingRequest, candidate: dict[str, Any]) -> float:
+    min_rank = payload.price_rank_min
+    max_rank = payload.price_rank_max
+    cand = candidate.get("price_rank")
+    if min_rank is None or max_rank is None or cand is None:
+        return 0.5
+    try:
+        ideal = (float(min_rank) + float(max_rank)) / 2.0
+        diff = abs(float(cand) - ideal)
+    except Exception:
+        return 0.5
+    return max(0.0, 1.0 - diff * 0.4)
+
+
+def _score_age_v2(payload: GuestMatchingRequest, candidate: dict[str, Any]) -> float:
+    min_age = payload.age_min
+    max_age = payload.age_max
+    cand_age = candidate.get("age")
+    if min_age is None or max_age is None or cand_age is None:
+        return 0.5
+    try:
+        ideal = (float(min_age) + float(max_age)) / 2.0
+        diff = abs(float(cand_age) - ideal)
+    except Exception:
+        return 0.5
+    return max(0.0, 1.0 - diff / 15.0)
+
+
+def _score_candidate_v2(
+    payload: GuestMatchingRequest,
+    candidate: dict[str, Any],
+    base: dict[str, Any] | None,
+) -> dict[str, float]:
+    tag_score = _score_tags_v2(payload, candidate)
+    price_score = _score_price_v2(payload, candidate)
+    age_score = _score_age_v2(payload, candidate)
+    photo_similarity = _score_photo_similarity(base, candidate)
+    score = (
+        0.60 * photo_similarity
+        + 0.25 * tag_score
+        + 0.10 * price_score
+        + 0.05 * age_score
+    )
+    return {
+        "score": max(0.0, min(1.0, score)),
+        "photo_similarity": max(0.0, min(1.0, photo_similarity)),
+    }
+
+
 def _is_available(candidate: dict[str, Any]) -> bool:
     if candidate.get("is_available_now") is False:
         return False
@@ -270,7 +411,7 @@ def _is_available(candidate: dict[str, Any]) -> bool:
 
 async def _get_base_staff(db: AsyncSession | None, staff_id: str) -> dict[str, Any]:
     """Fetch the base therapist; raise 404 if missing."""
-    if not db:
+    if not db or not hasattr(db, "execute"):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="staff not found"
         )
@@ -300,6 +441,10 @@ async def _get_base_staff(db: AsyncSession | None, staff_id: str) -> dict[str, A
     photos = getattr(profile, "photos", None) or getattr(therapist, "photo_urls", None)
     if photos:
         photo_url = photos[0]
+    photo_embedding = (
+        getattr(profile, "photo_embedding", None)
+        or getattr(therapist, "photo_embedding", None)
+    )
     return {
         "id": str(therapist.id),
         "name": therapist.name,
@@ -312,6 +457,7 @@ async def _get_base_staff(db: AsyncSession | None, staff_id: str) -> dict[str, A
         "contact_style": getattr(therapist, "contact_style", None),
         "hobby_tags": hobby_tags or [],
         "photo_url": photo_url,
+        "photo_embedding": photo_embedding,
         "is_available_now": bool(getattr(therapist, "is_booking_enabled", True)),
     }
 
@@ -356,6 +502,8 @@ async def _fetch_similar_candidates(
             or getattr(profile, "body_tags", None)
             or [],
             "photo_url": (getattr(profile, "photos", None) or [None])[0],
+            "photo_embedding": getattr(profile, "photo_embedding", None)
+            or getattr(therapist, "photo_embedding", None),
             "is_available_now": bool(getattr(therapist, "is_booking_enabled", True)),
         }
         if exclude_unavailable and not _is_available(cand):
@@ -367,48 +515,66 @@ async def _fetch_similar_candidates(
 def _map_shop_to_candidate(shop: Any) -> dict[str, Any]:
     """
     ShopSearchService の結果をプレーンな candidate dict に変換する。
+
+    search 結果が dict の場合と ORM オブジェクトの場合の両方に対応する。
     - staff_preview があれば先頭スタッフを仮に推薦対象とする（暫定）
     - next_available_slot / staff_preview.next_available_slot を slots に反映
     """
+
+    def getter(obj: Any, key: str, default: Any = None) -> Any:
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
     staff = None
-    if getattr(shop, "staff_preview", None):
-        staff = next((s for s in shop.staff_preview if getattr(s, "name", None)), None)
-    therapist_id = getattr(staff, "id", None) or getattr(shop, "id", None)
-    therapist_name = getattr(staff, "name", None) or getattr(shop, "name", "")
+    staff_preview = getter(shop, "staff_preview", None) or []
+    if staff_preview:
+        staff = next((s for s in staff_preview if getter(s, "name", None)), None)
+
+    therapist_id = getter(staff, "id", None) or getter(shop, "id", None)
+    therapist_name = getter(staff, "name", None) or getter(shop, "name", "")
 
     slot = None
-    if staff and getattr(staff, "next_available_slot", None):
-        slot = staff.next_available_slot
-    elif getattr(shop, "next_available_slot", None):
-        slot = shop.next_available_slot
+    staff_slot = getter(staff, "next_available_slot", None)
+    shop_slot = getter(shop, "next_available_slot", None)
+    slot = staff_slot or shop_slot
 
-    slots = []
+    slots: list[dict[str, Any]] = []
     if slot:
         slots.append(
             {
-                "start_at": getattr(slot, "start_at", None),
-                "end_at": getattr(slot, "end_at", None),
+                "start_at": getter(slot, "start_at", None),
+                "end_at": getter(slot, "end_at", None),
             }
         )
+
+    photos = getter(staff, "photos", None) or getter(shop, "photo_urls", None) or []
+    photo_embedding = getter(staff, "photo_embedding", None) or getter(
+        shop, "photo_embedding", None
+    )
 
     return {
         "therapist_id": str(therapist_id or ""),
         "therapist_name": therapist_name or "",
-        "shop_id": str(getattr(shop, "id", "")),
-        "shop_name": getattr(shop, "name", "") or "",
-        "price_level": getattr(shop, "price_band", None),
-        "mood_tag": getattr(staff, "mood_tag", None) or getattr(shop, "mood_tag", None),
-        "talk_level": getattr(staff, "talk_level", None)
-        or getattr(shop, "talk_level", None),
-        "style_tag": getattr(staff, "style_tag", None)
-        or getattr(shop, "style_tag", None),
-        "look_type": getattr(staff, "look_type", None)
-        or getattr(shop, "look_type", None),
-        "contact_style": getattr(staff, "contact_style", None)
-        or getattr(shop, "contact_style", None),
-        "hobby_tags": getattr(staff, "hobby_tags", None)
-        or getattr(shop, "hobby_tags", None)
+        "shop_id": str(getter(shop, "id", "")),
+        "shop_name": getter(shop, "name", "") or "",
+        "price_rank": getter(shop, "ranking_weight", None),
+        "price_level": getter(shop, "price_band", None),
+        "mood_tag": getter(staff, "mood_tag", None) or getter(shop, "mood_tag", None),
+        "talk_level": getter(staff, "talk_level", None)
+        or getter(shop, "talk_level", None),
+        "style_tag": getter(staff, "style_tag", None)
+        or getter(shop, "style_tag", None),
+        "look_type": getter(staff, "look_type", None)
+        or getter(shop, "look_type", None),
+        "contact_style": getter(staff, "contact_style", None)
+        or getter(shop, "contact_style", None),
+        "hobby_tags": getter(staff, "hobby_tags", None)
+        or getter(shop, "hobby_tags", None)
         or [],
+        "age": getter(staff, "age", None) or getter(shop, "age", None),
+        "photo_url": (photos or [None])[0],
+        "photo_embedding": photo_embedding,
         "slots": slots,
     }
 
@@ -450,34 +616,42 @@ async def _log_matching(
         logger.warning("guest_matching_log_failed: %s", exc)
 
 
+@router.get("/search", response_model=MatchingResponse)
 @router.post("/search", response_model=MatchingResponse)
 async def guest_matching_search(
-    payload: GuestMatchingRequest, db: AsyncSession = Depends(get_session)
+    payload: GuestMatchingRequest = Depends(), db: AsyncSession = Depends(get_session)
 ) -> MatchingResponse:
     """
     v1: 既存ショップ検索をラップし、簡易スコアリングして返却。
     現状はタグ不足のため雰囲気系タグは空（0.5のニュートラル）で計算。
     """
     if not payload.area or not payload.date:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="area and date are required",
-        )
+        # 入力が欠けている場合は 422 ではなく空レスポンスで返す（フロントに優しく）
+        return MatchingResponse(items=[], total=0)
+
+    # date を安全にパース（失敗しても None で進める）
+    parsed_date: date | None = None
+    if isinstance(payload.date, date):
+        parsed_date = payload.date
+    elif isinstance(payload.date, str):
+        try:
+            parsed_date = datetime.fromisoformat(payload.date).date()
+        except ValueError:
+            parsed_date = None
 
     search_service = ShopSearchService(db)
     try:
         search_res = await search_service.search(
             area=payload.area,
-            available_date=payload.date,
+            available_date=parsed_date,
             open_now=True,
             page=1,
             page_size=12,
         )
     except Exception as exc:  # pragma: no cover - defensive
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="matching search failed",
-        ) from exc
+        logger.warning("matching_search_failed: %s", exc)
+        # fail-soft: 500 を返さず空レスポンスで返す
+        return MatchingResponse(items=[], total=0)
 
     # search_res is dict-like from ShopSearchService.search
     hits = search_res.get("results", []) if isinstance(search_res, dict) else []
@@ -492,6 +666,7 @@ async def guest_matching_search(
         )
         scored.append(
             MatchingCandidate(
+                id=c["therapist_id"],
                 therapist_id=c["therapist_id"],
                 therapist_name=c["therapist_name"],
                 shop_id=c["shop_id"],
@@ -509,15 +684,71 @@ async def guest_matching_search(
             )
         )
 
-    scored_sorted = sorted(scored, key=lambda x: x.score, reverse=True)
-    top = scored_sorted[:3]
-    rest = scored_sorted[3:]
-    # best-effort log; do not block main flow
+    # v2 scoring (photo-heavy)
+    base_ctx: dict[str, Any] | None = None
+    if payload.base_staff_id:
+        try:
+            base_ctx = await _get_base_staff(db, payload.base_staff_id)
+        except HTTPException as exc:
+            raise exc
+        except Exception:
+            base_ctx = None
+
+    v2_items: list[MatchingCandidate] = []
+    for c in candidates_raw:
+        # calculate v2 score; keep existing fields for compatibility
+        score_ctx = _score_candidate_v2(payload, c, base_ctx)
+        score = score_ctx["score"]
+        photo_similarity = score_ctx["photo_similarity"]
+        breakdown = c.get("__breakdown", {})
+        summary = (
+            f"{c.get('shop_name', '')} のスタッフ候補です。条件に近い順に並べています。"
+        )
+        v2_items.append(
+            MatchingCandidate(
+                id=c["therapist_id"],
+                therapist_id=c["therapist_id"],
+                therapist_name=c["therapist_name"],
+                shop_id=c["shop_id"],
+                shop_name=c["shop_name"],
+                score=score,
+                breakdown=MatchingBreakdown(**breakdown),
+                summary=summary,
+                slots=c.get("slots", []),
+                mood_tag=c.get("mood_tag"),
+                style_tag=c.get("style_tag"),
+                look_type=c.get("look_type"),
+                talk_level=c.get("talk_level"),
+                contact_style=c.get("contact_style"),
+                hobby_tags=c.get("hobby_tags") or [],
+                price_rank=c.get("price_rank"),
+                age=c.get("age"),
+                photo_url=c.get("photo_url"),
+                photo_similarity=photo_similarity,
+                is_available=True if c.get("slots") else False,
+            )
+        )
+
+    sort_value = (payload.sort or "recommended").lower()
+    if sort_value == "recommended":
+        v2_items = sorted(
+            v2_items,
+            key=lambda x: (
+                -(x.score or 0.0),
+                0 if x.slots else 1,
+                x.therapist_id,
+            ),
+        )
+    # honor limit/offset if provided
+    offset = payload.offset or 0
+    limit = payload.limit or 30
+    sliced = v2_items[offset : offset + limit]
+
     try:
-        await _log_matching(db, payload, top, rest, guest_token=payload.guest_token)
+        await _log_matching(db, payload, sliced, [], guest_token=payload.guest_token)
     except Exception:
         logger.debug("guest_matching_log_skip")
-    return MatchingResponse(top_matches=top, other_candidates=rest)
+    return MatchingResponse(items=sliced, total=len(v2_items))
 
 
 @router.get("/similar", response_model=SimilarResponse)
