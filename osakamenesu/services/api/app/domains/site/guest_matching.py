@@ -753,7 +753,12 @@ async def guest_matching_search(
 
 @router.get("/similar", response_model=SimilarResponse)
 async def guest_matching_similar(
-    staff_id: str = Query(..., description="Base staff/therapist id"),
+    staff_id: str = Query(
+        default=None, description="Base staff/therapist id (alias: therapist_id)"
+    ),
+    therapist_id: str | None = Query(
+        default=None, description="Deprecated alias for staff_id"
+    ),
     limit: int = Query(
         SIMILAR_DEFAULT_LIMIT,
         ge=1,
@@ -775,6 +780,11 @@ async def guest_matching_similar(
     ),
     db: AsyncSession = Depends(get_session),
 ) -> SimilarResponse:
+    base_id = staff_id or therapist_id
+    if not base_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="staff_id_required")
+    staff_id = base_id
+
     base = await _get_base_staff(db, staff_id)
     pool = await _fetch_similar_candidates(
         db,
