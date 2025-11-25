@@ -331,3 +331,174 @@ def test_score_matches_reference_formula(matching_module) -> None:
         )
 
     assert backend_score == pytest.approx(_reference_score())
+
+
+# ---- Similar therapists (GET /api/guest/matching/similar) ----
+
+
+def _make_similar_base():
+    return {
+        "id": "base-1",
+        "name": "Base Therapist",
+        "shop_id": "shop-1",
+        "age": 25,
+        "price_rank": 2,
+        "mood_tag": "calm",
+        "style_tag": "relax",
+        "look_type": "natural",
+        "contact_style": "gentle",
+        "hobby_tags": ["anime", "cafe"],
+        "photo_url": "https://example.com/base.jpg",
+        "is_available_now": True,
+    }
+
+
+def test_similar_basic_response(monkeypatch, matching_module):
+    base = _make_similar_base()
+    candidates = [
+        {**base, "id": "c1", "name": "Cand 1", "price_rank": 2, "age": 24},
+        {**base, "id": "c2", "name": "Cand 2", "price_rank": 3, "age": 30},
+    ]
+
+    async def fake_get_base(db, staff_id):
+        assert staff_id == "base-1"
+        return base
+
+    async def fake_fetch(db, base, shop_id, exclude_unavailable, limit):
+        return candidates
+
+    monkeypatch.setattr(matching_module, "_get_base_staff", fake_get_base)
+    monkeypatch.setattr(matching_module, "_fetch_similar_candidates", fake_fetch)
+
+    app = FastAPI()
+    app.include_router(matching_module.router)
+    with TestClient(app) as test_client:
+        resp = test_client.get(
+            "/api/guest/matching/similar", params={"staff_id": "base-1", "limit": 2}
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["base_staff_id"] == "base-1"
+        assert len(body["items"]) <= 2
+        assert all(item["id"] != "base-1" for item in body["items"])
+
+
+def test_similar_orders_by_score(monkeypatch, matching_module):
+    base = _make_similar_base()
+    strong_match = {**base, "id": "strong", "name": "Strong Match"}
+    weaker = {
+        **base,
+        "id": "weak",
+        "name": "Weak Match",
+        "mood_tag": "mismatch",
+        "style_tag": "mismatch",
+        "hobby_tags": ["golf"],
+    }
+
+    async def fake_get_base(db, staff_id):
+        return base
+
+    async def fake_fetch(db, base, shop_id, exclude_unavailable, limit):
+        return [weaker, strong_match]
+
+    monkeypatch.setattr(matching_module, "_get_base_staff", fake_get_base)
+    monkeypatch.setattr(matching_module, "_fetch_similar_candidates", fake_fetch)
+
+    app = FastAPI()
+    app.include_router(matching_module.router)
+    with TestClient(app) as test_client:
+        resp = test_client.get(
+            "/api/guest/matching/similar", params={"staff_id": "base-1", "limit": 5}
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["items"][0]["id"] == "strong"
+
+
+def test_similar_respects_min_score(monkeypatch, matching_module):
+    base = _make_similar_base()
+    low_score = {
+        **base,
+        "id": "low",
+        "name": "Low",
+        "mood_tag": "off",
+        "style_tag": "off",
+        "hobby_tags": [],
+    }
+    mid_score = {**base, "id": "mid", "name": "Mid"}
+
+    async def fake_get_base(db, staff_id):
+        return base
+
+    async def fake_fetch(db, base, shop_id, exclude_unavailable, limit):
+        return [low_score, mid_score]
+
+    monkeypatch.setattr(matching_module, "_get_base_staff", fake_get_base)
+    monkeypatch.setattr(matching_module, "_fetch_similar_candidates", fake_fetch)
+
+    app = FastAPI()
+    app.include_router(matching_module.router)
+    with TestClient(app) as test_client:
+        resp = test_client.get(
+            "/api/guest/matching/similar",
+            params={"staff_id": "base-1", "min_score": 0.7, "limit": 5},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        ids = [item["id"] for item in body["items"]]
+        assert "low" not in ids
+        assert "mid" in ids
+
+
+def test_similar_exclude_unavailable(monkeypatch, matching_module):
+    base = _make_similar_base()
+    unavailable = {**base, "id": "u1", "name": "Unavailable", "is_available_now": False}
+    available = {**base, "id": "a1", "name": "Available", "is_available_now": True}
+
+    async def fake_get_base(db, staff_id):
+        return base
+
+    async def fake_fetch(db, base, shop_id, exclude_unavailable, limit):
+        return [unavailable, available]
+
+    monkeypatch.setattr(matching_module, "_get_base_staff", fake_get_base)
+    monkeypatch.setattr(matching_module, "_fetch_similar_candidates", fake_fetch)
+
+    app = FastAPI()
+    app.include_router(matching_module.router)
+    with TestClient(app) as test_client:
+        resp = test_client.get(
+            "/api/guest/matching/similar",
+            params={"staff_id": "base-1", "exclude_unavailable": True, "limit": 5},
+        )
+        assert resp.status_code == 200
+        ids = [item["id"] for item in resp.json()["items"]]
+        assert "u1" not in ids
+        assert "a1" in ids
+
+        resp_include = test_client.get(
+            "/api/guest/matching/similar",
+            params={"staff_id": "base-1", "exclude_unavailable": False, "limit": 5},
+        )
+        assert resp_include.status_code == 200
+        ids_include = [item["id"] for item in resp_include.json()["items"]]
+        assert "u1" in ids_include
+
+
+def test_similar_invalid_staff_returns_404(monkeypatch, matching_module):
+    async def fake_get_base(db, staff_id):
+        raise matching_module.HTTPException(status_code=404, detail="staff not found")
+
+    async def fake_fetch(db, base, shop_id, exclude_unavailable, limit):
+        return []
+
+    monkeypatch.setattr(matching_module, "_get_base_staff", fake_get_base)
+    monkeypatch.setattr(matching_module, "_fetch_similar_candidates", fake_fetch)
+
+    app = FastAPI()
+    app.include_router(matching_module.router)
+    with TestClient(app) as test_client:
+        resp = test_client.get(
+            "/api/guest/matching/similar", params={"staff_id": "missing"}
+        )
+        assert resp.status_code == 404

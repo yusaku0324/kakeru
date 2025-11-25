@@ -1,0 +1,53 @@
+info:
+  id: matching.similar
+  title: Similar therapist recommendations
+  summary: Returns therapists similar to a given staff/therapist id.
+
+contexts:
+  SimilarQuery:
+    fields:
+      staff_id: { type: string, required: true }
+      limit: { type: integer, required: false, default: 8, maximum: 20, minimum: 1 }
+      shop_id: { type: string, required: false }
+      exclude_unavailable: { type: boolean, required: false, default: true }
+      min_score: { type: number, required: false, default: 0.4 }
+
+entities:
+  SimilarTherapistItem:
+    fields:
+      id: string
+      name: string
+      age: { type: integer, required: false, nullable: true }
+      price_rank: { type: integer, required: false, nullable: true }
+      mood_tag: { type: string, required: false, nullable: true }
+      style_tag: { type: string, required: false, nullable: true }
+      look_type: { type: string, required: false, nullable: true }
+      contact_style: { type: string, required: false, nullable: true }
+      hobby_tags:
+        type: array
+        items: string
+      photo_url: { type: string, required: false, nullable: true }
+      is_available_now: boolean
+      score: number
+      photo_similarity: number
+      tag_similarity: number
+  SimilarResponse:
+    fields:
+      base_staff_id: string
+      items:
+        type: array
+        items: SimilarTherapistItem
+
+endpoints:
+  - id: matching.similar
+    method: GET
+    path: /api/guest/matching/similar
+    query: SimilarQuery
+    response: SimilarResponse
+    notes:
+      - Final score = 0.6 * photo_similarity + 0.2 * tag_similarity + 0.1 * price_score + 0.1 * age_score (clipped to 0..1).
+      - tag_similarity weights: mood 0.30, style 0.25, look 0.25, contact 0.10, hobby_tags 0.10 (Jaccard).
+      - price_score: diff of price_rank scaled (diff 0 =>1.0, diff 1 =>0.6, diff 2 =>0.2, diff>=3 =>0.0; missing =>0.5).
+      - age_score: 1 - |age diff| / 15 (missing =>0.5).
+      - photo_similarity is reserved for embedding; v1 mirrors tag_similarity.
+      - Candidates with score < min_score or base_staff_id are excluded; tie-break prefers same shop then id asc.
