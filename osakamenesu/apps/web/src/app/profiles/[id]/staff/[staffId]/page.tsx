@@ -13,6 +13,7 @@ import { TherapistSchedule } from '@/features/therapist/ui/TherapistSchedule'
 import { buildStaffIdentifier, staffMatchesIdentifier, slugifyStaffIdentifier } from '@/lib/staff'
 import { toLocalDateISO } from '@/lib/date'
 import { getJaFormatter } from '@/utils/date'
+import { SimilarTherapistsSection } from '@/features/matching/ui/SimilarTherapistsSection'
 import { fetchShop, type ShopDetail, type StaffSummary } from '../../page'
 
 function findStaff(shop: ShopDetail, staffId: string): StaffSummary | null {
@@ -536,6 +537,8 @@ export default async function StaffProfilePage({ params, searchParams }: StaffPa
             allowDemoSubmission={allowDemoSubmission}
           />
         </Card>
+
+        <SimilarTherapistsSection baseStaffId={staffId} />
 
         {otherStaff.length ? (
           <Section
