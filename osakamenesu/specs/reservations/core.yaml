@@ -1,0 +1,90 @@
+info:
+  id: reservations.core
+  title: Reservations domain core contract
+  summary: Guest reservation create/cancel flows and basic entities.
+
+contexts:
+  ReservationRequest:
+    description: Guest-initiated reservation payload.
+    fields:
+      guest_id: { type: string, required: false, description: "Registered guest ID if available" }
+      guest_token: { type: string, required: false, description: "Anonymous guest token" }
+      profile_id: { type: string, required: false, description: "Shop/profile ID" }
+      therapist_id: { type: string, required: false }
+      date: { type: string, format: date, required: true }
+      slot:
+        type: object
+        required: true
+        properties:
+          start_at: { type: string, format: date-time }
+          end_at: { type: string, format: date-time }
+      menu_id: { type: string, required: false }
+      price: { type: number, required: false }
+      payment_method: { type: string, required: false, description: "e.g. cash, card (v1 as free text)" }
+      contact_info: { type: object, required: false, description: "email/phone/line_id etc." }
+      notes: { type: string, required: false }
+
+  ReservationCancelRequest:
+    description: Request to cancel an existing reservation.
+    fields:
+      reservation_id: { type: string, required: true }
+      reason: { type: string, required: false }
+      actor: { type: string, enum: [guest, staff, admin], required: true }
+
+entities:
+  Reservation:
+    fields:
+      id: string
+      guest_id: string
+      guest_token: string
+      profile_id: string
+      therapist_id: string
+      status: { type: string, enum: [pending, confirmed, cancelled] }
+      slot:
+        type: object
+        properties:
+          start_at: string
+          end_at: string
+      price: number
+      menu_id: string
+      contact_info: object
+      notes: string
+      created_at: string
+      updated_at: string
+
+endpoints:
+  - id: reservations.create
+    method: POST
+    path: /api/guest/reservations
+    request: ReservationRequest
+    response: Reservation
+    notes:
+      - v1 status may be set to confirmed immediately if no manual approval flow exists; pending is also acceptable but must be reflected consistently in tests.
+      - Duplicate detection: same therapist_id AND identical slot (start/end) should return 400/409.
+  - id: reservations.cancel
+    method: POST
+    path: /api/guest/reservations/{id}/cancel
+    request: ReservationCancelRequest
+    response:
+      type: object
+      properties:
+        ok: boolean
+        status: string
+    notes:
+      - Idempotent cancel: repeated cancel calls should still return ok with status=cancelled.
+  - id: reservations.detail
+    method: GET
+    path: /api/guest/reservations/{id}
+    response: Reservation
+    notes:
+      - Optional in v1; can be implemented after create/cancel.
+
+flow:
+  statuses: |
+    create -> pending or confirmed (v1 may auto-confirm).
+    pending/confirmed -> cancelled when cancelled by guest/staff/admin.
+  stock_check: |
+    v1: reject exact duplicate slot for the same therapist_id.
+    Advanced shift/inventory logic is out of scope for v1.
+  scope_notes: |
+    Payments, notifications, and approval workflows are out-of-scope for v1 and can be added later.
