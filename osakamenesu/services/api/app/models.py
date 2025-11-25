@@ -34,6 +34,9 @@ TherapistStatus = Enum('draft', 'published', 'archived', name='therapist_status'
 ServiceType = Enum('store', 'dispatch', name='service_type')
 ReservationStatus = Enum('pending', 'confirmed', 'declined', 'cancelled', 'expired', name='reservation_status')
 ReservationSlotStatus = Enum('open', 'tentative', 'blocked', name='reservation_slot_status')
+GuestReservationStatus = Enum(
+    'draft', 'pending', 'confirmed', 'cancelled', 'no_show', name='guest_reservation_status'
+)
 RESERVATION_NOTIFICATION_CHANNEL_KEYS = ('email', 'slack', 'line', 'log')
 RESERVATION_NOTIFICATION_STATUS_KEYS = ('pending', 'in_progress', 'succeeded', 'failed', 'cancelled')
 RESERVATION_NOTIFICATION_ATTEMPT_STATUS_KEYS = ('success', 'failure')
@@ -532,3 +535,35 @@ class ReservationNotificationAttempt(Base):
     status_option: Mapped['ReservationNotificationAttemptStatusOption'] = relationship(back_populates='attempts')
 
     delivery: Mapped['ReservationNotificationDelivery'] = relationship(back_populates='attempts')
+
+
+
+class GuestReservation(Base):
+    __tablename__ = 'guest_reservations'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey('profiles.id', ondelete='CASCADE'), index=True, nullable=False
+    )
+    therapist_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey('therapists.id', ondelete='SET NULL'), index=True, nullable=True
+    )
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    course_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    payment_method: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    contact_info: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    guest_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        GuestReservationStatus, nullable=False, index=True, default='pending'
+    )
+    base_staff_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('therapist_id', 'start_at', 'end_at', name='uq_guest_reservations_therapist_slot'),
+    )
