@@ -228,6 +228,20 @@ def test_search_v2_handles_missing_fields(monkeypatch, matching_module):
     assert 0.0 <= item.get("photo_similarity", 0) <= 1.0
 
 
+def test_search_returns_empty_when_area_or_date_missing(matching_module):
+    app = FastAPI()
+    app.include_router(matching_module.router)
+    client = TestClient(app)
+
+    resp = client.get("/api/guest/matching/search", params={"area": "osaka"})
+    assert resp.status_code == 200
+    assert resp.json() == {"items": [], "total": 0}
+
+    resp = client.get("/api/guest/matching/search", params={"date": "2025-01-01"})
+    assert resp.status_code == 200
+    assert resp.json() == {"items": [], "total": 0}
+
+
 def test_search_handles_search_service_failure(monkeypatch, matching_module):
     """ShopSearchService.search が落ちても 500 にせず空レスポンスで返す。"""
 

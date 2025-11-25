@@ -1,8 +1,5 @@
-from __future__ import annotations
-
 import logging
-from datetime import date
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
@@ -22,8 +19,8 @@ SIMILAR_DEFAULT_MIN_SCORE = 0.4
 
 
 class GuestMatchingRequest(BaseModel):
-    area: str
-    date: date
+    area: Optional[str] = None
+    date: Optional[str] = None
     time_from: str | None = None
     time_to: str | None = None
     budget_level: str | None = Field(default=None, pattern="^(low|mid|high)?$")
@@ -47,13 +44,6 @@ class GuestMatchingRequest(BaseModel):
     sort: str | None = None
     limit: int | None = Field(default=None, ge=1, le=100)
     offset: int | None = Field(default=None, ge=0)
-
-    @field_validator("area")
-    @classmethod
-    def validate_area(cls, v: str) -> str:
-        if not v:
-            raise ValueError("area is required")
-        return v
 
 
 class MatchingBreakdown(BaseModel):
@@ -623,10 +613,8 @@ async def guest_matching_search(
     現状はタグ不足のため雰囲気系タグは空（0.5のニュートラル）で計算。
     """
     if not payload.area or not payload.date:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="area and date are required",
-        )
+        # 入力が欠けている場合は 422 ではなく空レスポンスで返す（フロントに優しく）
+        return MatchingResponse(items=[], total=0)
 
     search_service = ShopSearchService(db)
     try:
