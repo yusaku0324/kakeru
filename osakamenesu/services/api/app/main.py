@@ -26,6 +26,7 @@ from .domains.site import (
     favorites_router,
     guest_matching_router,
     matching_router,
+    guest_reservations_router,
     shops_router,
 )
 from .domains.test import router as test_router
@@ -163,6 +164,7 @@ app.include_router(admin_profiles_router)
 app.include_router(admin_router)
 app.include_router(shops_router)
 app.include_router(guest_matching_router)
+app.include_router(guest_reservations_router)
 app.include_router(admin_reservations_router)
 app.include_router(auth_router)
 app.include_router(favorites_router)

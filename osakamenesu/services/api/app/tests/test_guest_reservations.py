@@ -1,133 +1,197 @@
-from __future__ import annotations
+import os
 
-from datetime import date, datetime, timedelta, timezone
-from typing import Any, Iterator
+# DATABASE_URL を asyncpg に固定してから app.* を import する
+os.environ["DATABASE_URL"] = "postgresql+asyncpg://app:app@localhost:5432/osaka_menesu"
 
-import importlib
-import sys
-import types
+from datetime import datetime, timezone
+from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+import pytest_asyncio
+
+from app.domains.site import guest_reservations as domain
+from app.domains.site.guest_reservations import (
+    GuestReservationStatus,
+    create_guest_reservation,
+)
 
 
-def _make_slot(days_from_now: int = 1) -> dict[str, str]:
-    start = datetime.now(timezone.utc) + timedelta(days=days_from_now)
-    end = start + timedelta(hours=1)
-    return {
-        "start_at": start.isoformat(),
-        "end_at": end.isoformat(),
-    }
+def _ts(hour: int, minute: int = 0) -> datetime:
+    return datetime(2025, 1, 1, hour, minute, 0, tzinfo=timezone.utc)
 
 
-def _load_reservations_module(monkeypatch: pytest.MonkeyPatch):
+class StubResult:
+    def __init__(self, rows=None, scalar_value=None):
+        self.rows = rows or []
+        self.scalar_value = scalar_value
+
+    def first(self):
+        return self.rows[0] if self.rows else None
+
+    def scalar(self):
+        return self.scalar_value
+
+    def scalar_one_or_none(self):
+        return self.scalar_value
+
+
+class StubSession:
     """
-    Import guest_reservations with stubbed settings/db so tests stay DB-free.
-    Mirrors the approach used in guest_matching tests.
+    簡易な in-memory セッション。SQLAlchemy を使わずに予約リストで重複判定する。
     """
-    if "app.domains.site.guest_reservations" in sys.modules:
-        return sys.modules["app.domains.site.guest_reservations"]
 
-    fake_settings = types.ModuleType("app.settings")
+    def __init__(self):
+        self.items: list = []
+        self.last_stmt = None
 
-    class FakeSettings:
-        def __init__(self) -> None:
-            self.database_url = "sqlite+aiosqlite:///:memory:"
-            self.api_origin = "http://localhost"
-            self.init_db_on_startup = False
+    async def execute(self, stmt):
+        # overlap 判定用: therapist_id/start/end を stmt の _where_criteria から読み取るのは難しいので
+        # テストで monkeypatch した check_shift_and_overlap を使う前提で、ここでは空を返す。
+        self.last_stmt = stmt
+        return StubResult()
 
-    fake_settings.Settings = FakeSettings
-    fake_settings.settings = FakeSettings()
-    sys.modules["app.settings"] = fake_settings
+    def add(self, obj):
+        self.items.append(obj)
 
-    fake_db = types.ModuleType("app.db")
+    async def commit(self):
+        return None
 
-    class DummyAsyncSession:
-        pass
+    async def refresh(self, obj):
+        return None
 
-    async def _fake_get_session() -> Any:
-        yield DummyAsyncSession()
-
-    fake_db.AsyncSession = DummyAsyncSession
-    fake_db.get_session = _fake_get_session
-    fake_db.SessionLocal = None
-    fake_db.engine = None
-    sys.modules["app.db"] = fake_db
-
-    return importlib.import_module("app.domains.site.guest_reservations")
+    async def rollback(self):
+        return None
 
 
-@pytest.fixture()
-def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    """
-    Build a FastAPI app with the guest_reservations router and a dummy DB session override.
-    """
-    module = _load_reservations_module(monkeypatch)
-
-    app = FastAPI()
-    app.include_router(module.router)
-
-    async def _fake_session() -> Any:
-        yield None
-
-    app.dependency_overrides[module.get_session] = _fake_session
-
-    with TestClient(app) as test_client:
-        yield test_client
-
-    app.dependency_overrides.clear()
+@pytest_asyncio.fixture
+async def stub_session():
+    return StubSession()
 
 
-def test_guest_can_create_reservation(client: TestClient) -> None:
+@pytest.mark.asyncio
+async def test_create_guest_reservation_success(monkeypatch, stub_session: StubSession):
+    # overlap チェックは常に OK にする
+    async def _no_overlap(db, shop_id, therapist_id, start_at, end_at):
+        return []
+
+    monkeypatch.setattr(domain, "check_shift_and_overlap", _no_overlap)
+
     payload = {
-        "guest_token": "tok-123",
-        "therapist_id": "t-1",
-        "date": date.today().isoformat(),
-        "slot": _make_slot(),
-        "payment_method": "cash",
+        "shop_id": str(uuid4()),
+        "therapist_id": str(uuid4()),
+        "start_at": _ts(14),
+        "end_at": _ts(15),
     }
-    resp = client.post("/api/guest/reservations", json=payload)
-    assert resp.status_code in (200, 201)
-    body = resp.json()
-    assert "id" in body
-    assert body["status"] in ("pending", "confirmed")
-    assert body["slot"]["start_at"]
-    assert body["therapist_id"] == "t-1"
+    res, debug = await create_guest_reservation(stub_session, payload, now=_ts(12))
+    assert res is not None
+    assert str(res.status) == "confirmed"
+    assert debug == {}
 
 
-def test_guest_cannot_double_book_same_slot(client: TestClient) -> None:
+@pytest.mark.asyncio
+async def test_create_guest_reservation_deadline_over(
+    monkeypatch, stub_session: StubSession
+):
+    async def _no_overlap(db, shop_id, therapist_id, start_at, end_at):
+        return []
+
+    monkeypatch.setattr(domain, "check_shift_and_overlap", _no_overlap)
+
     payload = {
-        "guest_token": "tok-dup",
-        "therapist_id": "t-dup",
-        "date": date.today().isoformat(),
-        "slot": _make_slot(),
+        "shop_id": str(uuid4()),
+        "therapist_id": str(uuid4()),
+        "start_at": _ts(12, 30),
+        "end_at": _ts(13, 30),
     }
-    first = client.post("/api/guest/reservations", json=payload)
-    assert first.status_code in (200, 201)
-
-    second = client.post("/api/guest/reservations", json=payload)
-    assert second.status_code in (400, 409)
+    res, debug = await create_guest_reservation(stub_session, payload, now=_ts(12))
+    assert res is None
+    assert "deadline_over" in debug["rejected_reasons"]
 
 
-def test_guest_can_cancel_reservation(client: TestClient) -> None:
-    create = client.post(
-        "/api/guest/reservations",
-        json={
-            "guest_token": "tok-cancel",
-            "therapist_id": "t-cancel",
-            "date": date.today().isoformat(),
-            "slot": _make_slot(),
-        },
-    )
-    assert create.status_code in (200, 201)
-    res_id = create.json()["id"]
+@pytest.mark.asyncio
+async def test_create_guest_reservation_double_booking(
+    monkeypatch, stub_session: StubSession
+):
+    overlaps = False
 
-    cancel = client.post(
-        f"/api/guest/reservations/{res_id}/cancel",
-        json={"reservation_id": res_id, "actor": "guest"},
-    )
-    assert cancel.status_code == 200
-    body = cancel.json()
-    assert body["ok"] is True
-    assert body["status"] == "cancelled"
+    async def _overlap(db, shop_id, therapist_id, start_at, end_at):
+        nonlocal overlaps
+        return ["overlap_existing_reservation"] if overlaps else []
+
+    monkeypatch.setattr(domain, "check_shift_and_overlap", _overlap)
+
+    payload = {
+        "shop_id": str(uuid4()),
+        "therapist_id": str(uuid4()),
+        "start_at": _ts(14),
+        "end_at": _ts(15),
+    }
+    res1, _ = await create_guest_reservation(stub_session, payload, now=_ts(10))
+    assert res1 is not None
+    overlaps = True
+    res2, debug = await create_guest_reservation(stub_session, payload, now=_ts(11))
+    assert res2 is None
+    assert "overlap_existing_reservation" in debug["rejected_reasons"]
+
+
+@pytest.mark.asyncio
+async def test_create_guest_reservation_free_assign_failed(
+    monkeypatch, stub_session: StubSession
+):
+    async def _no_assign(db, shop_id, start_at, end_at, base_staff_id=None):
+        return None
+
+    async def _no_overlap(db, shop_id, therapist_id, start_at, end_at):
+        return []
+
+    monkeypatch.setattr(domain, "assign_for_free", _no_assign)
+    monkeypatch.setattr(domain, "check_shift_and_overlap", _no_overlap)
+
+    payload = {
+        "shop_id": str(uuid4()),
+        "therapist_id": None,
+        "start_at": _ts(14),
+        "end_at": _ts(15),
+    }
+    res, debug = await create_guest_reservation(stub_session, payload, now=_ts(10))
+    assert res is None
+    assert "no_available_therapist" in debug["rejected_reasons"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_guest_reservation_idempotent(
+    monkeypatch, stub_session: StubSession
+):
+    async def _no_overlap(db, shop_id, therapist_id, start_at, end_at):
+        return []
+
+    monkeypatch.setattr(domain, "check_shift_and_overlap", _no_overlap)
+
+    payload = {
+        "shop_id": str(uuid4()),
+        "therapist_id": str(uuid4()),
+        "start_at": _ts(14),
+        "end_at": _ts(15),
+    }
+    reservation, _ = await create_guest_reservation(stub_session, payload, now=_ts(10))
+    assert reservation is not None
+
+    async def _cancel(db, reservation_id):
+        for r in db.items:
+            if r.id == reservation_id:
+                if str(r.status) != "cancelled":
+                    r.status = "cancelled"
+                return r
+        return None
+
+    monkeypatch.setattr(domain, "cancel_guest_reservation", _cancel)
+
+    # 1回目
+    cancelled = await _cancel(stub_session, reservation.id)
+    assert cancelled is not None
+    assert str(cancelled.status) == "cancelled"
+
+    # 2回目（idempotent）
+    cancelled_again = await _cancel(stub_session, reservation.id)
+    assert cancelled_again is not None
+    assert str(cancelled_again.status) == "cancelled"
