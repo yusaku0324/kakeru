@@ -182,7 +182,8 @@ async def _fetch_pool(
 
 @router.get("/similar", response_model=SimilarResponse)
 async def similar_therapists(
-    therapist_id: str = Query(..., description="Target therapist id"),
+    therapist_id: str | None = Query(default=None, description="Target therapist id (alias: staff_id)"),
+    staff_id: str | None = Query(default=None, description="Alias for therapist_id"),
     limit: int = Query(5, ge=1, le=20),
     db: AsyncSession = Depends(get_session),
 ) -> SimilarResponse:
@@ -191,8 +192,12 @@ async def similar_therapists(
     Uses a simple tag-based similarity score aligned with the guest matching weights.
     """
 
-    base = await _get_therapist(db, therapist_id)
-    pool = await _fetch_pool(db, therapist_id, limit)
+    base_id = therapist_id or staff_id
+    if not base_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="therapist_id_required")
+
+    base = await _get_therapist(db, base_id)
+    pool = await _fetch_pool(db, base_id, limit)
 
     scored: list[SimilarCandidate] = []
     for candidate in pool:

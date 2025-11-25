@@ -5,7 +5,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="")
-    database_url: str = "postgresql+asyncpg://app:app@osakamenesu-db:5432/osaka_menesu"
+    # Async driverを優先して読み込む。ASYNC_DATABASE_URL があれば最優先、無ければ DATABASE_URL。
+    database_url: str = Field(
+        default="postgresql+asyncpg://app:app@osakamenesu-db:5432/osaka_menesu",
+        validation_alias=AliasChoices("ASYNC_DATABASE_URL", "DATABASE_URL"),
+    )
     api_origin: str = "http://localhost:3000"
     api_public_base_url: str | None = Field(
         default=None,
