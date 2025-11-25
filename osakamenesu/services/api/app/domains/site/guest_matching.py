@@ -27,6 +27,7 @@ class GuestMatchingRequest(BaseModel):
     style_pref: dict[str, float] | None = None
     look_pref: dict[str, float] | None = None
     free_text: str | None = None
+    guest_token: str | None = None
 
     @field_validator("area")
     @classmethod
@@ -55,6 +56,12 @@ class MatchingCandidate(BaseModel):
     breakdown: MatchingBreakdown
     summary: str | None = None
     slots: list[dict[str, Any]] = Field(default_factory=list)
+    mood_tag: str | None = None
+    style_tag: str | None = None
+    look_type: str | None = None
+    talk_level: str | None = None
+    contact_style: str | None = None
+    hobby_tags: list[str] | None = None
 
 
 class MatchingResponse(BaseModel):
@@ -64,7 +71,7 @@ class MatchingResponse(BaseModel):
 
 def _normalize_score(value: float | None) -> float:
     if value is None:
-        return 0.0
+        return 0.5
     return max(0.0, min(1.0, value))
 
 
@@ -75,9 +82,7 @@ def _compute_price_fit(budget_level: str | None, therapist_price: str | None) ->
     price_map = {"value": "low", "standard": "mid", "premium": "high"}
     guest_idx = order.index(budget_level) if budget_level in order else -1
     therapist_idx = (
-        order.index(price_map[therapist_price])
-        if therapist_price in price_map
-        else -1
+        order.index(price_map[therapist_price]) if therapist_price in price_map else -1
     )
     if guest_idx < 0 or therapist_idx < 0:
         return 0.5
@@ -119,6 +124,7 @@ def _score_candidate(payload: GuestMatchingRequest, candidate: dict[str, Any]) -
         + 0.05 * look_fit
         + 0.05 * availability_score
     )
+    score = max(0.0, min(1.0, score))
     candidate["__breakdown"] = {
         "core": core_score,
         "priceFit": price_fit,
@@ -165,13 +171,19 @@ def _map_shop_to_candidate(shop: Any) -> dict[str, Any]:
         "shop_name": getattr(shop, "name", "") or "",
         "price_level": getattr(shop, "price_band", None),
         "mood_tag": getattr(staff, "mood_tag", None) or getattr(shop, "mood_tag", None),
-        "talk_level": getattr(staff, "talk_level", None) or getattr(shop, "talk_level", None),
-        "style_tag": getattr(staff, "style_tag", None) or getattr(shop, "style_tag", None),
-        "look_type": getattr(staff, "look_type", None) or getattr(shop, "look_type", None),
-        "contact_style": getattr(staff, "contact_style", None) or getattr(shop, "contact_style", None),
+        "talk_level": getattr(staff, "talk_level", None)
+        or getattr(shop, "talk_level", None),
+        "style_tag": getattr(staff, "style_tag", None)
+        or getattr(shop, "style_tag", None),
+        "look_type": getattr(staff, "look_type", None)
+        or getattr(shop, "look_type", None),
+        "contact_style": getattr(staff, "contact_style", None)
+        or getattr(shop, "contact_style", None),
+        "hobby_tags": getattr(staff, "hobby_tags", None)
+        or getattr(shop, "hobby_tags", None)
+        or [],
         "slots": slots,
     }
-
 
 
 async def _log_matching(
@@ -186,16 +198,18 @@ async def _log_matching(
     Must not break the main flow.
     """
     try:
+        if not db or not hasattr(db, "add"):
+            return
         log = models.GuestMatchLog(
             guest_token=guest_token,
-            area=payload.area,
-            date=payload.date,
-            budget_level=payload.budget_level,
-            mood_pref=payload.mood_pref,
-            talk_pref=payload.talk_pref,
-            style_pref=payload.style_pref,
-            look_pref=payload.look_pref,
-            free_text=payload.free_text,
+            area=getattr(payload, "area", None),
+            date=getattr(payload, "date", None),
+            budget_level=getattr(payload, "budget_level", None),
+            mood_pref=getattr(payload, "mood_pref", None),
+            talk_pref=getattr(payload, "talk_pref", None),
+            style_pref=getattr(payload, "style_pref", None),
+            look_pref=getattr(payload, "look_pref", None),
+            free_text=getattr(payload, "free_text", None),
             top_matches=[c.model_dump() for c in top_matches],
             other_candidates=[c.model_dump() for c in other_candidates],
             selected_therapist_id=None,
@@ -247,8 +261,7 @@ async def guest_matching_search(
         score = _score_candidate(payload, c)
         breakdown = c.get("__breakdown", {})
         summary = (
-            f"{c.get('shop_name', '')} のスタッフ候補です。"
-            "条件に近い順に並べています。"
+            f"{c.get('shop_name', '')} のスタッフ候補です。条件に近い順に並べています。"
         )
         scored.append(
             MatchingCandidate(
@@ -260,6 +273,12 @@ async def guest_matching_search(
                 breakdown=MatchingBreakdown(**breakdown),
                 summary=summary,
                 slots=c.get("slots", []),
+                mood_tag=c.get("mood_tag"),
+                style_tag=c.get("style_tag"),
+                look_type=c.get("look_type"),
+                talk_level=c.get("talk_level"),
+                contact_style=c.get("contact_style"),
+                hobby_tags=c.get("hobby_tags"),
             )
         )
 
@@ -268,7 +287,7 @@ async def guest_matching_search(
     rest = scored_sorted[3:]
     # best-effort log; do not block main flow
     try:
-        await _log_matching(db, payload, top, rest)
+        await _log_matching(db, payload, top, rest, guest_token=payload.guest_token)
     except Exception:
         logger.debug("guest_matching_log_skip")
     return MatchingResponse(top_matches=top, other_candidates=rest)

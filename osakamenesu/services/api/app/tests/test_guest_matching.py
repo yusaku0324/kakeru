@@ -96,16 +96,25 @@ def test_matching_search_requires_area_date(client: TestClient) -> None:
     )
     assert resp.status_code == 422
 
+
 def test_matching_logs_best_effort(monkeypatch):
     called = {"logged": False}
 
     async def fake_log(db, payload, top, rest, guest_token=None):
         called["logged"] = True
 
+    module = _load_matching_module(monkeypatch)
     monkeypatch.setattr("app.domains.site.guest_matching._log_matching", fake_log)
 
+    async def _fake_search(
+        self: Any, *args: Any, **kwargs: Any
+    ) -> dict[str, list[Any]]:
+        return {"results": []}
+
+    monkeypatch.setattr(module.ShopSearchService, "search", _fake_search)
+
     app = FastAPI()
-    app.include_router(matching_router)
+    app.include_router(module.router)
     client = TestClient(app)
 
     resp = client.post(
@@ -119,10 +128,18 @@ def test_matching_logs_failure_does_not_break(monkeypatch):
     async def fake_log_fail(db, payload, top, rest, guest_token=None):
         raise RuntimeError("log failed")
 
+    module = _load_matching_module(monkeypatch)
     monkeypatch.setattr("app.domains.site.guest_matching._log_matching", fake_log_fail)
 
+    async def _fake_search(
+        self: Any, *args: Any, **kwargs: Any
+    ) -> dict[str, list[Any]]:
+        return {"results": []}
+
+    monkeypatch.setattr(module.ShopSearchService, "search", _fake_search)
+
     app = FastAPI()
-    app.include_router(matching_router)
+    app.include_router(module.router)
     client = TestClient(app)
 
     resp = client.post(
@@ -131,6 +148,7 @@ def test_matching_logs_failure_does_not_break(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert "top_matches" in body
+
 
 @pytest.mark.parametrize(
     "candidate_key,pref_key,match_value,mismatch_value",
