@@ -1,5 +1,7 @@
 import logging
 from typing import Any, Optional
+from datetime import date
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
@@ -616,11 +618,21 @@ async def guest_matching_search(
         # 入力が欠けている場合は 422 ではなく空レスポンスで返す（フロントに優しく）
         return MatchingResponse(items=[], total=0)
 
+    # date を安全にパース（失敗しても None で進める）
+    parsed_date: date | None = None
+    if isinstance(payload.date, date):
+        parsed_date = payload.date
+    elif isinstance(payload.date, str):
+        try:
+            parsed_date = datetime.fromisoformat(payload.date).date()
+        except ValueError:
+            parsed_date = None
+
     search_service = ShopSearchService(db)
     try:
         search_res = await search_service.search(
             area=payload.area,
-            available_date=payload.date,
+            available_date=parsed_date,
             open_now=True,
             page=1,
             page_size=12,
