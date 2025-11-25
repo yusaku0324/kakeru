@@ -23,3 +23,9 @@
   },
   "packageManager": "pnpm@10.20.0"
 }
+,
+  "speckit": {
+    "scripts": {
+      "validate": "./tools/spec-kit validate specs/matching/search.yaml specs/matching/similar.yaml"
+    }
+  }

@@ -1,50 +1,34 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# Project Constitution: osakamenesu - matching & reservations
 
-## Core Principles
+## Purpose
+- Build guest-facing matching/reservation flows that never crash, even with missing inputs or partial data.
+- Keep specs (Speckit YAML + markdown) aligned with backend and frontend implementations.
+- Prefer fail-soft behavior (200 + empty) over 4xx/5xx unless input is clearly invalid and caller must be notified.
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+## Principles
+- Clarity first: single source of truth for each domain spec, referenced from .specify and specs/*.yaml.
+- Fail-soft UX: API should avoid crashing; return empty lists when inputs are missing, and log errors.
+- Safety in scoring: always clamp scores to 0..1, treat missing data as neutral (0.5), never throw.
+- Incremental rollout: start with matching/search v2 and similar; reservations v1; auth base/diffs.
+- Test alignment: keep pytest, playwright, and spec files in sync; add seeds/mocks for predictable results.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+## Scope
+- Guest matching: /api/guest/matching/search (v2 scoring with photo/tag/price/age) and /similar.
+- Reservations v1: guest create/cancel/detail, status pending/confirmed/cancelled, duplicate slot guard.
+- Auth base/diffs: login flows and magic-link separation (issues 85/88/136).
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+## Non-negotiables
+- Responses: matching search always returns `{items, total}` (empty allowed), scores/photo_similarity in 0..1.
+- Error handling: missing area/date or search errors must not produce 5xx; prefer empty responses.
+- Embeddings: when present, use for photo_similarity; when absent, fallback to 0.5.
+- Sorting: unknown sort values must not throw; recommended uses v2 score; others preserve existing order.
+- Logging: best-effort logging must never break main flow.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+## Collaboration
+- Use /speckit.* commands for new specs and plans; keep .specify up to date.
+- Link to source specs (specs/matching/*.yaml, docs/specs.md) from .specify artifacts.
+- Seed/mocks: provide minimal data or mocks so UI/E2E can show results without crashing.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
-
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
-
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
-
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
-
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
-
-## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
-
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
-
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+## Tooling
+- specify-cli installed via uv; .specify managed in repo.
+- speckit validate: TODO once binary/source is available; prepare scripts to run against specs/matching/search.yaml and similar.yaml.
