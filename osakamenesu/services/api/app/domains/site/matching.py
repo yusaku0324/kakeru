@@ -94,11 +94,41 @@ def _score_similarity(
     return {"score": score, "breakdown": breakdown}
 
 
+def _extract_tags(therapist: Any, profile: Any) -> dict[str, Any]:
+    """Extract tag signals from therapist/profile.
+
+    Tags may live either on the therapist (if columns exist) or on the profile. When
+    missing, fall back to profile.body_tags/specialties to avoid returning all-neutral
+    scores.
+    """
+
+    hobby_fallback: Sequence[str] | None = None
+    if getattr(therapist, "specialties", None):
+        hobby_fallback = therapist.specialties
+    elif getattr(profile, "body_tags", None):
+        hobby_fallback = profile.body_tags
+
+    return {
+        "mood_tag": getattr(therapist, "mood_tag", None) or getattr(profile, "mood_tag", None),
+        "talk_level": getattr(therapist, "talk_level", None) or getattr(profile, "talk_level", None),
+        "style_tag": getattr(therapist, "style_tag", None) or getattr(profile, "style_tag", None),
+        "look_type": getattr(therapist, "look_type", None) or getattr(profile, "look_type", None),
+        "contact_style": getattr(therapist, "contact_style", None) or getattr(profile, "contact_style", None),
+        "hobby_tags": getattr(therapist, "hobby_tags", None)
+        or getattr(profile, "hobby_tags", None)
+        or hobby_fallback,
+    }
+
+
 async def _get_therapist(db: AsyncSession, therapist_id: str) -> dict[str, Any]:
     res = await db.execute(
         select(Therapist, Profile)
         .join(Profile, Therapist.profile_id == Profile.id)
-        .where(Therapist.id == therapist_id)
+        .where(
+            Therapist.id == therapist_id,
+            Therapist.status == "published",
+            Profile.status == "published",
+        )
     )
     row = res.first()
     if not row:
@@ -107,17 +137,13 @@ async def _get_therapist(db: AsyncSession, therapist_id: str) -> dict[str, Any]:
         )
 
     therapist, profile = row
+    tags = _extract_tags(therapist, profile)
     return {
         "therapist_id": str(therapist.id),
         "therapist_name": therapist.name,
         "profile_id": str(profile.id),
         "profile_name": profile.name,
-        "mood_tag": getattr(therapist, "mood_tag", None),
-        "talk_level": getattr(therapist, "talk_level", None),
-        "style_tag": getattr(therapist, "style_tag", None),
-        "look_type": getattr(therapist, "look_type", None),
-        "contact_style": getattr(therapist, "contact_style", None),
-        "hobby_tags": getattr(therapist, "hobby_tags", None),
+        **tags,
     }
 
 
@@ -127,25 +153,25 @@ async def _fetch_pool(
     res = await db.execute(
         select(Therapist, Profile)
         .join(Profile, Therapist.profile_id == Profile.id)
-        .where(Therapist.id != exclude_id)
+        .where(
+            Therapist.id != exclude_id,
+            Therapist.status == "published",
+            Profile.status == "published",
+        )
         .order_by(Therapist.display_order)
         .limit(limit * 3)
     )
     rows = res.all()
     candidates: list[dict[str, Any]] = []
     for therapist, profile in rows:
+        tags = _extract_tags(therapist, profile)
         candidates.append(
             {
                 "therapist_id": str(therapist.id),
                 "therapist_name": therapist.name,
                 "profile_id": str(profile.id),
                 "profile_name": profile.name,
-                "mood_tag": getattr(therapist, "mood_tag", None),
-                "talk_level": getattr(therapist, "talk_level", None),
-                "style_tag": getattr(therapist, "style_tag", None),
-                "look_type": getattr(therapist, "look_type", None),
-                "contact_style": getattr(therapist, "contact_style", None),
-                "hobby_tags": getattr(therapist, "hobby_tags", None),
+                **tags,
             }
         )
     return candidates
