@@ -271,11 +271,12 @@ class GuestReservationResponse(BaseModel):
 def _serialize(
     reservation: GuestReservation, debug: dict[str, Any] | None = None
 ) -> GuestReservationResponse:
+    status_val = reservation.status
+    if hasattr(status_val, "value"):
+        status_val = status_val.value
     return GuestReservationResponse(
         id=reservation.id,
-        status=reservation.status.value
-        if isinstance(reservation.status, GuestReservationStatus)
-        else reservation.status,
+        status=status_val,
         shop_id=reservation.shop_id,
         therapist_id=reservation.therapist_id,
         start_at=reservation.start_at,
