@@ -26,6 +26,8 @@ function wrapperFactory() {
 describe('TherapistFavoritesProvider', () => {
   beforeEach(() => {
     vi.useRealTimers()
+    process.env.NEXT_PUBLIC_FAVORITES_API_MODE = ''
+    process.env.FAVORITES_API_MODE = ''
   })
 
   afterEach(() => {
