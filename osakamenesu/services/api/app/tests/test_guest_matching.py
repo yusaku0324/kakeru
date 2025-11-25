@@ -89,6 +89,7 @@ def _mk_candidate(name: str, overrides: dict[str, Any] | None = None) -> Any:
         "hobby_tags": ["anime"],
         "age": 25,
         "photo_url": "https://example.com/photo.jpg",
+        "photo_embedding": [1.0, 0.0, 0.0],
         "slots": [{}],
     }
     if overrides:
@@ -226,6 +227,34 @@ def test_search_v2_handles_missing_fields(monkeypatch, matching_module):
     item = resp.json()["items"][0]
     assert 0.0 <= item["score"] <= 1.0
     assert 0.0 <= item.get("photo_similarity", 0) <= 1.0
+
+
+def test_search_v2_uses_embeddings_when_available(monkeypatch, matching_module):
+    base = _mk_candidate("base", {"photo_embedding": [1.0, 0.0, 0.0]})
+    close = _mk_candidate("close", {"photo_embedding": [0.9, 0.1, 0.0]})
+    far = _mk_candidate("far", {"photo_embedding": [0.0, 1.0, 0.0]})
+
+    async def fake_search(self: Any, *args: Any, **kwargs: Any) -> dict[str, list[Any]]:
+        return {"results": [far, close]}
+
+    async def fake_base(db, staff_id):
+        return base
+
+    monkeypatch.setattr(matching_module.ShopSearchService, "search", fake_search)
+    monkeypatch.setattr(matching_module, "_get_base_staff", fake_base)
+
+    app = FastAPI()
+    app.include_router(matching_module.router)
+    client = TestClient(app)
+
+    resp = client.get(
+        "/api/guest/matching/search",
+        params={"area": "osaka", "date": "2025-01-01", "sort": "recommended", "base_staff_id": "base"},
+    )
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert items[0]["id"] == "close"
+    assert 0.0 <= items[0]["photo_similarity"] <= 1.0
 
 
 def test_search_returns_empty_when_area_or_date_missing(matching_module):

@@ -441,6 +441,10 @@ async def _get_base_staff(db: AsyncSession | None, staff_id: str) -> dict[str, A
     photos = getattr(profile, "photos", None) or getattr(therapist, "photo_urls", None)
     if photos:
         photo_url = photos[0]
+    photo_embedding = (
+        getattr(profile, "photo_embedding", None)
+        or getattr(therapist, "photo_embedding", None)
+    )
     return {
         "id": str(therapist.id),
         "name": therapist.name,
@@ -453,6 +457,7 @@ async def _get_base_staff(db: AsyncSession | None, staff_id: str) -> dict[str, A
         "contact_style": getattr(therapist, "contact_style", None),
         "hobby_tags": hobby_tags or [],
         "photo_url": photo_url,
+        "photo_embedding": photo_embedding,
         "is_available_now": bool(getattr(therapist, "is_booking_enabled", True)),
     }
 
@@ -497,6 +502,8 @@ async def _fetch_similar_candidates(
             or getattr(profile, "body_tags", None)
             or [],
             "photo_url": (getattr(profile, "photos", None) or [None])[0],
+            "photo_embedding": getattr(profile, "photo_embedding", None)
+            or getattr(therapist, "photo_embedding", None),
             "is_available_now": bool(getattr(therapist, "is_booking_enabled", True)),
         }
         if exclude_unavailable and not _is_available(cand):
@@ -542,6 +549,9 @@ def _map_shop_to_candidate(shop: Any) -> dict[str, Any]:
         )
 
     photos = getter(staff, "photos", None) or getter(shop, "photo_urls", None) or []
+    photo_embedding = getter(staff, "photo_embedding", None) or getter(
+        shop, "photo_embedding", None
+    )
 
     return {
         "therapist_id": str(therapist_id or ""),
@@ -564,6 +574,7 @@ def _map_shop_to_candidate(shop: Any) -> dict[str, Any]:
         or [],
         "age": getter(staff, "age", None) or getter(shop, "age", None),
         "photo_url": (photos or [None])[0],
+        "photo_embedding": photo_embedding,
         "slots": slots,
     }
 
