@@ -1,7 +1,19 @@
 from __future__ import annotations
 
 from sqlalchemy.orm import declarative_base, relationship, Mapped, mapped_column
-from sqlalchemy import String, Text, Integer, Enum, DateTime, ForeignKey, Date, Boolean, UniqueConstraint, Float, text
+from sqlalchemy import (
+    String,
+    Text,
+    Integer,
+    Enum,
+    DateTime,
+    ForeignKey,
+    Date,
+    Boolean,
+    UniqueConstraint,
+    Float,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 import uuid
 from datetime import datetime, date, UTC
@@ -141,6 +153,33 @@ class UserAuthToken(Base):
 
     user: Mapped[User] = relationship(back_populates='auth_tokens')
 
+
+
+
+class GuestMatchLog(Base):
+    """
+    Guest matching log for analytics / tuning.
+    Fields are optional to avoid impacting existing flows.
+    """
+
+    __tablename__ = 'guest_match_logs'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    guest_token: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    area: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    budget_level: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    mood_pref: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    talk_pref: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    style_pref: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    look_pref: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    free_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    top_matches: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+    other_candidates: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+    selected_therapist_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    selected_shop_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    selected_slot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
 
 class UserSession(Base):
     __tablename__ = 'user_sessions'

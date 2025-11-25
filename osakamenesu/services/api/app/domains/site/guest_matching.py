@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 
@@ -8,9 +9,11 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .services.shop.search_service import ShopSearchService
+from ... import models
 from ...db import get_session
 
 router = APIRouter(prefix="/api/guest/matching", tags=["guest-matching"])
+logger = logging.getLogger(__name__)
 
 
 class GuestMatchingRequest(BaseModel):
@@ -97,15 +100,15 @@ def _score_candidate(payload: GuestMatchingRequest, candidate: dict[str, Any]) -
     v1: サーバ側で簡易スコアリング（フロントの computeMatchingScore と同趣旨）。
     TODO: 検索rank/coreやプロファイルタグを取り込んで精度を上げる。
     """
-    price_fit = _compute_price_fit(
-        payload.budget_level, candidate.get("price_level", None)
+    price_fit = _normalize_score(
+        _compute_price_fit(payload.budget_level, candidate.get("price_level", None))
     )
     mood_fit = _compute_choice_fit(payload.mood_pref, candidate.get("mood_tag"))
     talk_fit = _compute_choice_fit(payload.talk_pref, candidate.get("talk_level"))
     style_fit = _compute_choice_fit(payload.style_pref, candidate.get("style_tag"))
     look_fit = _compute_choice_fit(payload.look_pref, candidate.get("look_type"))
-    core_score = 0.6  # TODO: search rank/core を反映する
-    availability_score = 0.8 if candidate.get("slots") else 0.3
+    core_score = _normalize_score(0.6)  # TODO: search rank/core を反映する
+    availability_score = _normalize_score(0.8 if candidate.get("slots") else 0.3)
 
     score = (
         0.4 * core_score
@@ -161,12 +164,49 @@ def _map_shop_to_candidate(shop: Any) -> dict[str, Any]:
         "shop_id": str(getattr(shop, "id", "")),
         "shop_name": getattr(shop, "name", "") or "",
         "price_level": getattr(shop, "price_band", None),
-        "mood_tag": None,  # TODO: プロファイルタグ連携
-        "talk_level": None,
-        "style_tag": None,
-        "look_type": None,
+        "mood_tag": getattr(staff, "mood_tag", None) or getattr(shop, "mood_tag", None),
+        "talk_level": getattr(staff, "talk_level", None) or getattr(shop, "talk_level", None),
+        "style_tag": getattr(staff, "style_tag", None) or getattr(shop, "style_tag", None),
+        "look_type": getattr(staff, "look_type", None) or getattr(shop, "look_type", None),
+        "contact_style": getattr(staff, "contact_style", None) or getattr(shop, "contact_style", None),
         "slots": slots,
     }
+
+
+
+async def _log_matching(
+    db: AsyncSession,
+    payload: GuestMatchingRequest,
+    top_matches: list[MatchingCandidate],
+    other_candidates: list[MatchingCandidate],
+    guest_token: str | None = None,
+) -> None:
+    """
+    Best-effort logging of matching input and candidates.
+    Must not break the main flow.
+    """
+    try:
+        log = models.GuestMatchLog(
+            guest_token=guest_token,
+            area=payload.area,
+            date=payload.date,
+            budget_level=payload.budget_level,
+            mood_pref=payload.mood_pref,
+            talk_pref=payload.talk_pref,
+            style_pref=payload.style_pref,
+            look_pref=payload.look_pref,
+            free_text=payload.free_text,
+            top_matches=[c.model_dump() for c in top_matches],
+            other_candidates=[c.model_dump() for c in other_candidates],
+            selected_therapist_id=None,
+            selected_shop_id=None,
+            selected_slot=None,
+        )
+        db.add(log)
+        await db.commit()
+    except Exception as exc:  # pragma: no cover - best effort
+        await db.rollback()
+        logger.warning("guest_matching_log_failed: %s", exc)
 
 
 @router.post("/search", response_model=MatchingResponse)
@@ -226,4 +266,9 @@ async def guest_matching_search(
     scored_sorted = sorted(scored, key=lambda x: x.score, reverse=True)
     top = scored_sorted[:3]
     rest = scored_sorted[3:]
+    # best-effort log; do not block main flow
+    try:
+        await _log_matching(db, payload, top, rest)
+    except Exception:
+        logger.debug("guest_matching_log_skip")
     return MatchingResponse(top_matches=top, other_candidates=rest)
