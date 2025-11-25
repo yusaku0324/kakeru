@@ -228,6 +228,31 @@ def test_search_v2_handles_missing_fields(monkeypatch, matching_module):
     assert 0.0 <= item.get("photo_similarity", 0) <= 1.0
 
 
+def test_search_handles_search_service_failure(monkeypatch, matching_module):
+    """ShopSearchService.search が落ちても 500 にせず空レスポンスで返す。"""
+
+    async def _raise(self: Any, *args: Any, **kwargs: Any) -> dict[str, list[Any]]:
+        raise RuntimeError("search failed")
+
+    monkeypatch.setattr(matching_module.ShopSearchService, "search", _raise)
+
+    app = FastAPI()
+    app.include_router(matching_module.router)
+    client = TestClient(app)
+
+    resp = client.get(
+        "/api/guest/matching/search",
+        params={
+            "area": "osaka",
+            "date": "2025-01-01",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["items"] == []
+    assert body["total"] == 0
+
+
 def test_search_v2_base_staff_not_found_returns_404(monkeypatch, matching_module):
     async def fake_base(db, staff_id):
         raise matching_module.HTTPException(status_code=404, detail="staff not found")

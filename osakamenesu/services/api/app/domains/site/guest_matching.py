@@ -638,10 +638,9 @@ async def guest_matching_search(
             page_size=12,
         )
     except Exception as exc:  # pragma: no cover - defensive
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="matching search failed",
-        ) from exc
+        logger.warning("matching_search_failed: %s", exc)
+        # fail-soft: 500 を返さず空レスポンスで返す
+        return MatchingResponse(items=[], total=0)
 
     # search_res is dict-like from ShopSearchService.search
     hits = search_res.get("results", []) if isinstance(search_res, dict) else []
