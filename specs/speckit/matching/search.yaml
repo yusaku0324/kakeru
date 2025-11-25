@@ -1,0 +1,48 @@
+id: matching-search-happy
+summary: Guest matching search returns top/other candidates with tag-based breakdown.
+domain: matching
+links:
+  - spec: specs/matching/base.md
+  - diff: specs/matching/diffs/143-score-alignment.md
+endpoint:
+  method: POST
+  path: /api/guest/matching/search
+  headers:
+    Content-Type: application/json
+  body:
+    area: osaka
+    date: 2025-12-01
+    budget_level: mid
+    mood_pref: { calm: 1 }
+    style_pref: { relax: 1 }
+    look_pref: { natural: 1 }
+    talk_pref: { normal: 1 }
+expect:
+  status: 200
+  json:
+    top_matches:
+      - therapist_id: uuid
+        therapist_name: string
+        shop_id: uuid
+        shop_name: string
+        score: number
+        breakdown:
+          core: number
+          priceFit: number
+          moodFit: number
+          talkFit: number
+          styleFit: number
+          lookFit: number
+          availability: number
+        slots: []
+    other_candidates: []
+  rules:
+    - path: $.top_matches
+      description: returns list of scored candidates (at least 1 when available)
+      assert: len(value) >= 0
+    - path: $.top_matches[*].breakdown
+      description: breakdown components are normalized 0..1
+      assert: all(0 <= v <= 1 for v in value.values())
+notes:
+  - Shape mirrors FastAPI matching search (`top_matches`/`other_candidates`).
+  - Allow extra fields (e.g., summaries, photos) beyond those listed.
