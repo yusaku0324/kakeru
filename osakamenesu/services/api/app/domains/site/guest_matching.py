@@ -516,55 +516,62 @@ async def _fetch_similar_candidates(
 def _map_shop_to_candidate(shop: Any) -> dict[str, Any]:
     """
     ShopSearchService の結果をプレーンな candidate dict に変換する。
+
+    search 結果が dict の場合と ORM オブジェクトの場合の両方に対応する。
     - staff_preview があれば先頭スタッフを仮に推薦対象とする（暫定）
     - next_available_slot / staff_preview.next_available_slot を slots に反映
     """
+
+    def getter(obj: Any, key: str, default: Any = None) -> Any:
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
     staff = None
-    if getattr(shop, "staff_preview", None):
-        staff = next((s for s in shop.staff_preview if getattr(s, "name", None)), None)
-    therapist_id = getattr(staff, "id", None) or getattr(shop, "id", None)
-    therapist_name = getattr(staff, "name", None) or getattr(shop, "name", "")
+    staff_preview = getter(shop, "staff_preview", None) or []
+    if staff_preview:
+        staff = next((s for s in staff_preview if getter(s, "name", None)), None)
+
+    therapist_id = getter(staff, "id", None) or getter(shop, "id", None)
+    therapist_name = getter(staff, "name", None) or getter(shop, "name", "")
 
     slot = None
-    if staff and getattr(staff, "next_available_slot", None):
-        slot = staff.next_available_slot
-    elif getattr(shop, "next_available_slot", None):
-        slot = shop.next_available_slot
+    staff_slot = getter(staff, "next_available_slot", None)
+    shop_slot = getter(shop, "next_available_slot", None)
+    slot = staff_slot or shop_slot
 
-    slots = []
+    slots: list[dict[str, Any]] = []
     if slot:
         slots.append(
             {
-                "start_at": getattr(slot, "start_at", None),
-                "end_at": getattr(slot, "end_at", None),
+                "start_at": getter(slot, "start_at", None),
+                "end_at": getter(slot, "end_at", None),
             }
         )
+
+    photos = getter(staff, "photos", None) or getter(shop, "photo_urls", None) or []
 
     return {
         "therapist_id": str(therapist_id or ""),
         "therapist_name": therapist_name or "",
-        "shop_id": str(getattr(shop, "id", "")),
-        "shop_name": getattr(shop, "name", "") or "",
-        "price_rank": getattr(shop, "ranking_weight", None),
-        "price_level": getattr(shop, "price_band", None),
-        "mood_tag": getattr(staff, "mood_tag", None) or getattr(shop, "mood_tag", None),
-        "talk_level": getattr(staff, "talk_level", None)
-        or getattr(shop, "talk_level", None),
-        "style_tag": getattr(staff, "style_tag", None)
-        or getattr(shop, "style_tag", None),
-        "look_type": getattr(staff, "look_type", None)
-        or getattr(shop, "look_type", None),
-        "contact_style": getattr(staff, "contact_style", None)
-        or getattr(shop, "contact_style", None),
-        "hobby_tags": getattr(staff, "hobby_tags", None)
-        or getattr(shop, "hobby_tags", None)
+        "shop_id": str(getter(shop, "id", "")),
+        "shop_name": getter(shop, "name", "") or "",
+        "price_rank": getter(shop, "ranking_weight", None),
+        "price_level": getter(shop, "price_band", None),
+        "mood_tag": getter(staff, "mood_tag", None) or getter(shop, "mood_tag", None),
+        "talk_level": getter(staff, "talk_level", None)
+        or getter(shop, "talk_level", None),
+        "style_tag": getter(staff, "style_tag", None)
+        or getter(shop, "style_tag", None),
+        "look_type": getter(staff, "look_type", None)
+        or getter(shop, "look_type", None),
+        "contact_style": getter(staff, "contact_style", None)
+        or getter(shop, "contact_style", None),
+        "hobby_tags": getter(staff, "hobby_tags", None)
+        or getter(shop, "hobby_tags", None)
         or [],
-        "age": getattr(staff, "age", None) or getattr(shop, "age", None),
-        "photo_url": (
-            getattr(staff, "photos", None)
-            or getattr(shop, "photo_urls", None)
-            or [None]
-        )[0],
+        "age": getter(staff, "age", None) or getter(shop, "age", None),
+        "photo_url": (photos or [None])[0],
         "slots": slots,
     }
 
