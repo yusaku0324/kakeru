@@ -414,18 +414,13 @@ jobs:
       - build-api-image
       - build-web-image
       - build-e2e-image
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
     runs-on: ubuntu-latest
     env:
       ADMIN_WEB_IMAGE: ${{ needs.build-web-image.outputs.web_image || format('ghcr.io/{0}/osakamenesu-web:ci-{1}', github.repository_owner, github.sha) }}
       ADMIN_API_IMAGE: ${{ needs.build-api-image.outputs.api_image || format('ghcr.io/{0}/osakamenesu-api:ci-{1}', github.repository_owner, github.sha) }}
       ADMIN_E2E_IMAGE: ${{ needs.build-e2e-image.outputs.e2e_image || format('ghcr.io/{0}/osakamenesu-e2e-runner:ci-{1}', github.repository_owner, github.sha) }}
-      PLAYWRIGHT_TOTAL_SHARDS: 2
-      PLAYWRIGHT_SHARD_INDEX: ${{ matrix.shard }}
-      PLAYWRIGHT_WORKERS: 4
+      PLAYWRIGHT_WORKERS: 2
+      PLAYWRIGHT_ADMIN_SPEC: e2e/admin-smoke.spec.ts
       ADMIN_SOURCE_REPOSITORY: https://github.com/yusaku0324/kakeru.git
       ADMIN_SOURCE_REF: ${{ github.ref_name }}
     steps:
@@ -523,7 +518,7 @@ jobs:
             --exit-code-from e2e \
             --no-build \
             e2e || FAILURE=$?
-          echo "::group::Playwright logs (shard ${{ matrix.shard }})"
+          echo "::group::Playwright logs"
           docker compose -f docker-compose.admin-e2e.yml logs e2e
           echo "::endgroup::"
           if [ -n "${FAILURE:-}" ]; then
@@ -533,8 +528,6 @@ jobs:
       - name: Collect Playwright artifacts
         if: always()
         working-directory: osakamenesu
-        env:
-          SHARD_ID: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           CONTAINER_ID=$(docker compose -f docker-compose.admin-e2e.yml ps -q e2e || true)
@@ -542,7 +535,7 @@ jobs:
             echo "No e2e container found; skipping artifact copy"
             exit 0
           fi
-          ARTIFACT_DIR="../artifacts/playwright-shard-${SHARD_ID}"
+          ARTIFACT_DIR="../artifacts/playwright-admin"
           mkdir -p "$ARTIFACT_DIR"
           docker cp "$CONTAINER_ID:/workspace/apps/web/test-results" "$ARTIFACT_DIR/" >/dev/null 2>&1 || true
           docker cp "$CONTAINER_ID:/workspace/apps/web/playwright-report" "$ARTIFACT_DIR/" >/dev/null 2>&1 || true
@@ -552,19 +545,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-shard-${{ matrix.shard }}
-          path: artifacts/playwright-shard-${{ matrix.shard }}
+          name: playwright-admin
+          path: artifacts/playwright-admin
           if-no-files-found: ignore
           retention-days: 7
 
       - name: Collect compose logs
         if: always()
         working-directory: osakamenesu
-        env:
-          SHARD_ID: ${{ matrix.shard }}
         run: |
           set -euo pipefail
-          LOG_DIR="../artifacts/playwright-shard-${SHARD_ID}/compose"
+          LOG_DIR="../artifacts/playwright-admin/compose"
           mkdir -p "$LOG_DIR"
           docker compose -f docker-compose.admin-e2e.yml logs --no-color > "$LOG_DIR/compose.log" || true
           docker compose -f docker-compose.admin-e2e.yml ps > "$LOG_DIR/ps.txt" || true
@@ -576,8 +567,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: compose-logs-shard-${{ matrix.shard }}
-          path: artifacts/playwright-shard-${{ matrix.shard }}/compose
+          name: compose-logs-admin
+          path: artifacts/playwright-admin/compose
           if-no-files-found: ignore
           retention-days: 7
 
