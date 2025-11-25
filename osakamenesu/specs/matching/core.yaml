@@ -1,0 +1,73 @@
+info:
+  id: matching.core
+  title: Matching domain core contract
+  summary: Guest matching request/response and scoring breakdown.
+
+contexts:
+  MatchingRequest:
+    description: Guest input for matching search.
+    fields:
+      area: { type: string, required: true }
+      date: { type: string, format: date, required: true }
+      time_from: { type: string, required: false }
+      time_to: { type: string, required: false }
+      budget_level: { type: string, enum: [low, mid, high], required: false }
+      mood_pref: { type: object, additionalProperties: number, required: false }
+      talk_pref: { type: object, additionalProperties: number, required: false }
+      style_pref: { type: object, additionalProperties: number, required: false }
+      look_pref: { type: object, additionalProperties: number, required: false }
+      free_text: { type: string, required: false }
+      guest_token: { type: string, required: false }
+
+entities:
+  MatchingBreakdown:
+    fields:
+      core: number
+      priceFit: number
+      moodFit: number
+      talkFit: number
+      styleFit: number
+      lookFit: number
+      availability: number
+  MatchingCandidate:
+    fields:
+      therapist_id: string
+      therapist_name: string
+      shop_id: string
+      shop_name: string
+      score: number
+      breakdown: MatchingBreakdown
+      summary: { type: string, required: false }
+      slots:
+        type: array
+        items:
+          type: object
+          properties:
+            start_at: string
+            end_at: string
+      mood_tag: string
+      style_tag: string
+      look_type: string
+      talk_level: string
+      contact_style: string
+      hobby_tags:
+        type: array
+        items: string
+  MatchingResponse:
+    fields:
+      top_matches:
+        type: array
+        items: MatchingCandidate
+      other_candidates:
+        type: array
+        items: MatchingCandidate
+
+endpoints:
+  - id: matching.search
+    method: POST
+    path: /api/guest/matching/search
+    request: MatchingRequest
+    response: MatchingResponse
+    notes:
+      - Scoring weights: core 0.4, priceFit 0.15, moodFit 0.15, talkFit 0.1, styleFit 0.1, lookFit 0.05, availability 0.05; missing signals are treated as neutral 0.5.
+      - Tags used in scoring: mood/style/look/talk. contact_style/hobby_tags are included for display/logging but are not currently scored.
