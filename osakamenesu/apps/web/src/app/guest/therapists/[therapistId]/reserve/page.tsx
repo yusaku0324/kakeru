@@ -222,6 +222,16 @@ export default function ReservePage({ params }: { params: { therapistId: string 
               <div>
                 日時: {date} {start} - {computedEnd}
               </div>
+              {result.id ? (
+                <a className="text-brand-primary underline" href={`/guest/reservations/${result.id}`}>
+                  予約内容を確認する
+                </a>
+              ) : null}
+              <div>
+                <a className="text-brand-primary underline" href="/guest/reservations">
+                  マイ予約一覧を見る
+                </a>
+              </div>
             </div>
           ) : (
             <div className="space-y-2">

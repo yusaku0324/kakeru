@@ -8,6 +8,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
+from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...models import (
@@ -454,3 +455,21 @@ async def get_guest_reservation_api(
             status_code=status.HTTP_404_NOT_FOUND, detail="reservation_not_found"
         )
     return _serialize(reservation, debug=None)
+
+
+@router.get(
+    "",
+    response_model=list[GuestReservationResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def list_guest_reservations_api(
+    guest_token: str,
+    db: AsyncSession = Depends(get_session),
+):
+    res = await db.execute(
+        select(GuestReservation)
+        .where(GuestReservation.guest_token == guest_token)
+        .order_by(desc(GuestReservation.start_at))
+    )
+    reservations = res.scalars().all()
+    return [_serialize(r, debug=None) for r in reservations]
