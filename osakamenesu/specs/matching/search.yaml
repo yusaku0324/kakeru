@@ -23,6 +23,31 @@ contexts:
       sort: { type: string, required: false, default: recommended }
       limit: { type: integer, required: false, default: 30, maximum: 100, minimum: 1 }
       offset: { type: integer, required: false, default: 0, minimum: 0 }
+      phase:
+        type: string
+        required: false
+        enum: [explore, narrow, book]
+        description: >
+          concierge / search flow のフェーズ。
+          - explore: 好み探索フェーズ。availability は計算しない/score に効かせない。
+          - narrow: 好みは見えつつあり、ざっくり時期も決まりつつあるフェーズ。
+            availability はブーストのみ（is_available==true の候補に加点する）が、フィルタはしない。
+          - book: 具体的な日時で予約したいフェーズ。
+            availability でフィルタし、予約可能な候補のみに絞り込む。
+      step_index:
+        type: integer
+        required: false
+        minimum: 1
+        description: >
+          コンシェルジュ/マッチングフローにおけるこの検索のステップ番号。
+          1 が最初の候補提示/検索、2 が2回目…という形でクライアント側（concierge）がインクリメントして送信する。通常検索フォームなど、ステップ概念がない場合は省略可。
+      entry_source:
+        type: string
+        required: false
+        description: >
+          この matching/search がどの入口から発火したかを表す識別子。
+          例: "search_form", "concierge", "therapist_detail", "other" など。
+          v1 ではバリデーションは緩くし、未知の文字列はそのまま保存する。
 
 entities:
   MatchingSearchItem:
@@ -66,11 +91,33 @@ endpoints:
     response: MatchingSearchResponse
     notes:
       - sort=recommended uses new scoring with breakdown:
-        base_staff_similarity, tag_similarity, price_match, age_match, photo_similarity, availability_boost (all 0..1)
-      - score = clamp(0.35*base_staff_similarity + 0.25*tag_similarity + 0.15*price_match + 0.10*age_match + 0.10*photo_similarity + 0.05*availability_boost, 0..1)
-      - availability_boost: availability.is_available==True のときだけ >0（実装では 1.0）、False/null は 0.0。フィルタは行わず加点のみ。
-      - photo_similarity mirrors base_staff_similarity; when base_staff_id is missing or embeddings missing, neutral 0.5。
-      - tag weights: mood 0.25, style 0.20, look 0.30, contact 0.10, hobby_tags 0.15 (Jaccard; empty/empty => 0.5, one empty => 0.0)。
+        base_staff_similarity, tag_similarity, price_match, age_match, photo_similarity, availability_boost
+        (all 0..1).
+      - score = clamp(
+          0.35*base_staff_similarity +
+          0.25*tag_similarity +
+          0.15*price_match +
+          0.10*age_match +
+          0.10*photo_similarity +
+          0.05*availability_boost,
+          0..1
+        ).
+      - availability_boost:
+          - phase=explore: availability は計算せず、availability_boost は常に 0 とする。
+          - phase=narrow: is_available を計算し、is_available==true の場合のみ availability_boost>0
+            (v1 実装では 1.0)。false/null の場合は 0.0。フィルタは行わず加点のみ。
+          - phase=book: is_available を計算し、is_available==true の候補だけを items に含める。
+            つまり予約可能な候補のみに絞り込む。availability_boost は true の候補に対してのみ
+            >0 (v1 実装では 1.0) としてよい。
+      - phase が未指定の場合のデフォルト:
+          - 通常の検索フォームから date/start_time/duration_minutes が指定されている場合は、
+            phase=book 相当として扱い、予約可能な候補のみを返すことを想定している。
+          - date/start_time/duration_minutes も指定されていない場合は、phase=explore 相当として扱い、
+            availability はスコアにもフィルタにも用いない前提とする。
+          - concierge フローからは必ず phase を明示的に送ることを推奨する。
+      - tag weights: mood 0.25, style 0.20, look 0.30, contact 0.10, hobby_tags 0.15
+        (Jaccard; empty/empty => 0.5, one empty => 0.0)。
       - price_match: ideal=(min+max)/2; diff 0=>1.0, 1=>0.6, 2=>0.2, >=3=>0.0; missing =>0.5。
       - age_match: ideal=(min+max)/2; 1 - |diff|/15; missing =>0.5。
-      - Candidates filtered by existing availability/profile visibility; recommended のみこのスコアでソート。他の sort は従来順序。
+      - Candidates filtered by existing availability/profile visibility; recommended のみこのスコアでソート。
+        他の sort は従来順序。
