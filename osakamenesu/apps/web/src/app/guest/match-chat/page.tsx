@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import Link from 'next/link'
 
@@ -66,11 +66,19 @@ export default function MatchChatPage() {
     }
   }, [area, date, budget, mood, freeText])
 
+  const [stepIndex, setStepIndex] = useState(1)
+
+  // 会話をやり直した場合（エリア/日付を変更したとき）はステップをリセットする
+  useEffect(() => {
+    setStepIndex(1)
+  }, [area, date])
+
   const handleSubmit = async () => {
     if (!area || !date) {
       setError('エリアと日付を入力してください。')
       return
     }
+    setStepIndex((prev) => prev + 1)
     setLoading(true)
     setError(null)
     setResult(null)
@@ -79,6 +87,9 @@ export default function MatchChatPage() {
       params.set('area', area)
       params.set('date', date)
       params.set('sort', 'recommended')
+      params.set('entry_source', 'concierge')
+      params.set('phase', 'narrow') // TODO: 会話ステップに応じて explore/narrow/book を出し分ける
+      params.set('step_index', String(stepIndex))
       if (budget) params.set('budget_level', budget)
       if (freeText) params.set('free_text', freeText)
 
@@ -274,6 +285,20 @@ export default function MatchChatPage() {
                   ) : (
                     <div className="text-xs text-neutral-textMuted">空き枠情報は後でご案内します</div>
                   )}
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      className="rounded border border-neutral-borderLight px-3 py-2 text-xs font-semibold text-brand-primary hover:brightness-105"
+                      href={`/guest/therapists/${m.therapist_id}?shop_id=${m.shop_id}&name=${encodeURIComponent(m.therapist_name)}&shop_name=${encodeURIComponent(m.shop_name)}`}
+                    >
+                      詳細を見る
+                    </Link>
+                    <Link
+                      className="rounded bg-brand-primary px-3 py-2 text-xs font-semibold text-white hover:brightness-105"
+                      href={`/guest/therapists/${m.therapist_id}/reserve?shop_id=${m.shop_id}${date ? `&date=${date}` : ''}`}
+                    >
+                      この子で予約する
+                    </Link>
+                  </div>
                 </Card>
               ))}
             </div>
