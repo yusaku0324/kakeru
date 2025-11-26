@@ -17,6 +17,24 @@ pnpm dev
 - `doppler run --project osakamenesu --config dev_web -- …` を必ず経由するため、`.env` や手動 export は不要です。
 - CI / ローカルともに `DOPPLER_STG_TOKEN` (ステージング向けサービス Token) を設定すれば対話なしで同じコマンドが動きます。GitHub Actions (`ci-web`) でもこのトークンを `stg_web` コンフィグで使用します。
 
+### Postgres を必ず起動する
+- Docker Compose を使う場合（推奨）:
+  ```bash
+  docker compose up -d db api  # サービス名に合わせて調整
+  ```
+- ローカル Postgres を使う場合:
+  ```bash
+  createdb -h localhost -p 5432 -U app osaka_menesu
+  export DATABASE_URL="postgresql+asyncpg://app:app@localhost:5432/osaka_menesu"
+  ```
+- 開発の一時対応として SQLite に切り替える場合:
+  ```bash
+  export DATABASE_URL="sqlite+aiosqlite:///:memory:"
+  ```
+  ※ あくまで開発用。CI/本番では必ず Postgres (asyncpg) を使用。
+
+DB 未起動のままフロントから類似/検索 API を叩くと 500 になります。まず DB を起動し、asyncpg URL が設定されていることを確認してください。
+
 ## よく使う npm/pnpm スクリプト
 
 | コマンド | 説明 |
