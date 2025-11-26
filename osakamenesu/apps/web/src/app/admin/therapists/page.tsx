@@ -72,7 +72,15 @@ export default function AdminTherapistsPage() {
                   <div className="text-xs text-neutral-textMuted">所属: {member.shop}</div>
                 ) : null}
               </div>
-              <span className="text-xs text-brand-primary">編集は店舗管理から</span>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="text-brand-primary">編集は店舗管理から</span>
+                <a
+                  className="text-brand-primary underline"
+                  href={`/admin/therapists/${member.id}/shifts`}
+                >
+                  シフト管理
+                </a>
+              </div>
             </li>
           ))}
         </ul>

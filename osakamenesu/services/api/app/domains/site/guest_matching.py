@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .services.shop.search_service import ShopSearchService
+from .therapist_availability import is_available
 from ... import models
 from ...db import get_session
 
@@ -18,6 +19,15 @@ logger = logging.getLogger(__name__)
 SIMILAR_DEFAULT_LIMIT = 8
 SIMILAR_MAX_LIMIT = 20
 SIMILAR_DEFAULT_MIN_SCORE = 0.4
+AVAILABILITY_CHECK_LIMIT = 20
+DEFAULT_BREAKDOWN = {
+    "base_staff_similarity": 0.5,
+    "tag_similarity": 0.5,
+    "price_match": 0.5,
+    "age_match": 0.5,
+    "photo_similarity": 0.5,
+    "availability_boost": 0.0,
+}
 
 
 class GuestMatchingRequest(BaseModel):
@@ -49,13 +59,12 @@ class GuestMatchingRequest(BaseModel):
 
 
 class MatchingBreakdown(BaseModel):
-    core: float
-    priceFit: float
-    moodFit: float
-    talkFit: float
-    styleFit: float
-    lookFit: float
-    availability: float
+    base_staff_similarity: float
+    tag_similarity: float
+    price_match: float
+    age_match: float
+    photo_similarity: float
+    availability_boost: float
 
 
 class MatchingCandidate(BaseModel):
@@ -79,7 +88,8 @@ class MatchingCandidate(BaseModel):
     photo_url: str | None = None
     score: float | None = None
     photo_similarity: float | None = None
-    is_available: bool | None = None
+    is_available: bool | None = None  # availability の簡易版（True/False/None）
+    availability: dict[str, Any] | None = None
 
 
 class MatchingResponse(BaseModel):
@@ -196,6 +206,23 @@ def _jaccard(a: list[str] | None, b: list[str] | None) -> float:
     if union == 0:
         return 0.0
     return len(set_a & set_b) / union
+
+
+def _combine_datetime(d: date | None, t: str | None) -> datetime | None:
+    if not d or not t:
+        return None
+    try:
+        hour, minute = map(int, t.split(":"))
+        return datetime(
+            d.year,
+            d.month,
+            d.day,
+            hour,
+            minute,
+            tzinfo=datetime.now().astimezone().tzinfo,
+        )
+    except Exception:
+        return None
 
 
 def _compute_tag_similarity(base: dict[str, Any], candidate: dict[str, Any]) -> float:
@@ -379,25 +406,69 @@ def _score_age_v2(payload: GuestMatchingRequest, candidate: dict[str, Any]) -> f
     return max(0.0, 1.0 - diff / 15.0)
 
 
+def _aggregate_score(bd: dict[str, float]) -> float:
+    """Aggregate breakdown dict into final score, clamped to 0..1."""
+    score = (
+        0.35 * bd.get("base_staff_similarity", 0.5)
+        + 0.25 * bd.get("tag_similarity", 0.5)
+        + 0.15 * bd.get("price_match", 0.5)
+        + 0.10 * bd.get("age_match", 0.5)
+        + 0.10 * bd.get("photo_similarity", 0.5)
+        + 0.05 * bd.get("availability_boost", 0.0)
+    )
+    return max(0.0, min(1.0, score))
+
+
+def _normalize_breakdown(raw: dict[str, Any] | None) -> dict[str, float]:
+    """Convert legacy breakdown (core/priceFit/...) to the new shape or fill defaults."""
+    if not raw:
+        return DEFAULT_BREAKDOWN.copy()
+    if {
+        "base_staff_similarity",
+        "tag_similarity",
+        "price_match",
+        "age_match",
+        "photo_similarity",
+        "availability_boost",
+    }.issubset(raw.keys()):
+        # already new shape
+        return {**DEFAULT_BREAKDOWN, **raw}
+
+    # legacy keys fallback
+    return {
+        "base_staff_similarity": raw.get("core", 0.5),
+        "tag_similarity": raw.get("moodFit", 0.5),
+        "price_match": raw.get("priceFit", 0.5),
+        "age_match": raw.get("lookFit", 0.5),
+        "photo_similarity": raw.get("styleFit", 0.5),
+        "availability_boost": raw.get("availability", 0.0),
+    }
+
+
 def _score_candidate_v2(
     payload: GuestMatchingRequest,
     candidate: dict[str, Any],
     base: dict[str, Any] | None,
+    availability_boost: float = 0.0,
 ) -> dict[str, float]:
-    tag_score = _score_tags_v2(payload, candidate)
-    price_score = _score_price_v2(payload, candidate)
-    age_score = _score_age_v2(payload, candidate)
+    tag_similarity = _score_tags_v2(payload, candidate)
+    price_match = _score_price_v2(payload, candidate)
+    age_match = _score_age_v2(payload, candidate)
     photo_similarity = _score_photo_similarity(base, candidate)
-    score = (
-        0.60 * photo_similarity
-        + 0.25 * tag_score
-        + 0.10 * price_score
-        + 0.05 * age_score
-    )
-    return {
-        "score": max(0.0, min(1.0, score)),
-        "photo_similarity": max(0.0, min(1.0, photo_similarity)),
+
+    base_staff_similarity = photo_similarity if base else 0.5
+
+    bd = {
+        "base_staff_similarity": base_staff_similarity,
+        "tag_similarity": tag_similarity,
+        "price_match": price_match,
+        "age_match": age_match,
+        "photo_similarity": photo_similarity,
+        "availability_boost": availability_boost,
     }
+    score = _aggregate_score(bd)
+    bd["score"] = score
+    return bd
 
 
 def _is_available(candidate: dict[str, Any]) -> bool:
@@ -441,9 +512,8 @@ async def _get_base_staff(db: AsyncSession | None, staff_id: str) -> dict[str, A
     photos = getattr(profile, "photos", None) or getattr(therapist, "photo_urls", None)
     if photos:
         photo_url = photos[0]
-    photo_embedding = (
-        getattr(profile, "photo_embedding", None)
-        or getattr(therapist, "photo_embedding", None)
+    photo_embedding = getattr(profile, "photo_embedding", None) or getattr(
+        therapist, "photo_embedding", None
     )
     return {
         "id": str(therapist.id),
@@ -660,7 +730,7 @@ async def guest_matching_search(
     scored: list[MatchingCandidate] = []
     for c in candidates_raw:
         score = _score_candidate(payload, c)
-        breakdown = c.get("__breakdown", {})
+        breakdown = _normalize_breakdown(c.get("__breakdown", {}))
         summary = (
             f"{c.get('shop_name', '')} のスタッフ候補です。条件に近い順に並べています。"
         )
@@ -697,10 +767,10 @@ async def guest_matching_search(
     v2_items: list[MatchingCandidate] = []
     for c in candidates_raw:
         # calculate v2 score; keep existing fields for compatibility
-        score_ctx = _score_candidate_v2(payload, c, base_ctx)
-        score = score_ctx["score"]
-        photo_similarity = score_ctx["photo_similarity"]
-        breakdown = c.get("__breakdown", {})
+        bd = _score_candidate_v2(payload, c, base_ctx)
+        score = bd.get("score", 0.0)
+        photo_similarity = bd.get("photo_similarity", 0.5)
+        breakdown = bd
         summary = (
             f"{c.get('shop_name', '')} のスタッフ候補です。条件に近い順に並べています。"
         )
@@ -726,16 +796,58 @@ async def guest_matching_search(
                 photo_url=c.get("photo_url"),
                 photo_similarity=photo_similarity,
                 is_available=True if c.get("slots") else False,
+                availability=None,
             )
         )
 
     sort_value = (payload.sort or "recommended").lower()
+
+    # availability annotation (v1: annotate only, do not filter). Check top N items to balance perf.
+    # derive start/end from date + time_from/time_to; if欠損なら is_availableは計算しない（None）
+    avail_start = (
+        _combine_datetime(parsed_date, payload.time_from) if parsed_date else None
+    )
+    avail_end = _combine_datetime(parsed_date, payload.time_to) if parsed_date else None
+    if avail_start and avail_end and avail_start < avail_end:
+        to_check = v2_items[:AVAILABILITY_CHECK_LIMIT]
+        results: list[tuple[bool, list[str]]] = []
+        for cand in to_check:
+            try:
+                ok, debug = await is_available(
+                    db, cand.therapist_id, avail_start, avail_end
+                )
+                reasons = debug.get("rejected_reasons") or []
+                results.append((ok, reasons))
+            except Exception:
+                results.append((False, ["internal_error"]))
+        for cand, (ok, reasons) in zip(to_check, results):
+            cand.availability = {"is_available": ok, "rejected_reasons": reasons}
+            if not ok and "internal_error" in reasons:
+                cand.is_available = None
+            else:
+                cand.is_available = ok
+            # availability boost 反映: Trueなら1.0, False/Noneなら0.0
+            avail_boost = 1.0 if ok else 0.0
+            bd = cand.breakdown.model_dump()
+            bd["availability_boost"] = avail_boost
+            cand.breakdown = MatchingBreakdown(**bd)
+            cand.score = _aggregate_score(bd)
+    else:
+        # 時刻が不明/不完全なら availability を null にする
+        for cand in v2_items[:AVAILABILITY_CHECK_LIMIT]:
+            cand.availability = {"is_available": None, "rejected_reasons": []}
+            cand.is_available = None
+            bd = cand.breakdown.model_dump()
+            bd["availability_boost"] = 0.0
+            cand.breakdown = MatchingBreakdown(**bd)
+            cand.score = _aggregate_score(bd)
+
     if sort_value == "recommended":
         v2_items = sorted(
             v2_items,
             key=lambda x: (
                 -(x.score or 0.0),
-                0 if x.slots else 1,
+                0 if (x.is_available is True) else 1 if x.is_available is False else 2,
                 x.therapist_id,
             ),
         )
@@ -782,7 +894,9 @@ async def guest_matching_similar(
 ) -> SimilarResponse:
     base_id = staff_id or therapist_id
     if not base_id:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="staff_id_required")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="staff_id_required"
+        )
     staff_id = base_id
 
     base = await _get_base_staff(db, staff_id)
