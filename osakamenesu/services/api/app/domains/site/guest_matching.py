@@ -681,6 +681,9 @@ async def _log_matching(
     top_matches: list[MatchingCandidate],
     other_candidates: list[MatchingCandidate],
     guest_token: str | None = None,
+    phase: str | None = None,
+    step_index: int | None = None,
+    entry_source: str | None = None,
 ) -> None:
     """
     Best-effort logging of matching input and candidates.
@@ -699,6 +702,9 @@ async def _log_matching(
             style_pref=getattr(payload, "style_pref", None),
             look_pref=getattr(payload, "look_pref", None),
             free_text=getattr(payload, "free_text", None),
+            phase=phase,
+            step_index=step_index,
+            entry_source=entry_source,
             top_matches=[c.model_dump() for c in top_matches],
             other_candidates=[c.model_dump() for c in other_candidates],
             selected_therapist_id=None,
@@ -901,8 +907,25 @@ async def guest_matching_search(
     limit = payload.limit or 30
     sliced = v2_items[offset : offset + limit]
 
+    log_phase = (
+        payload.phase if payload.phase in {"explore", "narrow", "book"} else None
+    )
+    log_step = (
+        payload.step_index if payload.step_index and payload.step_index >= 1 else None
+    )
+    log_entry_source = payload.entry_source or None
+
     try:
-        await _log_matching(db, payload, sliced, [], guest_token=payload.guest_token)
+        await _log_matching(
+            db,
+            payload,
+            sliced,
+            [],
+            guest_token=payload.guest_token,
+            phase=log_phase,
+            step_index=log_step,
+            entry_source=log_entry_source,
+        )
     except Exception:
         logger.debug("guest_matching_log_skip")
     return MatchingResponse(items=sliced, total=len(v2_items))
