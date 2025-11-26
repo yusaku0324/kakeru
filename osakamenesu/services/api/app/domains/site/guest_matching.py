@@ -56,6 +56,17 @@ class GuestMatchingRequest(BaseModel):
     sort: str | None = None
     limit: int | None = Field(default=None, ge=1, le=100)
     offset: int | None = Field(default=None, ge=0)
+    phase: str | None = None
+    step_index: int | None = Field(default=None, ge=1)
+    entry_source: str | None = None
+
+    @field_validator("phase")
+    @classmethod
+    def _normalize_phase(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        v = value.lower()
+        return v if v in {"explore", "narrow", "book"} else None
 
 
 class MatchingBreakdown(BaseModel):
@@ -223,6 +234,21 @@ def _combine_datetime(d: date | None, t: str | None) -> datetime | None:
         )
     except Exception:
         return None
+
+
+def _resolve_phase(payload: GuestMatchingRequest, parsed_date: date | None) -> str:
+    """Resolve phase with fallbacks based on date/time presence."""
+    requested = payload.phase
+    has_time_window = bool(parsed_date and payload.time_from and payload.time_to)
+
+    if requested == "book" and not has_time_window:
+        requested = "explore"
+    if requested in {"explore", "narrow", "book"}:
+        return requested
+
+    if has_time_window:
+        return "book"
+    return "explore"
 
 
 def _compute_tag_similarity(base: dict[str, Any], candidate: dict[str, Any]) -> float:
@@ -709,6 +735,8 @@ async def guest_matching_search(
         except ValueError:
             parsed_date = None
 
+    phase = _resolve_phase(payload, parsed_date)
+
     search_service = ShopSearchService(db)
     try:
         search_res = await search_service.search(
@@ -795,46 +823,63 @@ async def guest_matching_search(
                 age=c.get("age"),
                 photo_url=c.get("photo_url"),
                 photo_similarity=photo_similarity,
-                is_available=True if c.get("slots") else False,
+                is_available=None,
                 availability=None,
             )
         )
 
     sort_value = (payload.sort or "recommended").lower()
 
-    # availability annotation (v1: annotate only, do not filter). Check top N items to balance perf.
-    # derive start/end from date + time_from/time_to; if欠損なら is_availableは計算しない（None）
-    avail_start = (
-        _combine_datetime(parsed_date, payload.time_from) if parsed_date else None
+    # availability annotation / filtering by phase
+    has_time_window = bool(parsed_date and payload.time_from and payload.time_to)
+    should_check_availability = (
+        phase in {"narrow", "book"}
+        and has_time_window
+        and payload.time_from
+        and payload.time_to
     )
-    avail_end = _combine_datetime(parsed_date, payload.time_to) if parsed_date else None
-    if avail_start and avail_end and avail_start < avail_end:
-        to_check = v2_items[:AVAILABILITY_CHECK_LIMIT]
-        results: list[tuple[bool, list[str]]] = []
+    avail_start = (
+        _combine_datetime(parsed_date, payload.time_from)
+        if should_check_availability
+        else None
+    )
+    avail_end = (
+        _combine_datetime(parsed_date, payload.time_to)
+        if should_check_availability
+        else None
+    )
+    if (
+        should_check_availability
+        and avail_start
+        and avail_end
+        and avail_start < avail_end
+    ):
+        to_check = v2_items
         for cand in to_check:
             try:
                 ok, debug = await is_available(
                     db, cand.therapist_id, avail_start, avail_end
                 )
                 reasons = debug.get("rejected_reasons") or []
-                results.append((ok, reasons))
             except Exception:
-                results.append((False, ["internal_error"]))
-        for cand, (ok, reasons) in zip(to_check, results):
+                ok = False
+                reasons = ["internal_error"]
             cand.availability = {"is_available": ok, "rejected_reasons": reasons}
             if not ok and "internal_error" in reasons:
                 cand.is_available = None
             else:
                 cand.is_available = ok
-            # availability boost 反映: Trueなら1.0, False/Noneなら0.0
             avail_boost = 1.0 if ok else 0.0
             bd = cand.breakdown.model_dump()
             bd["availability_boost"] = avail_boost
             cand.breakdown = MatchingBreakdown(**bd)
             cand.score = _aggregate_score(bd)
+
+        if phase == "book":
+            v2_items = [cand for cand in v2_items if cand.is_available is True]
     else:
-        # 時刻が不明/不完全なら availability を null にする
-        for cand in v2_items[:AVAILABILITY_CHECK_LIMIT]:
+        # availability is not considered (explore or insufficient time info)
+        for cand in v2_items:
             cand.availability = {"is_available": None, "rejected_reasons": []}
             cand.is_available = None
             bd = cand.breakdown.model_dump()
