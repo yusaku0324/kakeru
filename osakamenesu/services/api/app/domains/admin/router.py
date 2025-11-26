@@ -10,6 +10,7 @@ from .profiles_router import (
 from .reservations_router import router as reservations_router
 from .reviews_router import router as reviews_router
 from .therapist_shifts_api import router as therapist_shifts_router
+from .shop_dashboard_api import router as shop_dashboard_router
 from .shops_api import router as shops_router
 from .therapists_api import router as therapists_router
 
@@ -20,6 +21,7 @@ router.include_router(reviews_router)
 router.include_router(therapist_shifts_router)
 router.include_router(shops_router)
 router.include_router(therapists_router)
+router.include_router(shop_dashboard_router)
 
 reindex_all = profiles_reindex_all
 
