@@ -47,4 +47,3 @@ describe('Admin Therapist Shifts Page', () => {
     await waitFor(() => expect(screen.getByText(/シフトを登録しました/)).toBeInTheDocument())
   })
 })
-

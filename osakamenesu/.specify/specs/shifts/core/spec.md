@@ -34,23 +34,23 @@
 ## 3. ビジネスルール・ロジック
 - 空き枠計算: シフト時間帯 － 休憩 － 確定済み予約(GuestReservation) の差分を計算。
 - 判定API/関数:
-  - `is_available(therapist_id, start_at, end_at)`  
+  - `is_available(therapist_id, start_at, end_at)`
     - 完全に内包する "available" シフトがあること
     - 休憩と重ならないこと
     - 同一セラの confirmed/pending 予約と重複しないこと
     - fail-soft: 異常があっても例外にせず (False, reasons) を返す
-  - `list_daily_slots(therapist_id, date)` (簡易版で可)  
+  - `list_daily_slots(therapist_id, date)` (簡易版で可)
     - v1 は status を "free"/"closed" 程度に留め、細かい閾値は TODO
 - 直前予約の締切: 予約コアの締切ルール（例: 開始60分前まで）と整合。締切超過は "closed" 扱い。
 - 重複判定: シフト自体も同一セラで重複登録不可。予約との重複は空き枠計算時に除外。
 
 ## 4. 具体例
-- ケース1: 通常シフト + 休憩 + 予約あり  
-  - 10:00–18:00, 休憩 13:00–14:00, 予約 15:00–16:00  
+- ケース1: 通常シフト + 休憩 + 予約あり
+  - 10:00–18:00, 休憩 13:00–14:00, 予約 15:00–16:00
   - 空き枠: 10–13 free, 14–15 free, 16–18 free/closed は残枠次第（v1は2値でも可）
-- ケース2: 夕方スポット出勤 + 締切またぎ  
+- ケース2: 夕方スポット出勤 + 締切またぎ
   - 17:00–22:00, 締切60分。現在16:30で 17:30–18:30 予約希望 → 締切内で closed, 18:30以降は free。
-- ケース3: 一時受付停止  
+- ケース3: 一時受付停止
   - availability_status="off" または break_slots で全時間を塞ぐ → その日の slots は全て "closed"。
 
 ## 5. 不変条件（invariants）

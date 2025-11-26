@@ -35,4 +35,3 @@ describe('Guest search & reserve link', () => {
     expect(link).toHaveAttribute('href', '/guest/therapists/t1/reserve?shop_id=s1')
   })
 })
-
