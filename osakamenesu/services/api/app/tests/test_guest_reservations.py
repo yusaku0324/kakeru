@@ -70,11 +70,10 @@ async def stub_session():
 
 @pytest.mark.asyncio
 async def test_create_guest_reservation_success(monkeypatch, stub_session: StubSession):
-    # overlap チェックは常に OK にする
-    async def _no_overlap(db, shop_id, therapist_id, start_at, end_at):
-        return []
+    async def _avail(db, therapist_id, start_at, end_at):
+        return True, {"rejected_reasons": []}
 
-    monkeypatch.setattr(domain, "check_shift_and_overlap", _no_overlap)
+    monkeypatch.setattr(domain, "is_available", _avail)
 
     payload = {
         "shop_id": str(uuid4()),
@@ -92,10 +91,10 @@ async def test_create_guest_reservation_success(monkeypatch, stub_session: StubS
 async def test_create_guest_reservation_deadline_over(
     monkeypatch, stub_session: StubSession
 ):
-    async def _no_overlap(db, shop_id, therapist_id, start_at, end_at):
-        return []
+    async def _avail(db, therapist_id, start_at, end_at):
+        return True, {"rejected_reasons": []}
 
-    monkeypatch.setattr(domain, "check_shift_and_overlap", _no_overlap)
+    monkeypatch.setattr(domain, "is_available", _avail)
 
     payload = {
         "shop_id": str(uuid4()),
@@ -112,13 +111,10 @@ async def test_create_guest_reservation_deadline_over(
 async def test_create_guest_reservation_double_booking(
     monkeypatch, stub_session: StubSession
 ):
-    overlaps = False
+    async def _avail_ok(db, therapist_id, start_at, end_at):
+        return True, {"rejected_reasons": []}
 
-    async def _overlap(db, shop_id, therapist_id, start_at, end_at):
-        nonlocal overlaps
-        return ["overlap_existing_reservation"] if overlaps else []
-
-    monkeypatch.setattr(domain, "check_shift_and_overlap", _overlap)
+    monkeypatch.setattr(domain, "is_available", _avail_ok)
 
     payload = {
         "shop_id": str(uuid4()),
@@ -128,7 +124,12 @@ async def test_create_guest_reservation_double_booking(
     }
     res1, _ = await create_guest_reservation(stub_session, payload, now=_ts(10))
     assert res1 is not None
-    overlaps = True
+
+    # is_available が重複を検知するケースをシミュレート
+    async def _avail_ng(db, therapist_id, start_at, end_at):
+        return False, {"rejected_reasons": ["overlap_existing_reservation"]}
+
+    monkeypatch.setattr(domain, "is_available", _avail_ng)
     res2, debug = await create_guest_reservation(stub_session, payload, now=_ts(11))
     assert res2 is None
     assert "overlap_existing_reservation" in debug["rejected_reasons"]
@@ -139,13 +140,10 @@ async def test_create_guest_reservation_free_assign_failed(
     monkeypatch, stub_session: StubSession
 ):
     async def _no_assign(db, shop_id, start_at, end_at, base_staff_id=None):
-        return None
-
-    async def _no_overlap(db, shop_id, therapist_id, start_at, end_at):
-        return []
+        return None, {"rejected_reasons": ["no_available_therapist"]}
 
     monkeypatch.setattr(domain, "assign_for_free", _no_assign)
-    monkeypatch.setattr(domain, "check_shift_and_overlap", _no_overlap)
+    # is_available は therapist_id None の場合はスキップされる前提なので未設定
 
     payload = {
         "shop_id": str(uuid4()),
@@ -162,10 +160,10 @@ async def test_create_guest_reservation_free_assign_failed(
 async def test_cancel_guest_reservation_idempotent(
     monkeypatch, stub_session: StubSession
 ):
-    async def _no_overlap(db, shop_id, therapist_id, start_at, end_at):
-        return []
+    async def _avail(db, therapist_id, start_at, end_at):
+        return True, {"rejected_reasons": []}
 
-    monkeypatch.setattr(domain, "check_shift_and_overlap", _no_overlap)
+    monkeypatch.setattr(domain, "is_available", _avail)
 
     payload = {
         "shop_id": str(uuid4()),

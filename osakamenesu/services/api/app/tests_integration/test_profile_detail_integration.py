@@ -48,6 +48,10 @@ os.environ.setdefault("ANYIO_BACKEND", "asyncio")
 
 pytestmark = [pytest.mark.integration]
 
+# インテグレーションDBフラグが無い場合はスキップ
+if not os.getenv("OSAKAMENESU_INTEGRATION_DB"):
+    pytestmark.append(pytest.mark.skip(reason="requires OSAKAMENESU_INTEGRATION_DB=1"))
+
 
 def _ensure_local_db_available() -> None:
     async def _ping() -> None:

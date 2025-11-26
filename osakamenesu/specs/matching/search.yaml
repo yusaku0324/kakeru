@@ -39,9 +39,18 @@ entities:
         type: array
         items: string
       photo_url: { type: string, required: false, nullable: true }
-      is_available: boolean
+      is_available: { type: boolean, required: false, nullable: true }
       score: number
       photo_similarity: number
+      breakdown:
+        type: object
+        properties:
+          base_staff_similarity: number
+          tag_similarity: number
+          price_match: number
+          age_match: number
+          photo_similarity: number
+          availability_boost: number
   MatchingSearchResponse:
     fields:
       items:
@@ -56,9 +65,12 @@ endpoints:
     query: MatchingSearchQuery
     response: MatchingSearchResponse
     notes:
-      - sort=recommended uses v2 scoring: score = 0.60 * photo_score + 0.25 * tag_score + 0.10 * price_score + 0.05 * age_score (clipped 0..1).
-      - photo_score mirrors photo_similarity; when base_staff_id is missing, photo_similarity is neutral 0.5.
-      - tag weights: mood 0.25, style 0.20, look 0.30, contact 0.10, hobby_tags 0.15 (Jaccard; empty/empty => 0.5, one empty => 0.0).
-      - price_score: ideal=(min+max)/2; diff 0=>1.0, 1=>0.6, 2=>0.2, >=3=>0.0; missing =>0.5.
-      - age_score: ideal=(min+max)/2; 1 - |diff|/15; missing =>0.5.
-      - Candidates filtered by existing availability/profile visibility; score/tie-break only apply when sort=recommended.
+      - sort=recommended uses new scoring with breakdown:
+        base_staff_similarity, tag_similarity, price_match, age_match, photo_similarity, availability_boost (all 0..1)
+      - score = clamp(0.35*base_staff_similarity + 0.25*tag_similarity + 0.15*price_match + 0.10*age_match + 0.10*photo_similarity + 0.05*availability_boost, 0..1)
+      - availability_boost: availability.is_available==True のときだけ >0（実装では 1.0）、False/null は 0.0。フィルタは行わず加点のみ。
+      - photo_similarity mirrors base_staff_similarity; when base_staff_id is missing or embeddings missing, neutral 0.5。
+      - tag weights: mood 0.25, style 0.20, look 0.30, contact 0.10, hobby_tags 0.15 (Jaccard; empty/empty => 0.5, one empty => 0.0)。
+      - price_match: ideal=(min+max)/2; diff 0=>1.0, 1=>0.6, 2=>0.2, >=3=>0.0; missing =>0.5。
+      - age_match: ideal=(min+max)/2; 1 - |diff|/15; missing =>0.5。
+      - Candidates filtered by existing availability/profile visibility; recommended のみこのスコアでソート。他の sort は従来順序。

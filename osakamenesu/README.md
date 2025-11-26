@@ -35,6 +35,25 @@ pnpm dev
 
 DB 未起動のままフロントから類似/検索 API を叩くと 500 になります。まず DB を起動し、asyncpg URL が設定されていることを確認してください。
 
+#### Alembic / マイグレーション運用ルール（開発者向け）
+- 初回セットアップ（推奨手順）
+  ```bash
+  # DB を起動
+  docker compose up -d osakamenesu-db
+
+  # API コンテナ経由でマイグレ実行（初回）
+  docker compose run --rm osakamenesu-api bash -lc "cd services/api && alembic upgrade head"
+  ```
+- 開発中のチェック:
+  ```bash
+  cd services/api
+  alembic heads  # head が 1 個であることを確認
+  alembic upgrade head --sql  # オフラインで SQL を出して syntax を確認
+  ```
+- head が複数になったら、merge マイグレーション（例: 003X_merge_heads.py）を追加して 1 つにまとめること。複数 head のまま main に入れない。
+- 既存 Enum を再定義しないよう、Postgres ENUM は `checkfirst=True` または DO $$ BEGIN ... duplicate_object THEN NULL; を使う（テンプレに helper あり）。
+- 本番は必ず `alembic upgrade head` で上げる。`alembic stamp` はローカルの応急処置に限定。
+
 ## よく使う npm/pnpm スクリプト
 
 | コマンド | 説明 |

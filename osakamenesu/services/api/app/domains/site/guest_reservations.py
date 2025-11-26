@@ -17,6 +17,7 @@ from ...models import (
     now_utc,
 )
 from ...db import get_session
+from .therapist_availability import is_available
 
 logger = logging.getLogger(__name__)
 
@@ -136,25 +137,86 @@ async def assign_for_free(
     start_at: datetime,
     end_at: datetime,
     base_staff_id: Any | None = None,
-) -> Optional[Any]:
+) -> tuple[Optional[Any], dict[str, Any]]:
     """
-    フリー/おまかせ時の割当。v1 は単純に shop の published + is_booking_enabled なセラピストを返す。
-    条件に合う人がいなければ None を返す。
+    フリー/おまかせ時の割当。
+
+    v1 ポリシー:
+    - shop 内の公開 & booking 有効なセラピストを候補にする。
+    - is_available=True のみ残し、base_staff_id/matching_tags があれば簡易スコアで 0..1 にクリップ。
+    - 最もスコアが高い 1 名を返す。候補ゼロなら None。
+    - 例外時は fail-soft で internal_error とする。
     """
-    if not db or not hasattr(db, "execute"):
-        return None
-    stmt = (
-        select(Therapist.id)
-        .where(
-            Therapist.profile_id == shop_id,
-            Therapist.status == "published",
-            Therapist.is_booking_enabled.is_(True),
+
+    debug: dict[str, Any] = {"rejected_reasons": []}
+    candidates: list[dict[str, Any]] = []
+
+    try:
+        if not db or not hasattr(db, "execute"):
+            debug["rejected_reasons"].append("internal_error")
+            return None, debug
+
+        res = await db.execute(
+            select(
+                Therapist.id,
+                Therapist.display_order,
+                Therapist.created_at,
+            ).where(
+                Therapist.profile_id == shop_id,
+                Therapist.status == "published",
+                Therapist.is_booking_enabled.is_(True),
+            )
         )
-        .order_by(Therapist.display_order, Therapist.created_at)
-    )
-    res = await db.execute(stmt)
-    row = res.first()
-    return row[0] if row else None
+        candidates = [
+            {
+                "therapist_id": row[0],
+                "display_order": row[1] or 0,
+                "created_at": row[2],
+            }
+            for row in res.fetchall()
+        ]
+    except Exception:  # pragma: no cover - defensive
+        logger.warning("assign_for_free_candidates_failed", exc_info=True)
+        debug["rejected_reasons"].append("internal_error")
+        return None, debug
+
+    if not candidates:
+        debug["rejected_reasons"].append("no_candidate")
+        return None, debug
+
+    available_candidates: list[tuple[Any, float]] = []
+
+    for cand in candidates:
+        therapist_id = cand.get("therapist_id")
+        try:
+            ok, avail_debug = await is_available(db, therapist_id, start_at, end_at)
+        except Exception:  # pragma: no cover - defensive
+            ok = False
+            avail_debug = {"rejected_reasons": ["internal_error"]}
+
+        if not ok:
+            reasons = avail_debug.get("rejected_reasons") or []
+            debug.setdefault("skipped", []).append(
+                {"therapist_id": str(therapist_id), "reasons": reasons}
+            )
+            continue
+
+        score = 0.5
+        if base_staff_id and str(base_staff_id) == str(therapist_id):
+            score = 0.9
+        score = max(0.0, min(1.0, score))
+
+        available_candidates.append((therapist_id, score, cand.get("display_order", 0)))
+
+    if not available_candidates:
+        debug["rejected_reasons"].append("no_available_therapist")
+        return None, debug
+
+    # score desc -> display_order asc -> therapist_id asc で安定ソート
+    available_candidates.sort(key=lambda t: (-t[1], t[2], str(t[0])))
+    chosen = available_candidates[0][0]
+    debug["rejected_reasons"] = []
+    return chosen, debug
 
 
 async def create_guest_reservation(
@@ -179,22 +241,30 @@ async def create_guest_reservation(
     if start_at and end_at:
         rejected.extend(check_deadline(start_at, now, shop_settings=None))
 
-    rejected.extend(
-        await check_shift_and_overlap(db, shop_id, therapist_id, start_at, end_at)
-        if start_at and end_at
-        else []
-    )
+    # 指名予約の場合のみ is_available をチェック（フリーは v1 ではスキップ。将来は assign_for_free 内で可否判定を入れる TODO）
+    if therapist_id and start_at and end_at:
+        try:
+            available, availability_debug = await is_available(
+                db, therapist_id, start_at, end_at
+            )
+        except Exception:  # pragma: no cover - defensive fail-soft
+            available = False
+            availability_debug = {"rejected_reasons": ["internal_error"]}
+        if not available:
+            reasons = availability_debug.get("rejected_reasons") or []
+            rejected.extend(reasons)
 
     # フリー/おまかせの場合は割当
     if not therapist_id and start_at and end_at:
-        assigned = await assign_for_free(
+        assigned, assign_debug = await assign_for_free(
             db, shop_id, start_at, end_at, normalized.get("base_staff_id")
         )
         if assigned:
             therapist_id = assigned
             normalized["therapist_id"] = assigned
         else:
-            rejected.append("no_available_therapist")
+            reasons = assign_debug.get("rejected_reasons") or ["no_available_therapist"]
+            rejected.extend(reasons)
 
     if rejected:
         return None, {"rejected_reasons": rejected}
