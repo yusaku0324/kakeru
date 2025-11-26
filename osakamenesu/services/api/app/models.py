@@ -254,6 +254,9 @@ class GuestMatchLog(Base):
     style_pref: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     look_pref: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     free_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    phase: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    step_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entry_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
     top_matches: Mapped[list[dict[str, Any]] | None] = mapped_column(
         JSONB, nullable=True
     )
