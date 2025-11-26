@@ -71,6 +71,7 @@ def test_search_availability_true(
             "date": "2025-01-01",
             "time_from": "10:00",
             "time_to": "11:00",
+            "phase": "narrow",
         },
     )
     assert res.status_code == 200
@@ -94,6 +95,7 @@ def test_search_availability_false(
             "date": "2025-01-01",
             "time_from": "10:00",
             "time_to": "11:00",
+            "phase": "narrow",
         },
     )
     assert res.status_code == 200

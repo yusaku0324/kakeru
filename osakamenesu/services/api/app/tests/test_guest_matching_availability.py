@@ -80,6 +80,7 @@ def test_availability_annotation(
             "date": "2025-01-01",
             "time_from": "10:00",
             "time_to": "11:00",
+            "phase": "narrow",
         },
     )
     assert res.status_code == 200
@@ -103,6 +104,7 @@ def test_availability_rejected(
             "date": "2025-01-01",
             "time_from": "10:00",
             "time_to": "11:00",
+            "phase": "narrow",
         },
     )
     assert res.status_code == 200
@@ -127,3 +129,145 @@ def test_availability_null_when_no_time(
     data = res.json()
     assert data["items"][0]["availability"]["is_available"] is None
     assert data["items"][0]["availability"]["rejected_reasons"] == []
+
+
+def test_phase_explore_skips_availability(
+    monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
+):
+    called = False
+
+    async def fake_available(db, therapist_id, start_at, end_at):
+        nonlocal called
+        called = True
+        return True, {"rejected_reasons": []}
+
+    monkeypatch.setattr(matching_module, "is_available", fake_available)
+
+    res = client.get(
+        "/api/guest/matching/search",
+        params={
+            "area": "x",
+            "date": "2025-01-01",
+            "time_from": "10:00",
+            "time_to": "11:00",
+            "phase": "explore",
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert called is False
+    for item in data["items"]:
+        assert item["availability"]["is_available"] is None
+        assert item["breakdown"]["availability_boost"] == 0.0
+        assert item["is_available"] is None
+
+
+def test_phase_narrow_keeps_unavailable(
+    monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
+):
+    async def fake_available(db, therapist_id, start_at, end_at):
+        ok = therapist_id == "A"
+        reasons = [] if ok else ["no_shift"]
+        return ok, {"rejected_reasons": reasons}
+
+    monkeypatch.setattr(matching_module, "is_available", fake_available)
+
+    res = client.get(
+        "/api/guest/matching/search",
+        params={
+            "area": "x",
+            "date": "2025-01-01",
+            "time_from": "10:00",
+            "time_to": "11:00",
+            "phase": "narrow",
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data["items"]) == 2
+    a, b = data["items"]
+    assert a["id"] == "A"
+    assert a["is_available"] is True
+    assert a["breakdown"]["availability_boost"] > 0
+    assert b["id"] == "B"
+    assert b["is_available"] is False
+    assert b["breakdown"]["availability_boost"] == 0
+
+
+def test_phase_book_filters_unavailable(
+    monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
+):
+    async def fake_available(db, therapist_id, start_at, end_at):
+        ok = therapist_id == "A"
+        reasons = [] if ok else ["no_shift"]
+        return ok, {"rejected_reasons": reasons}
+
+    monkeypatch.setattr(matching_module, "is_available", fake_available)
+
+    res = client.get(
+        "/api/guest/matching/search",
+        params={
+            "area": "x",
+            "date": "2025-01-01",
+            "time_from": "10:00",
+            "time_to": "11:00",
+            "phase": "book",
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert [item["id"] for item in data["items"]] == ["A"]
+    assert data["items"][0]["is_available"] is True
+    assert data["items"][0]["breakdown"]["availability_boost"] > 0
+
+
+def test_phase_default_book_when_time(
+    monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
+):
+    async def fake_available(db, therapist_id, start_at, end_at):
+        ok = therapist_id == "A"
+        reasons = [] if ok else ["no_shift"]
+        return ok, {"rejected_reasons": reasons}
+
+    monkeypatch.setattr(matching_module, "is_available", fake_available)
+
+    res = client.get(
+        "/api/guest/matching/search",
+        params={
+            "area": "x",
+            "date": "2025-01-01",
+            "time_from": "10:00",
+            "time_to": "11:00",
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert [item["id"] for item in data["items"]] == ["A"]
+
+
+def test_phase_default_explore_when_no_time(
+    monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
+):
+    called = False
+
+    async def fake_available(db, therapist_id, start_at, end_at):
+        nonlocal called
+        called = True
+        return True, {"rejected_reasons": []}
+
+    monkeypatch.setattr(matching_module, "is_available", fake_available)
+
+    res = client.get(
+        "/api/guest/matching/search",
+        params={
+            "area": "x",
+            "date": "2025-01-01",
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert called is False
+    assert len(data["items"]) == 2
+    for item in data["items"]:
+        assert item["availability"]["is_available"] is None
+        assert item["breakdown"]["availability_boost"] == 0.0

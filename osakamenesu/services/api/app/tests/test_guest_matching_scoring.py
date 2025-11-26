@@ -91,6 +91,16 @@ def test_scoring_availability_boost(monkeypatch, matching_module):
 
     client = _make_client(monkeypatch, matching_module, [b, a])
 
+    called_ids: list[str] = []
+
+    async def fake_available(db, therapist_id, start_at, end_at):
+        called_ids.append(therapist_id)
+        if therapist_id == "a":
+            return True, {"rejected_reasons": []}
+        return False, {"rejected_reasons": ["no_shift"]}
+
+    monkeypatch.setattr(matching_module, "is_available", fake_available)
+
     resp = client.get(
         "/api/guest/matching/search",
         params={
@@ -98,6 +108,7 @@ def test_scoring_availability_boost(monkeypatch, matching_module):
             "date": "2025-01-01",
             "time_from": "10:00",
             "time_to": "11:00",
+            "phase": "narrow",
             "sort": "recommended",
         },
     )
@@ -108,6 +119,9 @@ def test_scoring_availability_boost(monkeypatch, matching_module):
     assert items[0]["score"] >= items[1]["score"]
     assert 0.0 <= items[0]["score"] <= 1.0
     assert 0.0 <= items[1]["score"] <= 1.0
+    assert "a" in called_ids and "b" in called_ids
+    assert items[0]["breakdown"]["availability_boost"] > 0
+    assert items[1]["breakdown"]["availability_boost"] == 0
 
 
 def test_scoring_base_staff_similarity(monkeypatch, matching_module):
