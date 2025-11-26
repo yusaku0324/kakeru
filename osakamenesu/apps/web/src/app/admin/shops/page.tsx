@@ -141,12 +141,18 @@ export default function AdminShopsPage() {
                   <td className="px-2 py-1">{shop.name}</td>
                   <td className="px-2 py-1">{shop.area || '-'}</td>
                   <td className="px-2 py-1">{shop.status || '-'}</td>
-                  <td className="px-2 py-1">
+                  <td className="flex gap-2 px-2 py-1">
                     <a
                       className="text-brand-primary underline"
                       href={`/admin/shops/${shop.id}/therapists`}
                     >
                       セラ一覧
+                    </a>
+                    <a
+                      className="text-brand-primary underline"
+                      href={`/admin/shops/${shop.id}/dashboard`}
+                    >
+                      ダッシュボード
                     </a>
                   </td>
                 </tr>
