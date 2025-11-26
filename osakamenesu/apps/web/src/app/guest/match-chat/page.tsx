@@ -22,6 +22,8 @@ type MatchingResponse = {
   other_candidates: MatchingCandidate[]
 }
 
+type Phase = 'explore' | 'narrow' | 'book'
+
 const budgetOptions = [
   { id: 'low', label: '〜15,000円' },
   { id: 'mid', label: '15,000〜20,000円' },
@@ -54,6 +56,7 @@ export default function MatchChatPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<MatchingResponse | null>(null)
+  const [phase, setPhase] = useState<Phase>('explore')
 
   const payload = useMemo(() => {
     const pref = buildPrefFromMood(mood)
@@ -73,25 +76,32 @@ export default function MatchChatPage() {
     setStepIndex(1)
   }, [area, date])
 
+  const buildQuery = (phaseValue: Phase) => {
+    const params = new URLSearchParams()
+    params.set('area', area)
+    if (date) params.set('date', date)
+    params.set('sort', 'recommended')
+    params.set('entry_source', 'concierge')
+    params.set('phase', phaseValue)
+    params.set('step_index', String(stepIndex))
+    if (budget) params.set('budget_level', budget)
+    if (freeText) params.set('free_text', freeText)
+    return params
+  }
+
   const handleSubmit = async () => {
     if (!area || !date) {
       setError('エリアと日付を入力してください。')
       return
     }
+    const nextPhase: Phase = date ? 'book' : mood || budget ? 'narrow' : 'explore'
+    setPhase(nextPhase)
     setStepIndex((prev) => prev + 1)
     setLoading(true)
     setError(null)
     setResult(null)
     try {
-      const params = new URLSearchParams()
-      params.set('area', area)
-      params.set('date', date)
-      params.set('sort', 'recommended')
-      params.set('entry_source', 'concierge')
-      params.set('phase', 'narrow') // TODO: 会話ステップに応じて explore/narrow/book を出し分ける
-      params.set('step_index', String(stepIndex))
-      if (budget) params.set('budget_level', budget)
-      if (freeText) params.set('free_text', freeText)
+      const params = buildQuery(nextPhase)
 
       const resp = await fetch(`/api/guest/matching/search?${params.toString()}`, {
         method: 'GET',
@@ -134,7 +144,13 @@ export default function MatchChatPage() {
     <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-10">
       <Section
         title="コンシェルジュに相談して探す"
-        subtitle="2〜3問の簡単な質問に答えるだけで、今日の空き状況や相性の良さをふまえたおすすめをお出しします。"
+        subtitle={
+          phase === 'explore'
+            ? 'まずは好みを教えてください（元気/おっとり/お姉さん系など）。'
+            : phase === 'narrow'
+            ? '候補が絞れてきました。いつ頃行けそうか教えてください。'
+            : 'この子で予約しましょう。具体的な日付が決まったら予約候補を出します。'
+        }
         className="border border-neutral-borderLight/70 bg-white shadow-lg shadow-neutral-950/5"
       >
         <div className="grid gap-4 md:grid-cols-3">
