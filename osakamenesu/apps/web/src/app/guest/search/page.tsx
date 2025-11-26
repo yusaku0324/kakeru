@@ -36,6 +36,10 @@ export default function GuestSearchPage() {
     if (timeFrom) qp.set('time_from', timeFrom)
     if (timeTo) qp.set('time_to', timeTo)
     if (sort) qp.set('sort', sort)
+    qp.set('entry_source', 'search_form')
+    if (date && timeFrom && timeTo) {
+      qp.set('phase', 'book')
+    }
     return qp
   }, [area, date, timeFrom, timeTo, sort])
 
@@ -181,7 +185,13 @@ export default function GuestSearchPage() {
                 ) : null}
                 <div className="flex justify-end">
                   <a
-                    className="rounded bg-brand-primary px-3 py-2 text-xs font-semibold text-white hover:brightness-105"
+                    className="rounded border border-neutral-borderLight px-3 py-2 text-xs font-semibold text-brand-primary hover:brightness-105"
+                    href={`/guest/therapists/${item.therapist_id}?shop_id=${item.shop_id}&name=${encodeURIComponent(item.therapist_name)}&shop_name=${encodeURIComponent(item.shop_name)}`}
+                  >
+                    詳細を見る
+                  </a>
+                  <a
+                    className="ml-2 rounded bg-brand-primary px-3 py-2 text-xs font-semibold text-white hover:brightness-105"
                     href={`/guest/therapists/${item.therapist_id}/reserve?shop_id=${item.shop_id}`}
                   >
                     この人で予約

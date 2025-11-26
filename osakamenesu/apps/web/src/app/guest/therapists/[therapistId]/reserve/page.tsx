@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 type ReservationPayload = {
@@ -8,8 +8,11 @@ type ReservationPayload = {
   therapist_id: string
   start_at: string
   end_at: string
+  duration_minutes: number
+  payment_method?: string | null
   contact_info?: { phone?: string; line_id?: string } | null
   notes?: string | null
+  guest_token?: string | null
 }
 
 type ReservationResponse = {
@@ -33,25 +36,56 @@ export default function ReservePage({ params }: { params: { therapistId: string 
   const shopId = sp.get('shop_id') || ''
   const [date, setDate] = useState('')
   const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
+  const [duration, setDuration] = useState<number>(60)
   const [phone, setPhone] = useState('')
   const [lineId, setLineId] = useState('')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ReservationResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [guestToken, setGuestToken] = useState<string | null>(null)
+
+  useEffect(() => {
+    // 簡易な匿名ゲストトークンをローカルに保存
+    if (typeof window === 'undefined') return
+    const existing = window.localStorage.getItem('guest_token')
+    if (existing) {
+      setGuestToken(existing)
+      return
+    }
+    const token = crypto.randomUUID()
+    window.localStorage.setItem('guest_token', token)
+    setGuestToken(token)
+  }, [])
+
+  const computedEnd = useMemo(() => {
+    if (!date || !start || !duration) return ''
+    const [h, m] = start.split(':').map((v) => parseInt(v || '0', 10))
+    if (Number.isNaN(h) || Number.isNaN(m)) return ''
+    const startDate = new Date(date + 'T' + start + ':00')
+    if (Number.isNaN(startDate.getTime())) return ''
+    const endDate = new Date(startDate.getTime() + duration * 60 * 1000)
+    const hh = String(endDate.getHours()).padStart(2, '0')
+    const mm = String(endDate.getMinutes()).padStart(2, '0')
+    return `${hh}:${mm}`
+  }, [date, duration, start])
 
   const payload = useMemo<ReservationPayload | null>(() => {
-    if (!date || !start || !end || !shopId) return null
+    if (!date || !start || !computedEnd || !shopId || !duration) return null
+    // NOTE: specでは date + slot.start_at/end_at が定義されているが、backend実装は start_at/end_at を直接受け取っている。
+    // 将来 spec/実装を合わせるときに slot 包装を検討する。
     return {
       shop_id: shopId,
       therapist_id: therapistId,
       start_at: `${date}T${start}:00`,
-      end_at: `${date}T${end}:00`,
+      end_at: `${date}T${computedEnd}:00`,
+      duration_minutes: duration,
+      payment_method: 'cash',
       contact_info: phone || lineId ? { phone: phone || undefined, line_id: lineId || undefined } : null,
       notes: notes || null,
+      guest_token: guestToken,
     }
-  }, [date, end, lineId, notes, phone, shopId, start, therapistId])
+  }, [computedEnd, date, duration, guestToken, lineId, notes, phone, shopId, start, therapistId])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -116,12 +150,24 @@ export default function ReservePage({ params }: { params: { therapistId: string 
             />
           </label>
           <label className="flex flex-col">
-            終了
+            コース時間
+            <select
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value))}
+              className="rounded border border-neutral-borderLight px-2 py-1"
+            >
+              <option value={60}>60分</option>
+              <option value={90}>90分</option>
+              <option value={120}>120分</option>
+            </select>
+          </label>
+          <label className="flex flex-col">
+            終了（自動計算）
             <input
               type="time"
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-              className="rounded border border-neutral-borderLight px-2 py-1"
+              value={computedEnd}
+              readOnly
+              className="rounded border border-neutral-borderLight px-2 py-1 bg-neutral-50"
             />
           </label>
         </div>
@@ -174,7 +220,7 @@ export default function ReservePage({ params }: { params: { therapistId: string 
               <div className="text-green-700">予約が完了しました。</div>
               <div>ID: {result.id}</div>
               <div>
-                日時: {date} {start} - {end}
+                日時: {date} {start} - {computedEnd}
               </div>
             </div>
           ) : (
