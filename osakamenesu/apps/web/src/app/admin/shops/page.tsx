@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { buildAdminHeaders } from '@/lib/admin-headers'
+
 type Shop = {
   id: string
   name: string
@@ -24,7 +26,10 @@ export default function AdminShopsPage() {
     setLoading(true)
     setError(null)
     try {
-      const resp = await fetch('/api/admin/shops', { cache: 'no-store' })
+      const resp = await fetch('/api/admin/shops', {
+        cache: 'no-store',
+        headers: buildAdminHeaders(),
+      })
       if (!resp.ok) throw new Error(`status ${resp.status}`)
       const data = (await resp.json()) as ShopsResponse
       setShops(data.items ?? [])
@@ -51,7 +56,7 @@ export default function AdminShopsPage() {
     try {
       const resp = await fetch('/api/admin/shops', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...buildAdminHeaders() },
         body: JSON.stringify({ name, area: area || undefined, url: url || undefined }),
       })
       if (!resp.ok) {
@@ -153,6 +158,12 @@ export default function AdminShopsPage() {
                       href={`/admin/shops/${shop.id}/dashboard`}
                     >
                       ダッシュボード
+                    </a>
+                    <a
+                      className="text-brand-primary underline"
+                      href={`/admin/shops/${shop.id}/reservations`}
+                    >
+                      予約一覧
                     </a>
                   </td>
                 </tr>
