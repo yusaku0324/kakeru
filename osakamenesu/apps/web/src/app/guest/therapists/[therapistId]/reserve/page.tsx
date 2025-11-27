@@ -35,9 +35,37 @@ export default function ReservePage({ params }: { params: { therapistId: string 
   const therapistId = params.therapistId
   const sp = useSearchParams()
   const shopId = sp.get('shop_id') || ''
-  const [date, setDate] = useState('')
-  const [start, setStart] = useState('')
-  const [duration, setDuration] = useState<number>(60)
+  const prefilledDate = sp.get('date') || ''
+  const startAtParam = sp.get('start_at') || ''
+  const endAtParam = sp.get('end_at') || ''
+  const prefilledStart =
+    sp.get('start_time') ||
+    (() => {
+      if (!startAtParam) return ''
+      const d = new Date(startAtParam)
+      if (Number.isNaN(d.getTime())) return ''
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    })()
+  const prefilledDuration = (() => {
+    const durationQuery = sp.get('duration_minutes')
+    if (durationQuery) {
+      const parsed = Number(durationQuery)
+      if (!Number.isNaN(parsed) && parsed > 0) return parsed
+    }
+    if (startAtParam && endAtParam) {
+      const startDate = new Date(startAtParam)
+      const endDate = new Date(endAtParam)
+      if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime())) {
+        const diffMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000)
+        if (diffMinutes > 0) return diffMinutes
+      }
+    }
+    return 60
+  })()
+
+  const [date, setDate] = useState(prefilledDate)
+  const [start, setStart] = useState(prefilledStart)
+  const [duration, setDuration] = useState<number>(prefilledDuration)
   const [phone, setPhone] = useState('')
   const [lineId, setLineId] = useState('')
   const [notes, setNotes] = useState('')

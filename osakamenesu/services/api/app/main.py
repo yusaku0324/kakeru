@@ -28,6 +28,7 @@ from .domains.site import (
     matching_router,
     guest_reservations_router,
     shops_router,
+    therapist_availability_router,
 )
 from .domains.test import router as test_router
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -165,6 +166,7 @@ app.include_router(admin_router)
 app.include_router(shops_router)
 app.include_router(guest_matching_router)
 app.include_router(guest_reservations_router)
+app.include_router(therapist_availability_router)
 app.include_router(admin_reservations_router)
 app.include_router(auth_router)
 app.include_router(favorites_router)

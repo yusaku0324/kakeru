@@ -31,6 +31,12 @@ export default function TherapistDetailPage({ params }: { params: { therapistId:
         >
           この子を予約する
         </Link>
+        <Link
+          className="rounded border border-brand-primary px-4 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-surface"
+          href={`/guest/therapists/${params.therapistId}/availability${shopId ? `?shop_id=${shopId}` : ''}`}
+        >
+          空き状況を見る
+        </Link>
         <Link className="text-brand-primary underline" href="/guest/search">
           検索に戻る
         </Link>
