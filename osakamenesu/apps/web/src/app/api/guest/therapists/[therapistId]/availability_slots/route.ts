@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { resolveInternalApiBase } from '@/lib/server-config'
 
-const API_BASE = resolveInternalApiBase().replace(/\/+$, '')
+const API_BASE = resolveInternalApiBase().replace(/\/+$/, '')
 
 async function proxyAvailabilitySlots(request: NextRequest, therapistId: string) {
   const search = new URL(request.url).search

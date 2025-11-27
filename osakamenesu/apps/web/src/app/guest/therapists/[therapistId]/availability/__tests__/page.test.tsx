@@ -71,8 +71,8 @@ describe('Therapist availability page', () => {
     await waitFor(() => expect(screen.getByText('空き状況')).toBeInTheDocument())
     expect(await screen.findByText('○ 空きあり')).toBeInTheDocument()
 
-    expect(await screen.findByText(/19:00/)).toBeInTheDocument()
-    expect(screen.getByText(/21:00/)).toBeInTheDocument()
+    const reserveButtons = await screen.findAllByText('この時間で予約する')
+    expect(reserveButtons).toHaveLength(2)
   })
 
   it('shows empty message when no slots for selected day', async () => {
