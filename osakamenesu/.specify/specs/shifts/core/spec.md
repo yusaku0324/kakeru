@@ -35,14 +35,16 @@
 - 空き枠計算: シフト時間帯 － 休憩 － 確定済み予約(GuestReservation) の差分を計算。
 - 判定API/関数:
   - `is_available(therapist_id, start_at, end_at)`
-    - 完全に内包する "available" シフトがあること
+    - 完全に内包する "available" シフトがあること（半開区間で判定）
     - 休憩と重ならないこと
-    - 同一セラの confirmed/pending 予約と重複しないこと
-    - fail-soft: 異常があっても例外にせず (False, reasons) を返す
+    - 同一セラの pending/confirmed 予約と重複しないこと（start < other.end && other.start < end）
+    - cancelled 予約はブロックに含めない。fail-soft: 異常があっても例外にせず (False, reasons) を返す。
+    - バッファ/移動時間は v1 では未実装（TODO）
   - `list_daily_slots(therapist_id, date)` (簡易版で可)
     - v1 は status を "free"/"closed" 程度に留め、細かい閾値は TODO
 - 直前予約の締切: 予約コアの締切ルール（例: 開始60分前まで）と整合。締切超過は "closed" 扱い。
 - 重複判定: シフト自体も同一セラで重複登録不可。予約との重複は空き枠計算時に除外。
+ - 予約作成/更新時は is_available を内部で呼び、シフト外や重複があれば rejected_reasons を返す前提。
 
 ## 4. 具体例
 - ケース1: 通常シフト + 休憩 + 予約あり

@@ -83,8 +83,13 @@ flow:
   statuses: |
     create -> pending or confirmed (v1 may auto-confirm).
     pending/confirmed -> cancelled when cancelled by guest/staff/admin.
+    cancelled reservations release the slot and should not block availability.
   stock_check: |
     v1: reject exact duplicate slot for the same therapist_id.
-    Advanced shift/inventory logic is out of scope for v1.
+    Overlap is defined as start_at < other.end_at AND other.start_at < end_at (half-open interval).
+    Pending/confirmed reservations block the slot; cancelled does not.
+    Reservations must be fully inside an available therapist shift; otherwise reject with no_shift/on_break.
+    Buffer minutes between reservations/shifts are out of scope for v1 (TODO).
   scope_notes: |
     Payments, notifications, and approval workflows are out-of-scope for v1 and can be added later.
+    If a shift is missing or marked unavailable, treat the slot as closed.
