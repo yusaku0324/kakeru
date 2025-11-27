@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { rerankMatchingCandidates } from '@/features/matching/recommendedRanking'
+
 type MatchingCandidate = {
   id: string
   therapist_id: string
@@ -43,6 +45,7 @@ export default function GuestSearchPage() {
     return qp
   }, [area, date, timeFrom, timeTo, sort])
 
+  // params で area/date/time/sort をまとめているため依存は params と元値に限定
   const fetchMatching = useCallback(async () => {
     setLoading(true)
     setMessage(null)
@@ -56,7 +59,26 @@ export default function GuestSearchPage() {
         return
       }
       const data = (await resp.json()) as MatchingResponse
-      setResult(data)
+      if (sort === 'recommended') {
+        const reranked = rerankMatchingCandidates(
+          { area, date, time_from: timeFrom || undefined, time_to: timeTo || undefined },
+          Array.isArray(data.items) ? data.items : [],
+        )
+
+        const items = reranked.map((item) => ({
+          id: item.therapist_id,
+          therapist_id: item.therapist_id,
+          therapist_name: item.therapist_name || '',
+          shop_id: item.shop_id || '',
+          shop_name: item.shop_name || '',
+          score: item.recommended_score,
+          availability: item.availability,
+        }))
+
+        setResult({ items, total: items.length })
+      } else {
+        setResult(data)
+      }
     } catch (e) {
       console.error('matching search failed', e)
       setMessage({ type: 'error', text: '検索中にエラーが発生しました' })
@@ -64,7 +86,7 @@ export default function GuestSearchPage() {
     } finally {
       setLoading(false)
     }
-  }, [params])
+  }, [area, date, params, sort, timeFrom, timeTo])
 
   useEffect(() => {
     // 初期ロードは空入力なら何もしない
