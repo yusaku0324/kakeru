@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -107,10 +108,35 @@ def test_create_reservation_rejected(monkeypatch: pytest.MonkeyPatch):
     assert body["debug"]["rejected_reasons"] == ["deadline_over"]
 
 
+def test_create_reservation_with_slot(monkeypatch: pytest.MonkeyPatch):
+    captured: dict[str, Any] = {}
+
+    async def fake_create(db, payload, now=None):
+        captured.update(payload)
+        return StubReservation(status="confirmed"), {}
+
+    monkeypatch.setattr(domain, "create_guest_reservation", fake_create)
+
+    payload = {
+        "shop_id": str(uuid4()),
+        "therapist_id": str(uuid4()),
+        "slot": {
+            "start_at": datetime.now(timezone.utc).isoformat(),
+            "end_at": datetime.now(timezone.utc).isoformat(),
+        },
+    }
+    res = client.post("/api/guest/reservations", json=payload)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "confirmed"
+    assert captured.get("start_at") is not None
+    assert captured.get("end_at") is not None
+
+
 def test_cancel_reservation(monkeypatch: pytest.MonkeyPatch):
     cancelled = StubReservation(status="cancelled")
 
-    async def fake_cancel(db, reservation_id):
+    async def fake_cancel(db, reservation_id, **kwargs):
         return cancelled
 
     monkeypatch.setattr(domain, "cancel_guest_reservation", fake_cancel)
@@ -121,13 +147,33 @@ def test_cancel_reservation(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_cancel_reservation_404(monkeypatch: pytest.MonkeyPatch):
-    async def fake_cancel(db, reservation_id):
+    async def fake_cancel(db, reservation_id, **kwargs):
         return None
 
     monkeypatch.setattr(domain, "cancel_guest_reservation", fake_cancel)
 
     res = client.post(f"/api/guest/reservations/{uuid4()}/cancel")
     assert res.status_code == 404
+
+
+def test_cancel_reservation_with_actor(monkeypatch: pytest.MonkeyPatch):
+    cancelled = StubReservation(status="cancelled")
+    captured: dict[str, Any] = {}
+
+    async def fake_cancel(db, reservation_id, **kwargs):
+        captured.update(kwargs)
+        return cancelled
+
+    monkeypatch.setattr(domain, "cancel_guest_reservation", fake_cancel)
+
+    res = client.post(
+        f"/api/guest/reservations/{uuid4()}/cancel",
+        json={"reason": "changed_mind", "actor": "guest"},
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "cancelled"
+    assert captured.get("reason") == "changed_mind"
+    assert captured.get("actor") == "guest"
 
 
 def test_get_reservation_detail(monkeypatch: pytest.MonkeyPatch):

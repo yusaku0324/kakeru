@@ -1,10 +1,10 @@
 import logging
 from typing import Any, Optional
 from datetime import date
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +35,8 @@ class GuestMatchingRequest(BaseModel):
     date: Optional[str] = None
     time_from: str | None = None
     time_to: str | None = None
+    start_time: str | None = None
+    duration_minutes: int | None = Field(default=None, ge=1, le=1440)
     budget_level: str | None = Field(default=None, pattern="^(low|mid|high)?$")
     mood_pref: dict[str, float] | None = None
     talk_pref: dict[str, float] | None = None
@@ -67,6 +69,17 @@ class GuestMatchingRequest(BaseModel):
             return None
         v = value.lower()
         return v if v in {"explore", "narrow", "book"} else None
+
+    @model_validator(mode="after")
+    def _populate_time_window(self):
+        # accept spec aliases: start_time + duration_minutes -> time_from/time_to
+        if not self.time_from and self.start_time:
+            self.time_from = self.start_time
+        if not self.time_to and self.start_time and self.duration_minutes:
+            computed = _add_minutes_to_time(self.start_time, self.duration_minutes)
+            if computed:
+                self.time_to = computed
+        return self
 
 
 class MatchingBreakdown(BaseModel):
@@ -232,6 +245,16 @@ def _combine_datetime(d: date | None, t: str | None) -> datetime | None:
             minute,
             tzinfo=datetime.now().astimezone().tzinfo,
         )
+    except Exception:
+        return None
+
+
+def _add_minutes_to_time(time_str: str, minutes: int) -> str | None:
+    try:
+        hour, minute = map(int, time_str.split(":"))
+        dt = datetime(2000, 1, 1, hour, minute)
+        dt = dt + timedelta(minutes=minutes)
+        return dt.strftime("%H:%M")
     except Exception:
         return None
 

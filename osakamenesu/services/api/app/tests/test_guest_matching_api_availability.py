@@ -121,3 +121,31 @@ def test_search_availability_null(
     item = body["items"][0]
     assert item["availability"]["is_available"] is None
     assert item["is_available"] is None
+
+
+def test_search_with_start_time_and_duration(
+    monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
+):
+    captured: dict[str, Any] = {}
+
+    async def fake_available(db, therapist_id, start_at, end_at):
+        captured["start_at"] = start_at
+        captured["end_at"] = end_at
+        return True, {"rejected_reasons": []}
+
+    monkeypatch.setattr(matching_module, "is_available", fake_available)
+    res = client.get(
+        "/api/guest/matching/search",
+        params={
+            "area": "x",
+            "date": "2025-01-01",
+            "start_time": "10:00",
+            "duration_minutes": 60,
+        },
+    )
+    assert res.status_code == 200
+    body = res.json()
+    item = body["items"][0]
+    assert item["is_available"] is True
+    assert captured["start_at"].hour == 10
+    assert captured["end_at"].hour == 11
