@@ -3,6 +3,9 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { ReservationStatusBadge } from '@/components/ReservationStatusBadge'
+import { formatReservationRange } from '@/lib/date'
+
 type AdminGuestReservation = {
   id: string
   shop_id: string
@@ -23,17 +26,6 @@ type ListResponse = {
   summary?: Record<string, number>
 }
 
-function formatDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleString('ja-JP', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    })
-  } catch {
-    return iso
-  }
-}
-
 export default function AdminShopReservationsPage({
   params,
 }: {
@@ -49,10 +41,9 @@ export default function AdminShopReservationsPage({
     setLoading(true)
     setError(null)
     try {
-      const resp = await fetch(
-        `/api/admin/guest_reservations?shop_id=${shopId}`,
-        { cache: 'no-store' },
-      )
+      const resp = await fetch(`/api/admin/guest_reservations?shop_id=${shopId}`, {
+        cache: 'no-store',
+      })
       if (!resp.ok) {
         throw new Error(`status ${resp.status}`)
       }
@@ -63,7 +54,7 @@ export default function AdminShopReservationsPage({
       console.error('failed to load guest reservations', err)
       setItems([])
       setSummary({})
-      setError('予約一覧の取得に失敗しました')
+      setError('予約情報の取得に失敗しました。時間をおいて再度お試しください。')
     } finally {
       setLoading(false)
     }
@@ -126,7 +117,9 @@ export default function AdminShopReservationsPage({
         {loading ? (
           <div className="text-sm text-slate-600">読み込み中...</div>
         ) : items.length === 0 ? (
-          <div className="text-sm text-slate-600">予約がありません。</div>
+          <div className="text-sm text-slate-600">
+            この店舗には現在表示できる予約がありません。
+          </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -143,19 +136,14 @@ export default function AdminShopReservationsPage({
                 <tr key={item.id} className="border-b border-slate-100">
                   <td className="px-2 py-1">
                     <div className="font-medium text-slate-900">
-                      {formatDate(item.start_at)}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {formatDate(item.end_at)}
+                      {formatReservationRange(item.start_at, item.end_at)}
                     </div>
                   </td>
                   <td className="px-2 py-1">
                     {item.therapist_name || item.therapist_id || '-'}
                   </td>
                   <td className="px-2 py-1">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-800">
-                      {item.status}
-                    </span>
+                    <ReservationStatusBadge status={item.status} />
                   </td>
                   <td className="px-2 py-1">
                     <div className="max-w-xs truncate text-xs text-slate-600">

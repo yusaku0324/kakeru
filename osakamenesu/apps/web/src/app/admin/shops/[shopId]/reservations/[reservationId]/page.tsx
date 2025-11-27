@@ -3,6 +3,9 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { ReservationStatusBadge } from '@/components/ReservationStatusBadge'
+import { formatReservationRange } from '@/lib/date'
+
 type AdminGuestReservationDetail = {
   id: string
   shop_id: string
@@ -16,17 +19,6 @@ type AdminGuestReservationDetail = {
   notes?: string | null
   created_at: string
   updated_at: string
-}
-
-function formatDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleString('ja-JP', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    })
-  } catch {
-    return iso
-  }
 }
 
 function pretty(obj?: Record<string, unknown> | null) {
@@ -50,6 +42,7 @@ export default function AdminGuestReservationDetailPage({
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  const windowLabel = reservation ? formatReservationRange(reservation.start_at, reservation.end_at) : ''
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -67,7 +60,7 @@ export default function AdminGuestReservationDetailPage({
     } catch (err) {
       console.error('failed to load reservation detail', err)
       setReservation(null)
-      setError('予約詳細の取得に失敗しました')
+      setError('予約情報の取得に失敗しました。時間をおいて再度お試しください。')
     } finally {
       setLoading(false)
     }
@@ -115,11 +108,13 @@ export default function AdminGuestReservationDetailPage({
     }
   }
 
-  const statusColor = useMemo(() => {
+  const actions = useMemo(() => {
     const status = reservation?.status
-    if (status === 'confirmed') return 'bg-emerald-100 text-emerald-800'
-    if (status === 'cancelled') return 'bg-rose-100 text-rose-800'
-    return 'bg-slate-100 text-slate-800'
+    if (!status) return { canConfirm: false, canCancel: false }
+    return {
+      canConfirm: status === 'pending',
+      canCancel: status === 'pending' || status === 'confirmed',
+    }
   }, [reservation?.status])
 
   return (
@@ -173,26 +168,12 @@ export default function AdminGuestReservationDetailPage({
                 {reservation.therapist_name || reservation.therapist_id || '担当未定'}
               </div>
             </div>
-            <span
-              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${statusColor}`}
-            >
-              {reservation.status}
-            </span>
+            <ReservationStatusBadge status={reservation.status} size="md" />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1">
-              <div className="text-xs text-slate-500">開始</div>
-              <div className="text-sm font-medium text-slate-900">
-                {formatDate(reservation.start_at)}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-xs text-slate-500">終了</div>
-              <div className="text-sm font-medium text-slate-900">
-                {formatDate(reservation.end_at)}
-              </div>
-            </div>
+          <div className="space-y-1">
+            <div className="text-xs text-slate-500">日時</div>
+            <div className="text-sm font-medium text-slate-900">{windowLabel}</div>
           </div>
 
           <div className="space-y-1">
@@ -210,20 +191,24 @@ export default function AdminGuestReservationDetailPage({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => updateStatus('confirmed')}
-              className="rounded border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
-              disabled={pending}
-            >
-              この予約を確定する
-            </button>
-            <button
-              onClick={() => updateStatus('cancelled')}
-              className="rounded border border-rose-200 bg-rose-50 px-3 py-1 text-sm text-rose-800 hover:bg-rose-100 disabled:opacity-60"
-              disabled={pending}
-            >
-              この予約をキャンセルする
-            </button>
+            {actions.canConfirm ? (
+              <button
+                onClick={() => updateStatus('confirmed')}
+                className="rounded border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+                disabled={pending}
+              >
+                予約を確定する
+              </button>
+            ) : null}
+            {actions.canCancel ? (
+              <button
+                onClick={() => updateStatus('cancelled')}
+                className="rounded border border-rose-200 bg-rose-50 px-3 py-1 text-sm text-rose-800 hover:bg-rose-100 disabled:opacity-60"
+                disabled={pending}
+              >
+                予約をキャンセルする
+              </button>
+            ) : null}
           </div>
         </section>
       ) : (
