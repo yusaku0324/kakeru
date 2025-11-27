@@ -13,8 +13,8 @@ describe('Guest reservations list page', () => {
             status: 'confirmed',
             shop_id: 'shop-1',
             therapist_id: 'thera-1',
-            start_at: '2025-01-01T10:00:00Z',
-            end_at: '2025-01-01T11:00:00Z',
+            start_at: '2025-01-01T12:00:00Z',
+            end_at: '2025-01-01T13:00:00Z',
           },
         ]),
         { status: 200 },
@@ -37,12 +37,15 @@ describe('Guest reservations list page', () => {
 
     await waitFor(() => expect(screen.getByText('マイ予約一覧')).toBeInTheDocument())
     expect(await screen.findByText('thera-1')).toBeInTheDocument()
+    expect(screen.getByText('confirmed')).toBeInTheDocument()
+    expect(screen.getByText(/2025\/01\/01/)).toBeInTheDocument()
     expect(global.fetch).toHaveBeenCalled()
   })
 
   it('shows empty message when none', async () => {
     global.fetch = vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })) as any
     render(<GuestReservationsPage />)
-    await waitFor(() => expect(screen.getByText('現在予約はありません。')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('現在、予約はありません。')).toBeInTheDocument())
+    expect(screen.getByText('店舗を探す')).toBeInTheDocument()
   })
 })

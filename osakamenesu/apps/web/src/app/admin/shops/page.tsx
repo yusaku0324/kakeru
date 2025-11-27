@@ -154,6 +154,12 @@ export default function AdminShopsPage() {
                     >
                       ダッシュボード
                     </a>
+                    <a
+                      className="text-brand-primary underline"
+                      href={`/admin/shops/${shop.id}/reservations`}
+                    >
+                      予約一覧
+                    </a>
                   </td>
                 </tr>
               ))}

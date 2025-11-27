@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...models import (
     GuestReservation,
-    GuestReservationStatus,
+    GuestReservationStatus as _GuestReservationStatus,
     Therapist,
     now_utc,
 )
@@ -26,6 +26,15 @@ router = APIRouter(prefix="/api/guest/reservations", tags=["guest-reservations"]
 
 # ステータスが重複判定の対象となるもの（pending/confirmed を重複禁止とみなす）
 ACTIVE_STATUSES = ("pending", "confirmed")
+GuestReservationStatus = _GuestReservationStatus  # backward-compat for existing imports
+
+
+def _attach_reason(reservation: GuestReservation, reason: str | None) -> None:
+    if not reason:
+        return
+    reservation.notes = (
+        f"{reservation.notes}\n{reason}" if reservation.notes else reason
+    )
 
 
 def _parse_datetime(value: Any) -> Optional[datetime]:
@@ -367,7 +376,7 @@ def _serialize(
 
 
 async def cancel_guest_reservation(
-    db: AsyncSession, reservation_id: UUID
+    db: AsyncSession, reservation_id: UUID, reason: str | None = None
 ) -> GuestReservation | None:
     res = await db.execute(
         select(GuestReservation).where(GuestReservation.id == reservation_id)
@@ -375,13 +384,61 @@ async def cancel_guest_reservation(
     reservation = res.scalar_one_or_none()
     if not reservation:
         return None
-    if reservation.status == GuestReservationStatus.cancelled:
+    if str(reservation.status) == "cancelled":
         return reservation
-    reservation.status = GuestReservationStatus.cancelled
+    _attach_reason(reservation, reason)
+    reservation.status = "cancelled"
     db.add(reservation)
     await db.commit()
     await db.refresh(reservation)
     return reservation
+
+
+async def update_guest_reservation_status(
+    db: AsyncSession,
+    reservation_id: UUID,
+    next_status: str,
+    *,
+    reason: str | None = None,
+) -> tuple[GuestReservation | None, str | None]:
+    """
+    Transition reservation status with admin-facing rules.
+
+    Returns (reservation, error_code).
+    error_code is one of: None, "invalid_status", "not_found", "invalid_transition".
+    """
+    allowed_statuses = {"pending", "confirmed", "cancelled"}
+    if next_status not in allowed_statuses:
+        return None, "invalid_status"
+
+    res = await db.execute(
+        select(GuestReservation).where(GuestReservation.id == reservation_id)
+    )
+    reservation = res.scalar_one_or_none()
+    if not reservation:
+        return None, "not_found"
+
+    current_status = (
+        reservation.status.value
+        if hasattr(reservation.status, "value")
+        else reservation.status
+    )
+    if current_status == next_status:
+        return reservation, None
+
+    if current_status == "pending" and next_status == "confirmed":
+        reservation.status = "confirmed"
+        _attach_reason(reservation, reason)
+        db.add(reservation)
+        await db.commit()
+        await db.refresh(reservation)
+        return reservation, None
+
+    if current_status in {"pending", "confirmed"} and next_status == "cancelled":
+        reservation = await cancel_guest_reservation(db, reservation_id, reason=reason)
+        return reservation, None
+
+    return reservation, "invalid_transition"
 
 
 @router.post(

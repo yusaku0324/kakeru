@@ -1,5 +1,6 @@
-"use client"
+'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
@@ -223,14 +224,14 @@ export default function ReservePage({ params }: { params: { therapistId: string 
                 日時: {date} {start} - {computedEnd}
               </div>
               {result.id ? (
-                <a className="text-brand-primary underline" href={`/guest/reservations/${result.id}`}>
+                <Link className="text-brand-primary underline" href={`/guest/reservations/${result.id}`}>
                   予約内容を確認する
-                </a>
+                </Link>
               ) : null}
               <div>
-                <a className="text-brand-primary underline" href="/guest/reservations">
+                <Link className="text-brand-primary underline" href="/guest/reservations">
                   マイ予約一覧を見る
-                </a>
+                </Link>
               </div>
             </div>
           ) : (
