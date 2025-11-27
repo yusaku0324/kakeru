@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     meili_host: str = "http://osakamenesu-meili:7700"
     meili_master_key: str = "dev_meili_master_key"
     admin_api_key: str = "dev_admin_key"
+    proxy_shared_secret: str | None = Field(
+        default=None, validation_alias=AliasChoices("PROXY_SHARED_SECRET")
+    )
+    async_worker_token: str | None = Field(
+        default=None, validation_alias=AliasChoices("ASYNC_WORKER_TOKEN")
+    )
     rate_limit_redis_url: str | None = None
     rate_limit_namespace: str = "osakamenesu_outlinks"
     rate_limit_redis_error_cooldown: float = 5.0
