@@ -6,6 +6,7 @@ import Link from 'next/link'
 
 import { Card } from '@/components/ui/Card'
 import { Section } from '@/components/ui/Section'
+import { rerankMatchingCandidates } from '@/features/matching/recommendedRanking'
 
 type MatchingCandidate = {
   therapist_id: string
@@ -113,25 +114,25 @@ export default function MatchChatPage() {
       }
       const data = await resp.json()
       const items = Array.isArray(data.items) ? data.items : []
-      const top_matches: MatchingCandidate[] = items.slice(0, 3).map((m: any) => ({
+      const reranked = rerankMatchingCandidates(
+        { area, date, time_from: undefined, time_to: undefined },
+        items,
+      )
+
+      const rankedItems: MatchingCandidate[] = reranked.map((m: any) => ({
         therapist_id: m.therapist_id || m.id || '',
         therapist_name: m.therapist_name || m.name || '',
         shop_id: m.shop_id || '',
         shop_name: m.shop_name || '',
-        score: m.score ?? 0,
+        score: m.recommended_score ?? m.score ?? 0,
         summary: m.summary,
         slots: m.slots || [],
       }))
-      const other_candidates: MatchingCandidate[] = items.slice(3).map((m: any) => ({
-        therapist_id: m.therapist_id || m.id || '',
-        therapist_name: m.therapist_name || m.name || '',
-        shop_id: m.shop_id || '',
-        shop_name: m.shop_name || '',
-        score: m.score ?? 0,
-        summary: m.summary,
-        slots: m.slots || [],
-      }))
-      setResult({ top_matches, other_candidates })
+
+      setResult({
+        top_matches: rankedItems.slice(0, 3),
+        other_candidates: rankedItems.slice(3),
+      })
     } catch (err) {
       setError('おすすめ取得に失敗しました。時間をおいて再度お試しください。')
       console.error(err)

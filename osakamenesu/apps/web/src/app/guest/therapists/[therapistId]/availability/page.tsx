@@ -71,7 +71,8 @@ export default function TherapistAvailabilityPage({
         )
         const data = (await resp.json()) as SummaryResponse
         if (!resp.ok) {
-          throw new Error(data?.detail || 'failed to load availability')
+          const message = (data as any)?.detail || 'failed to load availability'
+          throw new Error(message)
         }
         setSummary(data)
         setSelectedDate((prev) => prev || days[0])
@@ -95,7 +96,8 @@ export default function TherapistAvailabilityPage({
         )
         const data = (await resp.json()) as SlotsResponse
         if (!resp.ok) {
-          throw new Error(data?.detail || 'failed to load slots')
+          const message = (data as any)?.detail || 'failed to load slots'
+          throw new Error(message)
         }
         setSlots(data)
       } catch (err) {
