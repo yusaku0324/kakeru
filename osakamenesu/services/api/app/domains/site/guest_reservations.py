@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import and_, select
 from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +26,9 @@ router = APIRouter(prefix="/api/guest/reservations", tags=["guest-reservations"]
 
 # ステータスが重複判定の対象となるもの（pending/confirmed を重複禁止とみなす）
 ACTIVE_STATUSES = ("pending", "confirmed")
-GuestReservationStatus = _GuestReservationStatus  # backward-compat for existing imports
+# backward compat: expose enum as in models
+GuestReservationStatus = _GuestReservationStatus
+GuestReservationStatusAlias = GuestReservationStatus
 
 
 def _attach_reason(reservation: GuestReservation, reason: str | None) -> None:
@@ -316,8 +318,8 @@ async def create_guest_reservation(
 class GuestReservationPayload(BaseModel):
     shop_id: UUID
     therapist_id: UUID | None = None
-    start_at: datetime
-    end_at: datetime
+    start_at: datetime | None = None
+    end_at: datetime | None = None
     duration_minutes: int | None = None
     course_id: UUID | None = None
     price: float | None = None
@@ -325,6 +327,31 @@ class GuestReservationPayload(BaseModel):
     contact_info: dict[str, Any] | None = None
     guest_token: str | None = None
     notes: str | None = None
+    slot: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def _populate_slot(self):
+        if (not self.start_at or not self.end_at) and self.slot:
+            start_raw = (
+                self.slot.get("start_at") if isinstance(self.slot, dict) else None
+            )
+            end_raw = self.slot.get("end_at") if isinstance(self.slot, dict) else None
+            try:
+                self.start_at = (
+                    datetime.fromisoformat(start_raw) if start_raw else self.start_at
+                )
+            except Exception:
+                pass
+            try:
+                self.end_at = (
+                    datetime.fromisoformat(end_raw) if end_raw else self.end_at
+                )
+            except Exception:
+                pass
+        if not self.start_at or not self.end_at:
+            raise ValueError("start_at and end_at are required")
+        return self
+
     base_staff_id: UUID | None = None
 
 
@@ -376,7 +403,10 @@ def _serialize(
 
 
 async def cancel_guest_reservation(
-    db: AsyncSession, reservation_id: UUID, reason: str | None = None
+    db: AsyncSession,
+    reservation_id: UUID,
+    reason: str | None = None,
+    actor: str | None = None,
 ) -> GuestReservation | None:
     res = await db.execute(
         select(GuestReservation).where(GuestReservation.id == reservation_id)
@@ -386,7 +416,12 @@ async def cancel_guest_reservation(
         return None
     if str(reservation.status) == "cancelled":
         return reservation
-    _attach_reason(reservation, reason)
+    combined_reason = reason
+    if actor and reason:
+        combined_reason = f"{actor}:{reason}"
+    elif actor and not reason:
+        combined_reason = f"cancelled_by:{actor}"
+    _attach_reason(reservation, combined_reason)
     reservation.status = "cancelled"
     db.add(reservation)
     await db.commit()
@@ -484,9 +519,17 @@ async def create_guest_reservation_api(
 )
 async def cancel_guest_reservation_api(
     reservation_id: UUID,
+    payload: dict[str, Any] | None = None,
     db: AsyncSession = Depends(get_session),
 ):
-    reservation = await cancel_guest_reservation(db, reservation_id)
+    reason = None
+    actor = None
+    if payload:
+        reason = payload.get("reason")
+        actor = payload.get("actor")
+    reservation = await cancel_guest_reservation(
+        db, reservation_id, reason=reason, actor=actor or "guest"
+    )
     if not reservation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="reservation_not_found"
