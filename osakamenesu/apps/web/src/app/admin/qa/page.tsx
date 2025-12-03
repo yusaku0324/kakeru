@@ -13,8 +13,12 @@ type Therapist = {
   name: string
 }
 
-const FAVORITE_SHOP_ID = "00000000-0000-0000-0000-000000000000" // TODO: 運営がよく使う店舗IDに差し替え
-const FAVORITE_THERAPIST_ID = "00000000-0000-0000-0000-000000000000" // TODO: 運営がよく使うセラIDに差し替え
+// 環境変数から読み込むか、デフォルト値を使用
+// 開発環境では最初に作成された店舗とセラピストのIDを設定してください
+// 例: NEXT_PUBLIC_QA_FAVORITE_SHOP_ID=実際のUUID
+//     NEXT_PUBLIC_QA_FAVORITE_THERAPIST_ID=実際のUUID
+const FAVORITE_SHOP_ID = process.env.NEXT_PUBLIC_QA_FAVORITE_SHOP_ID || ""
+const FAVORITE_THERAPIST_ID = process.env.NEXT_PUBLIC_QA_FAVORITE_THERAPIST_ID || ""
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -73,7 +77,7 @@ export default function QAMenuPage() {
   }, [selectedShop])
 
   const favoriteShopLinks = useMemo(() => {
-    if (!FAVORITE_SHOP_ID || FAVORITE_SHOP_ID.startsWith("0000")) return null
+    if (!FAVORITE_SHOP_ID) return null
     return (
       <div className="space-x-2">
         <Link className="rounded border px-3 py-1 text-sm" href={`/admin/shops/${FAVORITE_SHOP_ID}`}>
@@ -90,7 +94,7 @@ export default function QAMenuPage() {
   }, [])
 
   const favoriteTherapistLinks = useMemo(() => {
-    if (!FAVORITE_THERAPIST_ID || FAVORITE_THERAPIST_ID.startsWith("0000")) return null
+    if (!FAVORITE_THERAPIST_ID) return null
     return (
       <div className="space-x-2">
         <Link
@@ -113,6 +117,21 @@ export default function QAMenuPage() {
     <div className="space-y-4 p-6">
       <h1 className="text-2xl font-bold">開発者QAメニュー</h1>
 
+      {(!FAVORITE_SHOP_ID || !FAVORITE_THERAPIST_ID) && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm text-amber-800">
+            💡 お気に入りの店舗・セラピストIDを設定すると、クイックアクセスリンクが表示されます。
+          </p>
+          <p className="text-xs text-amber-700 mt-1">
+            .env.local ファイルに以下を追加してください：
+            <br />
+            NEXT_PUBLIC_QA_FAVORITE_SHOP_ID=店舗のUUID
+            <br />
+            NEXT_PUBLIC_QA_FAVORITE_THERAPIST_ID=セラピストのUUID
+          </p>
+        </div>
+      )}
+
       <Section title="ゲストフロー">
         <div className="space-x-2">
           <Link className="rounded border px-3 py-1 text-sm" href="/guest/search">
@@ -120,9 +139,10 @@ export default function QAMenuPage() {
           </Link>
           <Link
             className="rounded border px-3 py-1 text-sm"
-            href={`/guest/therapists/${FAVORITE_THERAPIST_ID}/reserve`}
+            href={FAVORITE_THERAPIST_ID ? `/guest/therapists/${FAVORITE_THERAPIST_ID}/reserve` : '#'}
+            onClick={!FAVORITE_THERAPIST_ID ? (e) => { e.preventDefault(); alert('環境変数 NEXT_PUBLIC_QA_FAVORITE_THERAPIST_ID を設定してください') } : undefined}
           >
-            このセラで予約デモ (サンプルID)
+            このセラで予約デモ {!FAVORITE_THERAPIST_ID && '(要設定)'}
           </Link>
         </div>
       </Section>
