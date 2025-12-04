@@ -12,6 +12,7 @@ from .services.shop.search_service import ShopSearchService
 from .therapist_availability import is_available
 from ... import models
 from ...db import get_session
+from ...rate_limiters import rate_limit_search
 
 router = APIRouter(prefix="/api/guest/matching", tags=["guest-matching"])
 logger = logging.getLogger(__name__)
@@ -167,10 +168,79 @@ def _compute_choice_fit(pref: dict[str, float] | None, tag: str | None) -> float
     return _normalize_score(pref.get(tag))
 
 
+def _compute_core_score(
+    payload: GuestMatchingRequest, candidate: dict[str, Any]
+) -> float:
+    """
+    Compute core score based on area/date/time matching and search rank.
+    Core score reflects how well the candidate matches the basic search criteria.
+    """
+    score = 0.5  # neutral baseline
+
+    # Factor 1: Area match (if area specified)
+    if payload.area:
+        candidate_area = candidate.get("area") or candidate.get("shop_area")
+        if candidate_area and candidate_area.lower() == payload.area.lower():
+            score += 0.2
+        elif candidate_area:
+            # partial match (e.g., "osaka" in "osaka-kita")
+            if payload.area.lower() in candidate_area.lower():
+                score += 0.1
+
+    # Factor 2: Search rank (if provided by MeiliSearch or similar)
+    search_rank = candidate.get("_search_rank") or candidate.get("search_rank")
+    if search_rank is not None:
+        # Higher rank = better score. Decay from 1.0 to 0.5 over ranks 1-20
+        rank_score = max(0.5, 1.0 - (search_rank - 1) * 0.025)
+        score = (score + rank_score) / 2
+
+    # Factor 3: Free text relevance (if returned by search)
+    text_relevance = candidate.get("_text_relevance") or candidate.get("text_relevance")
+    if text_relevance is not None:
+        score = (score + _normalize_score(text_relevance)) / 2
+
+    return _normalize_score(score)
+
+
+def _compute_availability_score(candidate: dict[str, Any]) -> float:
+    """
+    Compute availability score based on slot quality.
+    Better slots = higher score.
+    """
+    slots = candidate.get("slots") or []
+    if not slots:
+        return 0.2  # no slots = low score
+
+    # Basic: has any slots
+    score = 0.5
+
+    # Bonus for multiple slots
+    slot_count = len(slots)
+    if slot_count >= 4:
+        score += 0.3
+    elif slot_count >= 2:
+        score += 0.2
+    elif slot_count >= 1:
+        score += 0.1
+
+    # Bonus for longer available duration (if duration info available)
+    total_minutes = 0
+    for slot in slots:
+        duration = slot.get("duration_minutes") or slot.get("duration")
+        if duration:
+            total_minutes += int(duration)
+    if total_minutes >= 180:  # 3+ hours available
+        score += 0.2
+    elif total_minutes >= 60:  # 1+ hours available
+        score += 0.1
+
+    return _normalize_score(score)
+
+
 def _score_candidate(payload: GuestMatchingRequest, candidate: dict[str, Any]) -> float:
     """
-    v1: サーバ側で簡易スコアリング（フロントの computeMatchingScore と同趣旨）。
-    TODO: 検索rank/coreやプロファイルタグを取り込んで精度を上げる。
+    v1: Server-side scoring aligned with frontend computeMatchingScore.
+    Uses dynamic core_score based on area/rank matching and improved availability.
     """
     price_fit = _normalize_score(
         _compute_price_fit(payload.budget_level, candidate.get("price_level", None))
@@ -179,8 +249,8 @@ def _score_candidate(payload: GuestMatchingRequest, candidate: dict[str, Any]) -
     talk_fit = _compute_choice_fit(payload.talk_pref, candidate.get("talk_level"))
     style_fit = _compute_choice_fit(payload.style_pref, candidate.get("style_tag"))
     look_fit = _compute_choice_fit(payload.look_pref, candidate.get("look_type"))
-    core_score = _normalize_score(0.6)  # TODO: search rank/core を反映する
-    availability_score = _normalize_score(0.8 if candidate.get("slots") else 0.3)
+    core_score = _compute_core_score(payload, candidate)
+    availability_score = _compute_availability_score(candidate)
 
     score = (
         0.4 * core_score
@@ -295,20 +365,20 @@ def _compute_age_score(base_age: int | None, candidate_age: int | None) -> float
 def _compute_similar_scores(
     base: dict[str, Any], candidate: dict[str, Any]
 ) -> dict[str, float]:
-    """Compute tag/price/age similarity and final score (0..1).
+    """Compute tag/price/age/photo similarity and final score (0..1).
 
-    photo_similarity mirrors tag_similarity for v1 so we can swap in embeddings later
-    without changing the response shape.
+    Uses real photo embeddings when available, falls back to tag similarity.
     """
     tag_similarity = _compute_tag_similarity(base, candidate)
     price_score = _compute_price_score(
         base.get("price_rank"), candidate.get("price_rank")
     )
     age_score = _compute_age_score(base.get("age"), candidate.get("age"))
-    photo_similarity = (
-        tag_similarity  # v1: tag proxy, future: replace with embedding score
-    )
 
+    # Use real photo embeddings if available
+    photo_similarity = _score_photo_similarity(base, candidate)
+
+    # Apply the weighted scoring formula with 60% weight on photos
     final_score = (
         0.6 * photo_similarity
         + 0.2 * tag_similarity
@@ -332,10 +402,12 @@ def _score_photo_similarity(
     base: dict[str, Any] | None, candidate: dict[str, Any]
 ) -> float:
     """
-    Placeholder embedding similarity.
+    Compute photo similarity using embedding vectors.
     - If base or candidate lacks embeddings, return neutral 0.5.
-    - If embeddings exist, compute cosine similarity and clip to 0..1 (negatives -> 0).
+    - If embeddings exist, compute cosine similarity and map to 0..1 range.
     """
+    from .services.photo_embedding_service import PhotoEmbeddingService
+
     base_vec = (
         base.get("photo_embedding")
         if isinstance(base, dict)
@@ -350,18 +422,15 @@ def _score_photo_similarity(
     )
     if not base_vec or not cand_vec:
         return 0.5
-    try:
-        import math
 
-        dot = sum(float(a) * float(b) for a, b in zip(base_vec, cand_vec))
-        norm_base = math.sqrt(sum(float(a) ** 2 for a in base_vec))
-        norm_cand = math.sqrt(sum(float(b) ** 2 for b in cand_vec))
-        if norm_base == 0 or norm_cand == 0:
-            return 0.5
-        cos = dot / (norm_base * norm_cand)
-        return max(0.0, min(1.0, cos))
-    except Exception:
-        return 0.5
+    # Use the embedding service's cosine similarity function
+    similarity = PhotoEmbeddingService.compute_cosine_similarity(base_vec, cand_vec)
+
+    # Map from [-1, 1] to [0, 1] range for scoring
+    # We use (similarity + 1) / 2 but clamp negative values to get better spread
+    if similarity < 0:
+        return 0.0
+    return similarity
 
 
 def _score_tags_v2(payload: GuestMatchingRequest, candidate: dict[str, Any]) -> float:
@@ -538,9 +607,7 @@ async def _get_base_staff(db: AsyncSession | None, staff_id: str) -> dict[str, A
     photos = getattr(profile, "photos", None) or getattr(therapist, "photo_urls", None)
     if photos:
         photo_url = photos[0]
-    photo_embedding = getattr(profile, "photo_embedding", None) or getattr(
-        therapist, "photo_embedding", None
-    )
+    photo_embedding = getattr(therapist, "photo_embedding", None)
     return {
         "id": str(therapist.id),
         "name": therapist.name,
@@ -598,8 +665,7 @@ async def _fetch_similar_candidates(
             or getattr(profile, "body_tags", None)
             or [],
             "photo_url": (getattr(profile, "photos", None) or [None])[0],
-            "photo_embedding": getattr(profile, "photo_embedding", None)
-            or getattr(therapist, "photo_embedding", None),
+            "photo_embedding": getattr(therapist, "photo_embedding", None),
             "is_available_now": bool(getattr(therapist, "is_booking_enabled", True)),
         }
         if exclude_unavailable and not _is_available(cand):
@@ -721,7 +787,9 @@ async def _log_matching(
 @router.get("/search", response_model=MatchingResponse)
 @router.post("/search", response_model=MatchingResponse)
 async def guest_matching_search(
-    payload: GuestMatchingRequest = Depends(), db: AsyncSession = Depends(get_session)
+    payload: GuestMatchingRequest = Depends(),
+    db: AsyncSession = Depends(get_session),
+    _: None = Depends(rate_limit_search)
 ) -> MatchingResponse:
     """
     v1: 既存ショップ検索をラップし、簡易スコアリングして返却。
@@ -959,6 +1027,7 @@ async def guest_matching_similar(
         description="Drop candidates below this score",
     ),
     db: AsyncSession = Depends(get_session),
+    _: None = Depends(rate_limit_search),
 ) -> SimilarResponse:
     base_id = staff_id or therapist_id
     if not base_id:

@@ -35,7 +35,7 @@ export default function SimilarTherapists({
     async function fetchSimilarTherapists() {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/therapists/${currentTherapistId}/similar?limit=6`
+          `/api/v1/therapists/${currentTherapistId}/similar?limit=6`
         )
 
         if (response.ok) {

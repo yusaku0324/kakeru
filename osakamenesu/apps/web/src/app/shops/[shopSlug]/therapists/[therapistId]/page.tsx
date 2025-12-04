@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams, useParams } from 'next/navigation'
 import Image from 'next/image'
 import TherapistProfile from '@/components/therapist/TherapistProfile'
 import TherapistAvailability from '@/components/therapist/TherapistAvailability'
@@ -61,11 +61,10 @@ interface TherapistDetail {
   entry_source: string
 }
 
-export default function TherapistDetailPage({
-  params
-}: {
-  params: Promise<{ shopSlug: string; therapistId: string }>
-}) {
+export default function TherapistDetailPage() {
+  const params = useParams()
+  const shopSlug = params.shopSlug as string
+  const therapistId = params.therapistId as string
   const [therapist, setTherapist] = useState<TherapistDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -75,9 +74,6 @@ export default function TherapistDetailPage({
   useEffect(() => {
     async function fetchTherapistDetail() {
       try {
-        const resolvedParams = await params
-        const { shopSlug, therapistId } = resolvedParams
-
         // Build query parameters
         const queryParams = new URLSearchParams()
         queryParams.append('shop_slug', shopSlug)
@@ -94,7 +90,7 @@ export default function TherapistDetailPage({
         if (slotGranularity) queryParams.append('slot_granularity_minutes', slotGranularity)
 
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/therapists/${therapistId}?${queryParams}`
+          `/api/v1/therapists/${therapistId}?${queryParams}`
         )
 
         if (!response.ok) {
@@ -124,7 +120,7 @@ export default function TherapistDetailPage({
     }
 
     fetchTherapistDetail()
-  }, [params, searchParams])
+  }, [shopSlug, therapistId, searchParams])
 
   const handleReserve = () => {
     if (!therapist) return

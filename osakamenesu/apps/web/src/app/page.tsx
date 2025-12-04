@@ -76,7 +76,7 @@ export default async function HomePage() {
   const response = await loadHomeData()
   const hits = response.results
   const facets = response.facets
-  const therapistHits = buildTherapistHits(hits).slice(0, 2)
+  const therapistHits = buildTherapistHits(hits).slice(0, 6)
   const displayHighlights = buildHighlights(facets, hits)
   const availableToday = hits.filter((hit) => hit.today_available).slice(0, 3)
   const displayEditorialSpots = buildEditorialSpots(hits.length)

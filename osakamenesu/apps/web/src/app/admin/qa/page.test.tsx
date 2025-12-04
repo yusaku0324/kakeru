@@ -1,10 +1,12 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 
 import QAMenuPage from './page'
 
 describe('admin qa menu', () => {
-  it('renders main shortcuts', () => {
-    render(<QAMenuPage />)
+  it('renders main shortcuts', async () => {
+    await act(async () => {
+      render(<QAMenuPage />)
+    })
 
     expect(screen.getByText('開発者QAメニュー')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'ゲスト検索デモ' })).toHaveAttribute('href', '/guest/search')

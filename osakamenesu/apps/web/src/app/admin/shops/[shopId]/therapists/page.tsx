@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useParams } from 'next/navigation'
 
 type Therapist = {
   id: string
@@ -12,7 +13,8 @@ type Therapist = {
 
 type TherapistsResponse = { items?: Therapist[] }
 
-export default function AdminShopTherapistsPage({ params }: { params: { shopId: string } }) {
+export default function AdminShopTherapistsPage() {
+  const params = useParams<{ shopId: string }>()
   const shopId = params.shopId
   const [therapists, setTherapists] = useState<Therapist[]>([])
   const [loading, setLoading] = useState(true)

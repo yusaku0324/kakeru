@@ -45,7 +45,7 @@ export default function ShopReservePage() {
       try {
         // Fetch therapist details to get name and shop info
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/therapists/${therapistId}?shop_slug=${shopSlug}&entry_source=${entrySource}`
+          `/api/v1/therapists/${therapistId}?shop_slug=${shopSlug}&entry_source=${entrySource}`
         )
 
         if (!response.ok) {

@@ -25,6 +25,11 @@ def _load_matching_module(monkeypatch: pytest.MonkeyPatch):
             self.database_url = "sqlite+aiosqlite:///:memory:"
             self.api_origin = "http://localhost"
             self.init_db_on_startup = False
+            self.rate_limit_redis_url = None
+            self.rate_limit_namespace = "test"
+            self.rate_limit_redis_error_cooldown = 0.0
+            self.meili_host = "http://127.0.0.1:7700"
+            self.meili_master_key = "dev_key"
 
     fake_settings.Settings = FakeSettings
     fake_settings.settings = FakeSettings()

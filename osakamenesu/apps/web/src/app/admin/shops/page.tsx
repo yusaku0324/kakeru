@@ -144,6 +144,12 @@ export default function AdminShopsPage() {
                   <td className="flex gap-2 px-2 py-1">
                     <a
                       className="text-brand-primary underline"
+                      href={`/admin/shops/${shop.id}/settings`}
+                    >
+                      設定
+                    </a>
+                    <a
+                      className="text-brand-primary underline"
                       href={`/admin/shops/${shop.id}/therapists`}
                     >
                       セラ一覧

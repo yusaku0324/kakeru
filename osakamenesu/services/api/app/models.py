@@ -100,6 +100,9 @@ class Profile(Base):
     discounts: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     ranking_badges: Mapped[list[str] | None] = mapped_column(ARRAY(String(32)))
     ranking_weight: Mapped[int | None] = mapped_column(Integer, index=True)
+    buffer_minutes: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False, server_default="0"
+    )
     status: Mapped[str] = mapped_column(StatusProfile, default="draft", index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, nullable=False
@@ -146,6 +149,40 @@ class Therapist(Base):
     qualifications: Mapped[list[str] | None] = mapped_column(ARRAY(String(128)))
     experience_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
     photo_urls: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+    photo_embedding: Mapped[list[float] | None] = mapped_column(
+        ARRAY(Float), nullable=True, comment="Photo embedding vector for similarity matching"
+    )
+    photo_embedding_computed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="When photo embedding was computed"
+    )
+    main_photo_index: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, server_default="0", comment="Index of photo used for embedding"
+    )
+    # Matching tags for recommendation/scoring
+    mood_tag: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, index=True, comment="Mood tag (e.g., gentle, energetic)"
+    )
+    style_tag: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, index=True, comment="Service style tag (e.g., soft, firm)"
+    )
+    look_type: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, index=True, comment="Appearance type (e.g., cute, elegant)"
+    )
+    contact_style: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, index=True, comment="Contact style (e.g., light, deep)"
+    )
+    talk_level: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, index=True, comment="Conversation level (e.g., chatty, quiet)"
+    )
+    hobby_tags: Mapped[list[str] | None] = mapped_column(
+        ARRAY(String(32)), nullable=True, comment="Hobby/interest tags"
+    )
+    price_rank: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="Price tier (1-5)"
+    )
+    age: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="Age for matching"
+    )
     display_order: Mapped[int] = mapped_column(Integer, server_default="0", index=True)
     status: Mapped[str] = mapped_column(
         TherapistStatus, default="draft", nullable=False, index=True

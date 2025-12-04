@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 
 import { ReservationStatusBadge } from '@/components/ReservationStatusBadge'
 import { formatReservationRange } from '@/lib/date'
@@ -17,8 +18,9 @@ type ReservationDetail = {
   notes?: string | null
 }
 
-export default function GuestReservationDetailPage({ params }: { params: { reservationId: string } }) {
-  const { reservationId } = params
+export default function GuestReservationDetailPage() {
+  const params = useParams<{ reservationId: string }>()
+  const reservationId = params.reservationId
   const [reservation, setReservation] = useState<ReservationDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

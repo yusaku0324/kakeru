@@ -6,6 +6,7 @@ import { toLocalDateISO } from '@/lib/date'
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({ therapistId: 'thera-1' }),
 }))
 
 describe('Therapist availability page', () => {
@@ -66,7 +67,7 @@ describe('Therapist availability page', () => {
   })
 
   it('shows daily chips and slots list', async () => {
-    render(<TherapistAvailabilityPage params={{ therapistId }} />)
+    render(<TherapistAvailabilityPage />)
 
     await waitFor(() => expect(screen.getByText('空き状況')).toBeInTheDocument())
     expect(await screen.findByText('○ 空きあり')).toBeInTheDocument()
@@ -76,7 +77,7 @@ describe('Therapist availability page', () => {
   })
 
   it('shows empty message when no slots for selected day', async () => {
-    render(<TherapistAvailabilityPage params={{ therapistId }} />)
+    render(<TherapistAvailabilityPage />)
     const closedChip = await screen.findByRole('button', {
       name: new RegExp(`${tomorrowLabel} .*× 受付終了`),
     })

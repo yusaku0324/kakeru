@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ReservationStatusBadge } from '@/components/ReservationStatusBadge'
@@ -26,12 +27,9 @@ type ListResponse = {
   summary?: Record<string, number>
 }
 
-export default function AdminShopReservationsPage({
-  params,
-}: {
-  params: { shopId: string }
-}) {
-  const { shopId } = params
+export default function AdminShopReservationsPage() {
+  const params = useParams()
+  const shopId = params.shopId as string
   const [items, setItems] = useState<AdminGuestReservation[]>([])
   const [summary, setSummary] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)

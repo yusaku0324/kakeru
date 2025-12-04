@@ -353,7 +353,21 @@ async def _search_shops_impl(
             "today",
         ],
     }
-    res = await meili_search("profiles", params)
+    try:
+        res = meili_search(
+            q=params.get("q"),
+            filter_expr=params.get("filter"),
+            sort=params.get("sort"),
+            page=page,
+            page_size=page_size,
+            facets=params.get("facets"),
+        )
+    except Exception as e:
+        logger.warning("meili_search failed, returning empty result: %s", e)
+        empty = ShopSearchResponse(
+            page=page, page_size=page_size, total=0, results=[], facets={}
+        )
+        return empty.model_dump()
     if isinstance(res, Exception):
         logger.exception("shop search failed")
         empty = ShopSearchResponse(

@@ -1,10 +1,10 @@
 import './globals.css'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import Script from 'next/script'
 import localFont from 'next/font/local'
 
 import SiteHeaderNav from '@/components/SiteHeaderNav'
+import AnalyticsProvider from '@/components/AnalyticsProvider'
 
 export const metadata = {
   title: '大阪メンエス.com',
@@ -24,28 +24,12 @@ const brandFont = localFont({
 })
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
   return (
     <html lang="ja">
-      <head>
-        {gaId ? (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
-              strategy="afterInteractive"
-            />
-            <Script id="ga-init" strategy="afterInteractive">{`
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', '${gaId}', { anonymize_ip: true });
-            `}</Script>
-          </>
-        ) : null}
-      </head>
       <body
         className={`${brandFont.variable} min-h-screen bg-neutral-surfaceAlt text-neutral-text font-sans`}
       >
+        <AnalyticsProvider />
         <header className="sticky top-0 z-30 border-b border-white/30 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 lg:px-6">
             <Link href="/" className="group inline-flex items-center gap-3">

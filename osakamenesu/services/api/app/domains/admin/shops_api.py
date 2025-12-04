@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +29,7 @@ def _serialize(shop: Profile) -> dict[str, Any]:
         "name": shop.name,
         "area": shop.area,
         "status": shop.status,
+        "buffer_minutes": shop.buffer_minutes,
         "url": (shop.contact_json or {}).get("url") if shop.contact_json else None,
         "created_at": shop.created_at.isoformat() if shop.created_at else None,
         "updated_at": shop.updated_at.isoformat() if shop.updated_at else None,
@@ -61,4 +62,42 @@ async def create_shop(payload: ShopPayload, db: AsyncSession = Depends(get_sessi
     await db.commit()
     await db.refresh(shop)
     return _serialize(shop)
+
+
+class UpdateBufferMinutesPayload(BaseModel):
+    buffer_minutes: int = Field(ge=0, le=120, description="Buffer minutes between reservations (0-120)")
+
+    @validator("buffer_minutes")
+    def validate_buffer_minutes(cls, v):
+        if v < 0 or v > 120:
+            raise ValueError("Buffer minutes must be between 0 and 120")
+        return v
+
+
+@router.get("/api/admin/shops/{shop_id}")
+async def get_shop(shop_id: UUID, db: AsyncSession = Depends(get_session)):
+    """Get a specific shop by ID."""
+    res = await db.execute(select(Profile).where(Profile.id == shop_id))
+    shop = res.scalar_one_or_none()
+    if not shop:
+        raise HTTPException(status_code=404, detail="shop_not_found")
+    return _serialize(shop)
+
+
+@router.patch("/api/admin/shops/{shop_id}/buffer")
+async def update_shop_buffer(
+    shop_id: UUID,
+    payload: UpdateBufferMinutesPayload,
+    db: AsyncSession = Depends(get_session)
+):
+    """Update buffer minutes for a shop."""
+    res = await db.execute(select(Profile).where(Profile.id == shop_id))
+    shop = res.scalar_one_or_none()
+    if not shop:
+        raise HTTPException(status_code=404, detail="shop_not_found")
+
+    shop.buffer_minutes = payload.buffer_minutes
+    await db.commit()
+    await db.refresh(shop)
+    return {"message": "Buffer minutes updated", "buffer_minutes": shop.buffer_minutes}
 

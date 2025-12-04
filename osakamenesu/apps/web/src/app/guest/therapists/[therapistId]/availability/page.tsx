@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 
 import { formatReservationRange, toLocalDateISO } from '@/lib/date'
 
@@ -33,12 +33,9 @@ function formatDayLabel(iso: string): string {
   return `${month}/${day} (${weekday})`
 }
 
-export default function TherapistAvailabilityPage({
-  params,
-}: {
-  params: { therapistId: string }
-}) {
-  const therapistId = params.therapistId
+export default function TherapistAvailabilityPage() {
+  const params = useParams()
+  const therapistId = params.therapistId as string
   const sp = useSearchParams()
   const shopId = sp.get('shop_id')
   const days = useMemo(() => {

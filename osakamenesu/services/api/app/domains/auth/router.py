@@ -26,6 +26,7 @@ from ...schemas import (
 )
 from ...utils.email import send_email_async as _send_email_async
 from ...settings import settings as default_settings
+from ...rate_limiters import rate_limit_auth
 from .service import (
     AuthMagicLinkService,
     AuthRequestContext,
@@ -109,6 +110,7 @@ async def request_link(
     payload: AuthRequestLink,
     request: Request,
     db: AsyncSession = Depends(get_session),
+    _: None = Depends(rate_limit_auth),
 ):
     context = _build_request_context(request)
     return await _run_service(_service.request_link(payload, context, db))
@@ -119,6 +121,7 @@ async def verify_token(
     payload: AuthVerifyRequest,
     request: Request,
     db: AsyncSession = Depends(get_session),
+    _: None = Depends(rate_limit_auth),
 ) -> JSONResponse:
     context = _build_request_context(request)
     result: AuthVerificationResult = await _run_service(

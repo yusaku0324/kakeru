@@ -9,8 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
-from ...models import GuestReservation, TherapistShift
+from ...models import GuestReservation, TherapistShift, Therapist, Profile
 from ...db import get_session
 
 logger = logging.getLogger(__name__)
@@ -28,25 +29,42 @@ async def is_available(
     therapist_id: UUID,
     start_at: datetime,
     end_at: datetime,
+    check_buffer: bool = True,
 ) -> tuple[bool, dict[str, Any]]:
     """シフトと既存予約を見て予約可否を判定する (fail-soft)。"""
     if not start_at or not end_at or start_at >= end_at:
         return False, {"rejected_reasons": ["invalid_time_range"]}
 
     try:
+        # Get buffer minutes from the therapist's profile
+        buffer_minutes = 0
+        if check_buffer:
+            therapist_stmt = select(Therapist).options(
+                joinedload(Therapist.profile)
+            ).where(Therapist.id == therapist_id)
+            therapist_res = await db.execute(therapist_stmt)
+            therapist = therapist_res.scalar_one_or_none()
+            if therapist and therapist.profile:
+                buffer_minutes = therapist.profile.buffer_minutes or 0
+
+        # Apply buffer to the requested time range
+        buffer_delta = timedelta(minutes=buffer_minutes)
+        buffered_start = start_at - buffer_delta
+        buffered_end = end_at + buffer_delta
+
         # 1) シフト存在（availability_status=available で内包しているか）
         shift_stmt = select(TherapistShift).where(
             TherapistShift.therapist_id == therapist_id,
             TherapistShift.availability_status == "available",
-            TherapistShift.start_at <= start_at,
-            TherapistShift.end_at >= end_at,
+            TherapistShift.start_at <= buffered_start,
+            TherapistShift.end_at >= buffered_end,
         )
         shift_res = await db.execute(shift_stmt)
         shift = shift_res.scalar_one_or_none()
         if not shift:
             return False, {"rejected_reasons": ["no_shift"]}
 
-        # 2) 休憩との重なり
+        # 2) 休憩との重なり (check with buffered time)
         for br in shift.break_slots or []:
             br_start = br.get("start_at")
             br_end = br.get("end_at")
@@ -65,15 +83,16 @@ async def is_available(
                 )
             except Exception:
                 continue
-            if _overlaps(start_at, end_at, br_start_dt, br_end_dt):
+            if _overlaps(buffered_start, buffered_end, br_start_dt, br_end_dt):
                 return False, {"rejected_reasons": ["on_break"]}
 
-        # 3) 既存予約との重なり (pending/confirmed)
+        # 3) 既存予約との重なり (pending/confirmed) - check with buffer
         res_stmt = select(GuestReservation).where(
             GuestReservation.therapist_id == therapist_id,
             GuestReservation.status.in_(("pending", "confirmed")),
             and_(
-                GuestReservation.start_at < end_at, GuestReservation.end_at > start_at
+                GuestReservation.start_at < buffered_end,
+                GuestReservation.end_at > buffered_start
             ),
         )
         res_res = await db.execute(res_stmt)
@@ -216,6 +235,7 @@ def _day_window(target_date: date) -> tuple[datetime, datetime]:
 def _calculate_available_slots(
     shifts: list[TherapistShift],
     reservations: list[GuestReservation],
+    buffer_minutes: int = 0,
 ) -> list[tuple[datetime, datetime]]:
     intervals: list[tuple[datetime, datetime]] = []
     for shift in shifts:
@@ -229,7 +249,12 @@ def _calculate_available_slots(
     if not intervals:
         return []
 
-    subtracts = [(r.start_at, r.end_at) for r in reservations]
+    # Apply buffer to reservations
+    buffer_delta = timedelta(minutes=buffer_minutes)
+    subtracts = [
+        (r.start_at - buffer_delta, r.end_at + buffer_delta)
+        for r in reservations
+    ]
     open_intervals = _subtract_intervals(intervals, subtracts)
     return _normalize_intervals(open_intervals)
 
@@ -242,7 +267,18 @@ async def list_daily_slots(
     day_start, day_end = _day_window(target_date)
     shifts = await _fetch_shifts(db, therapist_id, target_date, target_date)
     reservations = await _fetch_reservations(db, therapist_id, day_start, day_end)
-    slots = _calculate_available_slots(shifts, reservations)
+
+    # Get buffer minutes from the therapist's profile
+    buffer_minutes = 0
+    therapist_stmt = select(Therapist).options(
+        joinedload(Therapist.profile)
+    ).where(Therapist.id == therapist_id)
+    therapist_res = await db.execute(therapist_stmt)
+    therapist = therapist_res.scalar_one_or_none()
+    if therapist and therapist.profile:
+        buffer_minutes = therapist.profile.buffer_minutes or 0
+
+    slots = _calculate_available_slots(shifts, reservations, buffer_minutes)
     return [
         (
             max(slot_start, day_start),

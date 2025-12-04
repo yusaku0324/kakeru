@@ -1,4 +1,5 @@
-// TODO(app-observability): Re-enable Sentry when the integration is ready.
+import * as Sentry from '@sentry/nextjs'
+
 const SLACK_WEBHOOK_URL = process.env.SLACK_ERROR_WEBHOOK_URL
 
 async function postToSlack(message: string, context?: Record<string, unknown>) {
@@ -37,6 +38,22 @@ export function captureError(error: unknown, context?: Record<string, unknown>) 
   if (process.env.NODE_ENV === 'development') {
     console.error('Captured error', error, context)
   }
+
+  // Send to Sentry if configured
+  if (process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN) {
+    if (error instanceof Error) {
+      Sentry.captureException(error, {
+        extra: context,
+      })
+    } else {
+      Sentry.captureMessage(String(error), {
+        level: 'error',
+        extra: context,
+      })
+    }
+  }
+
+  // Also send to Slack for immediate notification
   const message =
     context?.message ||
     (error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error')

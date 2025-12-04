@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ReservationStatusBadge } from '@/components/ReservationStatusBadge'
@@ -30,12 +31,10 @@ function pretty(obj?: Record<string, unknown> | null) {
   }
 }
 
-export default function AdminGuestReservationDetailPage({
-  params,
-}: {
-  params: { shopId: string; reservationId: string }
-}) {
-  const { shopId, reservationId } = params
+export default function AdminGuestReservationDetailPage() {
+  const params = useParams()
+  const shopId = params.shopId as string
+  const reservationId = params.reservationId as string
   const [reservation, setReservation] =
     useState<AdminGuestReservationDetail | null>(null)
   const [loading, setLoading] = useState(true)

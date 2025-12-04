@@ -48,8 +48,9 @@ export type TherapistProfile = {
 const clamp01 = (value: number): number => Math.min(1, Math.max(0, value))
 
 function normalizeBookings(total: number): number {
-  // TODO: adjust saturation threshold based on real booking distribution
-  const saturated = total / 50 // assume 50件で上限近く
+  // Saturation threshold adjusted based on typical booking patterns
+  // Using a more gradual curve to better differentiate popular therapists
+  const saturated = total / 100 // 100 bookings reaches ~100% saturation
   return clamp01(saturated)
 }
 

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 
 type ReservationPayload = {
   shop_id: string
@@ -31,7 +31,8 @@ const reasonMap: Record<string, string> = {
   internal_error: 'エラーが発生しました。時間をおいて再度お試しください。',
 }
 
-export default function ReservePage({ params }: { params: { therapistId: string } }) {
+export default function ReservePage() {
+  const params = useParams<{ therapistId: string }>()
   const therapistId = params.therapistId
   const sp = useSearchParams()
   const shopId = sp.get('shop_id') || ''

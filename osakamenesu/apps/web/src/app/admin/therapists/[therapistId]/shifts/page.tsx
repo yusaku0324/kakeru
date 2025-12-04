@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useParams } from 'next/navigation'
 
 type TherapistShift = {
   id: string
@@ -36,7 +37,8 @@ function buildDateTime(date: string, time: string) {
   return `${date}T${time}:00` // assume local ISO
 }
 
-export default function AdminTherapistShiftsPage({ params }: { params: { therapistId: string } }) {
+export default function AdminTherapistShiftsPage() {
+  const params = useParams<{ therapistId: string }>()
   const therapistId = params.therapistId
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [shifts, setShifts] = useState<TherapistShift[]>([])

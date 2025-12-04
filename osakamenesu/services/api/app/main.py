@@ -6,7 +6,6 @@ from fastapi.staticfiles import StaticFiles
 from .settings import settings
 import logging
 from .meili import ensure_indexes
-from .utils.ratelimit import create_rate_limiter, shutdown_rate_limiter
 from .domains.admin import (
     admin_router,
     admin_profiles_router,
@@ -29,13 +28,13 @@ from .domains.site import (
     guest_reservations_router,
     shops_router,
     therapist_availability_router,
+    therapists_router,
 )
 from .domains.test import router as test_router
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from .db import get_session
 from . import models
-from redis.asyncio import from_url
 
 
 app_logger = logging.getLogger("app")
@@ -70,25 +69,15 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    await shutdown_rate_limiter(_outlink_rate)
+    # Shutdown all rate limiters
+    from .rate_limiters import shutdown_all_rate_limiters
+    await shutdown_all_rate_limiters()
 
 
 app = FastAPI(title="Osaka Men-Esu API", version="0.1.0", lifespan=lifespan)
 
-redis_client = (
-    from_url(settings.rate_limit_redis_url, encoding="utf-8", decode_responses=False)
-    if settings.rate_limit_redis_url
-    else None
-)
-
-# per token+ip: 5 requests / 10 seconds
-_outlink_rate = create_rate_limiter(
-    max_events=5,
-    window_sec=10.0,
-    redis_client=redis_client,
-    namespace=settings.rate_limit_namespace,
-    redis_error_cooldown=settings.rate_limit_redis_error_cooldown,
-)
+# Import rate limiters after app is created to avoid circular imports
+from .rate_limiters import outlink_rate as _outlink_rate
 
 _cors_origins = {
     settings.api_origin,
@@ -178,4 +167,5 @@ app.include_router(dashboard_notifications_router)
 app.include_router(dashboard_reservations_router)
 app.include_router(dashboard_shops_router)
 app.include_router(dashboard_therapists_router)
+app.include_router(therapists_router)
 app.include_router(test_router)

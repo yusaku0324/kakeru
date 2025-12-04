@@ -19,6 +19,7 @@ from ...models import (
 )
 from ...db import get_session
 from .therapist_availability import is_available
+from ...rate_limiters import rate_limit_reservation
 
 logger = logging.getLogger(__name__)
 
@@ -449,6 +450,7 @@ async def update_guest_reservation_status(
 async def create_guest_reservation_api(
     payload: GuestReservationPayload,
     db: AsyncSession = Depends(get_session),
+    _: None = Depends(rate_limit_reservation),
 ):
     reservation, debug = await create_guest_reservation(
         db, payload.model_dump(), now=None
