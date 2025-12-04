@@ -42,6 +42,7 @@ def _mock_profile() -> SimpleNamespace:
         age=25,
         ranking_badges=["top_rated"],
         buffer_minutes=0,
+        body_tags=["massage", "relaxation"],
     )
 
 
@@ -181,6 +182,97 @@ def test_get_therapist_detail_unpublished(monkeypatch: pytest.MonkeyPatch) -> No
     assert res.status_code == 404
     body = res.json()
     assert body["detail"]["reason_code"] == "therapist_not_found"
+
+
+class TestRecommendedScore:
+    """Test recommended score calculation."""
+
+    def _make_mock_therapist(self, display_order=1, specialties=None):
+        return SimpleNamespace(
+            id=THERAPIST_ID,
+            display_order=display_order,
+            specialties=specialties or ["massage"],
+        )
+
+    def _make_mock_profile(
+        self,
+        body_tags=None,
+        price_min=10000,
+        price_max=15000,
+        age=25,
+        ranking_badges=None,
+    ):
+        return SimpleNamespace(
+            body_tags=body_tags or ["massage"],
+            price_min=price_min,
+            price_max=price_max,
+            age=age,
+            ranking_badges=ranking_badges or [],
+        )
+
+    def test_recommended_score_returns_score_and_breakdown(self):
+        therapist = self._make_mock_therapist()
+        profile = self._make_mock_profile()
+        score, breakdown = domain._compute_recommended_score(
+            therapist, profile, "direct", False
+        )
+        assert 0.0 <= score <= 1.0
+        assert breakdown is not None
+        assert breakdown.score is not None
+
+    def test_recommended_score_shop_page_entry_source(self):
+        therapist = self._make_mock_therapist(display_order=1)
+        profile = self._make_mock_profile()
+        score_shop, _ = domain._compute_recommended_score(
+            therapist, profile, "shop_page", False
+        )
+        score_direct, _ = domain._compute_recommended_score(
+            therapist, profile, "direct", False
+        )
+        # shop_page should weight display_order more heavily
+        # Both should be valid scores
+        assert 0.0 <= score_shop <= 1.0
+        assert 0.0 <= score_direct <= 1.0
+
+    def test_recommended_score_with_availability_boost(self):
+        therapist = self._make_mock_therapist()
+        profile = self._make_mock_profile()
+        score_with, breakdown_with = domain._compute_recommended_score(
+            therapist, profile, "direct", True
+        )
+        score_without, breakdown_without = domain._compute_recommended_score(
+            therapist, profile, "direct", False
+        )
+        # With availability should score higher
+        assert score_with > score_without
+        assert breakdown_with.availability_boost == 0.15
+        assert breakdown_without.availability_boost == 0.0
+
+    def test_recommended_score_top_rated_badge_boost(self):
+        therapist = self._make_mock_therapist()
+        profile_no_badge = self._make_mock_profile(ranking_badges=[])
+        profile_top_rated = self._make_mock_profile(ranking_badges=["top_rated"])
+        score_no_badge, _ = domain._compute_recommended_score(
+            therapist, profile_no_badge, "direct", False
+        )
+        score_top_rated, _ = domain._compute_recommended_score(
+            therapist, profile_top_rated, "direct", False
+        )
+        # top_rated should add 0.1 boost
+        assert score_top_rated > score_no_badge
+
+    def test_recommended_score_tag_similarity(self):
+        therapist = self._make_mock_therapist(specialties=["massage", "aroma"])
+        profile_match = self._make_mock_profile(body_tags=["massage", "aroma"])
+        profile_no_match = self._make_mock_profile(body_tags=["sports", "fitness"])
+        score_match, breakdown_match = domain._compute_recommended_score(
+            therapist, profile_match, "direct", False
+        )
+        score_no_match, breakdown_no_match = domain._compute_recommended_score(
+            therapist, profile_no_match, "direct", False
+        )
+        # Matching tags should have higher tag_similarity
+        assert breakdown_match.tag_similarity > breakdown_no_match.tag_similarity
 
 
 class TestPriceRank:
