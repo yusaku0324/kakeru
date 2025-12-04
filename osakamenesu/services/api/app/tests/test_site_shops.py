@@ -335,7 +335,14 @@ async def test_search_and_detail_share_next_slot(monkeypatch):
     async def fake_get_slots(db, shop_ids, lookahead_days=14):
         return ({sid: slot for sid in shop_ids}, {})
 
-    async def fake_meili_search(index, params):
+    def fake_meili_search(
+        q: str | None,
+        filter_expr: str | None,
+        sort: list[str] | str | None,
+        page: int,
+        page_size: int,
+        facets: list[str] | None = None,
+    ) -> dict:
         return {
             "hits": [
                 {

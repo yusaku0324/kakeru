@@ -104,7 +104,14 @@ def _setup_mocks(
 ) -> None:
     """Set up common mocks for shop search tests."""
 
-    async def _mock_meili_search(index: str, params: dict[str, Any]):
+    def _mock_meili_search(
+        q: str | None,
+        filter_expr: str | None,
+        sort: list[str] | str | None,
+        page: int,
+        page_size: int,
+        facets: list[str] | None = None,
+    ) -> dict[str, Any]:
         # The actual meili_search returns Exception objects instead of raising
         return meili_response
 

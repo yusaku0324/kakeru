@@ -90,6 +90,7 @@ sys.modules["app.settings"] = dummy_settings_module
 import importlib
 
 from app import models  # type: ignore  # noqa: E402
+
 auth = importlib.import_module("app.domains.auth.router")  # type: ignore  # noqa: E402
 from app.schemas import AuthRequestLink, AuthTestLoginRequest, AuthVerifyRequest  # type: ignore  # noqa: E402
 from app.settings import settings  # type: ignore  # noqa: E402
@@ -138,7 +139,10 @@ class FakeSession:
                     return self._value
 
             return Result(user)
-        if stmt.column_descriptions and stmt.column_descriptions[0]["name"] == "UserAuthToken":
+        if (
+            stmt.column_descriptions
+            and stmt.column_descriptions[0]["name"] == "UserAuthToken"
+        ):
             token_hash = None
             for criterion in getattr(stmt, "_where_criteria", []):
                 if getattr(criterion.left, "name", None) == "token_hash":
@@ -158,6 +162,7 @@ class FakeSession:
         if raw_columns:
             first = raw_columns[0]
             if getattr(first, "name", None) == "count":
+
                 class CountResult:
                     def scalar(self_inner):
                         return 0
@@ -342,10 +347,30 @@ async def test_verify_site_scope_sets_site_cookie_only():
 
 
 @pytest.mark.anyio
-async def test_test_login_creates_user_and_session():
+async def test_test_login_creates_user_and_session(monkeypatch):
     session = FakeSession()
-    payload = AuthTestLoginRequest(email="ci-user@example.com", display_name="CI User", scope="site")
-    response = await auth.test_login(payload, _request({"user-agent": "pytest"}), db=session, x_test_auth_secret="secret")
+    payload = AuthTestLoginRequest(
+        email="ci-user@example.com", display_name="CI User", scope="site"
+    )
+
+    # Monkeypatch _settings to return settings with test_auth_secret
+    class MockSettings:
+        test_auth_secret = "secret"
+        dashboard_session_cookie_name = "osakamenesu_session"
+        site_session_cookie_name = "osakamenesu_session"
+        auth_session_cookie_secure = False
+        auth_session_cookie_domain = None
+        auth_session_cookie_same_site = "lax"
+        auth_session_ttl_days = 30
+
+    monkeypatch.setattr(auth, "_settings", lambda: MockSettings())
+
+    response = await auth.test_login(
+        payload,
+        _request({"user-agent": "pytest"}),
+        db=session,
+        x_test_auth_secret="secret",
+    )
 
     assert response.status_code == 200
     assert session.sessions
@@ -358,7 +383,9 @@ async def test_test_login_rejects_invalid_secret():
     session = FakeSession()
     payload = AuthTestLoginRequest(email="ci-user@example.com")
     with pytest.raises(HTTPException) as exc_info:
-        await auth.test_login(payload, _request(), db=session, x_test_auth_secret="wrong")
+        await auth.test_login(
+            payload, _request(), db=session, x_test_auth_secret="wrong"
+        )
     assert exc_info.value.status_code == 401
 
 
@@ -370,7 +397,9 @@ async def test_test_login_missing_secret_returns_503():
     settings.test_auth_secret = None
     try:
         with pytest.raises(HTTPException) as exc_info:
-            await auth.test_login(payload, _request(), db=session, x_test_auth_secret="whatever")
+            await auth.test_login(
+                payload, _request(), db=session, x_test_auth_secret="whatever"
+            )
         assert exc_info.value.status_code == 401
     finally:
         settings.test_auth_secret = original_secret

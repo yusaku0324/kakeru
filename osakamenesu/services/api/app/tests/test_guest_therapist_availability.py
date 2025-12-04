@@ -14,8 +14,18 @@ from app.db import get_session
 THERAPIST_ID = uuid4()
 
 
+class DummyResult:
+    """Mock result that returns None for scalar_one_or_none()."""
+
+    def scalar_one_or_none(self):
+        return None
+
+
 class DummySession:
-    pass
+    """Mock session with execute method that returns dummy result."""
+
+    async def execute(self, stmt):
+        return DummyResult()
 
 
 def setup_function() -> None:
@@ -27,8 +37,12 @@ def teardown_function() -> None:
 
 
 def _shift(day: date, start_hour: int, end_hour: int) -> SimpleNamespace:
-    start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=start_hour)
-    end = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=end_hour)
+    start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(
+        hours=start_hour
+    )
+    end = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(
+        hours=end_hour
+    )
     return SimpleNamespace(
         therapist_id=THERAPIST_ID,
         date=day,
@@ -39,9 +53,15 @@ def _shift(day: date, start_hour: int, end_hour: int) -> SimpleNamespace:
     )
 
 
-def _reservation(day: date, start_hour: int, end_hour: int, status: str = "confirmed") -> SimpleNamespace:
-    start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=start_hour)
-    end = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=end_hour)
+def _reservation(
+    day: date, start_hour: int, end_hour: int, status: str = "confirmed"
+) -> SimpleNamespace:
+    start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(
+        hours=start_hour
+    )
+    end = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(
+        hours=end_hour
+    )
     return SimpleNamespace(start_at=start, end_at=end, status=status)
 
 

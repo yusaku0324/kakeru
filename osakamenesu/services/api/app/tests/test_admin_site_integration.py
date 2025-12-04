@@ -289,7 +289,14 @@ def _build_app(
         mapping = {sid: next_slot for sid in shop_ids if sid == profile.id}
         return mapping, {}
 
-    async def fake_meili_search(index, params):
+    def fake_meili_search(
+        q: str | None,
+        filter_expr: str | None,
+        sort: list[str] | str | None,
+        page: int,
+        page_size: int,
+        facets: list[str] | None = None,
+    ) -> dict:
         return search_hits or {
             "hits": [],
             "estimatedTotalHits": 0,
