@@ -1,4 +1,5 @@
 const path = require('path')
+const { withSentryConfig } = require('@sentry/nextjs')
 
 /** @type {import('next').NextConfig} */
 const INTERNAL_API_BASE =
@@ -11,6 +12,12 @@ const INTERNAL_API_BASE =
 const normalizeBase = (base) => base.replace(/\/$/, '')
 
 const nextConfig = {
+  // Note: outputFileTracingRoot disabled due to Vercel build path issues
+  // outputFileTracingRoot: path.join(__dirname, '../../'),
+  experimental: {
+    optimizeCss: true,
+    webpackBuildWorker: true,
+  },
   images: {
     // Allow typical dev sources; adjust for production as needed
     remotePatterns: [
@@ -41,4 +48,21 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+// Export with Sentry configuration if DSN is available
+const sentryWebpackPluginOptions = {
+  // Suppresses source map uploading logs during build
+  silent: true,
+  // Routes browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers (increases server load)
+  tunnelRoute: "/monitoring",
+  // Hides source maps from generated client bundles
+  hideSourceMaps: true,
+  // Automatically tree-shake Sentry logger statements to reduce bundle size
+  disableLogger: true,
+}
+
+// Only wrap with Sentry if DSN is configured
+if (process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  module.exports = withSentryConfig(nextConfig, sentryWebpackPluginOptions)
+} else {
+  module.exports = nextConfig
+}

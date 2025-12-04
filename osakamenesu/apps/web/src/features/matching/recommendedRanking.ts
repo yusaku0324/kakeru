@@ -2,7 +2,7 @@ import {
   buildGuestIntentFromSearchParams,
   rankMatchingCandidates,
   type RecommendedCandidateInput,
-} from '../../../../../src/matching/recommendedSearch'
+} from '@/matchingBridge/recommendedSearch'
 
 export type MatchingSearchParams = {
   area?: string
