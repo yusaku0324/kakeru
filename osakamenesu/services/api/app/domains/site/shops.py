@@ -21,6 +21,10 @@ from .services.shop_services import (
     _collect_review_aspect_stats,
 )
 from .services.shop.review_service import ShopReviewService
+from .services.shop.therapists_service import (
+    ShopTherapistsService,
+    ShopTherapistsResponse,
+)
 
 router = APIRouter(prefix="/api/v1/shops", tags=["shops"])
 
@@ -176,5 +180,36 @@ async def create_shop_review(
     service = ShopReviewService(db)
     try:
         return await service.create_review(shop_id, payload)
+    except ShopNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/{shop_id}/therapists", response_model=ShopTherapistsResponse)
+async def list_shop_therapists(
+    shop_id: UUID,
+    include_availability: bool = Query(
+        default=True, description="Include availability slots"
+    ),
+    availability_days: int = Query(
+        default=7, ge=1, le=30, description="Days of availability to fetch"
+    ),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=50),
+    db: AsyncSession = Depends(get_session),
+):
+    """List therapists for a shop with optional availability.
+
+    Returns published therapists with their tags, photos, and availability slots.
+    Useful for shop detail pages where users want to see available therapists.
+    """
+    service = ShopTherapistsService(db)
+    try:
+        return await service.list_therapists(
+            shop_id,
+            include_availability=include_availability,
+            availability_days=availability_days,
+            page=page,
+            page_size=page_size,
+        )
     except ShopNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
