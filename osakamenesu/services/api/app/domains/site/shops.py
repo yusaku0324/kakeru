@@ -28,6 +28,54 @@ from .services.shop.therapists_service import (
 
 router = APIRouter(prefix="/api/v1/shops", tags=["shops"])
 
+# Sample shop data for demo/development
+SAMPLE_SHOPS: dict[str, dict] = {
+    "sample-namba-resort": {
+        "id": "sample-shop-id",
+        "slug": "sample-namba-resort",
+        "name": "アロマリゾート 難波本店",
+        "area": "難波/日本橋",
+        "address": "大阪府大阪市中央区難波1-1-1",
+        "description": "大阪難波エリアで人気のメンズエステ。癒しの空間で極上のトリートメントをご提供します。",
+        "phone": "06-1234-5678",
+        "business_hours": "10:00 - 翌3:00",
+        "price_min": 8000,
+        "price_max": 20000,
+        "photos": ["/images/demo-shop.svg"],
+        "rating": 4.5,
+        "review_count": 128,
+        "tags": ["個室完備", "駅近", "深夜営業"],
+        "therapists": [
+            {
+                "id": "11111111-1111-1111-8888-111111111111",
+                "name": "葵",
+                "age": 26,
+                "photos": ["/images/demo-therapist-1.svg"],
+                "tags": {"mood": "癒し系", "style": "ソフト"},
+                "price_rank": 3,
+                "available_today": True,
+            },
+            {
+                "id": "22222222-2222-2222-8888-222222222222",
+                "name": "凛",
+                "age": 24,
+                "photos": ["/images/demo-therapist-2.svg"],
+                "tags": {"mood": "癒し系", "style": "ソフト"},
+                "price_rank": 3,
+                "available_today": True,
+            },
+        ],
+    },
+}
+
+
+def _get_sample_shop_response(shop_id: str) -> dict | None:
+    """Return sample shop data if slug matches known samples."""
+    sample = SAMPLE_SHOPS.get(shop_id)
+    if not sample:
+        return None
+    return sample
+
 __all__ = (
     "router",
     "serialize_review",
@@ -117,6 +165,11 @@ async def search_shops(
 
 @router.get("/{shop_id}")
 async def get_shop_detail(shop_id: str, db: AsyncSession = Depends(get_session)):
+    # Try sample data first (for demo/development)
+    sample_response = _get_sample_shop_response(shop_id)
+    if sample_response:
+        return sample_response
+
     assembler = ShopDetailAssembler(db)
     try:
         return await assembler.get_detail(shop_id)
