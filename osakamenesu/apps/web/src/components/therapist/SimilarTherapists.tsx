@@ -86,9 +86,11 @@ export default function SimilarTherapists({
             >
               <div className="aspect-w-16 aspect-h-9 relative">
                 {therapist.photos && therapist.photos.length > 0 ? (
-                  <img
+                  <Image
                     src={therapist.photos[0]}
                     alt={therapist.name}
+                    width={300}
+                    height={192}
                     className="w-full h-48 object-cover"
                   />
                 ) : (

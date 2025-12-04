@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import Image from 'next/image'
+import { useRouter, useSearchParams, useParams } from 'next/navigation'
 import ReservationForm from '@/components/reservation/ReservationForm'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/button'
@@ -21,12 +22,10 @@ interface ShopInfo {
   area: string
 }
 
-export default function ShopReservePage({
-  params
-}: {
-  params: { shopSlug: string; therapistId: string }
-}) {
-  const { shopSlug, therapistId } = params
+export default function ShopReservePage() {
+  const params = useParams()
+  const shopSlug = params.shopSlug as string
+  const therapistId = params.therapistId as string
   const [therapist, setTherapist] = useState<TherapistInfo | null>(null)
   const [shop, setShop] = useState<ShopInfo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -142,9 +141,11 @@ export default function ShopReservePage({
                 <div className="mb-6">
                   <div className="flex items-center gap-3 mb-3">
                     {therapist.photos && therapist.photos.length > 0 ? (
-                      <img
+                      <Image
                         src={therapist.photos[0]}
                         alt={therapist.name}
+                        width={64}
+                        height={64}
                         className="w-16 h-16 rounded-full object-cover"
                       />
                     ) : (

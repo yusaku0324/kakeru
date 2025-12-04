@@ -44,9 +44,11 @@ export default function TherapistProfile({ therapist }: TherapistProfileProps) {
           {/* Main Photo */}
           <div className="flex-shrink-0">
             {therapist.photos && therapist.photos.length > 0 ? (
-              <img
+              <Image
                 src={therapist.photos[0]}
                 alt={therapist.name}
+                width={192}
+                height={192}
                 className="w-32 h-32 sm:w-48 sm:h-48 rounded-lg object-cover"
               />
             ) : (
@@ -151,10 +153,12 @@ export default function TherapistProfile({ therapist }: TherapistProfileProps) {
             <h3 className="text-sm font-semibold text-gray-700 mb-3">その他の写真</h3>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
               {therapist.photos.slice(1).map((photo, index) => (
-                <img
+                <Image
                   key={index}
                   src={photo}
                   alt={`${therapist.name} ${index + 2}`}
+                  width={100}
+                  height={100}
                   className="w-full aspect-square rounded-lg object-cover"
                 />
               ))}
