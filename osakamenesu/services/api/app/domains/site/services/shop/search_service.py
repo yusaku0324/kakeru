@@ -357,7 +357,7 @@ async def _search_shops_impl(
     if isinstance(res, Exception):
         logger.exception("shop search failed")
         empty = ShopSearchResponse(
-            page=page, page_size=page_size, total=0, results=[], facets=[]
+            page=page, page_size=page_size, total=0, results=[], facets={}
         )
         return empty.model_dump()
     hits = res.get("hits", [])
