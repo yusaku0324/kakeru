@@ -1,0 +1,62 @@
+{
+  "framework": "nextjs",
+  "regions": ["hnd1"],
+  "buildCommand": "cd apps/web && pnpm install && pnpm build",
+  "installCommand": "pnpm install",
+  "outputDirectory": "apps/web/.next",
+  "build": {
+    "env": {
+      "SKIP_ENV_VALIDATION": "1"
+    }
+  },
+  "functions": {
+    "app/api/auth/magic-link/route.ts": {
+      "maxDuration": 10
+    },
+    "app/api/auth/verify/route.ts": {
+      "maxDuration": 10
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/robots.txt",
+      "destination": "/api/robots"
+    }
+  ]
+}
