@@ -48,77 +48,6 @@ SAMPLE_THERAPISTS: dict[str, dict] = {
 }
 
 
-def _get_sample_therapist_response(
-    therapist_id: str,
-    shop_slug: str | None,
-    entry_source: str,
-    days: int,
-    slot_granularity_minutes: int,
-) -> TherapistDetailResponse | None:
-    """Return sample therapist data if ID matches known samples."""
-    sample = SAMPLE_THERAPISTS.get(therapist_id)
-    if not sample:
-        return None
-
-    # Verify shop_slug if provided
-    if shop_slug and sample["shop_slug"] != shop_slug:
-        return None
-
-    tags = TherapistTags(
-        mood="癒し系",
-        style="ソフト",
-        look=None,
-        contact=None,
-        hobby_tags=sample.get("specialties"),
-    )
-
-    therapist_info = TherapistInfo(
-        id=therapist_id,
-        name=sample["name"],
-        age=sample.get("age"),
-        price_rank=_compute_price_rank(sample.get("price_min"), sample.get("price_max")),
-        tags=tags,
-        profile_text=sample.get("profile_text"),
-        photos=sample.get("photos"),
-        badges=["人気"],
-    )
-
-    shop_info = ShopInfo(
-        id="sample-shop-id",
-        slug=sample["shop_slug"],
-        name=sample["shop_name"],
-        area=sample["shop_area"],
-    )
-
-    # Empty availability for sample
-    availability = AvailabilityInfo(
-        slots=[],
-        phase="explore",
-        window=AvailabilityWindow(
-            days=days,
-            slot_granularity_minutes=slot_granularity_minutes,
-        ),
-    )
-
-    # Simple sample scores
-    breakdown = BreakdownInfo(
-        base_staff_similarity=0.8,
-        tag_similarity=0.7,
-        price_match=0.6,
-        age_match=0.75,
-        availability_boost=0.0,
-        score=0.72,
-    )
-
-    return TherapistDetailResponse(
-        therapist=therapist_info,
-        shop=shop_info,
-        availability=availability,
-        recommended_score=0.72,
-        breakdown=breakdown,
-        entry_source=entry_source,
-    )
-
 router = APIRouter(prefix="/api/v1/therapists", tags=["therapists"])
 
 
@@ -208,6 +137,95 @@ class SimilarTherapistItem(BaseModel):
 class SimilarTherapistsResponse(BaseModel):
     """Response for similar therapists endpoint."""
     therapists: list[SimilarTherapistItem]
+
+
+def _compute_price_rank(min_price: int | None, max_price: int | None) -> int | None:
+    """Compute price rank from min/max price (1=cheap, 5=expensive)."""
+    if min_price is None or max_price is None:
+        return None
+    avg = (min_price + max_price) / 2
+    if avg < 5000:
+        return 1
+    elif avg < 10000:
+        return 2
+    elif avg < 15000:
+        return 3
+    elif avg < 20000:
+        return 4
+    else:
+        return 5
+
+
+def _get_sample_therapist_response(
+    therapist_id: str,
+    shop_slug: str | None,
+    entry_source: str,
+    days: int,
+    slot_granularity_minutes: int,
+) -> TherapistDetailResponse | None:
+    """Return sample therapist data if ID matches known samples."""
+    sample = SAMPLE_THERAPISTS.get(therapist_id)
+    if not sample:
+        return None
+
+    # Verify shop_slug if provided
+    if shop_slug and sample["shop_slug"] != shop_slug:
+        return None
+
+    tags = TherapistTags(
+        mood="癒し系",
+        style="ソフト",
+        look=None,
+        contact=None,
+        hobby_tags=sample.get("specialties"),
+    )
+
+    therapist_info = TherapistInfo(
+        id=therapist_id,
+        name=sample["name"],
+        age=sample.get("age"),
+        price_rank=_compute_price_rank(sample.get("price_min"), sample.get("price_max")),
+        tags=tags,
+        profile_text=sample.get("profile_text"),
+        photos=sample.get("photos"),
+        badges=["人気"],
+    )
+
+    shop_info = ShopInfo(
+        id="sample-shop-id",
+        slug=sample["shop_slug"],
+        name=sample["shop_name"],
+        area=sample["shop_area"],
+    )
+
+    # Empty availability for sample
+    availability = AvailabilityInfo(
+        slots=[],
+        phase="explore",
+        window=AvailabilityWindow(
+            days=days,
+            slot_granularity_minutes=slot_granularity_minutes,
+        ),
+    )
+
+    # Simple sample scores
+    breakdown = BreakdownInfo(
+        base_staff_similarity=0.8,
+        tag_similarity=0.7,
+        price_match=0.6,
+        age_match=0.75,
+        availability_boost=0.0,
+        score=0.72,
+    )
+
+    return TherapistDetailResponse(
+        therapist=therapist_info,
+        shop=shop_info,
+        availability=availability,
+        recommended_score=0.72,
+        breakdown=breakdown,
+        entry_source=entry_source,
+    )
 
 
 def _compute_recommended_score(
@@ -315,23 +333,6 @@ def _compute_recommended_score(
     )
 
     return score, breakdown
-
-
-def _compute_price_rank(min_price: int | None, max_price: int | None) -> int | None:
-    """Compute price rank from min/max price (1=cheap, 5=expensive)."""
-    if min_price is None or max_price is None:
-        return None
-    avg = (min_price + max_price) / 2
-    if avg < 5000:
-        return 1
-    elif avg < 10000:
-        return 2
-    elif avg < 15000:
-        return 3
-    elif avg < 20000:
-        return 4
-    else:
-        return 5
 
 
 async def _fetch_therapist_with_profile(
