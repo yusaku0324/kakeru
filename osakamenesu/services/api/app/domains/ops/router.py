@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 import secrets
+import subprocess
 from typing import Sequence, Tuple
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from sqlalchemy import func, select
+from pydantic import BaseModel
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ... import models, schemas
 from ...db import get_session
 from ...settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
@@ -141,3 +146,64 @@ async def get_ops_slots(
     db: AsyncSession = Depends(get_session),
 ) -> schemas.OpsSlotsSummary:
     return await _get_slots_summary(db)
+
+
+class MigrateResponse(BaseModel):
+    success: bool
+    message: str
+    current_revision: str | None = None
+    output: str | None = None
+
+
+@router.post("/migrate", response_model=MigrateResponse)
+async def run_migrations(
+    db: AsyncSession = Depends(get_session),
+) -> MigrateResponse:
+    """Run alembic database migrations.
+
+    This endpoint runs 'alembic upgrade head' to apply any pending migrations.
+    Protected by the ops_api_token.
+    """
+    try:
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        success = result.returncode == 0
+        output = result.stdout + result.stderr
+
+        logger.info("Migration result: success=%s, output=%s", success, output)
+
+        # Get current revision
+        current_revision = None
+        try:
+            rev_result = await db.execute(
+                text("SELECT version_num FROM alembic_version LIMIT 1")
+            )
+            row = rev_result.fetchone()
+            if row:
+                current_revision = row[0]
+        except Exception as e:
+            logger.warning("Could not get current revision: %s", e)
+
+        return MigrateResponse(
+            success=success,
+            message="Migration completed" if success else "Migration failed",
+            current_revision=current_revision,
+            output=output,
+        )
+    except subprocess.TimeoutExpired:
+        logger.error("Migration timed out")
+        return MigrateResponse(
+            success=False,
+            message="Migration timed out after 120 seconds",
+        )
+    except Exception as e:
+        logger.exception("Migration error: %s", e)
+        return MigrateResponse(
+            success=False,
+            message=f"Migration error: {str(e)}",
+        )
