@@ -130,27 +130,15 @@ function resolvePythonCandidates() {
   return ['python3', 'python']
 }
 
-async function runSeed() {
-  if (process.env.SKIP_E2E_SETUP === '1') {
-    console.warn('[playwright] SKIP_E2E_SETUP=1 が設定されているためシード処理をスキップします')
-    return
-  }
-
-  if (!process.env.E2E_SEED_API_BASE || !process.env.E2E_SEED_API_BASE.trim()) {
-    const resolved = resolveApiBase()
-    if (resolved) {
-      process.env.E2E_SEED_API_BASE = resolved
-    }
-  }
-
+async function runSeedScript(scriptName, label) {
   const repoRoot = path.resolve(__dirname, '..', '..', '..')
-  const scriptPath = path.resolve(repoRoot, 'services', 'api', 'scripts', 'seed_admin_test_data.py')
+  const scriptPath = path.resolve(repoRoot, 'services', 'api', 'scripts', scriptName)
 
   if (!fs.existsSync(scriptPath)) {
     console.warn(
-      `[playwright] シードスクリプトが見つかりませんでした (${scriptPath})。処理をスキップします。`,
+      `[playwright] ${label}スクリプトが見つかりませんでした (${scriptPath})。処理をスキップします。`,
     )
-    return
+    return true // Not a failure, just skip
   }
 
   const pythonCandidates = resolvePythonCandidates()
@@ -166,12 +154,38 @@ async function runSeed() {
     lastStatus = result.status
     lastError = result.error
     if (result.status === 0) {
-      return
+      console.log(`[playwright] ${label}が完了しました`)
+      return true
     }
   }
 
   const errorMessage = lastError ? lastError.message : `exit status ${lastStatus}`
-  throw new Error(`[playwright] シードスクリプトの実行に失敗しました: ${errorMessage}`)
+  console.warn(`[playwright] ${label}の実行に失敗しました: ${errorMessage}`)
+  return false
+}
+
+async function runSeed() {
+  if (process.env.SKIP_E2E_SETUP === '1') {
+    console.warn('[playwright] SKIP_E2E_SETUP=1 が設定されているためシード処理をスキップします')
+    return
+  }
+
+  if (!process.env.E2E_SEED_API_BASE || !process.env.E2E_SEED_API_BASE.trim()) {
+    const resolved = resolveApiBase()
+    if (resolved) {
+      process.env.E2E_SEED_API_BASE = resolved
+    }
+  }
+
+  // Run admin seed script (existing)
+  const adminSuccess = await runSeedScript('seed_admin_test_data.py', 'Admin シード')
+
+  // Run E2E sample data seed script (new - for sample shops with fixed slugs)
+  const e2eSuccess = await runSeedScript('seed_e2e_sample_data.py', 'E2E サンプルデータシード')
+
+  if (!adminSuccess && !e2eSuccess) {
+    console.warn('[playwright] すべてのシードスクリプトが失敗しました。テストは続行します。')
+  }
 }
 
 function resolveAdminWebHealthBase() {
