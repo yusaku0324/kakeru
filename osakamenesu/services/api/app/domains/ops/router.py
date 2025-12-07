@@ -155,6 +155,64 @@ class MigrateResponse(BaseModel):
     output: str | None = None
 
 
+class StampRequest(BaseModel):
+    revision: str = "head"
+
+
+@router.post("/stamp", response_model=MigrateResponse)
+async def stamp_migration(
+    request: StampRequest,
+    db: AsyncSession = Depends(get_session),
+) -> MigrateResponse:
+    """Stamp the database with a specific alembic revision without running migrations.
+
+    Use this to mark the database as being at a specific migration version
+    when the actual schema is already in sync but alembic_version is missing.
+    """
+    try:
+        result = subprocess.run(
+            ["alembic", "stamp", request.revision],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        success = result.returncode == 0
+        output = result.stdout + result.stderr
+
+        logger.info("Stamp result: success=%s, output=%s", success, output)
+
+        current_revision = None
+        try:
+            rev_result = await db.execute(
+                text("SELECT version_num FROM alembic_version LIMIT 1")
+            )
+            row = rev_result.fetchone()
+            if row:
+                current_revision = row[0]
+        except Exception as e:
+            logger.warning("Could not get current revision: %s", e)
+
+        return MigrateResponse(
+            success=success,
+            message=f"Stamped to {request.revision}" if success else "Stamp failed",
+            current_revision=current_revision,
+            output=output,
+        )
+    except subprocess.TimeoutExpired:
+        logger.error("Stamp timed out")
+        return MigrateResponse(
+            success=False,
+            message="Stamp timed out after 60 seconds",
+        )
+    except Exception as e:
+        logger.exception("Stamp error: %s", e)
+        return MigrateResponse(
+            success=False,
+            message=f"Stamp error: {str(e)}",
+        )
+
+
 @router.post("/migrate", response_model=MigrateResponse)
 async def run_migrations(
     db: AsyncSession = Depends(get_session),
