@@ -6,7 +6,7 @@ from datetime import date, datetime
 from typing import Any, Dict, Iterable, List, Set
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models
@@ -215,6 +215,132 @@ def _build_facets(
     return response
 
 
+def _profile_to_shop_summary(profile: models.Profile) -> ShopSummary:
+    """Convert a Profile model to ShopSummary."""
+    first_photo = None
+    if profile.photos and len(profile.photos) > 0:
+        first_photo = profile.photos[0]
+
+    contact = profile.contact_json or {}
+    promotions_raw = contact.get("promotions")
+    promotions = normalize_promotions(promotions_raw)
+    reviews = contact.get("reviews", {})
+    rating = reviews.get("average_score") if isinstance(reviews, dict) else None
+    review_count = reviews.get("review_count") if isinstance(reviews, dict) else None
+
+    staff_preview = []
+    staff_data = contact.get("staff", [])
+    if isinstance(staff_data, list):
+        for s in staff_data[:3]:
+            if isinstance(s, dict) and s.get("name"):
+                staff_preview.append(
+                    ShopStaffPreview(
+                        id=str(s.get("id")) if s.get("id") else None,
+                        name=str(s.get("name")),
+                        alias=str(s.get("alias")) if s.get("alias") else None,
+                        headline=str(s.get("headline")) if s.get("headline") else None,
+                        rating=safe_float(s.get("rating")),
+                        review_count=safe_int(s.get("review_count")),
+                        avatar_url=str(s.get("avatar_url")) if s.get("avatar_url") else None,
+                        specialties=s.get("specialties", []) if isinstance(s.get("specialties"), list) else [],
+                    )
+                )
+
+    return ShopSummary(
+        id=profile.id,
+        slug=profile.slug,
+        name=profile.name,
+        store_name=contact.get("store_name"),
+        area=profile.area,
+        area_name=profile.area,
+        address=contact.get("address"),
+        categories=[],
+        service_tags=profile.body_tags or [],
+        min_price=profile.price_min or 0,
+        max_price=profile.price_max or 0,
+        nearest_station=profile.nearest_station,
+        station_line=profile.station_line,
+        station_exit=profile.station_exit,
+        station_walk_minutes=profile.station_walk_minutes,
+        latitude=profile.latitude,
+        longitude=profile.longitude,
+        rating=rating,
+        review_count=review_count,
+        lead_image_url=first_photo,
+        badges=profile.ranking_badges or [],
+        today_available=None,
+        next_available_at=None,
+        distance_km=None,
+        online_reservation=None,
+        updated_at=profile.updated_at,
+        ranking_reason=contact.get("ranking_reason"),
+        promotions=promotions,
+        price_band=profile.price_band,
+        price_band_label=PRICE_BAND_LABELS.get(profile.price_band) if profile.price_band else None,
+        has_promotions=bool(promotions),
+        has_discounts=bool(profile.discounts),
+        promotion_count=len(promotions) if promotions else 0,
+        ranking_score=profile.ranking_weight,
+        diary_count=None,
+        has_diaries=None,
+        staff_preview=staff_preview,
+    )
+
+
+async def _search_from_postgres(
+    db: AsyncSession,
+    *,
+    q: str | None = None,
+    area: str | None = None,
+    price_min: int | None = None,
+    price_max: int | None = None,
+    category: str | None = None,
+    page: int = 1,
+    page_size: int = 12,
+) -> tuple[List[ShopSummary], int]:
+    """Fallback search using PostgreSQL when Meilisearch is unavailable."""
+    stmt = select(models.Profile).where(models.Profile.status == "published")
+
+    if q:
+        search_term = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                models.Profile.name.ilike(search_term),
+                models.Profile.area.ilike(search_term),
+            )
+        )
+
+    if area:
+        stmt = stmt.where(models.Profile.area.ilike(f"%{area}%"))
+
+    if price_min is not None:
+        stmt = stmt.where(models.Profile.price_max >= price_min)
+
+    if price_max is not None:
+        stmt = stmt.where(models.Profile.price_min <= price_max)
+
+    if category:
+        stmt = stmt.where(models.Profile.service_type == category)
+
+    # Get total count
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar() or 0
+
+    # Apply pagination and ordering
+    stmt = stmt.order_by(
+        models.Profile.ranking_weight.desc().nulls_last(),
+        models.Profile.updated_at.desc().nulls_last(),
+    )
+    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+
+    result = await db.execute(stmt)
+    profiles = result.scalars().all()
+
+    shops = [_profile_to_shop_summary(p) for p in profiles]
+    return shops, total
+
+
 async def _filter_results_by_availability(
     db: AsyncSession, shops: List[ShopSummary], target_date: date
 ) -> List[ShopSummary]:
@@ -363,17 +489,37 @@ async def _search_shops_impl(
             facets=params.get("facets"),
         )
     except Exception as e:
-        logger.warning("meili_search failed, returning empty result: %s", e)
-        empty = ShopSearchResponse(
-            page=page, page_size=page_size, total=0, results=[], facets={}
+        logger.warning("meili_search failed, falling back to PostgreSQL: %s", e)
+        results, total = await _search_from_postgres(
+            db,
+            q=q,
+            area=area,
+            price_min=price_min,
+            price_max=price_max,
+            category=category,
+            page=page,
+            page_size=page_size,
         )
-        return empty.model_dump()
+        response = ShopSearchResponse(
+            page=page, page_size=page_size, total=total, results=results, facets={}
+        )
+        return response.model_dump()
     if isinstance(res, Exception):
-        logger.exception("shop search failed")
-        empty = ShopSearchResponse(
-            page=page, page_size=page_size, total=0, results=[], facets={}
+        logger.warning("shop search returned error, falling back to PostgreSQL: %s", res)
+        results, total = await _search_from_postgres(
+            db,
+            q=q,
+            area=area,
+            price_min=price_min,
+            price_max=price_max,
+            category=category,
+            page=page,
+            page_size=page_size,
         )
-        return empty.model_dump()
+        response = ShopSearchResponse(
+            page=page, page_size=page_size, total=total, results=results, facets={}
+        )
+        return response.model_dump()
     hits = res.get("hits", [])
     results = [_doc_to_shop_summary(doc) for doc in hits]
 
