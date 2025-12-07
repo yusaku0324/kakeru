@@ -19,10 +19,8 @@ type LineLoginButtonProps = {
  * LINEログインボタン
  *
  * LINE OAuth認証フローを開始するためのボタンコンポーネント。
- * バックエンドの `/api/v1/auth/line/login-url` を呼び出してLINE認証URLを取得し、
+ * バックエンドの `/api/auth/line/login-url` を呼び出してLINE認証URLを取得し、
  * ユーザーをLINE認証ページにリダイレクトする。
- *
- * TODO: バックエンドLINE OAuth APIが実装されたら、実際のAPIを呼び出すように変更
  */
 export function LineLoginButton({
   redirectPath = '/therapist/settings',
@@ -39,35 +37,33 @@ export function LineLoginButton({
     setError(null)
 
     try {
-      // TODO: バックエンドAPI実装後に置き換え
-      // const response = await fetch('/api/v1/auth/line/login-url', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ redirect_path: redirectPath }),
-      // })
-      // const data = await response.json()
-      // window.location.href = data.login_url
+      // バックエンドAPIからLINE認可URLを取得
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE || ''
+      const response = await fetch(`${apiBase}/api/auth/line/login-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redirect_path: redirectPath }),
+      })
 
-      // 仮実装: LINE OAuth URLへの直接リダイレクト（デモ用）
-      // 実際のLINE_CHANNEL_IDは環境変数から取得
-      const lineChannelId = process.env.NEXT_PUBLIC_LINE_CHANNEL_ID
-      if (!lineChannelId) {
-        setError('LINE連携は現在準備中です')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        if (response.status === 503) {
+          setError('LINE連携は現在準備中です')
+        } else {
+          setError(errorData.detail || 'LINEログインの開始に失敗しました')
+        }
         setIsLoading(false)
         return
       }
 
-      const state = crypto.randomUUID()
-      const redirectUri = encodeURIComponent(
-        `${window.location.origin}/api/auth/line/callback`
-      )
-      const lineAuthUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${lineChannelId}&redirect_uri=${redirectUri}&state=${state}&scope=profile%20openid`
+      const data = await response.json()
 
       // stateをセッションストレージに保存（CSRF対策）
-      sessionStorage.setItem('line_oauth_state', state)
+      sessionStorage.setItem('line_oauth_state', data.state)
       sessionStorage.setItem('line_oauth_redirect', redirectPath)
 
-      window.location.href = lineAuthUrl
+      // LINE認証ページにリダイレクト
+      window.location.href = data.login_url
     } catch (err) {
       console.error('LINE login error:', err)
       setError('LINEログインの開始に失敗しました')
