@@ -72,7 +72,7 @@ function SectionSkeleton() {
 
 export default function Loading() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-neutral-surface" aria-busy>
+    <div className="relative min-h-screen overflow-hidden bg-neutral-surface" aria-busy role="status" aria-label="Loading">
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(147,197,253,0.18),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(196,181,253,0.16),_transparent_50%)]"
         aria-hidden
@@ -103,6 +103,6 @@ export default function Loading() {
         <SectionSkeleton />
         <SectionSkeleton />
       </div>
-    </main>
+    </div>
   )
 }
