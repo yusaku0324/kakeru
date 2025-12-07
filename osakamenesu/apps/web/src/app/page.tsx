@@ -62,10 +62,12 @@ function buildHighlights(facets: Record<string, any[]>, hits: any[]) {
 
 async function loadHomeData(): Promise<SearchResponse> {
   const data = await fetchProfiles({ page_size: '12', today: '1' })
-  if (!data._error) {
+  // Fall back to sample data if API errors OR returns empty results
+  if (!data._error && data.results.length > 0) {
     return data
   }
-  const fallback = buildSampleResponse()
+  // Use sample data for demo/development when no real data is available
+  const fallback = buildSampleResponse({ today: '1' })
   return {
     ...fallback,
     _error: data._error,

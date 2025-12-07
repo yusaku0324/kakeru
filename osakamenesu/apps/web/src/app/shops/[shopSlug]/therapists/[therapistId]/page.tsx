@@ -125,15 +125,9 @@ export default function TherapistDetailPage() {
   const handleReserve = () => {
     if (!therapist) return
 
-    // Navigate to reservation page with therapist and shop info
-    const params = new URLSearchParams({
-      therapist_id: therapist.therapist.id,
-      shop_id: therapist.shop.id,
-      shop_slug: therapist.shop.slug || '',
-      entry_source: therapist.entry_source
-    })
-
-    router.push(`/guest/therapists/${therapist.therapist.id}/reserve?${params}`)
+    // Navigate to shop-based reservation page (richer UI with sidebar)
+    const slug = therapist.shop.slug || shopSlug
+    router.push(`/shops/${slug}/therapists/${therapist.therapist.id}/reserve`)
   }
 
   if (loading) {
@@ -262,15 +256,12 @@ export default function TherapistDetailPage() {
               therapistId={therapist.therapist.id}
               shopSlug={therapist.shop.slug}
               onSelectSlot={(slot) => {
-                // Navigate to reservation with selected slot
+                // Navigate to shop-based reservation with selected slot
+                const slug = therapist.shop.slug || shopSlug
                 const params = new URLSearchParams({
-                  therapist_id: therapist.therapist.id,
-                  shop_id: therapist.shop.id,
-                  shop_slug: therapist.shop.slug || '',
-                  entry_source: therapist.entry_source,
                   selected_slot: JSON.stringify(slot)
                 })
-                router.push(`/guest/therapists/${therapist.therapist.id}/reserve?${params}`)
+                router.push(`/shops/${slug}/therapists/${therapist.therapist.id}/reserve?${params}`)
               }}
             />
 

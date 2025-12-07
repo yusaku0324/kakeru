@@ -12,11 +12,11 @@ import { resolveAdminExtraHeaders } from './utils/admin-headers'
  */
 
 const adminHeaders = resolveAdminExtraHeaders()
-if (adminHeaders) {
-  test.use({ extraHTTPHeaders: adminHeaders })
-}
 
 test.describe('admin smoke', () => {
+  if (adminHeaders) {
+    test.use({ extraHTTPHeaders: adminHeaders })
+  }
   test.beforeEach(async ({ page, context, baseURL }) => {
     const resolvedBase = baseURL ?? 'http://127.0.0.1:3000'
     try {

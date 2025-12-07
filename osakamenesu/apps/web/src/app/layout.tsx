@@ -5,6 +5,7 @@ import localFont from 'next/font/local'
 
 import SiteHeaderNav from '@/components/SiteHeaderNav'
 import AnalyticsProvider from '@/components/AnalyticsProvider'
+import ReservationOverlayRoot from '@/components/ReservationOverlayRoot'
 
 export const metadata = {
   title: '大阪メンエス.com',
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
         {children}
+        <ReservationOverlayRoot />
         <footer className="relative mt-16 border-t border-white/30 bg-white/90 py-16 backdrop-blur">
           <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,#ecfeff_0%,rgba(236,254,255,0)_70%),linear-gradient(180deg,rgba(236,254,255,0.8)_0%,rgba(249,250,251,0.2)_100%)]" />
           <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-6 text-center">

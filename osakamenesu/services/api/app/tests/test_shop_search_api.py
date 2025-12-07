@@ -20,7 +20,13 @@ SHOP_ID_2 = str(uuid4())
 
 
 class DummySession:
-    pass
+    """Dummy session that raises errors for any database operations."""
+
+    async def execute(self, *args, **kwargs):
+        raise Exception("DummySession does not support database operations")
+
+    async def scalar(self, *args, **kwargs):
+        raise Exception("DummySession does not support database operations")
 
 
 def setup_function() -> None:

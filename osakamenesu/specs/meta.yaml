@@ -1,0 +1,102 @@
+info:
+  id: specs.meta
+  title: Specification Index
+  summary: Central index of all specification files and their relationships.
+  version: "1.0.0"
+
+# ==============================================================================
+# Specification Domains
+# ==============================================================================
+
+domains:
+  frontend:
+    title: Frontend Specifications
+    description: UI specifications for public-facing pages.
+    specs:
+      - id: frontend.pages
+        path: frontend/pages.yaml
+        title: Frontend Page Specifications
+        summary: UI specifications for public-facing pages with testable requirements.
+        related_tests:
+          - apps/web/e2e/spec-based.spec.ts
+          - apps/web/e2e/site-qa.spec.ts
+
+  matching:
+    title: Matching Domain
+    description: Guest matching and recommendation system.
+    specs:
+      - id: matching.core
+        path: matching/core.yaml
+        title: Matching domain core contract
+        summary: Guest matching request/response and scoring breakdown.
+      - id: matching.search
+        path: matching/search.yaml
+        title: Matching search API
+        summary: Search API for therapist/shop discovery.
+      - id: matching.similar
+        path: matching/similar.yaml
+        title: Similar therapist recommendations
+        summary: API for finding similar therapists.
+
+  reservations:
+    title: Reservations Domain
+    description: Reservation management system.
+    specs:
+      - id: reservations.core
+        path: reservations/core.yaml
+        title: Reservations core contract
+        summary: Reservation request/response and status management.
+
+# ==============================================================================
+# Test Coverage Mapping
+# ==============================================================================
+
+test_coverage:
+  e2e:
+    - spec_id: frontend.pages
+      test_files:
+        - apps/web/e2e/spec-based.spec.ts
+        - apps/web/e2e/site-qa.spec.ts
+      config: apps/web/playwright.site-qa.config.ts
+      description: Frontend page E2E tests based on pages.yaml specification.
+
+# ==============================================================================
+# Sample Data References
+# ==============================================================================
+
+sample_data:
+  shops:
+    source: frontend/pages.yaml#sample_data.shops
+    description: Sample shop data for testing without admin API seeding.
+    slugs:
+      - sample-namba-resort
+      - sample-umeda-suite
+      - sample-shinsaibashi-lounge
+      - sample-tennoji-garden
+
+  staff:
+    source: frontend/pages.yaml#sample_data.staff
+    description: Sample staff data for testing.
+    ids:
+      - "11111111-1111-1111-8888-111111111111"
+
+# ==============================================================================
+# Validation Rules
+# ==============================================================================
+
+validation:
+  spec_format:
+    required_fields:
+      - info.id
+      - info.title
+      - info.summary
+    naming_convention:
+      pattern: "{domain}.{module}"
+      examples:
+        - frontend.pages
+        - matching.core
+        - reservations.core
+
+  cross_references:
+    description: All spec IDs must be unique across the project.
+    check: unique(domains.*.specs.*.id)

@@ -22,6 +22,22 @@ interface ShopInfo {
   area: string
 }
 
+// Sample data for demo/development
+const SAMPLE_THERAPISTS: Record<string, { name: string; photos: string[] }> = {
+  '11111111-1111-1111-8888-111111111111': { name: '葵', photos: ['https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=640&q=80'] },
+  '22222222-2222-2222-8888-222222222222': { name: '凛', photos: ['https://images.unsplash.com/photo-1487412912498-0447578fcca8?auto=format&fit=crop&w=400&q=80'] },
+  '22222222-2222-2222-8888-222222222223': { name: '真央', photos: ['https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=640&q=80'] },
+  '22222222-2222-2222-8888-222222222224': { name: '美月', photos: ['https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=640&q=80'] },
+  '22222222-2222-2222-8888-222222222225': { name: '結衣', photos: ['https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=640&q=80'] },
+  '22222222-2222-2222-8888-222222222226': { name: '楓', photos: ['https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=640&q=80'] },
+}
+
+const SAMPLE_SHOPS: Record<string, { id: string; name: string; area: string }> = {
+  'sample-namba-resort': { id: 'sample-shop-id', name: 'アロマリゾート 難波本店', area: '難波/日本橋' },
+  'sample-umeda-suite': { id: 'sample-umeda-id', name: 'リラクゼーションSUITE 梅田', area: '梅田' },
+  'sample-shinsaibashi-lounge': { id: 'sample-shinsaibashi-id', name: 'メンズアロマ Lounge 心斎橋', area: '心斎橋' },
+}
+
 export default function ShopReservePage() {
   const params = useParams()
   const shopSlug = params.shopSlug as string
@@ -66,7 +82,24 @@ export default function ShopReservePage() {
         })
       } catch (error) {
         console.error('Error fetching data:', error)
-        setError('セラピスト情報の取得に失敗しました')
+        // Fall back to sample data for demo/development
+        const sampleTherapist = SAMPLE_THERAPISTS[therapistId]
+        const sampleShop = SAMPLE_SHOPS[shopSlug]
+        if (sampleTherapist && sampleShop) {
+          setTherapist({
+            id: therapistId,
+            name: sampleTherapist.name,
+            photos: sampleTherapist.photos
+          })
+          setShop({
+            id: sampleShop.id,
+            slug: shopSlug,
+            name: sampleShop.name,
+            area: sampleShop.area
+          })
+        } else {
+          setError('セラピスト情報の取得に失敗しました')
+        }
       } finally {
         setLoading(false)
       }

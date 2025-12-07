@@ -8,10 +8,6 @@ import { resolveAdminExtraHeaders } from './utils/admin-headers'
 const dashboardStoragePath =
   process.env.PLAYWRIGHT_DASHBOARD_STORAGE ?? path.resolve(__dirname, 'storage', 'dashboard.json')
 
-if (fs.existsSync(dashboardStoragePath)) {
-  test.use({ storageState: dashboardStoragePath })
-}
-
 const adminHeaders = resolveAdminExtraHeaders()
 const hasAdminKey = Boolean(process.env.ADMIN_API_KEY ?? process.env.OSAKAMENESU_ADMIN_API_KEY)
 
@@ -20,26 +16,6 @@ if (!hasAdminKey) {
     '[dashboard-reservations] ADMIN_API_KEY が未設定のため、一部の管理API呼び出しに失敗する可能性があります',
   )
 }
-
-if (adminHeaders) {
-  test.use({ extraHTTPHeaders: adminHeaders })
-}
-
-test.describe.configure({ mode: 'serial' })
-
-test.beforeEach(async ({ page }) => {
-  page.on('console', (message) => {
-    console.log(`[browser:${message.type()}] ${message.text()}`)
-  })
-  await page.goto('about:blank')
-  await page.evaluate(() => {
-    try {
-      sessionStorage.clear()
-    } catch {
-      /* ignore */
-    }
-  })
-})
 
 async function fetchFirstDashboardShop(page: Page, _baseURL: string) {
   const response = await page.request.get('/api/admin/shops?limit=10')
@@ -170,6 +146,30 @@ async function setPageSize(page: Page, shopId: string, size = 100) {
 }
 
 test.describe('Dashboard reservation filters', () => {
+  test.describe.configure({ mode: 'serial' })
+
+  if (fs.existsSync(dashboardStoragePath)) {
+    test.use({ storageState: dashboardStoragePath })
+  }
+
+  if (adminHeaders) {
+    test.use({ extraHTTPHeaders: adminHeaders })
+  }
+
+  test.beforeEach(async ({ page }) => {
+    page.on('console', (message) => {
+      console.log(`[browser:${message.type()}] ${message.text()}`)
+    })
+    await page.goto('about:blank')
+    await page.evaluate(() => {
+      try {
+        sessionStorage.clear()
+      } catch {
+        /* ignore */
+      }
+    })
+  })
+
   test('date range filtering updates list and modal summary', async ({
     page,
     context,
@@ -276,6 +276,30 @@ test.describe('Dashboard reservation filters', () => {
 })
 
 test.describe('Dashboard reservation actions', () => {
+  test.describe.configure({ mode: 'serial' })
+
+  if (fs.existsSync(dashboardStoragePath)) {
+    test.use({ storageState: dashboardStoragePath })
+  }
+
+  if (adminHeaders) {
+    test.use({ extraHTTPHeaders: adminHeaders })
+  }
+
+  test.beforeEach(async ({ page }) => {
+    page.on('console', (message) => {
+      console.log(`[browser:${message.type()}] ${message.text()}`)
+    })
+    await page.goto('about:blank')
+    await page.evaluate(() => {
+      try {
+        sessionStorage.clear()
+      } catch {
+        /* ignore */
+      }
+    })
+  })
+
   test('shop owner can approve a pending reservation', async ({ page, context, baseURL }) => {
     test.skip(true, 'Dashboard actions blocked by backend 404 during automation')
     if (!baseURL) {
@@ -293,7 +317,7 @@ test.describe('Dashboard reservation actions', () => {
 
     let shop
     try {
-      shop = await fetchFirstDashboardShop(page)
+      shop = await fetchFirstDashboardShop(page, baseURL ?? '')
     } catch (error) {
       if (error instanceof SkipTestError) {
         throw error

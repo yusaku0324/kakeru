@@ -5,15 +5,16 @@ import path from 'node:path'
 import { ensureDashboardAuthenticated, resolveApiBase, SkipTestError } from './utils/dashboard-auth'
 import { resolveAdminExtraHeaders } from './utils/admin-headers'
 
-// NOTE: Legacy admin dashboard E2E. Kept for reference but fully skipped in CI/smoke suites.
-test.skip(true, 'Legacy admin dashboard suite is skipped (use smoke-admin.spec.ts instead)')
-
 const dashboardStoragePath =
   process.env.PLAYWRIGHT_DASHBOARD_STORAGE ?? path.resolve(__dirname, 'storage', 'dashboard.json')
 
-if (fs.existsSync(dashboardStoragePath)) {
-  test.use({ storageState: dashboardStoragePath })
-}
+// NOTE: Legacy admin dashboard E2E. Kept for reference but fully skipped in CI/smoke suites.
+test.describe('Legacy Admin Dashboard', () => {
+  test.skip(true, 'Legacy admin dashboard suite is skipped (use smoke-admin.spec.ts instead)')
+
+  if (fs.existsSync(dashboardStoragePath)) {
+    test.use({ storageState: dashboardStoragePath })
+  }
 
 const STATUS_OPTIONS = ['pending', 'confirmed', 'declined', 'cancelled', 'expired'] as const
 
@@ -1101,4 +1102,5 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
       })
     }
   })
+})
 })

@@ -53,6 +53,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
       'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
     badges: ['人気店', '駅チカ'],
     today_available: true,
+    // Use earliest staff availability (楓 at 1 hour)
+    next_available_at: isoHoursFromNow(1),
     online_reservation: true,
     has_promotions: true,
     promotions: [{ label: 'プレミアム体験 ¥2,000OFF', expires_at: '2025-12-31' }],

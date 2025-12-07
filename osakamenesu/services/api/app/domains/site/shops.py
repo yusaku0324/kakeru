@@ -76,6 +76,7 @@ def _get_sample_shop_response(shop_id: str) -> dict | None:
         return None
     return sample
 
+
 __all__ = (
     "router",
     "serialize_review",
@@ -237,9 +238,40 @@ async def create_shop_review(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@router.get("/{shop_id}/therapists", response_model=ShopTherapistsResponse)
+def _get_sample_therapists_response(shop_slug: str) -> dict | None:
+    """Return sample therapists data if slug matches known samples."""
+    sample = SAMPLE_SHOPS.get(shop_slug)
+    if not sample:
+        return None
+    therapists = sample.get("therapists", [])
+    return {
+        "shop_id": sample.get("id", "sample-shop-id"),
+        "total": len(therapists),
+        "items": [
+            {
+                "id": t["id"],
+                "name": t["name"],
+                "alias": None,
+                "age": t.get("age"),
+                "headline": None,
+                "avatar_url": t["photos"][0] if t.get("photos") else None,
+                "photos": t.get("photos", []),
+                "specialties": [],
+                "tags": t.get("tags"),
+                "price_rank": t.get("price_rank"),
+                "today_available": t.get("available_today", False),
+                "next_available_at": None,
+                "availability_slots": [],
+                "recommended_score": None,
+            }
+            for t in therapists
+        ],
+    }
+
+
+@router.get("/{shop_id}/therapists")
 async def list_shop_therapists(
-    shop_id: UUID,
+    shop_id: str,
     include_availability: bool = Query(
         default=True, description="Include availability slots"
     ),
@@ -255,10 +287,21 @@ async def list_shop_therapists(
     Returns published therapists with their tags, photos, and availability slots.
     Useful for shop detail pages where users want to see available therapists.
     """
+    # Try sample data first (for demo/development)
+    sample_response = _get_sample_therapists_response(shop_id)
+    if sample_response:
+        return sample_response
+
+    # Parse UUID
+    try:
+        shop_uuid = UUID(shop_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="shop not found") from None
+
     service = ShopTherapistsService(db)
     try:
         return await service.list_therapists(
-            shop_id,
+            shop_uuid,
             include_availability=include_availability,
             availability_days=availability_days,
             page=page,

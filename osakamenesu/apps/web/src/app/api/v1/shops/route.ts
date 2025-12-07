@@ -3,11 +3,43 @@ import { NextResponse } from 'next/server'
 import type { ShopHit } from '@/components/shop/ShopCard'
 import { SAMPLE_SHOPS } from '@/lib/sampleShops'
 import { sampleShopToHit } from '@/lib/sampleShopAdapters'
+import { resolveInternalApiBase } from '@/lib/server-config'
 
 type FacetValue = {
   value: string
   label?: string | null
   count: number
+}
+
+const FASTAPI_BASE = resolveInternalApiBase()
+
+async function fetchFromBackend(searchParams: URLSearchParams): Promise<Response | null> {
+  if (!FASTAPI_BASE || FASTAPI_BASE === 'http://osakamenesu-api:8000') {
+    // Skip backend call if not configured or using Docker default
+    return null
+  }
+
+  const backendUrl = `${FASTAPI_BASE}/api/v1/shops?${searchParams.toString()}`
+
+  try {
+    const response = await fetch(backendUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      next: { revalidate: 60 }, // Cache for 60 seconds
+    })
+
+    if (response.ok) {
+      return response
+    }
+
+    console.warn(`Backend returned ${response.status}, falling back to sample data`)
+    return null
+  } catch (error) {
+    console.warn('Failed to fetch from backend, falling back to sample data:', error)
+    return null
+  }
 }
 
 function parsePositiveInt(value: string | null | undefined, fallback: number, max: number): number {
@@ -133,6 +165,19 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const params = url.searchParams
 
+  // First, try to fetch from backend
+  const backendResponse = await fetchFromBackend(params)
+  if (backendResponse) {
+    try {
+      const data = await backendResponse.json()
+      // Add sample: false to indicate real data
+      return NextResponse.json({ ...data, sample: false })
+    } catch (error) {
+      console.warn('Failed to parse backend response, falling back to sample data:', error)
+    }
+  }
+
+  // Fallback to sample data
   const q = normalizeString(params.get('q'))
   const areaParam = normalizeString(params.get('area') || params.get('area_name'))
   const openNow = parseBooleanFlag(params.get('open_now') || params.get('today'))

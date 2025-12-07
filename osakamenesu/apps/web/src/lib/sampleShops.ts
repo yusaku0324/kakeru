@@ -1,3 +1,29 @@
+// Helper function to generate ISO timestamps relative to now
+// This must match the logic in shared.ts to ensure consistency
+function isoHoursFromNow(hours: number): string {
+  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
+}
+
+// Helper to get today's date in YYYY-MM-DD format (local timezone)
+function getLocalDateISO(offset = 0): string {
+  const date = new Date()
+  date.setDate(date.getDate() + offset)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// Helper to build a slot time for a given day offset and hour (uses Date arithmetic to handle overflow)
+function buildSlotTime(dayOffset: number, hour: number, minute = 0): string {
+  // Use milliseconds-based calculation to properly handle day/hour overflow
+  const now = new Date()
+  const baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  baseDate.setDate(baseDate.getDate() + dayOffset)
+  baseDate.setHours(hour, minute, 0, 0)
+  return baseDate.toISOString()
+}
+
 export type SampleStaff = {
   id: string
   name: string
@@ -165,6 +191,8 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         review_count: 87,
         avatar_url: '/images/demo-therapist-1.svg',
         specialties: ['リンパ', 'ホットストーン', '指名多数'],
+        // Must match shared.ts: isoHoursFromNow(2)
+        next_available_at: isoHoursFromNow(2),
       },
       {
         id: '22222222-2222-2222-8888-222222222222',
@@ -175,139 +203,209 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         review_count: 52,
         avatar_url: '/images/demo-therapist-2.svg',
         specialties: ['ストレッチ', '指圧', 'ディープリンパ'],
+        // Must match shared.ts: isoHoursFromNow(5)
+        next_available_at: isoHoursFromNow(5),
+      },
+      {
+        id: '22222222-2222-2222-8888-222222222223',
+        name: '真央',
+        alias: 'Mao',
+        headline: 'オイルマッサージとヘッドスパの融合施術',
+        rating: 4.5,
+        review_count: 63,
+        avatar_url: '/images/demo-therapist-3.svg',
+        specialties: ['オイル', 'ヘッドスパ'],
+        // Must match shared.ts: isoHoursFromNow(3)
+        next_available_at: isoHoursFromNow(3),
+      },
+      {
+        id: '22222222-2222-2222-8888-222222222224',
+        name: '美月',
+        alias: 'Mitsuki',
+        headline: 'リンパドレナージュで疲れた身体をリフレッシュ',
+        rating: 4.7,
+        review_count: 91,
+        avatar_url: '/images/demo-therapist-4.svg',
+        specialties: ['リンパドレナージュ', 'アロマ'],
+        // Must match shared.ts: isoHoursFromNow(4)
+        next_available_at: isoHoursFromNow(4),
+      },
+      {
+        id: '22222222-2222-2222-8888-222222222225',
+        name: '結衣',
+        alias: 'Yui',
+        headline: 'ホットストーンとアロマで至福のひととき',
+        rating: 4.4,
+        review_count: 45,
+        avatar_url: '/images/demo-therapist-5.svg',
+        specialties: ['ホットストーン', 'アロマ'],
+        // Must match shared.ts: isoHoursFromNow(6)
+        next_available_at: isoHoursFromNow(6),
+      },
+      {
+        id: '22222222-2222-2222-8888-222222222226',
+        name: '楓',
+        alias: 'Kaede',
+        headline: '指圧とストレッチで身体の芯からほぐします',
+        rating: 4.8,
+        review_count: 78,
+        avatar_url: '/images/demo-therapist-6.svg',
+        specialties: ['指圧', 'ストレッチ'],
+        // Must match shared.ts: isoHoursFromNow(1)
+        next_available_at: isoHoursFromNow(1),
       },
     ],
+    // Dynamic availability calendar - uses isoHoursFromNow to match shared.ts exactly
+    // Each staff member's first available slot matches their next_available_at
     availability_calendar: {
       shop_id: 'sample-namba-resort',
-      generated_at: '2025-10-07T08:00:00+09:00',
+      generated_at: new Date().toISOString(),
       days: [
         {
-          date: '2025-10-07',
+          date: getLocalDateISO(0), // Today
           is_today: true,
           slots: [
             {
-              start_at: '2025-10-07T17:00:00+09:00',
-              end_at: '2025-10-07T18:30:00+09:00',
+              // 楓's slot - matches isoHoursFromNow(1) - first available
+              start_at: isoHoursFromNow(1),
+              end_at: isoHoursFromNow(2.5),
+              status: 'open',
+              staff_id: '22222222-2222-2222-8888-222222222226',
+            },
+            {
+              // 葵's first open slot - matches isoHoursFromNow(2) in shared.ts
+              start_at: isoHoursFromNow(2),
+              end_at: isoHoursFromNow(3.5),
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+            {
+              // 真央's slot - matches isoHoursFromNow(3)
+              start_at: isoHoursFromNow(3),
+              end_at: isoHoursFromNow(4.5),
+              status: 'open',
+              staff_id: '22222222-2222-2222-8888-222222222223',
+            },
+            {
+              // 美月's slot - matches isoHoursFromNow(4)
+              start_at: isoHoursFromNow(4),
+              end_at: isoHoursFromNow(5.5),
+              status: 'open',
+              staff_id: '22222222-2222-2222-8888-222222222224',
+            },
+            {
+              // 凛's slot - matches isoHoursFromNow(5)
+              start_at: isoHoursFromNow(5),
+              end_at: isoHoursFromNow(7),
+              status: 'tentative',
+              staff_id: '22222222-2222-2222-8888-222222222222',
+            },
+            {
+              // 結衣's slot - matches isoHoursFromNow(6)
+              start_at: isoHoursFromNow(6),
+              end_at: isoHoursFromNow(7.5),
+              status: 'open',
+              staff_id: '22222222-2222-2222-8888-222222222225',
+            },
+          ],
+        },
+        {
+          date: getLocalDateISO(1), // Tomorrow
+          slots: [
+            {
+              start_at: isoHoursFromNow(24 + 5), // Tomorrow 5 hours from midnight
+              end_at: isoHoursFromNow(24 + 6.5),
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+            {
+              start_at: isoHoursFromNow(24 + 9),
+              end_at: isoHoursFromNow(24 + 11),
+              status: 'open',
+              staff_id: '22222222-2222-2222-8888-222222222222',
+            },
+          ],
+        },
+        {
+          date: getLocalDateISO(2), // Day after tomorrow
+          slots: [
+            {
+              start_at: isoHoursFromNow(48 + 3),
+              end_at: isoHoursFromNow(48 + 4.5),
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+            {
+              start_at: isoHoursFromNow(48 + 7),
+              end_at: isoHoursFromNow(48 + 8.5),
+              status: 'tentative',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+          ],
+        },
+        {
+          date: getLocalDateISO(3),
+          slots: [
+            {
+              start_at: isoHoursFromNow(72 + 4),
+              end_at: isoHoursFromNow(72 + 5.5),
+              status: 'tentative',
+              staff_id: '22222222-2222-2222-8888-222222222222',
+            },
+            {
+              start_at: isoHoursFromNow(72 + 10.5),
+              end_at: isoHoursFromNow(72 + 12),
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+          ],
+        },
+        {
+          date: getLocalDateISO(4),
+          slots: [
+            {
+              start_at: isoHoursFromNow(96 + 2),
+              end_at: isoHoursFromNow(96 + 3.5),
+              status: 'open',
+              staff_id: '11111111-1111-1111-8888-111111111111',
+            },
+            {
+              start_at: isoHoursFromNow(96 + 6),
+              end_at: isoHoursFromNow(96 + 7.5),
               status: 'blocked',
-              staff_id: '11111111-1111-1111-8888-111111111111',
-            },
-            {
-              start_at: '2025-10-07T19:00:00+09:00',
-              end_at: '2025-10-07T21:00:00+09:00',
-              status: 'tentative',
-              staff_id: '22222222-2222-2222-8888-222222222222',
-            },
-            {
-              start_at: '2025-10-07T21:00:00+09:00',
-              end_at: '2025-10-07T23:00:00+09:00',
-              status: 'open',
-              staff_id: '11111111-1111-1111-8888-111111111111',
-            },
-          ],
-        },
-        {
-          date: '2025-10-08',
-          slots: [
-            {
-              start_at: '2025-10-08T14:00:00+09:00',
-              end_at: '2025-10-08T15:30:00+09:00',
-              status: 'open',
-              staff_id: '11111111-1111-1111-8888-111111111111',
-            },
-            {
-              start_at: '2025-10-08T18:00:00+09:00',
-              end_at: '2025-10-08T20:00:00+09:00',
-              status: 'open',
               staff_id: '22222222-2222-2222-8888-222222222222',
             },
           ],
         },
         {
-          date: '2025-10-09',
+          date: getLocalDateISO(5),
           slots: [
             {
-              start_at: '2025-10-09T12:00:00+09:00',
-              end_at: '2025-10-09T13:30:00+09:00',
+              start_at: isoHoursFromNow(120 + 1.5),
+              end_at: isoHoursFromNow(120 + 3),
               status: 'open',
               staff_id: '11111111-1111-1111-8888-111111111111',
             },
             {
-              start_at: '2025-10-09T16:00:00+09:00',
-              end_at: '2025-10-09T17:30:00+09:00',
-              status: 'tentative',
-              staff_id: '11111111-1111-1111-8888-111111111111',
-            },
-            {
-              start_at: '2025-10-09T20:00:00+09:00',
-              end_at: '2025-10-09T21:30:00+09:00',
-              status: 'blocked',
-              staff_id: '11111111-1111-1111-8888-111111111111',
-            },
-          ],
-        },
-        {
-          date: '2025-10-10',
-          slots: [
-            {
-              start_at: '2025-10-10T13:00:00+09:00',
-              end_at: '2025-10-10T14:30:00+09:00',
-              status: 'tentative',
-              staff_id: '22222222-2222-2222-8888-222222222222',
-            },
-            {
-              start_at: '2025-10-10T19:30:00+09:00',
-              end_at: '2025-10-10T21:00:00+09:00',
-              status: 'open',
-              staff_id: '11111111-1111-1111-8888-111111111111',
-            },
-          ],
-        },
-        {
-          date: '2025-10-11',
-          slots: [
-            {
-              start_at: '2025-10-11T11:00:00+09:00',
-              end_at: '2025-10-11T12:30:00+09:00',
-              status: 'open',
-              staff_id: '11111111-1111-1111-8888-111111111111',
-            },
-            {
-              start_at: '2025-10-11T15:00:00+09:00',
-              end_at: '2025-10-11T16:30:00+09:00',
-              status: 'blocked',
-              staff_id: '22222222-2222-2222-8888-222222222222',
-            },
-          ],
-        },
-        {
-          date: '2025-10-12',
-          slots: [
-            {
-              start_at: '2025-10-12T10:30:00+09:00',
-              end_at: '2025-10-12T12:00:00+09:00',
-              status: 'open',
-              staff_id: '11111111-1111-1111-8888-111111111111',
-            },
-            {
-              start_at: '2025-10-12T17:30:00+09:00',
-              end_at: '2025-10-12T19:00:00+09:00',
+              start_at: isoHoursFromNow(120 + 8.5),
+              end_at: isoHoursFromNow(120 + 10),
               status: 'tentative',
               staff_id: '11111111-1111-1111-8888-111111111111',
             },
           ],
         },
         {
-          date: '2025-10-13',
+          date: getLocalDateISO(6),
           slots: [
             {
-              start_at: '2025-10-13T13:00:00+09:00',
-              end_at: '2025-10-13T14:30:00+09:00',
+              start_at: isoHoursFromNow(144 + 4),
+              end_at: isoHoursFromNow(144 + 5.5),
               status: 'open',
               staff_id: '22222222-2222-2222-8888-222222222222',
             },
             {
-              start_at: '2025-10-13T18:30:00+09:00',
-              end_at: '2025-10-13T20:00:00+09:00',
+              start_at: isoHoursFromNow(144 + 9.5),
+              end_at: isoHoursFromNow(144 + 11),
               status: 'open',
               staff_id: '11111111-1111-1111-8888-111111111111',
             },
@@ -346,5 +444,221 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         published_at: '2025-10-01T09:00:00+09:00',
       },
     ],
+  },
+  // --- Additional sample shops for search results ---
+  {
+    id: 'sample-umeda-suite',
+    slug: 'sample-umeda-suite',
+    name: 'リラクゼーションSUITE 梅田',
+    store_name: 'リラクゼーションSUITE 梅田',
+    area: '梅田',
+    area_name: '梅田',
+    min_price: 13000,
+    max_price: 22000,
+    description: '完全予約制のラグジュアリー空間で、VIPルーム完備。深夜営業で仕事帰りも安心。',
+    catch_copy: 'VIPルーム完備。完全予約制のラグジュアリー空間。',
+    photos: [{ url: '/images/demo-shop-2.svg' }],
+    contact: {
+      phone: '066-200-2345',
+      line_id: '@umeda-suite',
+    },
+    menus: [
+      {
+        id: 'sample-umeda-course-90',
+        name: 'スタンダードコース 90分',
+        duration_minutes: 90,
+        price: 15000,
+        tags: ['アロマ'],
+      },
+    ],
+    staff: [
+      {
+        id: '33333333-3333-3333-8888-333333333333',
+        name: '美咲',
+        alias: 'Misaki',
+        headline: 'アロマセラピーで心身をリフレッシュ',
+        rating: 4.5,
+        review_count: 65,
+        avatar_url: '/images/demo-therapist-3.svg',
+        specialties: ['アロマ', 'リフレクソロジー'],
+        next_available_at: isoHoursFromNow(3),
+      },
+    ],
+    availability_calendar: {
+      shop_id: 'sample-umeda-suite',
+      generated_at: new Date().toISOString(),
+      days: [
+        {
+          date: getLocalDateISO(0),
+          is_today: true,
+          slots: [
+            {
+              start_at: isoHoursFromNow(3),
+              end_at: isoHoursFromNow(4.5),
+              status: 'open',
+              staff_id: '33333333-3333-3333-8888-333333333333',
+            },
+          ],
+        },
+      ],
+    },
+    promotions: [{ label: '深夜割 ¥1,500OFF', expires_at: '2025-12-31' }],
+    ranking_reason: '口コミ評価4.5★。VIP空間で極上のひととき。',
+    reviews: {
+      average_score: 4.5,
+      review_count: 76,
+      highlighted: [],
+    },
+    diary_count: 5,
+    has_diaries: true,
+  },
+  {
+    id: 'sample-shinsaibashi-lounge',
+    slug: 'sample-shinsaibashi-lounge',
+    name: 'メンズアロマLounge 心斎橋',
+    store_name: 'メンズアロマLounge 心斎橋',
+    area: '心斎橋/堀江',
+    area_name: '心斎橋/堀江',
+    min_price: 10000,
+    max_price: 16000,
+    description: 'アクセス抜群の心斎橋エリア。カジュアルな雰囲気でリピーター多数。',
+    catch_copy: 'アクセス抜群。カジュアルに通えるメンズアロマ。',
+    photos: [{ url: '/images/demo-shop-1.svg' }],
+    contact: {
+      phone: '066-300-3456',
+      line_id: '@shinsaibashi-lounge',
+    },
+    menus: [
+      {
+        id: 'sample-shinsaibashi-course-60',
+        name: 'クイックコース 60分',
+        duration_minutes: 60,
+        price: 10000,
+        tags: ['ボディケア'],
+      },
+    ],
+    staff: [
+      {
+        id: '44444444-4444-4444-8888-444444444444',
+        name: '彩花',
+        alias: 'Ayaka',
+        headline: 'ボディケアで疲れを解消',
+        rating: 4.4,
+        review_count: 48,
+        avatar_url: '/images/demo-therapist-4.svg',
+        specialties: ['ボディケア', 'ストレッチ'],
+        next_available_at: isoHoursFromNow(2),
+      },
+      {
+        id: '55555555-5555-5555-8888-555555555555',
+        name: '優奈',
+        alias: 'Yuna',
+        headline: 'リンパマッサージで全身スッキリ',
+        rating: 4.6,
+        review_count: 72,
+        avatar_url: '/images/demo-therapist-5.svg',
+        specialties: ['リンパ', 'オイル'],
+        next_available_at: isoHoursFromNow(4),
+      },
+    ],
+    availability_calendar: {
+      shop_id: 'sample-shinsaibashi-lounge',
+      generated_at: new Date().toISOString(),
+      days: [
+        {
+          date: getLocalDateISO(0),
+          is_today: true,
+          slots: [
+            {
+              start_at: isoHoursFromNow(2),
+              end_at: isoHoursFromNow(3),
+              status: 'open',
+              staff_id: '44444444-4444-4444-8888-444444444444',
+            },
+            {
+              start_at: isoHoursFromNow(4),
+              end_at: isoHoursFromNow(5.5),
+              status: 'open',
+              staff_id: '55555555-5555-5555-8888-555555555555',
+            },
+          ],
+        },
+      ],
+    },
+    promotions: [],
+    ranking_reason: '口コミ評価4.4★。リピーター率No.1。',
+    reviews: {
+      average_score: 4.4,
+      review_count: 95,
+      highlighted: [],
+    },
+    diary_count: 8,
+    has_diaries: true,
+  },
+  {
+    id: 'sample-tennoji-garden',
+    slug: 'sample-tennoji-garden',
+    name: 'リラクゼーションGarden 天王寺',
+    store_name: 'リラクゼーションGarden 天王寺',
+    area: '天王寺/阿倍野',
+    area_name: '天王寺/阿倍野',
+    min_price: 9000,
+    max_price: 15000,
+    description: '緑に囲まれた癒しの空間。リーズナブルな価格で本格施術。',
+    catch_copy: '緑に囲まれた癒しの空間でリフレッシュ。',
+    photos: [{ url: '/images/demo-shop-2.svg' }],
+    contact: {
+      phone: '066-400-4567',
+      line_id: '@tennoji-garden',
+    },
+    menus: [
+      {
+        id: 'sample-tennoji-course-90',
+        name: 'ガーデンコース 90分',
+        duration_minutes: 90,
+        price: 12000,
+        tags: ['リンパ', 'アロマ'],
+      },
+    ],
+    staff: [
+      {
+        id: '66666666-6666-6666-8888-666666666666',
+        name: '愛理',
+        alias: 'Airi',
+        headline: 'アロマとリンパの融合施術',
+        rating: 4.7,
+        review_count: 89,
+        avatar_url: '/images/demo-therapist-6.svg',
+        specialties: ['アロマ', 'リンパ'],
+        next_available_at: isoHoursFromNow(1),
+      },
+    ],
+    availability_calendar: {
+      shop_id: 'sample-tennoji-garden',
+      generated_at: new Date().toISOString(),
+      days: [
+        {
+          date: getLocalDateISO(0),
+          is_today: true,
+          slots: [
+            {
+              start_at: isoHoursFromNow(1),
+              end_at: isoHoursFromNow(2.5),
+              status: 'open',
+              staff_id: '66666666-6666-6666-8888-666666666666',
+            },
+          ],
+        },
+      ],
+    },
+    promotions: [{ label: '初回限定 ¥2,000OFF', expires_at: '2025-12-31' }],
+    ranking_reason: '口コミ評価4.7★。コスパ抜群の人気店。',
+    reviews: {
+      average_score: 4.7,
+      review_count: 112,
+      highlighted: [],
+    },
+    diary_count: 6,
+    has_diaries: true,
   },
 ]

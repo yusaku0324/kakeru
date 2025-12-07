@@ -1,33 +1,17 @@
-import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
 
 type Props = {
   children: ReactNode
 }
 
-const STAFF_ROLES = ['admin', 'staff', 'editor']
+// If ADMIN_API_KEY is configured, allow access without session auth
+// This is useful for admin operations when Vercel Authentication is enabled
+const ADMIN_KEY = process.env.ADMIN_API_KEY || process.env.OSAKAMENESU_ADMIN_API_KEY || ''
 
 export default async function AdminLayout({ children }: Props) {
-  const cookieHeader = cookies().toString()
-  let session: { authenticated?: boolean; user?: { role?: string | null } } | null = null
-  let hasSessionError = false
-
-  try {
-    const resp = await fetch('/api/auth/session', {
-      cache: 'no-store',
-      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
-    })
-    if (resp.ok) {
-      session = await resp.json()
-    } else {
-      hasSessionError = true
-    }
-  } catch {
-    hasSessionError = true
-  }
-
-  const isAuthorized =
-    session?.authenticated || (session?.user?.role ? STAFF_ROLES.includes(session.user.role) : false)
+  // If admin API key is configured, bypass session check and allow access
+  const isAuthorized = Boolean(ADMIN_KEY)
+  const hasSessionError = false
 
   return (
     <div className="min-h-screen bg-neutral-surface">

@@ -5,7 +5,7 @@ const path = require('node:path')
 const dns = require('node:dns').promises
 const { request } = require('@playwright/test')
 
-const ADMIN_WEB_HOST = (process.env.ADMIN_WEB_HOST || 'web').trim() || 'web'
+const ADMIN_WEB_HOST = (process.env.ADMIN_WEB_HOST || '127.0.0.1').trim() || '127.0.0.1'
 const ADMIN_WEB_PORT = (process.env.ADMIN_WEB_PORT || '3000').trim() || '3000'
 const ADMIN_WEB_PROTOCOL = (process.env.ADMIN_WEB_PROTOCOL || 'http').trim() || 'http'
 
@@ -213,7 +213,8 @@ function resolveApiBase() {
       return candidate.replace(/\/$/, '')
     }
   }
-  return 'http://api:8000'
+  // ローカル環境では本番APIを使用（Docker環境では環境変数で上書き）
+  return 'https://osakamenesu-api.fly.dev'
 }
 
 function parseSetCookieHeaders(setCookieValues, origin) {

@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   let lastError: any = null
   for (const base of adminBases()) {
     try {
-      const resp = await fetch(`${base}/api/admin/profiles?skip_index=1`, {
+      const resp = await fetch(`${base}/api/admin/shops`, {
         method: 'POST',
         headers,
         body,

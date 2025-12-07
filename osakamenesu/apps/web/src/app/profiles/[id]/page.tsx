@@ -9,6 +9,7 @@ import type { ReservationOverlayProps } from '@/components/ReservationOverlay'
 import ReservationOverlayRoot from '@/components/ReservationOverlayRoot'
 import ShopReviews from '@/components/ShopReviews'
 import { Badge } from '@/components/ui/Badge'
+import { Breadcrumb } from '@/components/ui/Breadcrumb'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
@@ -22,6 +23,7 @@ import { sampleShopToDetail } from '@/lib/sampleShopAdapters'
 import { TOKYO_TZ, formatDatetimeLocal, formatZonedIso, toZonedDayjs, toZonedDate } from '@/lib/timezone'
 import { getJaFormatter } from '@/utils/date'
 import ShopReservationCardClient from './ShopReservationCardClient'
+import StaffSectionClient from './StaffSectionClient'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -418,8 +420,15 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     },
   }
 
+  const breadcrumbItems = [
+    { label: 'ホーム', href: '/' },
+    { label: '検索', href: '/search' },
+    { label: shop.name },
+  ]
+
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 pb-24">
+      <Breadcrumb items={breadcrumbItems} className="pt-4" />
       <ReservationOverlayRoot />
       <RecentlyViewedRecorder
         shopId={shop.id}
@@ -709,75 +718,14 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         </Section>
       ) : null}
 
-      {staff.length ? (
-        <Section
-          title="在籍スタッフ"
-          subtitle="プロフィールは取材または店舗提供の最新情報です"
-          className="shadow-none border border-neutral-borderLight bg-neutral-surface"
-        >
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {staff.map((member) => {
-              const nextSlotEntity = nextSlotPayloadToScheduleSlot(member.next_available_slot ?? null)
-              const formattedSlot = formatSlotJp(nextSlotEntity)
-              const nextSlotLabel = formattedSlot
-                ? member.today_available === false
-                  ? `本日空きなし / 最短: ${formattedSlot}`
-                  : `最短の空き枠: ${formattedSlot}`
-                : null
-              return (
-                <Card key={member.id} className="space-y-3 p-4">
-                  <div className="flex items-start gap-3">
-                    <SafeImage
-                      src={member.avatar_url || undefined}
-                      alt={`${member.name}の写真`}
-                      width={64}
-                      height={64}
-                      className="h-16 w-16 rounded-full object-cover"
-                      fallbackSrc="/images/placeholder-avatar.svg"
-                    />
-                    <div>
-                      <div className="text-base font-semibold text-neutral-text">{member.name}</div>
-                      {member.alias ? (
-                        <div className="text-xs text-neutral-textMuted">{member.alias}</div>
-                      ) : null}
-                      {member.rating ? (
-                        <div className="mt-1 flex items-center gap-2 text-xs text-neutral-textMuted">
-                          <Badge variant="outline">{member.rating.toFixed(1)}★</Badge>
-                          {member.review_count ? <span>({member.review_count}件)</span> : null}
-                        </div>
-                      ) : null}
-                      {nextSlotLabel ? (
-                        <p className="mt-1 text-xs text-neutral-textMuted">{nextSlotLabel}</p>
-                      ) : null}
-                    </div>
-                  </div>
-                  {member.headline ? (
-                    <p className="text-sm leading-relaxed text-neutral-textMuted">
-                      {shorten(member.headline, 120)}
-                    </p>
-                  ) : null}
-                  {member.specialties?.length ? (
-                    <div className="flex flex-wrap gap-2">
-                      {member.specialties.slice(0, 6).map((tag) => (
-                        <Chip key={tag} variant="subtle">
-                          {tag}
-                        </Chip>
-                      ))}
-                    </div>
-                  ) : null}
-                  <ProfileTagList
-                    mood_tag={member.mood_tag}
-                    style_tag={member.style_tag}
-                    look_type={member.look_type}
-                    contact_style={member.contact_style}
-                    hobby_tags={member.hobby_tags}
-                  />
-                </Card>
-              )
-            })}
-          </div>
-        </Section>
-      ) : null}
+      <StaffSectionClient
+        staff={staff}
+        shopId={shop.id}
+        shopSlug={shop.slug ?? null}
+        shopName={shop.store_name || shop.name}
+        shopArea={shop.area}
+        shopAreaName={shop.area_name}
+      />
 
       {availability.length ? (
         <Section

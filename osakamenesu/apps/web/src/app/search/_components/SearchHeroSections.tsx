@@ -79,7 +79,7 @@ export function SearchAvailableToday({ shops }: SearchAvailableTodayProps) {
       {items.length ? (
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {items.map((shop) => {
-            const href = shop.slug ? `/shops/${shop.slug}` : `/shops/${shop.id}`
+            const href = shop.slug ? `/profiles/${shop.slug}` : `/profiles/${shop.id}`
             const tags = Array.isArray(shop.service_tags)
               ? shop.service_tags.filter(Boolean).slice(0, 2)
               : []

@@ -1,0 +1,265 @@
+info:
+  id: frontend.pages
+  title: Frontend Page Specifications
+  summary: UI specifications for public-facing pages with testable requirements.
+  version: "1.0.0"
+
+# ==============================================================================
+# Page Specifications
+# ==============================================================================
+
+pages:
+  # ----------------------------------------------------------------------------
+  # Homepage
+  # ----------------------------------------------------------------------------
+  homepage:
+    path: /
+    title_pattern: "大阪メンエス"
+    description: Guest landing page with shop/therapist discovery.
+
+    sections:
+      header:
+        required: true
+        elements:
+          - id: site_badge
+            selector: "span:has-text('大阪メンエス.com')"
+            required: true
+          - id: main_heading
+            selector: "h1"
+            text_pattern: "セラピストを探す"
+            required: true
+          - id: cta_button
+            selector: "a[href*='search?tab=therapists&today=1']"
+            text_pattern: "本日予約できるセラピストを見る"
+            required: true
+
+      discovery_section:
+        required: true
+        elements:
+          - id: section_title
+            selector: "#home-discovery"
+            required: true
+          - id: search_card
+            selector: "a[href='/search']"
+            text_pattern: "条件で探す"
+            required: true
+          - id: concierge_card
+            selector: "a[href='/guest/match-chat']"
+            text_pattern: "コンシェルジュに相談"
+            required: true
+
+      shop_pickup:
+        required: true
+        elements:
+          - id: section_container
+            selector: "#home-shop-pickup"
+            required: true
+          - id: shop_cards
+            selector: "a[href^='/profiles/']"
+            min_count: 1
+            required: true
+
+      navigation_links:
+        required: true
+        elements:
+          - id: search_all_link
+            selector: "a[href='/search']"
+            required: true
+          - id: therapist_tab_link
+            selector: "a[href='/search?tab=therapists']"
+            required: true
+          - id: shop_tab_link
+            selector: "a[href='/search?tab=shops']"
+            required: true
+
+  # ----------------------------------------------------------------------------
+  # Search Page
+  # ----------------------------------------------------------------------------
+  search:
+    path: /search
+    title_pattern: "検索"
+    description: Shop and therapist search with filters.
+
+    sections:
+      search_input:
+        required: true
+        elements:
+          - id: searchbox
+            selector: "[role='searchbox'], input[type='search'], input[placeholder*='検索']"
+            required: true
+
+      results:
+        required: true
+        elements:
+          - id: main_content
+            selector: "main"
+            required: true
+
+  # ----------------------------------------------------------------------------
+  # Shop Profile Page
+  # ----------------------------------------------------------------------------
+  shop_profile:
+    path: /profiles/{shop_slug}
+    title_pattern: "{shop_name}"
+    description: Individual shop detail page.
+
+    sections:
+      header:
+        required: true
+        elements:
+          - id: shop_name
+            selector: "h1"
+            required: true
+            min_text_length: 1
+
+      main_content:
+        required: true
+        elements:
+          - id: content_area
+            selector: "main"
+            required: true
+            min_text_length: 100
+
+      staff_list:
+        required: false
+        elements:
+          - id: staff_links
+            selector: "a[href*='/staff/']"
+            min_count: 0
+
+  # ----------------------------------------------------------------------------
+  # Staff Detail Page
+  # ----------------------------------------------------------------------------
+  staff_detail:
+    path: /profiles/{shop_slug}/staff/{staff_id}
+    title_pattern: "{staff_name}"
+    description: Individual therapist/staff profile page.
+
+    sections:
+      header:
+        required: true
+        elements:
+          - id: staff_name
+            selector: "h1"
+            required: true
+            min_text_length: 1
+
+      main_content:
+        required: true
+        elements:
+          - id: content_area
+            selector: "main"
+            required: true
+
+# ==============================================================================
+# Sample Data for Testing
+# ==============================================================================
+
+sample_data:
+  shops:
+    - slug: sample-namba-resort
+      name: アロマリゾート 難波本店プレミアム
+      has_staff: true
+    - slug: sample-umeda-suite
+      name: リラクゼーションSUITE 梅田
+      has_staff: true
+    - slug: sample-shinsaibashi-lounge
+      name: 心斎橋プレミアムラウンジ
+      has_staff: true
+    - slug: sample-tennoji-garden
+      name: 天王寺ガーデンスパ
+      has_staff: true
+
+  staff:
+    - id: "11111111-1111-1111-8888-111111111111"
+      shop_slug: sample-namba-resort
+      name: 葵
+
+# ==============================================================================
+# User Flows
+# ==============================================================================
+
+user_flows:
+  guest_browse_and_view:
+    name: "ゲスト: 店舗閲覧からスタッフ詳細まで"
+    description: "ホームページから検索、店舗、スタッフ詳細を巡回"
+    steps:
+      - action: visit
+        path: /
+        expect:
+          - selector: "main"
+            visible: true
+      - action: visit
+        path: /search
+        expect:
+          - selector: "main"
+            visible: true
+      - action: visit
+        path: /profiles/sample-namba-resort
+        expect:
+          - selector: "main"
+            visible: true
+          - selector: "h1"
+            visible: true
+      - action: visit
+        path: /profiles/sample-namba-resort/staff/11111111-1111-1111-8888-111111111111
+        expect:
+          - selector: "main"
+            visible: true
+          - selector: "h1"
+            visible: true
+
+  homepage_navigation:
+    name: "ホームページからのナビゲーション"
+    description: "ホームページのリンクが正しく機能することを確認"
+    steps:
+      - action: visit
+        path: /
+        expect:
+          - selector: "a[href^='/profiles/']"
+            visible: true
+            clickable: true
+      - action: click
+        selector: "a[href^='/profiles/']"
+        first: true
+        expect:
+          - url_pattern: "/profiles/"
+          - http_status: 200
+
+# ==============================================================================
+# HTTP Status Requirements
+# ==============================================================================
+
+http_requirements:
+  public_routes:
+    - path: /
+      expected_status: 200
+    - path: /search
+      expected_status: 200
+    - path: /profiles/sample-namba-resort
+      expected_status: 200
+    - path: /profiles/sample-umeda-suite
+      expected_status: 200
+    - path: /profiles/sample-shinsaibashi-lounge
+      expected_status: 200
+    - path: /profiles/sample-tennoji-garden
+      expected_status: 200
+
+# ==============================================================================
+# Error Handling Requirements
+# ==============================================================================
+
+error_requirements:
+  javascript_errors:
+    description: "No critical JavaScript errors on public pages"
+    pages:
+      - /
+      - /search
+      - /profiles/sample-namba-resort
+    max_errors: 0
+    error_types:
+      - pageerror
+    excluded_patterns:
+      - "401"
+      - "404"
+      - "network"

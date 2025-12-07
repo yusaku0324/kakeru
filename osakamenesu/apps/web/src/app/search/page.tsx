@@ -34,6 +34,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     lead_image_url: '/images/demo-shop-1.svg',
     badges: ['人気店', '駅チカ'],
     today_available: true,
+    next_available_at: new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString(),
     online_reservation: true,
     has_promotions: true,
     promotions: [{ label: 'プレミアム体験 ¥2,000OFF', expires_at: '2025-12-31' }],
@@ -819,7 +820,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                   ) : null}
                   <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                     {therapistHits.map((hit) => (
-                      <TherapistCard key={hit.id} hit={hit} />
+                      <TherapistCard key={hit.id} hit={hit} useOverlay />
                     ))}
                   </div>
                 </Section>

@@ -27,6 +27,112 @@ type ListResponse = {
   summary?: Record<string, number>
 }
 
+type TherapistAvailability = {
+  id: string
+  name: string
+  status: 'available' | 'busy' | 'offline'
+  currentReservation?: { end_at: string } | null
+  nextAvailableAt: string | null
+}
+
+function formatNextAvailableLabel(dateStr: string | null): string {
+  if (!dateStr) return '空き情報なし'
+  const nextDate = new Date(dateStr)
+  if (Number.isNaN(nextDate.getTime())) return '空き情報なし'
+  const now = new Date()
+  const isToday =
+    nextDate.getFullYear() === now.getFullYear() &&
+    nextDate.getMonth() === now.getMonth() &&
+    nextDate.getDate() === now.getDate()
+  const hours = nextDate.getHours()
+  const minutes = nextDate.getMinutes()
+  const timeStr = minutes === 0 ? `${hours}時` : `${hours}時${minutes}分`
+  if (isToday) {
+    return `${timeStr}から`
+  }
+  const month = nextDate.getMonth() + 1
+  const day = nextDate.getDate()
+  return `${month}月${day}日 ${timeStr}から`
+}
+
+function TherapistAvailabilityPanel({
+  therapists,
+  loading,
+}: {
+  therapists: TherapistAvailability[]
+  loading: boolean
+}) {
+  if (loading) {
+    return (
+      <section className="rounded border border-slate-200 bg-white p-3 shadow-sm">
+        <h2 className="mb-3 text-lg font-semibold text-slate-800">セラピスト空き状況</h2>
+        <div className="text-sm text-slate-600">読み込み中...</div>
+      </section>
+    )
+  }
+
+  if (therapists.length === 0) {
+    return (
+      <section className="rounded border border-slate-200 bg-white p-3 shadow-sm">
+        <h2 className="mb-3 text-lg font-semibold text-slate-800">セラピスト空き状況</h2>
+        <div className="text-sm text-slate-600">セラピストがいません</div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="rounded border border-slate-200 bg-white p-3 shadow-sm">
+      <h2 className="mb-3 text-lg font-semibold text-slate-800">セラピスト空き状況</h2>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {therapists.map((t) => {
+          const statusColor =
+            t.status === 'available'
+              ? 'bg-green-100 border-green-300 text-green-800'
+              : t.status === 'busy'
+                ? 'bg-amber-100 border-amber-300 text-amber-800'
+                : 'bg-slate-100 border-slate-300 text-slate-600'
+          const statusLabel =
+            t.status === 'available' ? '空き' : t.status === 'busy' ? '接客中' : 'オフライン'
+          return (
+            <div
+              key={t.id}
+              className={`rounded border p-2 ${statusColor}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium">{t.name}</span>
+                <span className="rounded-full px-2 py-0.5 text-xs font-semibold">
+                  {statusLabel}
+                </span>
+              </div>
+              {t.status !== 'available' && t.nextAvailableAt && (
+                <div className="mt-1 text-xs">
+                  最短: {formatNextAvailableLabel(t.nextAvailableAt)}
+                </div>
+              )}
+              {t.status === 'busy' && t.currentReservation?.end_at && (
+                <div className="mt-0.5 text-xs opacity-80">
+                  現在の予約: {new Date(t.currentReservation.end_at).getHours()}時まで
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+type TherapistApiItem = {
+  id: string
+  name: string
+  today_available?: boolean
+  next_available_at?: string | null
+}
+
+type TherapistsApiResponse = {
+  items?: TherapistApiItem[]
+}
+
 export default function AdminShopReservationsPage() {
   const params = useParams()
   const shopId = params.shopId as string
@@ -34,6 +140,8 @@ export default function AdminShopReservationsPage() {
   const [summary, setSummary] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [therapistAvailability, setTherapistAvailability] = useState<TherapistAvailability[]>([])
+  const [therapistLoading, setTherapistLoading] = useState(true)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -58,9 +166,33 @@ export default function AdminShopReservationsPage() {
     }
   }, [shopId])
 
+  const loadTherapistAvailability = useCallback(async () => {
+    setTherapistLoading(true)
+    try {
+      const resp = await fetch(`/api/admin/therapists?shop_id=${shopId}`, { cache: 'no-store' })
+      if (!resp.ok) throw new Error(`status ${resp.status}`)
+      const data = (await resp.json()) as TherapistsApiResponse
+      const therapists = data.items ?? []
+      const availability: TherapistAvailability[] = therapists.map((t) => ({
+        id: t.id,
+        name: t.name,
+        status: t.today_available ? 'available' : 'busy',
+        nextAvailableAt: t.next_available_at ?? null,
+        currentReservation: null,
+      }))
+      setTherapistAvailability(availability)
+    } catch (err) {
+      console.error('failed to load therapist availability', err)
+      setTherapistAvailability([])
+    } finally {
+      setTherapistLoading(false)
+    }
+  }, [shopId])
+
   useEffect(() => {
     void refresh()
-  }, [refresh])
+    void loadTherapistAvailability()
+  }, [refresh, loadTherapistAvailability])
 
   const statusBadges = useMemo(() => {
     const entries = Object.entries(summary)
@@ -110,6 +242,11 @@ export default function AdminShopReservationsPage() {
           {error}
         </div>
       ) : null}
+
+      <TherapistAvailabilityPanel
+        therapists={therapistAvailability}
+        loading={therapistLoading}
+      />
 
       <section className="rounded border border-slate-200 bg-white p-3 shadow-sm">
         {loading ? (

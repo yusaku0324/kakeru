@@ -215,6 +215,23 @@ def _build_facets(
     return response
 
 
+def _compute_price_band(price_min: int | None) -> str | None:
+    """Compute price band from minimum price."""
+    if price_min is None:
+        return None
+    # Price bands based on PRICE_BANDS constant
+    if price_min < 5000:
+        return "budget"
+    elif price_min < 10000:
+        return "economy"
+    elif price_min < 15000:
+        return "standard"
+    elif price_min < 20000:
+        return "premium"
+    else:
+        return "luxury"
+
+
 def _profile_to_shop_summary(profile: models.Profile) -> ShopSummary:
     """Convert a Profile model to ShopSummary."""
     first_photo = None
@@ -241,10 +258,20 @@ def _profile_to_shop_summary(profile: models.Profile) -> ShopSummary:
                         headline=str(s.get("headline")) if s.get("headline") else None,
                         rating=safe_float(s.get("rating")),
                         review_count=safe_int(s.get("review_count")),
-                        avatar_url=str(s.get("avatar_url")) if s.get("avatar_url") else None,
-                        specialties=s.get("specialties", []) if isinstance(s.get("specialties"), list) else [],
+                        avatar_url=str(s.get("avatar_url"))
+                        if s.get("avatar_url")
+                        else None,
+                        specialties=s.get("specialties", [])
+                        if isinstance(s.get("specialties"), list)
+                        else [],
                     )
                 )
+
+    # Safely get price_band from profile or compute from price_min
+    price_band = getattr(profile, "price_band", None) or _compute_price_band(
+        profile.price_min
+    )
+    discounts = getattr(profile, "discounts", None)
 
     return ShopSummary(
         id=profile.id,
@@ -275,10 +302,10 @@ def _profile_to_shop_summary(profile: models.Profile) -> ShopSummary:
         updated_at=profile.updated_at,
         ranking_reason=contact.get("ranking_reason"),
         promotions=promotions,
-        price_band=profile.price_band,
-        price_band_label=PRICE_BAND_LABELS.get(profile.price_band) if profile.price_band else None,
+        price_band=price_band,
+        price_band_label=PRICE_BAND_LABELS.get(price_band) if price_band else None,
         has_promotions=bool(promotions),
-        has_discounts=bool(profile.discounts),
+        has_discounts=bool(discounts),
         promotion_count=len(promotions) if promotions else 0,
         ranking_score=profile.ranking_weight,
         diary_count=None,
@@ -505,17 +532,23 @@ async def _search_shops_impl(
         )
         return response.model_dump()
     if isinstance(res, Exception):
-        logger.warning("shop search returned error, falling back to PostgreSQL: %s", res)
-        results, total = await _search_from_postgres(
-            db,
-            q=q,
-            area=area,
-            price_min=price_min,
-            price_max=price_max,
-            category=category,
-            page=page,
-            page_size=page_size,
+        logger.warning(
+            "shop search returned error, falling back to PostgreSQL: %s", res
         )
+        try:
+            results, total = await _search_from_postgres(
+                db,
+                q=q,
+                area=area,
+                price_min=price_min,
+                price_max=price_max,
+                category=category,
+                page=page,
+                page_size=page_size,
+            )
+        except Exception as pg_error:
+            logger.error("PostgreSQL fallback also failed: %s", pg_error)
+            results, total = [], 0
         response = ShopSearchResponse(
             page=page, page_size=page_size, total=total, results=results, facets={}
         )

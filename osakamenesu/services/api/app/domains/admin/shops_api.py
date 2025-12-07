@@ -17,20 +17,50 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+class ContactInfo(BaseModel):
+    phone: str | None = None
+    line_id: str | None = None
+    website_url: str | None = None
+
+
 class ShopPayload(BaseModel):
     name: str
     area: str | None = None
     url: str | None = Field(default=None, description="public website or landing page")
+    # Extended fields
+    price_min: int | None = Field(default=None, ge=0, description="Minimum price")
+    price_max: int | None = Field(default=None, ge=0, description="Maximum price")
+    nearest_station: str | None = Field(
+        default=None, description="Nearest station name"
+    )
+    station_walk_minutes: int | None = Field(
+        default=None, ge=0, description="Walk minutes from station"
+    )
+    photos: list[str] | None = Field(default=None, description="List of photo URLs")
+    contact: ContactInfo | None = Field(default=None, description="Contact information")
 
 
 def _serialize(shop: Profile) -> dict[str, Any]:
+    contact = shop.contact_json or {}
     return {
         "id": str(shop.id),
         "name": shop.name,
         "area": shop.area,
         "status": shop.status,
         "buffer_minutes": shop.buffer_minutes,
-        "url": (shop.contact_json or {}).get("url") if shop.contact_json else None,
+        "url": contact.get("url"),
+        "price_min": shop.price_min,
+        "price_max": shop.price_max,
+        "nearest_station": shop.nearest_station,
+        "station_walk_minutes": shop.station_walk_minutes,
+        "photos": shop.photos or [],
+        "contact": {
+            "phone": contact.get("phone"),
+            "line_id": contact.get("line_id"),
+            "website_url": contact.get("website_url"),
+        }
+        if any(contact.get(k) for k in ("phone", "line_id", "website_url"))
+        else None,
         "created_at": shop.created_at.isoformat() if shop.created_at else None,
         "updated_at": shop.updated_at.isoformat() if shop.updated_at else None,
     }
@@ -48,15 +78,33 @@ async def create_shop(payload: ShopPayload, db: AsyncSession = Depends(get_sessi
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="name_required")
+
+    # Build contact_json from payload
+    contact_json: dict[str, Any] | None = None
+    if payload.url or payload.contact:
+        contact_json = {}
+        if payload.url:
+            contact_json["url"] = payload.url
+        if payload.contact:
+            if payload.contact.phone:
+                contact_json["phone"] = payload.contact.phone
+            if payload.contact.line_id:
+                contact_json["line_id"] = payload.contact.line_id
+            if payload.contact.website_url:
+                contact_json["website_url"] = payload.contact.website_url
+
     # Profile には price_min/price_max/bust_tag などの必須があるため最小限のデフォルトをセット
     shop = Profile(
         id=uuid4(),
         name=name,
         area=payload.area or "unspecified",
-        price_min=0,
-        price_max=0,
+        price_min=payload.price_min or 0,
+        price_max=payload.price_max or 0,
         bust_tag="unspecified",
-        contact_json={"url": payload.url} if payload.url else None,
+        nearest_station=payload.nearest_station,
+        station_walk_minutes=payload.station_walk_minutes,
+        photos=payload.photos,
+        contact_json=contact_json,
     )
     db.add(shop)
     await db.commit()
@@ -65,7 +113,9 @@ async def create_shop(payload: ShopPayload, db: AsyncSession = Depends(get_sessi
 
 
 class UpdateBufferMinutesPayload(BaseModel):
-    buffer_minutes: int = Field(ge=0, le=120, description="Buffer minutes between reservations (0-120)")
+    buffer_minutes: int = Field(
+        ge=0, le=120, description="Buffer minutes between reservations (0-120)"
+    )
 
     @validator("buffer_minutes")
     def validate_buffer_minutes(cls, v):
@@ -88,7 +138,7 @@ async def get_shop(shop_id: UUID, db: AsyncSession = Depends(get_session)):
 async def update_shop_buffer(
     shop_id: UUID,
     payload: UpdateBufferMinutesPayload,
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_session),
 ):
     """Update buffer minutes for a shop."""
     res = await db.execute(select(Profile).where(Profile.id == shop_id))
@@ -100,4 +150,3 @@ async def update_shop_buffer(
     await db.commit()
     await db.refresh(shop)
     return {"message": "Buffer minutes updated", "buffer_minutes": shop.buffer_minutes}
-
