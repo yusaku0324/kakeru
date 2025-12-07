@@ -35,6 +35,7 @@ from .service import (
     _session_cookie_names,
     _settings_candidates,
 )
+from .line import LineAuthService, LineAuthError, line_auth_service
 
 _T = TypeVar("_T")
 
@@ -250,6 +251,95 @@ async def test_login(
     return response
 
 
+# =============================================================================
+# LINE OAuth Endpoints
+# =============================================================================
+
+
+from pydantic import BaseModel
+
+
+class LineLoginUrlRequest(BaseModel):
+    redirect_path: str = "/therapist/settings"
+
+
+class LineLoginUrlResponse(BaseModel):
+    login_url: str
+    state: str
+
+
+class LineCallbackRequest(BaseModel):
+    code: str
+    state: str
+
+
+class LineConnectionStatusResponse(BaseModel):
+    connected: bool
+    line_user_id: str | None = None
+    display_name: str | None = None
+
+
+@router.post("/line/login-url", response_model=LineLoginUrlResponse)
+async def line_login_url(
+    payload: LineLoginUrlRequest,
+    _: None = Depends(rate_limit_auth),
+):
+    """Generate LINE OAuth authorization URL.
+
+    Returns a URL that the client should redirect the user to for LINE authentication.
+    """
+    try:
+        login_url, state = line_auth_service.generate_login_url(
+            redirect_path=payload.redirect_path
+        )
+        return LineLoginUrlResponse(login_url=login_url, state=state)
+    except LineAuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+
+
+@router.post("/line/callback")
+async def line_callback(
+    payload: LineCallbackRequest,
+    db: AsyncSession = Depends(get_session),
+    _: None = Depends(rate_limit_auth),
+) -> JSONResponse:
+    """Handle LINE OAuth callback.
+
+    Exchanges authorization code for access token, fetches user profile,
+    and creates/updates user session.
+    """
+    try:
+        result = await line_auth_service.authenticate(
+            code=payload.code,
+            db=db,
+        )
+
+        response = JSONResponse(
+            {
+                "ok": True,
+                "scope": "site",
+                "is_new_user": result.is_new_user,
+                "user": {
+                    "id": str(result.user.id),
+                    "display_name": result.user.display_name,
+                },
+            }
+        )
+        _set_session_cookie(response, result.session_token, scope="site")
+        return response
+    except LineAuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+
+
+@router.get("/line/status", response_model=LineConnectionStatusResponse)
+async def line_connection_status(
+    user: models.User = Depends(require_site_user),
+):
+    """Get LINE connection status for the current user."""
+    status = await line_auth_service.get_connection_status(user)
+    return LineConnectionStatusResponse(**status)
+
+
 __all__ = [
     "router",
     "request_link",
@@ -261,4 +351,7 @@ __all__ = [
     "test_login",
     "send_email_async",
     "AuthMagicLinkService",
+    "line_login_url",
+    "line_callback",
+    "line_connection_status",
 ]

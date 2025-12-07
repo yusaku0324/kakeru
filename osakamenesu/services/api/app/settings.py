@@ -142,6 +142,22 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("E2E_TEST_AUTH_SECRET", "TEST_AUTH_SECRET"),
     )
 
+    # LINE OAuth Settings
+    line_channel_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LINE_CHANNEL_ID", "LINE_LOGIN_CHANNEL_ID"),
+    )
+    line_channel_secret: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "LINE_CHANNEL_SECRET", "LINE_LOGIN_CHANNEL_SECRET"
+        ),
+    )
+    line_callback_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LINE_CALLBACK_URL", "LINE_REDIRECT_URI"),
+    )
+
     @property
     def auth_session_cookie_name(self) -> str:
         """Backward compatibility accessor for dashboard session cookie name."""

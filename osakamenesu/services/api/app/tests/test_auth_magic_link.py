@@ -77,6 +77,10 @@ class _DummySettings:
         self.reservation_notification_batch_size = 10
         self.test_auth_enabled = True
         self.test_auth_secret = "secret"
+        # LINE OAuth Settings
+        self.line_channel_id = None
+        self.line_channel_secret = None
+        self.line_callback_url = None
 
     @property
     def auth_session_cookie_name(self) -> str:
