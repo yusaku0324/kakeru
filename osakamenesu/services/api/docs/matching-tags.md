@@ -126,17 +126,65 @@
 
 ## スコアリング計算
 
-マッチングスコアは以下の重み付けで計算されます：
+### Recommended Score（推奨スコア）
+
+レコメンド順位は `recommended_scoring_service.py` で計算されます：
 
 ```
-total_score =
-    0.40 * core_score +        # エリア/時間/基本条件
-    0.15 * price_fit +         # 価格帯マッチ
-    0.15 * mood_fit +          # 雰囲気マッチ
-    0.10 * talk_fit +          # 会話レベルマッチ
-    0.10 * style_fit +         # 施術スタイルマッチ
-    0.05 * look_fit +          # 外見タイプマッチ
-    0.05 * availability_score  # 空き状況
+final_score = clamp01(base_score) × availability_factor
+
+base_score = 0.8 × user_fit + 0.2 × fairness
+```
+
+#### User Fit Score（ユーザー適合度）
+```
+user_fit = 0.7 × affinity + 0.3 × popularity
+```
+
+#### Affinity Score（親和性）
+```
+affinity = 0.5 × look_match + 0.5 × style_match
+
+style_match = 0.4 × conversation + 0.3 × pressure + 0.3 × mood
+```
+
+| マッチタイプ | 完全一致 | 隣接 | 不一致 |
+|-------------|---------|------|--------|
+| conversation | 1.0 | 0.7 | 0.3 |
+| pressure | 1.0 | 0.7 | 0.3 |
+| mood | 1.0 | 0.3～1.0 | 0.3 |
+
+#### Popularity Score（人気度）
+```
+popularity = sqrt(raw)  # 滑らかなカーブ
+
+raw = 0.4 × bookings_norm + 0.3 × repeat_rate + 0.2 × review_norm + 0.1 × price_tier_norm
+```
+
+- `bookings_norm`: total_bookings_30d / 100（飽和閾値 100）
+- `repeat_rate`: そのまま 0〜1
+- `review_norm`: (avg_review_score - 1) / 4
+- `price_tier_norm`: (price_tier - 1) / 2
+
+#### Fairness Score（公平性）
+```
+fairness = 0.5 × newcomer + 0.5 × load_balance
+```
+
+| 経過日数 | newcomer score |
+|---------|----------------|
+| ≤7日 | 0.9 |
+| ≤30日 | 0.6 |
+| ≤90日 | 0.3 |
+| >90日 | 0.1 |
+
+```
+load_balance = 1.0 - utilization_7d
+```
+
+#### Availability Factor（空き状況係数）
+```
+availability_factor = 0.9 + 0.15 × availability_score  # 範囲: 0.9〜1.05
 ```
 
 各スコアは 0〜1 の範囲に正規化されます。タグが未設定の場合はデフォルト値 0.5 が使用されます。
@@ -196,6 +244,7 @@ PATCH /api/admin/therapists/{therapist_id}
 
 - `services/api/app/models.py` - Therapist モデル定義
 - `services/api/app/domains/admin/therapists_api.py` - Admin API
-- `services/api/app/domains/site/guest_matching.py` - マッチングスコア計算
+- `services/api/app/domains/site/services/recommended_scoring_service.py` - 推奨スコア計算（Python）
+- `src/matching/recommendedScore.ts` - 推奨スコア計算（TypeScript）
 - `apps/web/src/features/matching/computeMatchingScore.ts` - フロントエンドスコア計算
 - `specs/matching/base.md` - マッチング仕様
