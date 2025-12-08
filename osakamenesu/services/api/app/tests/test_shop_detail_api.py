@@ -446,3 +446,212 @@ def test_get_shop_detail_with_sns_contacts(monkeypatch: pytest.MonkeyPatch) -> N
     assert body["contact"] is not None
     assert len(body["contact"]["sns"]) == 2
     assert body["contact"]["sns"][0]["platform"] == "twitter"
+
+
+def test_get_shop_detail_staff_has_recommended_score(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that staff members in shop detail include recommended_score."""
+    profile = _create_mock_profile()
+    # Add therapists with attributes needed for scoring
+    profile.therapists = [
+        SimpleNamespace(
+            id=uuid4(),
+            name="Scored Therapist",
+            alias="st",
+            photo_urls=["https://example.com/st.jpg"],
+            headline="Expert therapist",
+            specialties=["massage", "aroma"],
+            status="published",
+            look_type="cute",
+            talk_level="moderate",
+            style_tag="soft",
+            mood_tag="healing",
+            price_rank=2,
+        ),
+    ]
+    _setup_mocks(monkeypatch, profile)
+
+    res = client.get(f"/api/v1/shops/{SHOP_ID}")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body["staff"]) == 1
+    staff = body["staff"][0]
+    assert "recommended_score" in staff
+    # Score should be a float between 0 and 1
+    assert staff["recommended_score"] is not None
+    assert 0 <= staff["recommended_score"] <= 1
+
+
+def test_get_shop_detail_staff_sorted_by_recommended_score(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that staff members are sorted by recommended_score descending."""
+    profile = _create_mock_profile()
+    # Add multiple therapists with different attributes that affect scoring
+    profile.therapists = [
+        SimpleNamespace(
+            id=uuid4(),
+            name="Low Score Therapist",
+            alias="ls",
+            photo_urls=[],
+            headline=None,
+            specialties=[],  # No tag overlap
+            status="published",
+            look_type=None,
+            talk_level=None,
+            style_tag=None,
+            mood_tag=None,
+            price_rank=None,
+        ),
+        SimpleNamespace(
+            id=uuid4(),
+            name="High Score Therapist",
+            alias="hs",
+            photo_urls=["https://example.com/hs.jpg"],
+            headline="Expert therapist",
+            specialties=["massage", "relaxation"],  # Tag overlap with profile body_tags
+            status="published",
+            look_type="cute",
+            talk_level="moderate",
+            style_tag="soft",
+            mood_tag="healing",
+            price_rank=3,
+        ),
+        SimpleNamespace(
+            id=uuid4(),
+            name="Medium Score Therapist",
+            alias="ms",
+            photo_urls=["https://example.com/ms.jpg"],
+            headline="Good therapist",
+            specialties=["massage"],  # Partial tag overlap
+            status="published",
+            look_type=None,
+            talk_level=None,
+            style_tag="soft",
+            mood_tag=None,
+            price_rank=2,
+        ),
+    ]
+    _setup_mocks(monkeypatch, profile)
+
+    res = client.get(f"/api/v1/shops/{SHOP_ID}")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body["staff"]) == 3
+
+    # Extract scores
+    scores = [s["recommended_score"] for s in body["staff"]]
+
+    # Verify sorted in descending order
+    assert scores == sorted(scores, reverse=True), (
+        f"Staff should be sorted by recommended_score descending. "
+        f"Got: {[(s['name'], s['recommended_score']) for s in body['staff']]}"
+    )
+
+    # Verify high score therapist is first
+    assert body["staff"][0]["name"] == "High Score Therapist", (
+        f"Expected 'High Score Therapist' first, got: {body['staff'][0]['name']}"
+    )
+
+
+# ---- Test cases for staff tags in shop detail ----
+
+
+class TestStaffTags:
+    """Test suite for staff tags in shop detail response."""
+
+    def test_staff_tags_from_therapist(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that staff tags are extracted from therapist attributes."""
+        profile = _create_mock_profile()
+        profile.therapists = [
+            SimpleNamespace(
+                id=uuid4(),
+                name="Tagged Therapist",
+                alias="tt",
+                photo_urls=["https://example.com/tt.jpg"],
+                headline="Expert therapist",
+                specialties=["massage", "aroma"],
+                status="published",
+                mood_tag="healing",
+                style_tag="soft",
+                look_type="cute",
+                contact_style="friendly",
+                hobby_tags=["reading", "music"],
+            ),
+        ]
+        _setup_mocks(monkeypatch, profile)
+
+        res = client.get(f"/api/v1/shops/{SHOP_ID}")
+
+        assert res.status_code == 200
+        body = res.json()
+        assert len(body["staff"]) == 1
+        staff = body["staff"][0]
+        assert staff["tags"] is not None
+        assert staff["tags"]["mood"] == "healing"
+        assert staff["tags"]["style"] == "soft"
+        assert staff["tags"]["look"] == "cute"
+        assert staff["tags"]["contact"] == "friendly"
+        assert staff["tags"]["hobby_tags"] == ["reading", "music"]
+
+    def test_staff_tags_fallback_to_specialties(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that hobby_tags falls back to specialties when not present."""
+        profile = _create_mock_profile()
+        profile.therapists = [
+            SimpleNamespace(
+                id=uuid4(),
+                name="Basic Therapist",
+                alias="bt",
+                photo_urls=["https://example.com/bt.jpg"],
+                headline="Basic therapist",
+                specialties=["massage", "relaxation"],
+                status="published",
+                mood_tag="relaxing",
+            ),
+        ]
+        _setup_mocks(monkeypatch, profile)
+
+        res = client.get(f"/api/v1/shops/{SHOP_ID}")
+
+        assert res.status_code == 200
+        body = res.json()
+        assert len(body["staff"]) == 1
+        staff = body["staff"][0]
+        assert staff["tags"] is not None
+        assert staff["tags"]["mood"] == "relaxing"
+        # hobby_tags should fall back to specialties
+        assert staff["tags"]["hobby_tags"] == ["massage", "relaxation"]
+
+    def test_staff_tags_none_when_no_tags(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that tags field is None when therapist has no tag attributes."""
+        profile = _create_mock_profile()
+        profile.therapists = [
+            SimpleNamespace(
+                id=uuid4(),
+                name="No Tags Therapist",
+                alias="nt",
+                photo_urls=["https://example.com/nt.jpg"],
+                headline="Plain therapist",
+                specialties=[],  # Empty specialties
+                status="published",
+                # No tag attributes at all
+            ),
+        ]
+        # Also remove body_tags from profile to prevent fallback
+        profile.body_tags = []
+        _setup_mocks(monkeypatch, profile)
+
+        res = client.get(f"/api/v1/shops/{SHOP_ID}")
+
+        assert res.status_code == 200
+        body = res.json()
+        assert len(body["staff"]) == 1
+        staff = body["staff"][0]
+        assert staff["tags"] is None

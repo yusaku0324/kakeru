@@ -75,7 +75,9 @@ def test_get_therapist_detail_success(monkeypatch: pytest.MonkeyPatch) -> None:
     async def mock_build_slots(db, therapist_id, days, slot_granularity_minutes):
         return []
 
-    monkeypatch.setattr(domain, "_fetch_therapist_with_profile", mock_fetch_with_profile)
+    monkeypatch.setattr(
+        domain, "_fetch_therapist_with_profile", mock_fetch_with_profile
+    )
     monkeypatch.setattr(domain, "_build_availability_slots", mock_build_slots)
 
     res = client.get(f"/api/v1/therapists/{THERAPIST_ID}")
@@ -110,7 +112,9 @@ def test_get_therapist_detail_with_shop_slug(monkeypatch: pytest.MonkeyPatch) ->
     async def mock_build_slots(db, therapist_id, days, slot_granularity_minutes):
         return []
 
-    monkeypatch.setattr(domain, "_fetch_therapist_by_shop_slug", mock_fetch_by_shop_slug)
+    monkeypatch.setattr(
+        domain, "_fetch_therapist_by_shop_slug", mock_fetch_by_shop_slug
+    )
     monkeypatch.setattr(domain, "_build_availability_slots", mock_build_slots)
 
     res = client.get(
@@ -125,10 +129,13 @@ def test_get_therapist_detail_with_shop_slug(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_get_therapist_detail_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test 404 when therapist not found."""
+
     async def mock_fetch_with_profile(db, therapist_id):
         return None
 
-    monkeypatch.setattr(domain, "_fetch_therapist_with_profile", mock_fetch_with_profile)
+    monkeypatch.setattr(
+        domain, "_fetch_therapist_with_profile", mock_fetch_with_profile
+    )
 
     res = client.get(f"/api/v1/therapists/{uuid4()}")
 
@@ -137,7 +144,9 @@ def test_get_therapist_detail_not_found(monkeypatch: pytest.MonkeyPatch) -> None
     assert body["detail"]["reason_code"] == "therapist_not_found"
 
 
-def test_get_therapist_detail_shop_slug_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_therapist_detail_shop_slug_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test 404 when shop_slug doesn't match."""
     profile = _mock_profile()
     therapist = _mock_therapist(profile)
@@ -151,8 +160,12 @@ def test_get_therapist_detail_shop_slug_mismatch(monkeypatch: pytest.MonkeyPatch
             return (therapist, profile)
         return None
 
-    monkeypatch.setattr(domain, "_fetch_therapist_by_shop_slug", mock_fetch_by_shop_slug)
-    monkeypatch.setattr(domain, "_fetch_therapist_with_profile", mock_fetch_with_profile)
+    monkeypatch.setattr(
+        domain, "_fetch_therapist_by_shop_slug", mock_fetch_by_shop_slug
+    )
+    monkeypatch.setattr(
+        domain, "_fetch_therapist_with_profile", mock_fetch_with_profile
+    )
 
     res = client.get(
         f"/api/v1/therapists/{THERAPIST_ID}",
@@ -175,7 +188,9 @@ def test_get_therapist_detail_unpublished(monkeypatch: pytest.MonkeyPatch) -> No
             return (therapist, profile)
         return None
 
-    monkeypatch.setattr(domain, "_fetch_therapist_with_profile", mock_fetch_with_profile)
+    monkeypatch.setattr(
+        domain, "_fetch_therapist_with_profile", mock_fetch_with_profile
+    )
 
     res = client.get(f"/api/v1/therapists/{THERAPIST_ID}")
 
@@ -402,9 +417,13 @@ def test_get_similar_therapists_success(monkeypatch: pytest.MonkeyPatch) -> None
                 "style_tag": "gentle",
             }
         from fastapi import HTTPException, status
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"message": "Therapist not found", "reason_code": "therapist_not_found"},
+            detail={
+                "message": "Therapist not found",
+                "reason_code": "therapist_not_found",
+            },
         )
 
     # Mock pool fetch
@@ -466,7 +485,10 @@ def test_get_similar_therapists_not_found(monkeypatch: pytest.MonkeyPatch) -> No
     async def mock_get_base_therapist(db, therapist_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"message": "Therapist not found", "reason_code": "therapist_not_found"},
+            detail={
+                "message": "Therapist not found",
+                "reason_code": "therapist_not_found",
+            },
         )
 
     monkeypatch.setattr(domain, "_get_base_therapist", mock_get_base_therapist)
@@ -480,6 +502,7 @@ def test_get_similar_therapists_not_found(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_get_similar_therapists_empty_pool(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test when no similar therapists found."""
+
     async def mock_get_base_therapist(db, therapist_id):
         return {
             "therapist_id": str(THERAPIST_ID),
@@ -506,6 +529,7 @@ def test_get_similar_therapists_empty_pool(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_get_similar_therapists_limit_param(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test limit parameter."""
+
     async def mock_get_base_therapist(db, therapist_id):
         return {
             "therapist_id": str(THERAPIST_ID),
@@ -585,10 +609,10 @@ class TestSimilarityScoring:
         }
         candidate = {
             "mood_tag": "relaxing",  # Match
-            "talk_level": "quiet",   # Match
-            "style_tag": "gentle",   # Match
-            "look_type": "cute",     # Match
-            "contact_style": "light", # Match
+            "talk_level": "quiet",  # Match
+            "style_tag": "gentle",  # Match
+            "look_type": "cute",  # Match
+            "contact_style": "light",  # Match
             "hobby_tags": ["massage", "aroma"],  # Full match
         }
 
@@ -608,10 +632,10 @@ class TestSimilarityScoring:
         }
         candidate = {
             "mood_tag": "energetic",  # No match
-            "talk_level": "talkative", # No match
-            "style_tag": "strong",     # No match
-            "look_type": "cool",       # No match
-            "contact_style": "firm",   # No match
+            "talk_level": "talkative",  # No match
+            "style_tag": "strong",  # No match
+            "look_type": "cool",  # No match
+            "contact_style": "firm",  # No match
             "hobby_tags": ["sports"],  # No match
         }
 
@@ -619,3 +643,114 @@ class TestSimilarityScoring:
         # All 0.3 for mismatches
         # 0.25*0.3 + 0.2*0.3 + 0.2*0.3 + 0.15*0.3 + 0.1*0.3 + 0.1*0.3 = 0.3
         assert score == pytest.approx(0.3)
+
+
+class TestTherapistTags:
+    """Test therapist tags extraction in detail API."""
+
+    def test_tags_extracted_from_therapist(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that tags are extracted from therapist model."""
+        profile = _mock_profile()
+        therapist = _mock_therapist(profile)
+        # Add tag attributes to therapist
+        therapist.mood_tag = "relaxing"
+        therapist.style_tag = "gentle"
+        therapist.look_type = "cute"
+        therapist.contact_style = "soft"
+
+        async def mock_fetch_with_profile(db, therapist_id):
+            if therapist_id == THERAPIST_ID:
+                return (therapist, profile)
+            return None
+
+        async def mock_build_slots(db, therapist_id, days, slot_granularity_minutes):
+            return []
+
+        monkeypatch.setattr(
+            domain, "_fetch_therapist_with_profile", mock_fetch_with_profile
+        )
+        monkeypatch.setattr(domain, "_build_availability_slots", mock_build_slots)
+
+        res = client.get(f"/api/v1/therapists/{THERAPIST_ID}")
+
+        assert res.status_code == 200
+        body = res.json()
+
+        tags = body["therapist"]["tags"]
+        assert tags["mood"] == "relaxing"
+        assert tags["style"] == "gentle"
+        assert tags["look"] == "cute"
+        assert tags["contact"] == "soft"
+        assert tags["hobby_tags"] == ["massage", "aroma"]
+
+    def test_tags_fallback_to_profile(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that tags fall back to profile when not on therapist."""
+        profile = _mock_profile()
+        # Add tag attributes to profile only
+        profile.mood_tag = "energetic"
+        profile.style_tag = "strong"
+        profile.look_type = "cool"
+        profile.contact_style = "firm"
+
+        therapist = _mock_therapist(profile)
+        # Therapist has no tag attributes
+
+        async def mock_fetch_with_profile(db, therapist_id):
+            if therapist_id == THERAPIST_ID:
+                return (therapist, profile)
+            return None
+
+        async def mock_build_slots(db, therapist_id, days, slot_granularity_minutes):
+            return []
+
+        monkeypatch.setattr(
+            domain, "_fetch_therapist_with_profile", mock_fetch_with_profile
+        )
+        monkeypatch.setattr(domain, "_build_availability_slots", mock_build_slots)
+
+        res = client.get(f"/api/v1/therapists/{THERAPIST_ID}")
+
+        assert res.status_code == 200
+        body = res.json()
+
+        tags = body["therapist"]["tags"]
+        assert tags["mood"] == "energetic"
+        assert tags["style"] == "strong"
+        assert tags["look"] == "cool"
+        assert tags["contact"] == "firm"
+
+    def test_tags_none_when_not_available(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that tags are None when not available on therapist or profile."""
+        profile = _mock_profile()
+        therapist = _mock_therapist(profile)
+        # Neither therapist nor profile has tag attributes
+
+        async def mock_fetch_with_profile(db, therapist_id):
+            if therapist_id == THERAPIST_ID:
+                return (therapist, profile)
+            return None
+
+        async def mock_build_slots(db, therapist_id, days, slot_granularity_minutes):
+            return []
+
+        monkeypatch.setattr(
+            domain, "_fetch_therapist_with_profile", mock_fetch_with_profile
+        )
+        monkeypatch.setattr(domain, "_build_availability_slots", mock_build_slots)
+
+        res = client.get(f"/api/v1/therapists/{THERAPIST_ID}")
+
+        assert res.status_code == 200
+        body = res.json()
+
+        tags = body["therapist"]["tags"]
+        assert tags["mood"] is None
+        assert tags["style"] is None
+        assert tags["look"] is None
+        assert tags["contact"] is None
+        # hobby_tags should fallback to specialties
+        assert tags["hobby_tags"] == ["massage", "aroma"]

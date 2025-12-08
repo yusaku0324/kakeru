@@ -16,6 +16,79 @@ from .....utils.datetime import now_jst
 from .shared import ShopNotFoundError
 
 
+def _compute_simple_recommended_score(
+    therapist: Therapist,
+    profile: Profile,
+    has_availability: bool,
+) -> float:
+    """Compute a simple recommended score for shop page context.
+
+    Uses display_order, tag overlap, price, age, and availability.
+    Weights are tuned for shop_page entry source.
+
+    Returns score in 0-1 range.
+    """
+    # Base score from display order (lower is better)
+    display_order = getattr(therapist, "display_order", 99) or 99
+    base_staff_similarity = max(0.0, 1.0 - (display_order / 100.0))
+
+    # Tag similarity from profile body_tags and therapist specialties
+    profile_tags = set(getattr(profile, "body_tags", None) or [])
+    therapist_tags = set(getattr(therapist, "specialties", None) or [])
+    if profile_tags and therapist_tags:
+        tag_overlap = len(profile_tags & therapist_tags)
+        tag_union = len(profile_tags | therapist_tags)
+        tag_similarity = tag_overlap / tag_union if tag_union > 0 else 0.5
+    else:
+        tag_similarity = 0.5
+
+    # Price match (normalize to 0-1)
+    price_min = getattr(profile, "price_min", None) or 0
+    price_max = getattr(profile, "price_max", None) or 0
+    avg_price = (price_min + price_max) / 2 if price_max > 0 else 10000
+    price_match = min(1.0, avg_price / 30000.0)
+
+    # Age match (prime age range 20-35 gets boost)
+    age = getattr(therapist, "age", None)
+    if age and 20 <= age <= 35:
+        age_match = 0.8 + (0.2 * (1.0 - abs(age - 27) / 15.0))
+    elif age:
+        age_match = 0.5
+    else:
+        age_match = 0.6
+
+    # Availability boost
+    availability_boost = 1.0 if has_availability else 0.0
+
+    # Shop page weights (same as therapist detail API)
+    weights = {
+        "base_staff_similarity": 0.35,
+        "tag_similarity": 0.25,
+        "price_match": 0.15,
+        "age_match": 0.10,
+        "availability_boost": 0.15,
+    }
+
+    # Calculate weighted score
+    score = (
+        weights["base_staff_similarity"] * base_staff_similarity
+        + weights["tag_similarity"] * tag_similarity
+        + weights["price_match"] * price_match
+        + weights["age_match"] * age_match
+        + weights["availability_boost"] * availability_boost
+    )
+
+    # Ranking badge boost
+    badges = getattr(profile, "ranking_badges", None) or []
+    if "top_rated" in badges:
+        score += 0.1
+    if "new_arrival" in badges:
+        score += 0.05
+
+    # Normalize to 0-1 range
+    return max(0.0, min(1.0, score))
+
+
 class TherapistTagsResponse(BaseModel):
     """Therapist matching tags."""
 
@@ -165,6 +238,13 @@ class ShopTherapistsService:
             photo_urls = therapist.photo_urls or []
             avatar_url = photo_urls[0] if photo_urls else None
 
+            # Compute recommended score
+            has_availability = bool(shifts)
+            recommended_score = round(
+                _compute_simple_recommended_score(therapist, profile, has_availability),
+                3,
+            )
+
             items.append(
                 TherapistListItem(
                     id=str(therapist.id),
@@ -180,7 +260,7 @@ class ShopTherapistsService:
                     today_available=today_available,
                     next_available_at=next_available_at,
                     availability_slots=slots if include_availability else [],
-                    recommended_score=None,  # Scoring can be added based on guest context
+                    recommended_score=recommended_score,
                 )
             )
 

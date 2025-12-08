@@ -28,6 +28,7 @@ from ....schemas import (
     ShopDetail,
     SocialLink,
     StaffSummary,
+    StaffTags,
     DiarySnippet,
 )
 from ....utils.profiles import compute_review_summary, normalize_review_aspects
@@ -42,6 +43,11 @@ from .shop.shared import (
     ShopNotFoundError,
     normalize_promotions as _normalize_promotions,
     safe_int as _safe_int,
+)
+from .recommended_scoring_service import (
+    GuestIntent,
+    TherapistProfile,
+    recommended_score as compute_recommended_score,
 )
 
 ShopId = Union[str, UUID]
@@ -350,6 +356,7 @@ async def _get_shop_detail_impl(
     has_discounts = bool(profile.discounts)
 
     staff_members: List[StaffSummary] = []
+    default_intent = GuestIntent()
     for therapist in getattr(profile, "therapists", []):
         if getattr(therapist, "status", "draft") != "published":
             continue
@@ -357,6 +364,23 @@ async def _get_shop_detail_impl(
         photo_list = getattr(therapist, "photo_urls", None) or []
         if photo_list:
             avatar_url = photo_list[0]
+
+        therapist_profile = TherapistProfile(
+            therapist_id=str(therapist.id),
+            visual_style_tags=getattr(therapist, "look_type", None),
+            conversation_style=getattr(therapist, "talk_level", None),
+            massage_pressure=getattr(therapist, "style_tag", None),
+            mood_tags=[getattr(therapist, "mood_tag", None)]
+            if getattr(therapist, "mood_tag", None)
+            else None,
+            price_tier=getattr(therapist, "price_rank", None) or 1,
+            availability_score=0.5,
+        )
+        score = compute_recommended_score(default_intent, therapist_profile)
+
+        # Extract tags from therapist/profile with fallback
+        staff_tags = _extract_staff_tags(therapist, profile)
+
         staff_members.append(
             StaffSummary(
                 id=therapist.id,
@@ -370,8 +394,13 @@ async def _get_shop_detail_impl(
                 specialties=therapist.specialties or [],
                 is_pickup=None,
                 next_available_slot=None,
+                recommended_score=round(score, 3),
+                tags=staff_tags,
             )
         )
+
+    # Sort staff by recommended_score descending
+    staff_members.sort(key=lambda s: s.recommended_score or 0.0, reverse=True)
 
     contact_json = getattr(profile, "contact_json", {}) or {}
     store_name = contact_json.get("store_name")
@@ -531,6 +560,39 @@ def _build_contact_info(profile: models.Profile) -> Optional[ContactInfo]:
         website_url=raw.get("website_url"),
         reservation_form_url=raw.get("reservation_form_url"),
         sns=sns_entries,
+    )
+
+
+def _extract_staff_tags(therapist: Any, profile: Any) -> Optional[StaffTags]:
+    """Extract tag signals from therapist/profile with fallback."""
+    mood = getattr(therapist, "mood_tag", None) or getattr(profile, "mood_tag", None)
+    style = getattr(therapist, "style_tag", None) or getattr(profile, "style_tag", None)
+    look = getattr(therapist, "look_type", None) or getattr(profile, "look_type", None)
+    contact = getattr(therapist, "contact_style", None) or getattr(
+        profile, "contact_style", None
+    )
+
+    hobby_fallback = None
+    if getattr(therapist, "specialties", None):
+        hobby_fallback = therapist.specialties
+    elif getattr(profile, "body_tags", None):
+        hobby_fallback = profile.body_tags
+
+    hobby_tags = (
+        getattr(therapist, "hobby_tags", None)
+        or getattr(profile, "hobby_tags", None)
+        or hobby_fallback
+    )
+
+    if not any([mood, style, look, contact, hobby_tags]):
+        return None
+
+    return StaffTags(
+        mood=mood,
+        style=style,
+        look=look,
+        contact=contact,
+        hobby_tags=hobby_tags,
     )
 
 

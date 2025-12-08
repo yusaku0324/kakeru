@@ -48,77 +48,6 @@ SAMPLE_THERAPISTS: dict[str, dict] = {
 }
 
 
-def _get_sample_therapist_response(
-    therapist_id: str,
-    shop_slug: str | None,
-    entry_source: str,
-    days: int,
-    slot_granularity_minutes: int,
-) -> TherapistDetailResponse | None:
-    """Return sample therapist data if ID matches known samples."""
-    sample = SAMPLE_THERAPISTS.get(therapist_id)
-    if not sample:
-        return None
-
-    # Verify shop_slug if provided
-    if shop_slug and sample["shop_slug"] != shop_slug:
-        return None
-
-    tags = TherapistTags(
-        mood="癒し系",
-        style="ソフト",
-        look=None,
-        contact=None,
-        hobby_tags=sample.get("specialties"),
-    )
-
-    therapist_info = TherapistInfo(
-        id=therapist_id,
-        name=sample["name"],
-        age=sample.get("age"),
-        price_rank=_compute_price_rank(sample.get("price_min"), sample.get("price_max")),
-        tags=tags,
-        profile_text=sample.get("profile_text"),
-        photos=sample.get("photos"),
-        badges=["人気"],
-    )
-
-    shop_info = ShopInfo(
-        id="sample-shop-id",
-        slug=sample["shop_slug"],
-        name=sample["shop_name"],
-        area=sample["shop_area"],
-    )
-
-    # Empty availability for sample
-    availability = AvailabilityInfo(
-        slots=[],
-        phase="explore",
-        window=AvailabilityWindow(
-            days=days,
-            slot_granularity_minutes=slot_granularity_minutes,
-        ),
-    )
-
-    # Simple sample scores
-    breakdown = BreakdownInfo(
-        base_staff_similarity=0.8,
-        tag_similarity=0.7,
-        price_match=0.6,
-        age_match=0.75,
-        availability_boost=0.0,
-        score=0.72,
-    )
-
-    return TherapistDetailResponse(
-        therapist=therapist_info,
-        shop=shop_info,
-        availability=availability,
-        recommended_score=0.72,
-        breakdown=breakdown,
-        entry_source=entry_source,
-    )
-
 router = APIRouter(prefix="/api/v1/therapists", tags=["therapists"])
 
 
@@ -190,12 +119,14 @@ class TherapistDetailResponse(BaseModel):
 
 class SimilarTherapistTags(BaseModel):
     """Tags for similar therapist display."""
+
     mood: str | None = None
     style: str | None = None
 
 
 class SimilarTherapistItem(BaseModel):
     """Similar therapist item for frontend display."""
+
     id: str
     name: str
     photos: list[str] | None = None
@@ -207,7 +138,99 @@ class SimilarTherapistItem(BaseModel):
 
 class SimilarTherapistsResponse(BaseModel):
     """Response for similar therapists endpoint."""
+
     therapists: list[SimilarTherapistItem]
+
+
+def _compute_price_rank(min_price: int | None, max_price: int | None) -> int | None:
+    """Compute price rank from min/max price (1=cheap, 5=expensive)."""
+    if min_price is None or max_price is None:
+        return None
+    avg = (min_price + max_price) / 2
+    if avg < 5000:
+        return 1
+    elif avg < 10000:
+        return 2
+    elif avg < 15000:
+        return 3
+    elif avg < 20000:
+        return 4
+    else:
+        return 5
+
+
+def _get_sample_therapist_response(
+    therapist_id: str,
+    shop_slug: str | None,
+    entry_source: str,
+    days: int,
+    slot_granularity_minutes: int,
+) -> TherapistDetailResponse | None:
+    """Return sample therapist data if ID matches known samples."""
+    sample = SAMPLE_THERAPISTS.get(therapist_id)
+    if not sample:
+        return None
+
+    # Verify shop_slug if provided
+    if shop_slug and sample["shop_slug"] != shop_slug:
+        return None
+
+    tags = TherapistTags(
+        mood="癒し系",
+        style="ソフト",
+        look=None,
+        contact=None,
+        hobby_tags=sample.get("specialties"),
+    )
+
+    therapist_info = TherapistInfo(
+        id=therapist_id,
+        name=sample["name"],
+        age=sample.get("age"),
+        price_rank=_compute_price_rank(
+            sample.get("price_min"), sample.get("price_max")
+        ),
+        tags=tags,
+        profile_text=sample.get("profile_text"),
+        photos=sample.get("photos"),
+        badges=["人気"],
+    )
+
+    shop_info = ShopInfo(
+        id="sample-shop-id",
+        slug=sample["shop_slug"],
+        name=sample["shop_name"],
+        area=sample["shop_area"],
+    )
+
+    # Empty availability for sample
+    availability = AvailabilityInfo(
+        slots=[],
+        phase="explore",
+        window=AvailabilityWindow(
+            days=days,
+            slot_granularity_minutes=slot_granularity_minutes,
+        ),
+    )
+
+    # Simple sample scores
+    breakdown = BreakdownInfo(
+        base_staff_similarity=0.8,
+        tag_similarity=0.7,
+        price_match=0.6,
+        age_match=0.75,
+        availability_boost=0.0,
+        score=0.72,
+    )
+
+    return TherapistDetailResponse(
+        therapist=therapist_info,
+        shop=shop_info,
+        availability=availability,
+        recommended_score=0.72,
+        breakdown=breakdown,
+        entry_source=entry_source,
+    )
 
 
 def _compute_recommended_score(
@@ -317,23 +340,6 @@ def _compute_recommended_score(
     return score, breakdown
 
 
-def _compute_price_rank(min_price: int | None, max_price: int | None) -> int | None:
-    """Compute price rank from min/max price (1=cheap, 5=expensive)."""
-    if min_price is None or max_price is None:
-        return None
-    avg = (min_price + max_price) / 2
-    if avg < 5000:
-        return 1
-    elif avg < 10000:
-        return 2
-    elif avg < 15000:
-        return 3
-    elif avg < 20000:
-        return 4
-    else:
-        return 5
-
-
 async def _fetch_therapist_with_profile(
     db: AsyncSession,
     therapist_id: UUID,
@@ -409,10 +415,18 @@ async def _build_availability_slots(
 )
 async def get_therapist_detail(
     therapist_id: UUID,
-    shop_slug: str | None = Query(default=None, description="Shop slug to verify affiliation"),
-    entry_source: str = Query(default="direct", description="Entry source for tracking"),
-    days: int = Query(default=7, ge=1, le=30, description="Number of days for availability"),
-    slot_granularity_minutes: int = Query(default=30, ge=15, le=120, description="Slot granularity in minutes"),
+    shop_slug: str | None = Query(
+        default=None, description="Shop slug to verify affiliation"
+    ),
+    entry_source: str = Query(
+        default="direct", description="Entry source for tracking"
+    ),
+    days: int = Query(
+        default=7, ge=1, le=30, description="Number of days for availability"
+    ),
+    slot_granularity_minutes: int = Query(
+        default=30, ge=15, le=120, description="Slot granularity in minutes"
+    ),
     db: AsyncSession = Depends(get_session),
 ):
     """Get therapist detail with shop info and availability.
@@ -482,13 +496,14 @@ async def get_therapist_detail(
             },
         )
 
-    # Build therapist info
+    # Build therapist info - extract tags from therapist/profile
+    extracted = _extract_tags(therapist, profile)
     tags = TherapistTags(
-        mood=None,  # Future: from therapist profile tags
-        style=None,
-        look=None,
-        contact=None,
-        hobby_tags=therapist.specialties,
+        mood=extracted.get("mood_tag"),
+        style=extracted.get("style_tag"),
+        look=extracted.get("look_type"),
+        contact=extracted.get("contact_style"),
+        hobby_tags=extracted.get("hobby_tags"),
     )
 
     therapist_info = TherapistInfo(
@@ -560,7 +575,9 @@ def _match_score(target_val: str | None, candidate_val: str | None) -> float:
     return 1.0 if target_val == candidate_val else 0.3
 
 
-def _list_overlap(target: Sequence[str] | None, candidate: Sequence[str] | None) -> float:
+def _list_overlap(
+    target: Sequence[str] | None, candidate: Sequence[str] | None
+) -> float:
     """Compute overlap score between two lists."""
     if not target or not candidate:
         return 0.5
@@ -580,11 +597,16 @@ def _extract_tags(therapist: Any, profile: Any) -> dict[str, Any]:
         hobby_fallback = profile.body_tags
 
     return {
-        "mood_tag": getattr(therapist, "mood_tag", None) or getattr(profile, "mood_tag", None),
-        "talk_level": getattr(therapist, "talk_level", None) or getattr(profile, "talk_level", None),
-        "style_tag": getattr(therapist, "style_tag", None) or getattr(profile, "style_tag", None),
-        "look_type": getattr(therapist, "look_type", None) or getattr(profile, "look_type", None),
-        "contact_style": getattr(therapist, "contact_style", None) or getattr(profile, "contact_style", None),
+        "mood_tag": getattr(therapist, "mood_tag", None)
+        or getattr(profile, "mood_tag", None),
+        "talk_level": getattr(therapist, "talk_level", None)
+        or getattr(profile, "talk_level", None),
+        "style_tag": getattr(therapist, "style_tag", None)
+        or getattr(profile, "style_tag", None),
+        "look_type": getattr(therapist, "look_type", None)
+        or getattr(profile, "look_type", None),
+        "contact_style": getattr(therapist, "contact_style", None)
+        or getattr(profile, "contact_style", None),
         "hobby_tags": getattr(therapist, "hobby_tags", None)
         or getattr(profile, "hobby_tags", None)
         or hobby_fallback,
@@ -598,7 +620,9 @@ def _score_similarity(target: dict[str, Any], candidate: dict[str, Any]) -> floa
         "talk": _match_score(target.get("talk_level"), candidate.get("talk_level")),
         "style": _match_score(target.get("style_tag"), candidate.get("style_tag")),
         "look": _match_score(target.get("look_type"), candidate.get("look_type")),
-        "contact": _match_score(target.get("contact_style"), candidate.get("contact_style")),
+        "contact": _match_score(
+            target.get("contact_style"), candidate.get("contact_style")
+        ),
         "hobby": _list_overlap(target.get("hobby_tags"), candidate.get("hobby_tags")),
     }
 
@@ -630,7 +654,10 @@ async def _get_base_therapist(db: AsyncSession, therapist_id: UUID) -> dict[str,
     if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"message": "Therapist not found", "reason_code": "therapist_not_found"},
+            detail={
+                "message": "Therapist not found",
+                "reason_code": "therapist_not_found",
+            },
         )
 
     therapist, profile = row
@@ -684,13 +711,10 @@ async def _check_today_availability(db: AsyncSession, therapist_id: UUID) -> boo
     today = date.today()
     now = datetime.now(timezone.utc)
 
-    stmt = (
-        select(TherapistShift)
-        .where(
-            TherapistShift.therapist_id == therapist_id,
-            TherapistShift.date == today,
-            TherapistShift.end_time > now.time(),
-        )
+    stmt = select(TherapistShift).where(
+        TherapistShift.therapist_id == therapist_id,
+        TherapistShift.date == today,
+        TherapistShift.end_time > now.time(),
     )
     result = await db.execute(stmt)
     return result.first() is not None
@@ -703,7 +727,9 @@ async def _check_today_availability(db: AsyncSession, therapist_id: UUID) -> boo
 )
 async def get_similar_therapists(
     therapist_id: UUID,
-    limit: int = Query(default=6, ge=1, le=20, description="Number of similar therapists to return"),
+    limit: int = Query(
+        default=6, ge=1, le=20, description="Number of similar therapists to return"
+    ),
     db: AsyncSession = Depends(get_session),
 ):
     """Get similar therapists based on tag similarity.
