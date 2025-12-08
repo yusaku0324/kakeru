@@ -5,7 +5,15 @@ from datetime import datetime, date
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, conint, constr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    EmailStr,
+    Field,
+    conint,
+    constr,
+    field_validator,
+    model_validator,
+)
 
 from .constants import (
     RESERVATION_SLOT_STATUS_SET,
@@ -188,7 +196,7 @@ class FacetValue(BaseModel):
 
 class NextAvailableSlot(BaseModel):
     start_at: datetime
-    status: Literal['ok', 'maybe']
+    status: Literal["ok", "maybe"]
 
 
 class ShopStaffPreview(BaseModel):
@@ -264,6 +272,7 @@ class SocialLink(BaseModel):
     url: str
     label: Optional[str] = None
 
+
 class ContactInfo(BaseModel):
     phone: Optional[str] = None
     line_id: Optional[str] = None
@@ -297,7 +306,7 @@ class StaffShift(BaseModel):
     date: date
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None
-    status: Optional[Literal['available', 'limited', 'unavailable']] = None
+    status: Optional[Literal["available", "limited", "unavailable"]] = None
 
 
 class StaffSummary(BaseModel):
@@ -312,12 +321,13 @@ class StaffSummary(BaseModel):
     specialties: List[str] = Field(default_factory=list)
     is_pickup: Optional[bool] = None
     next_available_slot: Optional[NextAvailableSlot] = None
+    recommended_score: Optional[float] = None
 
 
 class AvailabilitySlot(BaseModel):
     start_at: datetime
     end_at: datetime
-    status: Literal['open', 'tentative', 'blocked'] = 'open'
+    status: Literal["open", "tentative", "blocked"] = "open"
     staff_id: Optional[UUID] = None
     menu_id: Optional[UUID] = None
 
@@ -352,7 +362,7 @@ class HighlightedReview(BaseModel):
 class ReviewItem(BaseModel):
     id: UUID
     profile_id: UUID
-    status: Literal['pending', 'published', 'rejected']
+    status: Literal["pending", "published", "rejected"]
     score: int
     title: Optional[str] = None
     body: str
@@ -394,7 +404,7 @@ class ReviewListResponse(BaseModel):
 
 
 class ReviewModerationRequest(BaseModel):
-    status: Literal['pending', 'published', 'rejected']
+    status: Literal["pending", "published", "rejected"]
 
 
 class DiarySnippet(BaseModel):
@@ -579,7 +589,7 @@ class ReservationAdminUpdate(BaseModel):
 class AvailabilitySlotIn(BaseModel):
     start_at: datetime
     end_at: datetime
-    status: Literal['open', 'tentative', 'blocked'] = 'open'
+    status: Literal["open", "tentative", "blocked"] = "open"
     staff_id: Optional[UUID] = None
     menu_id: Optional[UUID] = None
 
@@ -642,9 +652,9 @@ class ShopContentUpdate(BaseModel):
     photos: Optional[List[str]] = None
 
 
-ReviewStatusLiteral = Literal['pending', 'published', 'rejected']
-DiaryStatusLiteral = Literal['mod', 'published', 'hidden']
-TherapistStatusLiteral = Literal['draft', 'published', 'archived']
+ReviewStatusLiteral = Literal["pending", "published", "rejected"]
+DiaryStatusLiteral = Literal["mod", "published", "hidden"]
+TherapistStatusLiteral = Literal["draft", "published", "archived"]
 
 
 class BulkReviewInput(BaseModel):
@@ -654,7 +664,7 @@ class BulkReviewInput(BaseModel):
     body: str
     author_alias: Optional[str] = None
     visited_at: Optional[date] = None
-    status: ReviewStatusLiteral = 'published'
+    status: ReviewStatusLiteral = "published"
     aspects: Optional[Dict[str, Any]] = None
 
 
@@ -664,7 +674,7 @@ class BulkDiaryInput(BaseModel):
     body: str
     photos: List[str] = Field(default_factory=list)
     hashtags: List[str] = Field(default_factory=list)
-    status: DiaryStatusLiteral = 'published'
+    status: DiaryStatusLiteral = "published"
     created_at: Optional[datetime] = None
 
 
@@ -737,6 +747,7 @@ class ShopAdminDetail(BaseModel):
     menus: List[MenuItem] = Field(default_factory=list)
     staff: List[StaffSummary] = Field(default_factory=list)
     availability: List[AvailabilityDay] = Field(default_factory=list)
+
 
 DashboardNotificationStatus = ReservationStatusLiteral
 
@@ -895,7 +906,9 @@ class DashboardReservationItem(BaseModel):
     approval_decided_at: Optional[datetime] = None
     approval_decided_by: Optional[str] = None
     reminder_scheduled_at: Optional[datetime] = None
-    preferred_slots: List[DashboardReservationPreferredSlot] = Field(default_factory=list)
+    preferred_slots: List[DashboardReservationPreferredSlot] = Field(
+        default_factory=list
+    )
 
 
 class DashboardReservationListResponse(BaseModel):

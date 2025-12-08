@@ -446,3 +446,39 @@ def test_get_shop_detail_with_sns_contacts(monkeypatch: pytest.MonkeyPatch) -> N
     assert body["contact"] is not None
     assert len(body["contact"]["sns"]) == 2
     assert body["contact"]["sns"][0]["platform"] == "twitter"
+
+
+def test_get_shop_detail_staff_has_recommended_score(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that staff members in shop detail include recommended_score."""
+    profile = _create_mock_profile()
+    # Add therapists with attributes needed for scoring
+    profile.therapists = [
+        SimpleNamespace(
+            id=uuid4(),
+            name="Scored Therapist",
+            alias="st",
+            photo_urls=["https://example.com/st.jpg"],
+            headline="Expert therapist",
+            specialties=["massage", "aroma"],
+            status="published",
+            look_type="cute",
+            talk_level="moderate",
+            style_tag="soft",
+            mood_tag="healing",
+            price_rank=2,
+        ),
+    ]
+    _setup_mocks(monkeypatch, profile)
+
+    res = client.get(f"/api/v1/shops/{SHOP_ID}")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body["staff"]) == 1
+    staff = body["staff"][0]
+    assert "recommended_score" in staff
+    # Score should be a float between 0 and 1
+    assert staff["recommended_score"] is not None
+    assert 0 <= staff["recommended_score"] <= 1

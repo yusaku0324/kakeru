@@ -43,6 +43,11 @@ from .shop.shared import (
     normalize_promotions as _normalize_promotions,
     safe_int as _safe_int,
 )
+from .recommended_scoring_service import (
+    GuestIntent,
+    TherapistProfile,
+    recommended_score as compute_recommended_score,
+)
 
 ShopId = Union[str, UUID]
 
@@ -350,6 +355,7 @@ async def _get_shop_detail_impl(
     has_discounts = bool(profile.discounts)
 
     staff_members: List[StaffSummary] = []
+    default_intent = GuestIntent()
     for therapist in getattr(profile, "therapists", []):
         if getattr(therapist, "status", "draft") != "published":
             continue
@@ -357,6 +363,20 @@ async def _get_shop_detail_impl(
         photo_list = getattr(therapist, "photo_urls", None) or []
         if photo_list:
             avatar_url = photo_list[0]
+
+        therapist_profile = TherapistProfile(
+            therapist_id=str(therapist.id),
+            visual_style_tags=getattr(therapist, "look_type", None),
+            conversation_style=getattr(therapist, "talk_level", None),
+            massage_pressure=getattr(therapist, "style_tag", None),
+            mood_tags=[getattr(therapist, "mood_tag", None)]
+            if getattr(therapist, "mood_tag", None)
+            else None,
+            price_tier=getattr(therapist, "price_rank", None) or 1,
+            availability_score=0.5,
+        )
+        score = compute_recommended_score(default_intent, therapist_profile)
+
         staff_members.append(
             StaffSummary(
                 id=therapist.id,
@@ -370,6 +390,7 @@ async def _get_shop_detail_impl(
                 specialties=therapist.specialties or [],
                 is_pickup=None,
                 next_available_slot=None,
+                recommended_score=round(score, 3),
             )
         )
 
