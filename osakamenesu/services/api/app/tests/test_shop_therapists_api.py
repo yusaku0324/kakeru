@@ -317,3 +317,83 @@ def test_list_shop_therapists_availability_days_param(
     # Out of range (> 30)
     res = client.get(f"/api/v1/shops/{SHOP_ID}/therapists?availability_days=31")
     assert res.status_code == 422
+
+
+# ---- recommended_score tests ----
+
+
+def test_recommended_score_returned(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that recommended_score is returned (not None)."""
+    profile = _create_mock_profile()
+    therapist = _create_mock_therapist(THERAPIST_ID_1, "Therapist 1", with_tags=True)
+
+    _setup_mocks(monkeypatch, profile=profile, therapists=[therapist])
+
+    res = client.get(f"/api/v1/shops/{SHOP_ID}/therapists")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body["items"]) == 1
+    item = body["items"][0]
+    assert item["recommended_score"] is not None
+    assert isinstance(item["recommended_score"], float)
+
+
+def test_recommended_score_in_valid_range(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that recommended_score is in 0-1 range."""
+    profile = _create_mock_profile()
+    therapist1 = _create_mock_therapist(THERAPIST_ID_1, "Therapist 1", with_tags=True)
+    therapist2 = _create_mock_therapist(THERAPIST_ID_2, "Therapist 2", with_tags=False)
+
+    _setup_mocks(monkeypatch, profile=profile, therapists=[therapist1, therapist2])
+
+    res = client.get(f"/api/v1/shops/{SHOP_ID}/therapists")
+
+    assert res.status_code == 200
+    body = res.json()
+    for item in body["items"]:
+        score = item["recommended_score"]
+        assert score is not None
+        assert 0.0 <= score <= 1.0, f"Score {score} out of range [0, 1]"
+
+
+def test_recommended_score_with_availability_boost(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that therapist with availability gets higher score than without."""
+    profile = _create_mock_profile()
+    # Both therapists same except for availability
+    therapist_with_avail = _create_mock_therapist(
+        THERAPIST_ID_1, "With Availability", with_tags=True
+    )
+    therapist_no_avail = _create_mock_therapist(
+        THERAPIST_ID_2, "No Availability", with_tags=True
+    )
+    # Set same display_order to isolate availability effect
+    therapist_with_avail.display_order = 1
+    therapist_no_avail.display_order = 1
+
+    today = date.today()
+    shift = _create_mock_shift(THERAPIST_ID_1, today)
+
+    _setup_mocks(
+        monkeypatch,
+        profile=profile,
+        therapists=[therapist_with_avail, therapist_no_avail],
+        shifts=[shift],  # Only therapist 1 has availability
+    )
+
+    res = client.get(f"/api/v1/shops/{SHOP_ID}/therapists")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body["items"]) == 2
+
+    # Find scores by name
+    scores = {item["name"]: item["recommended_score"] for item in body["items"]}
+
+    # Therapist with availability should have higher score (availability_boost = 0.15)
+    assert scores["With Availability"] > scores["No Availability"], (
+        f"Expected therapist with availability ({scores['With Availability']}) "
+        f"to score higher than without ({scores['No Availability']})"
+    )

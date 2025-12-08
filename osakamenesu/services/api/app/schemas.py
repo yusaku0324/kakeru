@@ -309,6 +309,16 @@ class StaffShift(BaseModel):
     status: Optional[Literal["available", "limited", "unavailable"]] = None
 
 
+class StaffTags(BaseModel):
+    """Tags for staff profile display (mood, style, look, etc.)."""
+
+    mood: Optional[str] = None
+    style: Optional[str] = None
+    look: Optional[str] = None
+    contact: Optional[str] = None
+    hobby_tags: Optional[List[str]] = None
+
+
 class StaffSummary(BaseModel):
     id: UUID
     name: str
@@ -322,6 +332,7 @@ class StaffSummary(BaseModel):
     is_pickup: Optional[bool] = None
     next_available_slot: Optional[NextAvailableSlot] = None
     recommended_score: Optional[float] = None
+    tags: Optional[StaffTags] = None
 
 
 class AvailabilitySlot(BaseModel):

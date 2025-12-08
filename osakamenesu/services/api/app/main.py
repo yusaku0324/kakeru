@@ -24,7 +24,6 @@ from .domains.ops import router as ops_router
 from .domains.site import (
     favorites_router,
     guest_matching_router,
-    matching_router,
     guest_reservations_router,
     shops_router,
     therapist_availability_router,
@@ -71,6 +70,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown all rate limiters
     from .rate_limiters import shutdown_all_rate_limiters
+
     await shutdown_all_rate_limiters()
 
 
@@ -159,7 +159,6 @@ app.include_router(therapist_availability_router)
 app.include_router(admin_reservations_router)
 app.include_router(auth_router)
 app.include_router(favorites_router)
-app.include_router(matching_router)
 app.include_router(async_tasks_router)
 app.include_router(line_router)
 app.include_router(ops_router)

@@ -28,6 +28,7 @@ from ....schemas import (
     ShopDetail,
     SocialLink,
     StaffSummary,
+    StaffTags,
     DiarySnippet,
 )
 from ....utils.profiles import compute_review_summary, normalize_review_aspects
@@ -377,6 +378,9 @@ async def _get_shop_detail_impl(
         )
         score = compute_recommended_score(default_intent, therapist_profile)
 
+        # Extract tags from therapist/profile with fallback
+        staff_tags = _extract_staff_tags(therapist, profile)
+
         staff_members.append(
             StaffSummary(
                 id=therapist.id,
@@ -391,8 +395,12 @@ async def _get_shop_detail_impl(
                 is_pickup=None,
                 next_available_slot=None,
                 recommended_score=round(score, 3),
+                tags=staff_tags,
             )
         )
+
+    # Sort staff by recommended_score descending
+    staff_members.sort(key=lambda s: s.recommended_score or 0.0, reverse=True)
 
     contact_json = getattr(profile, "contact_json", {}) or {}
     store_name = contact_json.get("store_name")
@@ -552,6 +560,39 @@ def _build_contact_info(profile: models.Profile) -> Optional[ContactInfo]:
         website_url=raw.get("website_url"),
         reservation_form_url=raw.get("reservation_form_url"),
         sns=sns_entries,
+    )
+
+
+def _extract_staff_tags(therapist: Any, profile: Any) -> Optional[StaffTags]:
+    """Extract tag signals from therapist/profile with fallback."""
+    mood = getattr(therapist, "mood_tag", None) or getattr(profile, "mood_tag", None)
+    style = getattr(therapist, "style_tag", None) or getattr(profile, "style_tag", None)
+    look = getattr(therapist, "look_type", None) or getattr(profile, "look_type", None)
+    contact = getattr(therapist, "contact_style", None) or getattr(
+        profile, "contact_style", None
+    )
+
+    hobby_fallback = None
+    if getattr(therapist, "specialties", None):
+        hobby_fallback = therapist.specialties
+    elif getattr(profile, "body_tags", None):
+        hobby_fallback = profile.body_tags
+
+    hobby_tags = (
+        getattr(therapist, "hobby_tags", None)
+        or getattr(profile, "hobby_tags", None)
+        or hobby_fallback
+    )
+
+    if not any([mood, style, look, contact, hobby_tags]):
+        return None
+
+    return StaffTags(
+        mood=mood,
+        style=style,
+        look=look,
+        contact=contact,
+        hobby_tags=hobby_tags,
     )
 
 
