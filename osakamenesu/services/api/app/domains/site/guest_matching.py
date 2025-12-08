@@ -9,6 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .services.shop.search_service import ShopSearchService
+from .services.recommended_scoring_service import (
+    GuestIntent,
+    TherapistProfile,
+    recommended_score,
+    recommended_score_with_breakdown,
+)
 from .therapist_availability import is_available
 from ... import models
 from ...db import get_session
@@ -272,6 +278,122 @@ def _score_candidate(payload: GuestMatchingRequest, candidate: dict[str, Any]) -
         "availability": availability_score,
     }
     return score
+
+
+def _compute_recommended_score(
+    payload: GuestMatchingRequest, candidate: dict[str, Any]
+) -> tuple[float, dict[str, Any]]:
+    """
+    Compute recommended score using the new scoring service.
+    Returns (score, breakdown_dict).
+    """
+    # Build GuestIntent from payload
+    intent = GuestIntent(
+        area=payload.area,
+        date=payload.date,
+        time_from=payload.time_from,
+        time_to=payload.time_to,
+        price_min=None,
+        price_max=None,
+        shop_id=None,
+        visual_style_tags=payload.look_types,
+        conversation_preference=_map_talk_pref_to_conversation(payload.talk_pref),
+        massage_pressure_preference=_map_style_pref_to_pressure(payload.style_pref),
+        mood_preference_tags=payload.mood_tags,
+        raw_text=payload.free_text or "",
+    )
+
+    # Build TherapistProfile from candidate
+    profile = TherapistProfile(
+        therapist_id=str(candidate.get("therapist_id") or candidate.get("id") or ""),
+        visual_style_tags=[candidate.get("look_type")]
+        if candidate.get("look_type")
+        else None,
+        conversation_style=_map_talk_level_to_conversation(candidate.get("talk_level")),
+        massage_pressure=_map_style_tag_to_pressure(candidate.get("style_tag")),
+        mood_tags=[candidate.get("mood_tag")] if candidate.get("mood_tag") else None,
+        total_bookings_30d=candidate.get("total_bookings_30d", 0),
+        repeat_rate_30d=candidate.get("repeat_rate_30d", 0.0),
+        avg_review_score=candidate.get("avg_review_score", 0.0),
+        price_tier=candidate.get("price_rank") or 1,
+        days_since_first_shift=candidate.get("days_since_first_shift", 365),
+        utilization_7d=candidate.get("utilization_7d", 0.0),
+        availability_score=_compute_availability_score(candidate),
+    )
+
+    breakdown = recommended_score_with_breakdown(intent, profile)
+    score = breakdown.final
+
+    return score, {
+        "affinity": breakdown.affinity,
+        "popularity": breakdown.popularity,
+        "user_fit": breakdown.user_fit,
+        "newcomer": breakdown.newcomer,
+        "load_balance": breakdown.load_balance,
+        "fairness": breakdown.fairness,
+        "availability_factor": breakdown.availability_factor,
+        "recommended": breakdown.final,
+    }
+
+
+def _map_talk_pref_to_conversation(talk_pref: dict[str, float] | None) -> str | None:
+    """Map talk_pref dict to conversation preference string."""
+    if not talk_pref:
+        return None
+    # Find the preference with highest score
+    max_key = max(talk_pref, key=talk_pref.get, default=None)
+    if not max_key:
+        return None
+    # Map to conversation preference
+    mapping = {
+        "quiet": "quiet",
+        "normal": "normal",
+        "chatty": "talkative",
+        "talkative": "talkative",
+    }
+    return mapping.get(max_key.lower())
+
+
+def _map_style_pref_to_pressure(style_pref: dict[str, float] | None) -> str | None:
+    """Map style_pref dict to pressure preference string."""
+    if not style_pref:
+        return None
+    max_key = max(style_pref, key=style_pref.get, default=None)
+    if not max_key:
+        return None
+    mapping = {
+        "soft": "soft",
+        "light": "soft",
+        "balanced": "medium",
+        "medium": "medium",
+        "firm": "strong",
+        "strong": "strong",
+    }
+    return mapping.get(max_key.lower())
+
+
+def _map_talk_level_to_conversation(talk_level: str | None) -> str | None:
+    """Map talk_level tag to conversation style."""
+    if not talk_level:
+        return None
+    mapping = {
+        "quiet": "quiet",
+        "moderate": "normal",
+        "chatty": "talkative",
+    }
+    return mapping.get(talk_level.lower())
+
+
+def _map_style_tag_to_pressure(style_tag: str | None) -> str | None:
+    """Map style_tag to pressure."""
+    if not style_tag:
+        return None
+    mapping = {
+        "soft": "soft",
+        "balanced": "medium",
+        "firm": "strong",
+    }
+    return mapping.get(style_tag.lower())
 
 
 # ---- Similar therapists (GET /api/guest/matching/similar) ----
@@ -789,7 +911,7 @@ async def _log_matching(
 async def guest_matching_search(
     payload: GuestMatchingRequest = Depends(),
     db: AsyncSession = Depends(get_session),
-    _: None = Depends(rate_limit_search)
+    _: None = Depends(rate_limit_search),
 ) -> MatchingResponse:
     """
     v1: 既存ショップ検索をラップし、簡易スコアリングして返却。
@@ -962,14 +1084,39 @@ async def guest_matching_search(
             cand.score = _aggregate_score(bd)
 
     if sort_value == "recommended":
+        # Apply new recommended scoring from recommended_scoring_service
+        for cand in v2_items:
+            # Find the raw candidate data for this therapist
+            raw_cand = next(
+                (
+                    c
+                    for c in candidates_raw
+                    if c.get("therapist_id") == cand.therapist_id
+                ),
+                None,
+            )
+            if raw_cand:
+                rec_score, rec_breakdown = _compute_recommended_score(payload, raw_cand)
+                # Store recommended score for sorting
+                cand._recommended_score = rec_score
+                cand._recommended_breakdown = rec_breakdown
+            else:
+                cand._recommended_score = cand.score or 0.0
+                cand._recommended_breakdown = {}
+
         v2_items = sorted(
             v2_items,
             key=lambda x: (
-                -(x.score or 0.0),
+                -(getattr(x, "_recommended_score", x.score or 0.0)),
                 0 if (x.is_available is True) else 1 if x.is_available is False else 2,
                 x.therapist_id,
             ),
         )
+
+        # Update score field with recommended score for response
+        for cand in v2_items:
+            if hasattr(cand, "_recommended_score"):
+                cand.score = cand._recommended_score
     # honor limit/offset if provided
     offset = payload.offset or 0
     limit = payload.limit or 30
