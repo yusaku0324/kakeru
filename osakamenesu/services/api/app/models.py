@@ -19,39 +19,45 @@ import uuid
 from datetime import datetime, date, UTC
 from typing import Any, Optional
 
+from .enums import (
+    STATUS_PROFILE_VALUES,
+    STATUS_DIARY_VALUES,
+    OUTLINK_KIND_VALUES,
+    REPORT_TARGET_VALUES,
+    REPORT_STATUS_VALUES,
+    REVIEW_STATUS_VALUES,
+    THERAPIST_STATUS_VALUES,
+    SERVICE_TYPE_VALUES,
+    RESERVATION_STATUS_VALUES,
+    RESERVATION_SLOT_STATUS_VALUES,
+    GUEST_RESERVATION_STATUS_VALUES,
+    THERAPIST_SHIFT_STATUS_VALUES,
+)
+
 
 Base = declarative_base()
 
 
-StatusProfile = Enum("draft", "published", "hidden", name="status_profile")
-StatusDiary = Enum("mod", "published", "hidden", name="status_diary")
-OutlinkKind = Enum("line", "tel", "web", name="outlink_kind")
-ReportTarget = Enum("profile", "diary", name="report_target")
-ReportStatus = Enum("open", "closed", name="report_status")
-ReviewStatus = Enum("pending", "published", "rejected", name="review_status")
-TherapistStatus = Enum("draft", "published", "archived", name="therapist_status")
+# Enum definitions using centralized values from enums.py
+StatusProfile = Enum(*STATUS_PROFILE_VALUES, name="status_profile")
+StatusDiary = Enum(*STATUS_DIARY_VALUES, name="status_diary")
+OutlinkKind = Enum(*OUTLINK_KIND_VALUES, name="outlink_kind")
+ReportTarget = Enum(*REPORT_TARGET_VALUES, name="report_target")
+ReportStatus = Enum(*REPORT_STATUS_VALUES, name="report_status")
+ReviewStatus = Enum(*REVIEW_STATUS_VALUES, name="review_status")
+TherapistStatus = Enum(*THERAPIST_STATUS_VALUES, name="therapist_status")
 # bust_tag はマイグレーション互換性のため VARCHAR で運用
-ServiceType = Enum("store", "dispatch", name="service_type")
-ReservationStatus = Enum(
-    "pending",
-    "confirmed",
-    "declined",
-    "cancelled",
-    "expired",
-    name="reservation_status",
-)
+ServiceType = Enum(*SERVICE_TYPE_VALUES, name="service_type")
+ReservationStatus = Enum(*RESERVATION_STATUS_VALUES, name="reservation_status")
 ReservationSlotStatus = Enum(
-    "open", "tentative", "blocked", name="reservation_slot_status"
+    *RESERVATION_SLOT_STATUS_VALUES, name="reservation_slot_status"
 )
 GuestReservationStatus = Enum(
-    "draft",
-    "pending",
-    "confirmed",
-    "cancelled",
-    "no_show",
-    name="guest_reservation_status",
+    *GUEST_RESERVATION_STATUS_VALUES, name="guest_reservation_status"
 )
-TherapistShiftStatus = Enum("available", "busy", "off", name="therapist_shift_status")
+TherapistShiftStatus = Enum(
+    *THERAPIST_SHIFT_STATUS_VALUES, name="therapist_shift_status"
+)
 RESERVATION_NOTIFICATION_CHANNEL_KEYS = ("email", "slack", "line", "log")
 RESERVATION_NOTIFICATION_STATUS_KEYS = (
     "pending",
@@ -150,29 +156,51 @@ class Therapist(Base):
     experience_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
     photo_urls: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
     photo_embedding: Mapped[list[float] | None] = mapped_column(
-        ARRAY(Float), nullable=True, comment="Photo embedding vector for similarity matching"
+        ARRAY(Float),
+        nullable=True,
+        comment="Photo embedding vector for similarity matching",
     )
     photo_embedding_computed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="When photo embedding was computed"
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When photo embedding was computed",
     )
     main_photo_index: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, server_default="0", comment="Index of photo used for embedding"
+        Integer,
+        nullable=True,
+        server_default="0",
+        comment="Index of photo used for embedding",
     )
     # Matching tags for recommendation/scoring
     mood_tag: Mapped[str | None] = mapped_column(
-        String(32), nullable=True, index=True, comment="Mood tag (e.g., gentle, energetic)"
+        String(32),
+        nullable=True,
+        index=True,
+        comment="Mood tag (e.g., gentle, energetic)",
     )
     style_tag: Mapped[str | None] = mapped_column(
-        String(32), nullable=True, index=True, comment="Service style tag (e.g., soft, firm)"
+        String(32),
+        nullable=True,
+        index=True,
+        comment="Service style tag (e.g., soft, firm)",
     )
     look_type: Mapped[str | None] = mapped_column(
-        String(32), nullable=True, index=True, comment="Appearance type (e.g., cute, elegant)"
+        String(32),
+        nullable=True,
+        index=True,
+        comment="Appearance type (e.g., cute, elegant)",
     )
     contact_style: Mapped[str | None] = mapped_column(
-        String(32), nullable=True, index=True, comment="Contact style (e.g., light, deep)"
+        String(32),
+        nullable=True,
+        index=True,
+        comment="Contact style (e.g., light, deep)",
     )
     talk_level: Mapped[str | None] = mapped_column(
-        String(32), nullable=True, index=True, comment="Conversation level (e.g., chatty, quiet)"
+        String(32),
+        nullable=True,
+        index=True,
+        comment="Conversation level (e.g., chatty, quiet)",
     )
     hobby_tags: Mapped[list[str] | None] = mapped_column(
         ARRAY(String(32)), nullable=True, comment="Hobby/interest tags"

@@ -663,9 +663,12 @@ class ShopContentUpdate(BaseModel):
     photos: Optional[List[str]] = None
 
 
-ReviewStatusLiteral = Literal["pending", "published", "rejected"]
-DiaryStatusLiteral = Literal["mod", "published", "hidden"]
-TherapistStatusLiteral = Literal["draft", "published", "archived"]
+# Import centralized enum Literals from enums.py
+from .enums import (
+    ReviewStatusLiteral,
+    DiaryStatusLiteral,
+    TherapistStatusLiteral,
+)
 
 
 class BulkReviewInput(BaseModel):
