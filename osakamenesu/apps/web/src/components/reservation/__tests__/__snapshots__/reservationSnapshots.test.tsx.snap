@@ -33,7 +33,7 @@ exports[`reservation UI snapshots > renders ReservationBookingSection layout for
         <span
           class="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-1 text-[11px] font-semibold text-brand-primary"
         >
-          ⭐️ 
+          ⭐️
           公開枠あり
         </span>
       </div>
@@ -72,7 +72,7 @@ exports[`reservation UI snapshots > renders ReservationBookingSection layout for
           class="text-neutral-textMuted"
         >
           1
-           / 
+           /
           2
         </span>
         <button
@@ -138,7 +138,7 @@ exports[`reservation UI snapshots > renders ReservationBookingSection layout for
               >
                 <span
                   aria-hidden="true"
-                  class="flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold transition border-brand-primary bg-brand-primary text-white shadow-[0_12px_28px_rgba(37,99,235,0.25)]"
+                  class="flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold transition-all duration-300 border-brand-primary bg-gradient-to-br from-brand-primary to-brand-secondary text-white shadow-[0_12px_28px_rgba(37,99,235,0.35)] scale-110 ring-4 ring-brand-primary/20"
                 >
                   ●
                 </span>
@@ -156,7 +156,7 @@ exports[`reservation UI snapshots > renders ReservationBookingSection layout for
               >
                 <span
                   aria-hidden="true"
-                  class="flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold transition border-amber-300 bg-amber-100 text-amber-600"
+                  class="flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold transition-all duration-300 border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100 text-amber-600 hover:scale-105 hover:shadow-[0_8px_20px_rgba(245,158,11,0.25)]"
                 >
                   △
                 </span>
@@ -235,7 +235,7 @@ exports[`reservation UI snapshots > renders ReservationBookingSection layout for
                 >
                   <span
                     aria-hidden="true"
-                    class="flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold transition border-brand-primary bg-brand-primary text-white shadow-[0_12px_28px_rgba(37,99,235,0.25)]"
+                    class="flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold transition-all duration-300 border-brand-primary bg-gradient-to-br from-brand-primary to-brand-secondary text-white shadow-[0_12px_28px_rgba(37,99,235,0.35)] scale-110 ring-4 ring-brand-primary/20"
                   >
                     ●
                   </span>
@@ -253,7 +253,7 @@ exports[`reservation UI snapshots > renders ReservationBookingSection layout for
                 >
                   <span
                     aria-hidden="true"
-                    class="flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold transition border-amber-300 bg-amber-100 text-amber-600"
+                    class="flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold transition-all duration-300 border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100 text-amber-600 hover:scale-105 hover:shadow-[0_8px_20px_rgba(245,158,11,0.25)]"
                   >
                     △
                   </span>
@@ -353,7 +353,7 @@ exports[`reservation UI snapshots > renders ReservationBookingSection layout for
                 class="font-semibold"
               >
                 11/10(日)
-                 
+
                 10:00
                 〜
                 11:00
@@ -517,13 +517,13 @@ exports[`reservation UI snapshots > renders ReservationInfoCard consistently 1`]
               <span
                 class="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 font-semibold text-brand-primary"
               >
-                ✦ 
+                ✦
                 オイルケア
               </span>
               <span
                 class="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 font-semibold text-brand-primary"
               >
-                ✦ 
+                ✦
                 ヘッドスパ
               </span>
             </div>
