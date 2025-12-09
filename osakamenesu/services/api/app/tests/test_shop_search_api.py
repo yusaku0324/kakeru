@@ -126,9 +126,17 @@ def _setup_mocks(
             return mock_availability_slots, {}
         return {}, {}
 
+    async def _mock_get_therapist_next_available_slots_by_shop(db, shop_ids, **kwargs):
+        return {}
+
     monkeypatch.setattr(search_service, "meili_search", _mock_meili_search)
     monkeypatch.setattr(
         search_service, "get_next_available_slots", _mock_get_next_available_slots
+    )
+    monkeypatch.setattr(
+        search_service,
+        "get_therapist_next_available_slots_by_shop",
+        _mock_get_therapist_next_available_slots_by_shop,
     )
 
 

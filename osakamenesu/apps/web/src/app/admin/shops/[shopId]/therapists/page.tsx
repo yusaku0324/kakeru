@@ -97,7 +97,7 @@ export default function AdminShopTherapistsPage() {
     }
 
     const payload: Record<string, unknown> = {
-      shop_id: shopId,
+      profile_id: shopId,
       name: name.trim(),
     }
     if (age) payload.age = Number(age)

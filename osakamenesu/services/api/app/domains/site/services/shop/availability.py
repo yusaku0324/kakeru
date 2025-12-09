@@ -15,6 +15,7 @@ from app.schemas import (
     AvailabilitySlot,
     NextAvailableSlot,
 )
+from app.models import Therapist, TherapistShift
 
 
 def convert_slots(slots_json: Any) -> List[AvailabilitySlot]:
@@ -210,6 +211,97 @@ async def get_next_available_slot(
     return shop_slots.get(shop_id)
 
 
+async def get_therapist_next_available_slots_by_shop(
+    db: AsyncSession,
+    shop_ids: List[UUID],
+    *,
+    lookahead_days: int = 14,
+) -> dict[UUID, dict[str, NextAvailableSlot]]:
+    """
+    店舗IDのリストから、その店舗に所属するセラピストの次回空き時間を取得する。
+
+    Returns:
+        dict[shop_id, dict[therapist_name, NextAvailableSlot]]
+
+    セラピスト名をキーとするマップを返す。staff_previewでは名前でマッチングする。
+    """
+    if not shop_ids:
+        return {}
+
+    today = now_jst().date()
+    end_date = today + timedelta(days=lookahead_days)
+    now_value = now_jst()
+
+    # 店舗に所属するセラピストを取得
+    therapist_stmt = (
+        select(Therapist)
+        .where(Therapist.profile_id.in_(shop_ids))
+        .where(Therapist.status.in_(["active", "draft", "published"]))
+    )
+    therapist_res = await db.execute(therapist_stmt)
+    therapists = list(therapist_res.scalars().all())
+
+    if not therapists:
+        return {}
+
+    therapist_ids = [t.id for t in therapists]
+    therapist_map: dict[UUID, Therapist] = {t.id: t for t in therapists}
+
+    # セラピストのシフトを取得
+    shift_stmt = (
+        select(TherapistShift)
+        .where(TherapistShift.therapist_id.in_(therapist_ids))
+        .where(TherapistShift.availability_status == "available")
+        .where(TherapistShift.date >= today)
+        .where(TherapistShift.date <= end_date)
+        .order_by(TherapistShift.start_at.asc())
+    )
+    shift_res = await db.execute(shift_stmt)
+    shifts = list(shift_res.scalars().all())
+
+    # 結果マップを構築
+    result: dict[UUID, dict[str, NextAvailableSlot]] = {}
+
+    for shift in shifts:
+        therapist = therapist_map.get(shift.therapist_id)
+        if not therapist:
+            continue
+
+        shop_id = therapist.profile_id
+        if not shop_id:
+            continue
+
+        # シフト開始時刻が現在より未来かチェック
+        shift_start = shift.start_at
+        if not isinstance(shift_start, datetime):
+            continue
+
+        comparable = ensure_jst_datetime(shift_start)
+        if comparable < now_value:
+            continue
+
+        # 店舗別・セラピスト名別にマップを構築
+        if shop_id not in result:
+            result[shop_id] = {}
+
+        therapist_name = therapist.name
+        if not therapist_name:
+            continue
+
+        # 同じセラピストの中で最も早いスロットのみを保持
+        if therapist_name in result[shop_id]:
+            existing = result[shop_id][therapist_name]
+            if existing.start_at <= comparable:
+                continue
+
+        result[shop_id][therapist_name] = NextAvailableSlot(
+            start_at=comparable,
+            status="ok",
+        )
+
+    return result
+
+
 __all__ = [
     "convert_slots",
     "slots_have_open",
@@ -217,4 +309,5 @@ __all__ = [
     "fetch_next_available_slots",
     "get_next_available_slots",
     "get_next_available_slot",
+    "get_therapist_next_available_slots_by_shop",
 ]

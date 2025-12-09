@@ -6,6 +6,7 @@ import { useCallback, useMemo } from 'react'
 import SafeImage from '@/components/SafeImage'
 import { openReservationOverlay } from '@/components/reservationOverlayBus'
 import { type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
+import { formatSlotJp, type ScheduleSlot } from '@/lib/schedule'
 import { useTherapistFavorites } from './TherapistFavoritesProvider'
 
 export type TherapistHit = {
@@ -34,29 +35,42 @@ export type TherapistHit = {
   talk_level?: string | null
 }
 
+/**
+ * NextAvailableSlotPayloadをScheduleSlot形式に変換する
+ */
+function toScheduleSlot(slot: NextAvailableSlotPayload | null): ScheduleSlot | null {
+  if (!slot?.start_at) return null
+  return {
+    start_at: slot.start_at,
+    end_at: slot.start_at, // end_atがない場合はstart_atを使用
+    status: slot.status === 'ok' ? 'open' : 'tentative',
+  }
+}
+
+/**
+ * 次回予約可能スロットのラベルを生成する
+ *
+ * 表示優先度:
+ * 1. slot.start_at が存在 → "本日 18:00〜" / "明日 20:30〜" / "12月9日 14:00〜"
+ * 2. todayAvailable === true & slot なし → "本日空きあり"
+ * 3. それ以外 → null（表示なし）
+ *
+ * @param slot - APIから返却される next_available_slot オブジェクト
+ * @param todayAvailable - 本日空きありフラグ（slotがない場合のfallback用）
+ */
 function formatNextSlotLabel(
   slot: NextAvailableSlotPayload | null,
   todayAvailable: boolean | null,
 ): string | null {
-  if (todayAvailable) return '本日空きあり'
-  if (!slot?.start_at) return null
-  const startDate = new Date(slot.start_at)
-  if (Number.isNaN(startDate.getTime())) return null
-  const now = new Date()
-  const isToday =
-    startDate.getFullYear() === now.getFullYear() &&
-    startDate.getMonth() === now.getMonth() &&
-    startDate.getDate() === now.getDate()
-  const hours = startDate.getHours()
-  const minutes = startDate.getMinutes()
-  const timeStr = minutes === 0 ? `${hours}時` : `${hours}時${minutes}分`
-
-  if (isToday) {
-    return `次回 ${timeStr}から`
+  // 優先度1: slot があれば formatSlotJp を使って "本日 18:00〜" 形式で表示
+  const scheduleSlot = toScheduleSlot(slot)
+  if (scheduleSlot) {
+    const label = formatSlotJp(scheduleSlot, { fallbackLabel: null })
+    if (label) return label
   }
-  const month = startDate.getMonth() + 1
-  const day = startDate.getDate()
-  return `${month}月${day}日 ${timeStr}から`
+  // slot がない場合は todayAvailable フラグで fallback
+  if (todayAvailable) return '本日空きあり'
+  return null
 }
 
 function buildStaffHref(hit: TherapistHit) {
@@ -126,13 +140,16 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
 
   return (
     <div
-      className={`group relative rounded-xl bg-white overflow-hidden shadow-sm hover:shadow-md transition-shadow ${isClickableCard ? 'cursor-pointer' : ''}`}
+      className={`group relative overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-[0_8px_32px_rgba(37,99,235,0.12)] backdrop-blur-sm transition-all duration-300 hover:shadow-[0_16px_48px_rgba(37,99,235,0.22)] hover:border-brand-primary/30 ${isClickableCard ? 'cursor-pointer' : ''}`}
       data-testid="therapist-card"
       onClick={isClickableCard ? handleCardClick : undefined}
       role={isClickableCard ? 'button' : undefined}
       tabIndex={isClickableCard ? 0 : undefined}
       onKeyDown={isClickableCard ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick() } } : undefined}
     >
+      {/* Glassmorphic background effect */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.08),transparent_50%)]" />
+
       {/* Favorite button */}
       <button
         type="button"
@@ -147,9 +164,9 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
             void toggleFavorite({ therapistId, shopId: hit.shopId })
           }
         }}
-        className={`absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-brand-primary shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary ${
-          favorite ? 'text-red-500' : ''
-        } ${processing ? 'opacity-60' : 'hover:bg-white'}`}
+        className={`absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/70 bg-white/90 shadow-[0_4px_12px_rgba(0,0,0,0.1)] backdrop-blur-sm transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary ${
+          favorite ? 'text-red-500 border-red-200 bg-red-50/90' : 'text-neutral-400 hover:text-red-400 hover:border-red-200'
+        } ${processing ? 'opacity-60' : ''}`}
         data-testid="therapist-favorite-toggle"
         data-therapist-id={dataTherapistId ?? undefined}
       >
@@ -159,37 +176,63 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
 
       {/* Image */}
       {isClickableCard ? (
-        <div className="relative aspect-square overflow-hidden bg-neutral-100">
+        <div className="relative aspect-[4/5] overflow-hidden bg-gradient-to-br from-neutral-100 to-neutral-50">
           {hit.avatarUrl ? (
             <SafeImage
               src={hit.avatarUrl}
               alt={`${hit.name}の写真`}
               fill
-              className="object-cover transition-transform duration-300 group-hover:scale-105"
+              className="object-cover transition-transform duration-500 group-hover:scale-110"
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               fallbackSrc="/images/placeholder-avatar.svg"
             />
           ) : (
-            <div className="flex h-full items-center justify-center text-4xl font-semibold text-neutral-textMuted">
+            <div className="flex h-full items-center justify-center bg-gradient-to-br from-brand-primary/10 to-brand-secondary/10 text-4xl font-semibold text-brand-primary/60">
               {hit.name.slice(0, 1)}
+            </div>
+          )}
+          {/* Gradient overlay for text readability */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/40 to-transparent" />
+          {/* Availability badge on image */}
+          {availabilityLabel && (
+            <div className={`absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-lg backdrop-blur-sm ${
+              hit.todayAvailable
+                ? 'bg-emerald-500/90 text-white'
+                : 'bg-amber-500/90 text-white'
+            }`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${hit.todayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
+              {availabilityLabel}
             </div>
           )}
         </div>
       ) : (
         <Link href={staffHref} className="block">
-          <div className="relative aspect-square overflow-hidden bg-neutral-100">
+          <div className="relative aspect-[4/5] overflow-hidden bg-gradient-to-br from-neutral-100 to-neutral-50">
             {hit.avatarUrl ? (
               <SafeImage
                 src={hit.avatarUrl}
                 alt={`${hit.name}の写真`}
                 fill
-                className="object-cover transition-transform duration-300 group-hover:scale-105"
+                className="object-cover transition-transform duration-500 group-hover:scale-110"
                 sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 fallbackSrc="/images/placeholder-avatar.svg"
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-4xl font-semibold text-neutral-textMuted">
+              <div className="flex h-full items-center justify-center bg-gradient-to-br from-brand-primary/10 to-brand-secondary/10 text-4xl font-semibold text-brand-primary/60">
                 {hit.name.slice(0, 1)}
+              </div>
+            )}
+            {/* Gradient overlay for text readability */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/40 to-transparent" />
+            {/* Availability badge on image */}
+            {availabilityLabel && (
+              <div className={`absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-lg backdrop-blur-sm ${
+                hit.todayAvailable
+                  ? 'bg-emerald-500/90 text-white'
+                  : 'bg-amber-500/90 text-white'
+              }`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${hit.todayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
+                {availabilityLabel}
               </div>
             )}
           </div>
@@ -197,46 +240,45 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
       )}
 
       {/* Info & Button */}
-      <div className="p-2.5 space-y-2">
+      <div className="relative space-y-2.5 p-3">
         <div className="text-center">
           {isClickableCard ? (
-            <span className="text-sm font-semibold text-neutral-text">
+            <h3 className="text-sm font-bold text-neutral-text tracking-wide">
               {hit.name}
-            </span>
+            </h3>
           ) : (
             <Link
               href={staffHref}
-              className="text-sm font-semibold text-neutral-text hover:text-brand-primary transition"
+              className="text-sm font-bold text-neutral-text tracking-wide transition-colors hover:text-brand-primary"
             >
               {hit.name}
             </Link>
           )}
-          {hit.rating && (
-            <div className="flex items-center justify-center gap-1 text-xs text-neutral-text mt-0.5">
-              <span className="text-amber-400">★</span>
-              <span className="font-semibold">{hit.rating.toFixed(1)}</span>
-            </div>
-          )}
-          {availabilityLabel && (
-            <p className={`mt-1 text-[11px] font-medium ${
-              hit.todayAvailable
-                ? 'text-green-600'
-                : 'text-amber-600'
-            }`}>
-              {availabilityLabel}
+          {hit.shopAreaName && (
+            <p className="mt-0.5 text-[10px] text-neutral-textMuted truncate">
+              {hit.shopAreaName}
             </p>
+          )}
+          {hit.rating && (
+            <div className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs">
+              <span className="text-amber-500">★</span>
+              <span className="font-bold text-amber-700">{hit.rating.toFixed(1)}</span>
+              {hit.reviewCount && (
+                <span className="text-amber-600/70">({hit.reviewCount})</span>
+              )}
+            </div>
           )}
         </div>
         {isClickableCard ? (
           <div
-            className="w-full rounded-lg bg-brand-primary py-2 text-xs font-semibold text-white text-center transition hover:bg-brand-primary/90 active:scale-[0.98]"
+            className="w-full rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary py-2.5 text-xs font-bold text-white text-center shadow-[0_4px_16px_rgba(37,99,235,0.3)] transition-all duration-200 hover:shadow-[0_6px_20px_rgba(37,99,235,0.4)] active:scale-[0.98]"
           >
             予約する
           </div>
         ) : (
           <Link
             href={staffHref}
-            className="block w-full rounded-lg bg-brand-primary py-2 text-center text-xs font-semibold text-white transition hover:bg-brand-primary/90 active:scale-[0.98]"
+            className="block w-full rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary py-2.5 text-center text-xs font-bold text-white shadow-[0_4px_16px_rgba(37,99,235,0.3)] transition-all duration-200 hover:shadow-[0_6px_20px_rgba(37,99,235,0.4)] active:scale-[0.98]"
           >
             詳細を見る
           </Link>

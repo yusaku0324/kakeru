@@ -59,7 +59,7 @@ export function WeekAvailabilityGrid({
     [selectedInput],
   )
 
-  const selectedMap = useMemo(() => new Set(selected.map((item) => item.startAt)), [selected])
+  // Note: selectedMap was removed - now using timestamp comparison to handle format differences
 
   const slotMap = useMemo(() => {
     const map = new Map<string, AvailabilitySlot>()
@@ -95,15 +95,15 @@ export function WeekAvailabilityGrid({
 
   const buildIconClass = (status: AvailabilityStatus, selectedNow: boolean) =>
     clsx(
-      'flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold transition',
+      'flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold transition-all duration-300',
       status === 'open' &&
         (selectedNow
-          ? 'border-brand-primary bg-brand-primary text-white shadow-[0_12px_28px_rgba(37,99,235,0.25)]'
-          : 'border-emerald-400 bg-emerald-100 text-emerald-600'),
+          ? 'border-brand-primary bg-gradient-to-br from-brand-primary to-brand-secondary text-white shadow-[0_12px_28px_rgba(37,99,235,0.35)] scale-110 ring-4 ring-brand-primary/20'
+          : 'border-emerald-400 bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-600 hover:scale-105 hover:shadow-[0_8px_20px_rgba(16,185,129,0.25)]'),
       status === 'tentative' &&
         (selectedNow
-          ? 'border-brand-secondary bg-brand-secondary text-white shadow-[0_12px_28px_rgba(37,99,235,0.25)]'
-          : 'border-amber-300 bg-amber-100 text-amber-600'),
+          ? 'border-brand-secondary bg-gradient-to-br from-brand-secondary to-purple-500 text-white shadow-[0_12px_28px_rgba(147,51,234,0.35)] scale-110 ring-4 ring-brand-secondary/20'
+          : 'border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100 text-amber-600 hover:scale-105 hover:shadow-[0_8px_20px_rgba(245,158,11,0.25)]'),
       status === 'blocked' && 'border-white/70 bg-white text-neutral-textMuted',
     )
 
@@ -156,7 +156,14 @@ export function WeekAvailabilityGrid({
             <div className={timeCellClass}>{time.label}</div>
             {days.map((day) => {
               const slot = slotMap.get(`${day.date}-${time.key}`)
-              const selectedNow = slot ? selectedMap.has(slot.start_at) : false
+              // Compare using timestamp to handle format differences (selectedMap uses camelCase startAt, slot uses snake_case start_at)
+              const selectedNow = slot
+                ? selected.some((s) => {
+                    const selectedTs = new Date(s.startAt).getTime()
+                    const slotTs = new Date(slot.start_at).getTime()
+                    return !Number.isNaN(selectedTs) && !Number.isNaN(slotTs) && selectedTs === slotTs
+                  })
+                : false
               if (!slot || slot.status === 'blocked') {
                 return (
                   <div

@@ -21,6 +21,69 @@ type StaffMeta = Record<
   }
 >
 
+// Helper to generate availability slots for a week
+function generateDefaultAvailability(): StaffMeta[string]['availability'] {
+  return [
+    {
+      dayOffset: 0,
+      slots: [
+        { hour: 13, minute: 0, durationMinutes: 90, status: 'open' },
+        { hour: 15, minute: 0, durationMinutes: 90, status: 'open' },
+        { hour: 17, minute: 0, durationMinutes: 90, status: 'tentative' },
+        { hour: 19, minute: 0, durationMinutes: 120, status: 'open' },
+      ],
+    },
+    {
+      dayOffset: 1,
+      slots: [
+        { hour: 14, minute: 0, durationMinutes: 90, status: 'open' },
+        { hour: 16, minute: 0, durationMinutes: 90, status: 'open' },
+        { hour: 18, minute: 0, durationMinutes: 120, status: 'open' },
+      ],
+    },
+    {
+      dayOffset: 2,
+      slots: [
+        { hour: 12, minute: 0, durationMinutes: 90, status: 'open' },
+        { hour: 15, minute: 0, durationMinutes: 90, status: 'tentative' },
+        { hour: 18, minute: 0, durationMinutes: 90, status: 'open' },
+      ],
+    },
+    {
+      dayOffset: 3,
+      slots: [
+        { hour: 13, minute: 0, durationMinutes: 90, status: 'open' },
+        { hour: 17, minute: 0, durationMinutes: 90, status: 'open' },
+        { hour: 20, minute: 0, durationMinutes: 90, status: 'tentative' },
+      ],
+    },
+    {
+      dayOffset: 4,
+      slots: [
+        { hour: 11, minute: 0, durationMinutes: 90, status: 'open' },
+        { hour: 14, minute: 0, durationMinutes: 90, status: 'open' },
+        { hour: 17, minute: 30, durationMinutes: 90, status: 'open' },
+      ],
+    },
+    {
+      dayOffset: 5,
+      slots: [
+        { hour: 10, minute: 30, durationMinutes: 90, status: 'open' },
+        { hour: 13, minute: 0, durationMinutes: 90, status: 'open' },
+        { hour: 16, minute: 0, durationMinutes: 90, status: 'tentative' },
+      ],
+    },
+    {
+      dayOffset: 6,
+      slots: [
+        { hour: 12, minute: 0, durationMinutes: 90, status: 'open' },
+        { hour: 15, minute: 30, durationMinutes: 90, status: 'open' },
+        { hour: 18, minute: 30, durationMinutes: 90, status: 'open' },
+      ],
+    },
+  ]
+}
+
 export const FALLBACK_STAFF_META: StaffMeta = {
   葵: {
     details: [
@@ -96,5 +159,101 @@ export const FALLBACK_STAFF_META: StaffMeta = {
         ],
       },
     ],
+  },
+  凛: {
+    details: [
+      { label: '年齢', value: '24歳' },
+      { label: '身長', value: '158cm' },
+      { label: 'スタイル', value: 'スレンダー' },
+      { label: '3サイズ', value: 'B82 W58 H84' },
+    ],
+    gallery: [
+      'https://images.unsplash.com/photo-1487412912498-0447578fcca8?auto=format&fit=crop&w=900&q=80',
+    ],
+    bio: 'ストレッチと指圧を組み合わせた独自の施術で、身体の可動域を広げながらコリをほぐします。',
+    schedule: '月・水・金・土 12:00〜22:00',
+    pricing: '60分コース 10,000円〜 / 90分コース 14,000円〜',
+    options: ['ストレッチ強化', '指圧重点', 'スポーツケア'],
+    availability: generateDefaultAvailability(),
+  },
+  真央: {
+    details: [
+      { label: '年齢', value: '27歳' },
+      { label: '身長', value: '162cm' },
+      { label: 'スタイル', value: '標準' },
+      { label: '3サイズ', value: 'B85 W59 H86' },
+    ],
+    gallery: [
+      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=900&q=80',
+    ],
+    bio: 'オイルマッサージとヘッドスパの融合施術で、心身ともにリフレッシュ。',
+    schedule: '火・木・土・日 11:00〜21:00',
+    pricing: '60分コース 11,000円〜 / 90分コース 15,000円〜',
+    options: ['ヘッドスパ延長', 'アロマオイル追加', '足つぼ追加'],
+    availability: generateDefaultAvailability(),
+  },
+  美月: {
+    details: [
+      { label: '年齢', value: '29歳' },
+      { label: '身長', value: '168cm' },
+      { label: 'スタイル', value: 'モデル体型' },
+      { label: '3サイズ', value: 'B86 W58 H88' },
+    ],
+    gallery: [
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=900&q=80',
+    ],
+    bio: 'リンパドレナージュ専門。デトックス効果で疲れた身体をすっきりリフレッシュ。',
+    schedule: '月・火・木・金 14:00〜24:00',
+    pricing: '60分コース 12,000円〜 / 90分コース 16,000円〜',
+    options: ['リンパ重点', 'フェイシャル追加', 'デトックスコース'],
+    availability: generateDefaultAvailability(),
+  },
+  結衣: {
+    details: [
+      { label: '年齢', value: '25歳' },
+      { label: '身長', value: '160cm' },
+      { label: 'スタイル', value: 'ナチュラル' },
+      { label: '3サイズ', value: 'B84 W60 H85' },
+    ],
+    gallery: [
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=80',
+    ],
+    bio: 'ホットストーンとアロマを組み合わせた温感施術で、深いリラクゼーションを。',
+    schedule: '水・木・土・日 13:00〜23:00',
+    pricing: '60分コース 11,000円〜 / 90分コース 15,000円〜',
+    options: ['ホットストーン追加', 'アロマブレンド変更', '岩盤浴セット'],
+    availability: generateDefaultAvailability(),
+  },
+  楓: {
+    details: [
+      { label: '年齢', value: '28歳' },
+      { label: '身長', value: '163cm' },
+      { label: 'スタイル', value: 'アスリート' },
+      { label: '3サイズ', value: 'B83 W57 H85' },
+    ],
+    gallery: [
+      'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=900&q=80',
+    ],
+    bio: '指圧とストレッチで身体の芯からほぐします。スポーツ後のケアにもおすすめ。',
+    schedule: '月・火・水・金 12:00〜22:00',
+    pricing: '60分コース 10,000円〜 / 90分コース 14,000円〜',
+    options: ['スポーツケア', 'ストレッチ重点', '筋膜リリース'],
+    availability: generateDefaultAvailability(),
+  },
+  美咲: {
+    details: [
+      { label: '年齢', value: '30歳' },
+      { label: '身長', value: '167cm' },
+      { label: 'スタイル', value: 'エレガント' },
+      { label: '3サイズ', value: 'B87 W59 H88' },
+    ],
+    gallery: [
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
+    ],
+    bio: 'アロマ×ヒーリングで極上のリラックス体験を提供。心と身体の両方を癒します。',
+    schedule: '火・木・土・日 14:00〜24:00',
+    pricing: '90分コース 18,000円〜 / 120分コース 24,000円〜',
+    options: ['VIPルーム', 'プレミアムアロマ', 'シャンパンサービス'],
+    availability: generateDefaultAvailability(),
   },
 }

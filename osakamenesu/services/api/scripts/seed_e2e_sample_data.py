@@ -456,6 +456,66 @@ def _add_availability(
             _log(f"availability for {slot_date} failed (ignored): {exc}")
 
 
+def _add_therapist_shifts(
+    base: str,
+    headers: Dict[str, str],
+    shop_id: str,
+    therapist_ids: List[str],
+) -> None:
+    """Add therapist shifts for today and next 3 days to enable availability display."""
+    today = date.today()
+
+    for therapist_id in therapist_ids:
+        for offset in range(4):  # Today + 3 days
+            shift_date = today + timedelta(days=offset)
+            # Shift from 10:00 to 22:00
+            start_at = datetime.combine(shift_date, datetime.min.time()).replace(
+                hour=10, tzinfo=timezone.utc
+            )
+            end_at = datetime.combine(shift_date, datetime.min.time()).replace(
+                hour=22, tzinfo=timezone.utc
+            )
+
+            # Add a break slot for lunch (13:00-14:00)
+            break_start = datetime.combine(shift_date, datetime.min.time()).replace(
+                hour=13, tzinfo=timezone.utc
+            )
+            break_end = datetime.combine(shift_date, datetime.min.time()).replace(
+                hour=14, tzinfo=timezone.utc
+            )
+
+            payload = {
+                "therapist_id": therapist_id,
+                "shop_id": shop_id,
+                "date": shift_date.isoformat(),
+                "start_at": start_at.isoformat(),
+                "end_at": end_at.isoformat(),
+                "break_slots": [
+                    {
+                        "start_at": break_start.isoformat(),
+                        "end_at": break_end.isoformat(),
+                    }
+                ],
+                "availability_status": "available",
+                "notes": f"E2E sample shift for {shift_date}",
+            }
+
+            try:
+                _request_json(
+                    base,
+                    "POST",
+                    "/api/admin/therapist_shifts",
+                    headers=headers,
+                    payload=payload,
+                    expected=(200, 201, 409),  # 409 = already exists (overlap)
+                )
+                _log(
+                    f"created shift for therapist {therapist_id[:8]}... on {shift_date}"
+                )
+            except Exception as exc:
+                _log(f"shift creation failed (ignored): {exc}")
+
+
 def _add_reservations(
     base: str,
     headers: Dict[str, str],
@@ -584,6 +644,9 @@ def main(argv: Sequence[str]) -> int:
 
             # Add availability
             _add_availability(base, headers, shop_id)
+
+            # Add therapist shifts (for availability display)
+            _add_therapist_shifts(base, headers, shop_id, therapist_ids)
 
             # Add reservations
             if not args.skip_reservations:

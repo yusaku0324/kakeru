@@ -365,6 +365,15 @@ async def test_search_and_detail_share_next_slot(monkeypatch):
     monkeypatch.setattr(search_module, "get_next_available_slots", fake_get_slots)
     monkeypatch.setattr(search_module, "meili_search", fake_meili_search)
 
+    async def fake_therapist_slots(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(
+        search_module,
+        "get_therapist_next_available_slots_by_shop",
+        fake_therapist_slots,
+    )
+
     detail = await shop_services._get_shop_detail_impl(SimpleNamespace(), profile.id)
     search_response = await search_module._search_shops_impl(
         SimpleNamespace(), page=1, page_size=1

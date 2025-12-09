@@ -13,7 +13,11 @@ from app import models
 from app.meili import build_filter, search as meili_search
 from app.schemas import FacetValue, ShopSearchResponse, ShopStaffPreview, ShopSummary
 from app.utils.profiles import PRICE_BANDS
-from .availability import get_next_available_slots, slots_have_open
+from .availability import (
+    get_next_available_slots,
+    slots_have_open,
+    get_therapist_next_available_slots_by_shop,
+)
 from .shared import normalize_promotions, normalize_staff_uuid, safe_float, safe_int
 
 logger = logging.getLogger(__name__)
@@ -108,6 +112,27 @@ def _normalize_staff_preview(raw: Any) -> List[ShopStaffPreview]:
             ]
         else:
             specialties = []
+        # Parse today_available
+        today_available_raw = entry.get("today_available")
+        today_available = None
+        if today_available_raw is not None:
+            if isinstance(today_available_raw, bool):
+                today_available = today_available_raw
+            elif isinstance(today_available_raw, str):
+                today_available = today_available_raw.lower() in ("true", "1", "yes")
+        # Parse next_available_at
+        next_available_at_raw = entry.get("next_available_at")
+        next_available_at = None
+        if next_available_at_raw is not None:
+            if isinstance(next_available_at_raw, datetime):
+                next_available_at = next_available_at_raw
+            elif isinstance(next_available_at_raw, str):
+                try:
+                    next_available_at = datetime.fromisoformat(
+                        next_available_at_raw.replace("Z", "+00:00")
+                    )
+                except (ValueError, TypeError):
+                    pass
         previews.append(
             ShopStaffPreview(
                 id=(str(entry.get("id")).strip() or None)
@@ -126,6 +151,8 @@ def _normalize_staff_preview(raw: Any) -> List[ShopStaffPreview]:
                 if entry.get("avatar_url") is not None
                 else None,
                 specialties=specialties,
+                today_available=today_available,
+                next_available_at=next_available_at,
             )
         )
     return previews
@@ -250,6 +277,31 @@ def _profile_to_shop_summary(profile: models.Profile) -> ShopSummary:
     if isinstance(staff_data, list):
         for s in staff_data[:3]:
             if isinstance(s, dict) and s.get("name"):
+                # Parse today_available
+                today_available_raw = s.get("today_available")
+                today_available = None
+                if today_available_raw is not None:
+                    if isinstance(today_available_raw, bool):
+                        today_available = today_available_raw
+                    elif isinstance(today_available_raw, str):
+                        today_available = today_available_raw.lower() in (
+                            "true",
+                            "1",
+                            "yes",
+                        )
+                # Parse next_available_at
+                next_available_at_raw = s.get("next_available_at")
+                next_available_at = None
+                if next_available_at_raw is not None:
+                    if isinstance(next_available_at_raw, datetime):
+                        next_available_at = next_available_at_raw
+                    elif isinstance(next_available_at_raw, str):
+                        try:
+                            next_available_at = datetime.fromisoformat(
+                                next_available_at_raw.replace("Z", "+00:00")
+                            )
+                        except (ValueError, TypeError):
+                            pass
                 staff_preview.append(
                     ShopStaffPreview(
                         id=str(s.get("id")) if s.get("id") else None,
@@ -264,6 +316,8 @@ def _profile_to_shop_summary(profile: models.Profile) -> ShopSummary:
                         specialties=s.get("specialties", [])
                         if isinstance(s.get("specialties"), list)
                         else [],
+                        today_available=today_available,
+                        next_available_at=next_available_at,
                     )
                 )
 
@@ -560,26 +614,38 @@ async def _search_shops_impl(
         results = await _filter_results_by_availability(db, results, available_date)
 
     if results:
-        shop_slots, staff_slots = await get_next_available_slots(
-            db, [shop.id for shop in results]
+        shop_ids = [shop.id for shop in results]
+        shop_slots, staff_slots = await get_next_available_slots(db, shop_ids)
+        # TherapistShiftからセラピストの次回空き時間を取得
+        therapist_slots_by_shop = await get_therapist_next_available_slots_by_shop(
+            db, shop_ids
         )
-        if shop_slots or staff_slots:
+        if shop_slots or staff_slots or therapist_slots_by_shop:
             for shop in results:
                 slot = shop_slots.get(shop.id)
                 if slot:
                     shop.next_available_slot = slot
                     if shop.next_available_at is None:
                         shop.next_available_at = slot.start_at
-                if staff_slots and shop.staff_preview:
+                if shop.staff_preview:
+                    # 店舗に紐づくセラピストの名前ベースのスロットマップを取得
+                    therapist_name_slots = therapist_slots_by_shop.get(shop.id, {})
                     for member in shop.staff_preview:
+                        # 1. まずスタッフIDで既存のstaff_slotsから取得を試みる
                         staff_uuid = normalize_staff_uuid(member.id)
-                        if not staff_uuid:
-                            continue
-                        staff_slot = staff_slots.get(staff_uuid)
-                        if staff_slot:
-                            member.next_available_slot = staff_slot
+                        if staff_uuid:
+                            staff_slot = staff_slots.get(staff_uuid)
+                            if staff_slot:
+                                member.next_available_slot = staff_slot
+                                if member.next_available_at is None:
+                                    member.next_available_at = staff_slot.start_at
+                                continue
+                        # 2. スタッフIDがない場合、名前でTherapistのスロットを取得
+                        if member.name and member.name in therapist_name_slots:
+                            therapist_slot = therapist_name_slots[member.name]
+                            member.next_available_slot = therapist_slot
                             if member.next_available_at is None:
-                                member.next_available_at = staff_slot.start_at
+                                member.next_available_at = therapist_slot.start_at
 
     selected_facets: Dict[str, Set[str]] = {}
     if area:

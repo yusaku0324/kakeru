@@ -166,9 +166,15 @@ export function useReservationOverlayState({
 
   useEffect(() => {
     if (!defaultStart || selectedSlots.length) return
+    // Normalize defaultStart to timestamp for comparison (handles timezone format differences)
+    const defaultStartTs = new Date(defaultStart).getTime()
+    if (Number.isNaN(defaultStartTs)) return
     const match = normalizedAvailability
       .flatMap((day) => day.slots.map((slot) => ({ day, slot })))
-      .find(({ slot }) => slot.start_at === defaultStart)
+      .find(({ slot }) => {
+        const slotTs = new Date(slot.start_at).getTime()
+        return !Number.isNaN(slotTs) && slotTs === defaultStartTs
+      })
     if (match && match.slot.status !== 'blocked') {
       setSelectedSlots([
         {

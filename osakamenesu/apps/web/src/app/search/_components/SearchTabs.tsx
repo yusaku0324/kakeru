@@ -4,7 +4,7 @@ import clsx from 'clsx'
 const tabBaseClass =
   'inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary/60'
 
-export type SearchTabValue = 'all' | 'therapists' | 'shops'
+export type SearchTabValue = 'therapists' | 'shops'
 
 type Props = {
   current: SearchTabValue
@@ -12,7 +12,6 @@ type Props = {
 }
 
 const TABS: { value: SearchTabValue; label: string }[] = [
-  { value: 'all', label: '総合' },
   { value: 'therapists', label: 'セラピスト' },
   { value: 'shops', label: '店舗' },
 ]

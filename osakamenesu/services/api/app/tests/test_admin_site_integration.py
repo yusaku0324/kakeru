@@ -308,6 +308,15 @@ def _build_app(
     monkeypatch.setattr(shop_services, "_get_next_available_slot", fake_next_slot)
     monkeypatch.setattr(search_module, "get_next_available_slots", fake_get_slots)
     monkeypatch.setattr(search_module, "meili_search", fake_meili_search)
+
+    async def fake_therapist_slots(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(
+        search_module,
+        "get_therapist_next_available_slots_by_shop",
+        fake_therapist_slots,
+    )
     return app
 
 

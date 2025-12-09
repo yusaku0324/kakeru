@@ -40,8 +40,25 @@ export function ReservationHeroCard({
             priority
           />
         ) : (
-          <div className="flex h-full items-center justify-center bg-gradient-to-br from-brand-primary/15 to-brand-secondary/20 text-4xl font-semibold text-brand-primary">
-            <span>{name.slice(0, 1)}</span>
+          <div className="relative flex h-full items-center justify-center overflow-hidden bg-gradient-to-br from-brand-primary/10 via-brand-secondary/15 to-brand-primary/20">
+            {/* Animated background pattern */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(59,130,246,0.15),transparent_50%),radial-gradient(circle_at_70%_80%,rgba(147,51,234,0.12),transparent_50%)]" />
+            <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%233b82f6\' fill-opacity=\'0.1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
+            <div className="relative flex flex-col items-center gap-4">
+              {/* Avatar circle with gradient border */}
+              <div className="relative">
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary opacity-75 blur" />
+                <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-brand-primary to-brand-secondary text-4xl font-bold text-white shadow-[0_8px_32px_rgba(37,99,235,0.35)]">
+                  {name.slice(0, 1)}
+                </div>
+              </div>
+              {/* Name badge */}
+              <div className="rounded-full bg-white/90 px-5 py-2 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-sm">
+                <span className="text-sm font-bold text-neutral-text">{name}</span>
+              </div>
+              {/* Subtitle */}
+              <p className="text-xs text-neutral-textMuted">写真準備中</p>
+            </div>
           </div>
         )}
 

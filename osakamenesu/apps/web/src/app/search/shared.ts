@@ -623,12 +623,18 @@ export function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
               .filter(Boolean)
           : []
         const hobbyTags = normalizeHobbyTags(staff.hobby_tags)
+        // todayAvailable fallback chain:
+        // 1. Staff-level today_available (most specific - individual therapist availability)
+        // 2. Shop-level today_available (fallback when staff data is missing)
+        // 3. null (unknown availability)
+        // Note: Shop-level fallback may incorrectly show availability for therapists who are not working today
         const todayAvailable =
           typeof staff.today_available === 'boolean'
             ? staff.today_available
             : typeof hit.today_available === 'boolean'
               ? hit.today_available
               : null
+        // nextAvailableSlot follows same fallback pattern: staff-level > shop-level > null
         const nextAvailableSlot = staff.next_available_slot ?? hit.next_available_slot ?? null
         return {
           id: uniqueId,

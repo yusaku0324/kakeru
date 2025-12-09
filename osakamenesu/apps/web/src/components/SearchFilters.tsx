@@ -11,10 +11,13 @@ import {
   useTransition,
 } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Search, SlidersHorizontal, X } from 'lucide-react'
 
 import { BasicSearchSection } from '@/components/filters/BasicSearchSection'
 import { FilterChipsSection } from '@/components/filters/FilterChipsSection'
 import { StyleFiltersSection } from '@/components/filters/StyleFiltersSection'
+import { ActiveFilterBadges, type FilterBadge } from '@/components/filters/ActiveFilterBadges'
+import { QuickFilters } from '@/components/filters/QuickFilters'
 import {
   Accordion,
   AccordionContent,
@@ -468,276 +471,406 @@ export default function SearchFilters({
     event.preventDefault()
     push()
   }
+
+  // Generate active filter badges
+  const activeFilterBadges = useMemo((): FilterBadge[] => {
+    const badges: FilterBadge[] = []
+
+    if (q) {
+      badges.push({
+        key: 'q',
+        label: `キーワード: ${q}`,
+        onRemove: () => setQ(''),
+      })
+    }
+    if (area) {
+      badges.push({
+        key: 'area',
+        label: `エリア: ${area}`,
+        onRemove: () => setArea(''),
+      })
+    }
+    if (service) {
+      const serviceLabel = SERVICE_SELECT_OPTIONS.find((o) => o.value === service)?.label || service
+      badges.push({
+        key: 'service',
+        label: `形態: ${serviceLabel}`,
+        onRemove: () => setService(''),
+      })
+    }
+    if (today) {
+      badges.push({
+        key: 'today',
+        label: '本日空きあり',
+        onRemove: () => setToday(false),
+      })
+    }
+    if (promotionsOnly) {
+      badges.push({
+        key: 'promotions',
+        label: 'キャンペーン中',
+        onRemove: () => setPromotionsOnly(false),
+      })
+    }
+    if (discountsOnly) {
+      badges.push({
+        key: 'discounts',
+        label: '割引あり',
+        onRemove: () => setDiscountsOnly(false),
+      })
+    }
+    if (diariesOnly) {
+      badges.push({
+        key: 'diaries',
+        label: '写メ日記あり',
+        onRemove: () => setDiariesOnly(false),
+      })
+    }
+    if (ageMin !== AGE_MIN || ageMax !== AGE_DEFAULT_MAX) {
+      badges.push({
+        key: 'age',
+        label: `年齢: ${ageMin}-${ageMax}歳`,
+        onRemove: () => {
+          setAgeMin(AGE_MIN)
+          setAgeMax(AGE_DEFAULT_MAX)
+        },
+      })
+    }
+    if (heightMin !== HEIGHT_MIN || heightMax !== HEIGHT_DEFAULT_MAX) {
+      badges.push({
+        key: 'height',
+        label: `身長: ${heightMin}-${heightMax}cm`,
+        onRemove: () => {
+          setHeightMin(HEIGHT_MIN)
+          setHeightMax(HEIGHT_DEFAULT_MAX)
+        },
+      })
+    }
+    if (bustMinIndex !== BUST_MIN_INDEX || bustMaxIndex !== BUST_MAX_INDEX) {
+      badges.push({
+        key: 'bust',
+        label: `バスト: ${BUST_SIZES[bustMinIndex]}-${BUST_SIZES[bustMaxIndex]}`,
+        onRemove: () => {
+          setBustMinIndex(BUST_MIN_INDEX)
+          setBustMaxIndex(BUST_MAX_INDEX)
+        },
+      })
+    }
+    if (hairColor && hairColor !== DEFAULT_TAG) {
+      badges.push({
+        key: 'hairColor',
+        label: `髪色: ${hairColor}`,
+        onRemove: () => setHairColor(DEFAULT_TAG),
+      })
+    }
+    if (hairStyle && hairStyle !== DEFAULT_TAG) {
+      badges.push({
+        key: 'hairStyle',
+        label: `髪型: ${hairStyle}`,
+        onRemove: () => setHairStyle(DEFAULT_TAG),
+      })
+    }
+    if (bodyShape && bodyShape !== DEFAULT_TAG) {
+      badges.push({
+        key: 'bodyShape',
+        label: `体型: ${bodyShape}`,
+        onRemove: () => setBodyShape(DEFAULT_TAG),
+      })
+    }
+
+    return badges
+  }, [
+    q, area, service, today, promotionsOnly, discountsOnly, diariesOnly,
+    ageMin, ageMax, heightMin, heightMax, bustMinIndex, bustMaxIndex,
+    hairColor, hairStyle, bodyShape,
+  ])
+
+  const hasActiveFilters = activeFilterBadges.length > 0
+
   const currentConditionText =
     resultSummaryLabel ??
     (typeof resultCount === 'number'
-      ? `現在の条件: ${numberFormatter.format(resultCount)}件ヒット`
+      ? `${numberFormatter.format(resultCount)}件の結果`
       : diariesFacetCount
-        ? `現在の条件: 写メ日記あり ${numberFormatter.format(diariesFacetCount)} 名`
-        : '現在の条件: すべて表示')
-  const helperText = '現在の検索結果に、条件を追加して絞り込めます。'
+        ? `写メ日記あり ${numberFormatter.format(diariesFacetCount)}名`
+        : '')
+
   return (
     <section
       className={clsx(
-        'relative overflow-visible rounded-[48px] border border-white/35 bg-white/40 p-8 shadow-[0_36px_120px_rgba(37,99,235,0.22)] backdrop-blur-[24px]',
+        'relative overflow-visible rounded-[32px] border border-white/60 bg-white/85 shadow-[0_8px_32px_rgba(37,99,235,0.08)] backdrop-blur-xl transition-all duration-200',
         sticky && 'lg:sticky lg:top-16 lg:z-20',
         className,
       )}
     >
+      {/* Subtle gradient background */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(147,197,253,0.35)_0%,rgba(147,197,253,0)_60%),linear-gradient(135deg,rgba(239,246,255,0.95)_0%,rgba(236,254,255,0.6)_50%,rgba(239,246,255,0.9)_100%)]"
+        className="pointer-events-none absolute inset-0 -z-10 rounded-[32px] bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.06),transparent_50%)]"
       />
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3 text-neutral-text">
-          <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand-primary to-brand-secondary text-white shadow-[0_12px_28px_rgba(37,99,235,0.25)]">
-            🔍
-          </span>
-          <div className="space-y-1">
-            <p className="text-lg font-semibold">検索フィルター</p>
-            <p className="text-sm text-neutral-textMuted">
-              必要な条件だけを開いて設定できるよう、セクションをアコーディオンにまとめました。
-            </p>
-            <p className="text-sm font-semibold text-neutral-text">{currentConditionText}</p>
-            <p className="text-xs text-neutral-textMuted">{helperText}</p>
+
+      {/* Header */}
+      <header className="flex items-center justify-between border-b border-neutral-100 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-primary to-brand-secondary text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)]">
+            <SlidersHorizontal className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-neutral-text">フィルター</h2>
+            {currentConditionText && (
+              <p className="text-xs text-neutral-textMuted">{currentConditionText}</p>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-3 text-sm">
-          {isMobile ? (
+        <div className="flex items-center gap-2">
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={reset}
+              className="text-sm font-medium text-brand-primary transition-colors hover:text-brand-primary/80"
+            >
+              すべてクリア
+            </button>
+          )}
+          {isMobile && (
             <button
               type="button"
               onClick={() => setShowFilters((prev) => !prev)}
-              className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/55 px-3 py-1.5 font-semibold text-brand-primary shadow-[0_10px_28px_rgba(37,99,235,0.18)] transition hover:border-brand-primary hover:bg-brand-primary/10"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-500 transition-colors hover:bg-neutral-50"
+              aria-label={showFilters ? 'フィルターを閉じる' : 'フィルターを開く'}
             >
-              {showFilters ? 'フィルターを閉じる' : 'フィルターを開く'}
+              {showFilters ? <X className="h-4 w-4" /> : <SlidersHorizontal className="h-4 w-4" />}
             </button>
-          ) : null}
+          )}
         </div>
       </header>
+
+      {/* Active Filter Badges */}
+      {hasActiveFilters && (
+        <div className="border-b border-neutral-50 px-5">
+          <ActiveFilterBadges badges={activeFilterBadges} />
+        </div>
+      )}
 
       <form
         onSubmit={onSubmit}
         role="search"
         aria-label="店舗検索条件"
         aria-busy={isPending}
-        className={clsx('mt-8 space-y-8', isMobile && !showFilters && 'hidden')}
+        className={clsx(isMobile && !showFilters && 'hidden')}
       >
-        <Accordion type="multiple" defaultValue={['basic', 'special']} className="space-y-4">
-          <AccordionItem value="basic">
-            <AccordionTrigger>基本検索</AccordionTrigger>
-            <AccordionContent className="space-y-4">
-              <BasicSearchSection
-                keyword={q}
-                onKeywordChange={setQ}
-                area={area}
-                onAreaChange={setArea}
-                service={service}
-                onServiceChange={setService}
-                areaOptions={areaSelectOptions}
-                serviceOptions={serviceSelectOptions}
-                fieldClass={fieldClass}
-                selectButtonClass={glassSelectButtonClass}
-                selectMenuClass={glassSelectMenuClass}
-                selectOptionClass={glassSelectOptionClass}
-                className={clsx(accordionPanelCardClass, 'space-y-4')}
-                showHeader={false}
-                showAreaField={false}
-                showServiceField={false}
-              />
-            </AccordionContent>
-          </AccordionItem>
+        {/* Quick Filters - Always visible */}
+        <div className="border-b border-neutral-50 px-5 py-4">
+          <QuickFilters
+            todayOnly={today}
+            onToggleToday={setToday}
+            promotionsOnly={promotionsOnly}
+            onTogglePromotions={setPromotionsOnly}
+            discountsOnly={discountsOnly}
+            onToggleDiscounts={setDiscountsOnly}
+            diariesOnly={diariesOnly}
+            onToggleDiaries={setDiariesOnly}
+          />
+        </div>
 
-          <AccordionItem value="special">
-            <AccordionTrigger>特別条件</AccordionTrigger>
-            <AccordionContent className="space-y-4">
-              <FilterChipsSection
-                todayOnly={today}
-                onToggleToday={setToday}
-                promotionsOnly={promotionsOnly}
-                onTogglePromotions={setPromotionsOnly}
-                discountsOnly={discountsOnly}
-                onToggleDiscounts={setDiscountsOnly}
-                diariesOnly={diariesOnly}
-                onToggleDiaries={setDiariesOnly}
-                className={clsx(accordionPanelCardClass, 'space-y-5')}
-                showHeader={false}
-              />
-            </AccordionContent>
-          </AccordionItem>
+        {/* Filter Accordion */}
+        <div className="px-5 py-4">
+          <Accordion type="multiple" defaultValue={['basic']} className="space-y-3">
+            <AccordionItem value="basic" className="border-none">
+              <AccordionTrigger className="py-2 text-sm font-semibold text-neutral-text hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Search className="h-4 w-4 text-neutral-400" />
+                  基本検索
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2">
+                <BasicSearchSection
+                  keyword={q}
+                  onKeywordChange={setQ}
+                  area={area}
+                  onAreaChange={setArea}
+                  service={service}
+                  onServiceChange={setService}
+                  areaOptions={areaSelectOptions}
+                  serviceOptions={serviceSelectOptions}
+                  fieldClass={fieldClass}
+                  selectButtonClass={glassSelectButtonClass}
+                  selectMenuClass={glassSelectMenuClass}
+                  selectOptionClass={glassSelectOptionClass}
+                  className="space-y-3 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4"
+                  showHeader={false}
+                  showAreaField={false}
+                  showServiceField={false}
+                />
+              </AccordionContent>
+            </AccordionItem>
 
-          <AccordionItem value="style">
-            <AccordionTrigger>外見・スタイル</AccordionTrigger>
-            <AccordionContent className="space-y-4">
-              <StyleFiltersSection
-                bustSizes={BUST_SIZES}
-                bustMinIndex={bustMinIndex}
-                bustMaxIndex={bustMaxIndex}
-                bustHighlightStyle={bustHighlightStyle}
-                onBustChange={handleBustRangeChange}
-                bustMinLimit={BUST_MIN_INDEX}
-                bustMaxLimit={BUST_MAX_INDEX}
-                ageMin={ageMin}
-                ageMax={ageMax}
-                ageHighlightStyle={ageHighlightStyle}
-                onAgeChange={handleAgeRangeChange}
-                ageMinLimit={AGE_MIN}
-                ageMaxLimit={AGE_MAX_LIMIT}
-                heightMin={heightMin}
-                heightMax={heightMax}
-                heightHighlightStyle={heightHighlightStyle}
-                onHeightChange={handleHeightRangeChange}
-                heightMinLimit={HEIGHT_MIN}
-                heightMaxLimit={HEIGHT_MAX_LIMIT}
-                onReset={resetStyleFilters}
-                className={accordionPanelCardClass}
-                showHeader={false}
-              />
+          <AccordionItem value="style" className="border-none">
+              <AccordionTrigger className="py-2 text-sm font-semibold text-neutral-text hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <span className="text-neutral-400">✨</span>
+                  外見・スタイル
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 pt-2">
+                <StyleFiltersSection
+                  bustSizes={BUST_SIZES}
+                  bustMinIndex={bustMinIndex}
+                  bustMaxIndex={bustMaxIndex}
+                  bustHighlightStyle={bustHighlightStyle}
+                  onBustChange={handleBustRangeChange}
+                  bustMinLimit={BUST_MIN_INDEX}
+                  bustMaxLimit={BUST_MAX_INDEX}
+                  ageMin={ageMin}
+                  ageMax={ageMax}
+                  ageHighlightStyle={ageHighlightStyle}
+                  onAgeChange={handleAgeRangeChange}
+                  ageMinLimit={AGE_MIN}
+                  ageMaxLimit={AGE_MAX_LIMIT}
+                  heightMin={heightMin}
+                  heightMax={heightMax}
+                  heightHighlightStyle={heightHighlightStyle}
+                  onHeightChange={handleHeightRangeChange}
+                  heightMinLimit={HEIGHT_MIN}
+                  heightMaxLimit={HEIGHT_MAX_LIMIT}
+                  onReset={resetStyleFilters}
+                  className="space-y-4 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4"
+                  showHeader={false}
+                />
 
-              <section
-                className={clsx(accordionPanelCardClass, 'space-y-5 text-sm text-neutral-text')}
-              >
-                <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(191,219,254,0.25)_0%,rgba(191,219,254,0)_60%)]" />
-                <header className="flex items-center gap-3">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary">
-                    🎨
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-neutral-text">スタイルタグ</p>
-                    <p className="text-xs text-neutral-textMuted">
-                      髪色・髪型・体型などのタグを選択できます
-                    </p>
+                {/* Style Tags */}
+                <div className="space-y-4 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4 text-sm">
+                  {/* Hair Color */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-neutral-text">髪色</span>
+                      {hairColor !== DEFAULT_TAG && (
+                        <button
+                          type="button"
+                          onClick={() => setHairColor(DEFAULT_TAG)}
+                          className="text-xs text-brand-primary hover:underline"
+                        >
+                          クリア
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {HAIR_COLOR_OPTIONS.map((option) => (
+                        <button
+                          key={`hair-color-${option}`}
+                          type="button"
+                          onClick={() => setHairColor(option)}
+                          className={tagClass(hairColor === option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </header>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold">髪色</span>
-                    {hairColor !== DEFAULT_TAG ? (
-                      <button
-                        type="button"
-                        onClick={() => setHairColor(DEFAULT_TAG)}
-                        className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
-                      >
-                        指定を解除
-                      </button>
-                    ) : null}
+                  {/* Hair Style */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-neutral-text">髪型</span>
+                      {hairStyle !== DEFAULT_TAG && (
+                        <button
+                          type="button"
+                          onClick={() => setHairStyle(DEFAULT_TAG)}
+                          className="text-xs text-brand-primary hover:underline"
+                        >
+                          クリア
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {HAIR_STYLE_OPTIONS.map((option) => (
+                        <button
+                          key={`hair-style-${option}`}
+                          type="button"
+                          onClick={() => setHairStyle(option)}
+                          className={tagClass(hairStyle === option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {HAIR_COLOR_OPTIONS.map((option) => (
-                      <button
-                        key={`hair-color-${option}`}
-                        type="button"
-                        onClick={() => setHairColor(option)}
-                        className={tagClass(hairColor === option)}
-                      >
-                        {option}
-                      </button>
-                    ))}
+
+                  {/* Body Shape */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-neutral-text">体型</span>
+                      {bodyShape !== DEFAULT_TAG && (
+                        <button
+                          type="button"
+                          onClick={() => setBodyShape(DEFAULT_TAG)}
+                          className="text-xs text-brand-primary hover:underline"
+                        >
+                          クリア
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {BODY_TYPE_OPTIONS.map((option) => (
+                        <button
+                          key={`body-shape-${option}`}
+                          type="button"
+                          onClick={() => setBodyShape(option)}
+                          className={tagClass(bodyShape === option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
+              </AccordionContent>
+            </AccordionItem>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold">髪型</span>
-                    {hairStyle !== DEFAULT_TAG ? (
-                      <button
-                        type="button"
-                        onClick={() => setHairStyle(DEFAULT_TAG)}
-                        className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
-                      >
-                        指定を解除
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {HAIR_STYLE_OPTIONS.map((option) => (
-                      <button
-                        key={`hair-style-${option}`}
-                        type="button"
-                        onClick={() => setHairStyle(option)}
-                        className={tagClass(hairStyle === option)}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
+            <AccordionItem value="area" className="border-none">
+              <AccordionTrigger className="py-2 text-sm font-semibold text-neutral-text hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <span className="text-neutral-400">📍</span>
+                  エリア / サービス形態
                 </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2">
+                <BasicSearchSection
+                  keyword={q}
+                  onKeywordChange={setQ}
+                  area={area}
+                  onAreaChange={setArea}
+                  service={service}
+                  onServiceChange={setService}
+                  areaOptions={areaSelectOptions}
+                  serviceOptions={serviceSelectOptions}
+                  fieldClass={fieldClass}
+                  selectButtonClass={glassSelectButtonClass}
+                  selectMenuClass={glassSelectMenuClass}
+                  selectOptionClass={glassSelectOptionClass}
+                  className="space-y-3 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4"
+                  showHeader={false}
+                  showKeywordField={false}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold">体型</span>
-                    {bodyShape !== DEFAULT_TAG ? (
-                      <button
-                        type="button"
-                        onClick={() => setBodyShape(DEFAULT_TAG)}
-                        className="text-xs font-semibold text-brand-primary underline-offset-2 hover:underline"
-                      >
-                        指定を解除
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {BODY_TYPE_OPTIONS.map((option) => (
-                      <button
-                        key={`body-shape-${option}`}
-                        type="button"
-                        onClick={() => setBodyShape(option)}
-                        className={tagClass(bodyShape === option)}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="area">
-            <AccordionTrigger>エリア / サービス形態</AccordionTrigger>
-            <AccordionContent className="space-y-4">
-              <BasicSearchSection
-                keyword={q}
-                onKeywordChange={setQ}
-                area={area}
-                onAreaChange={setArea}
-                service={service}
-                onServiceChange={setService}
-                areaOptions={areaSelectOptions}
-                serviceOptions={serviceSelectOptions}
-                fieldClass={fieldClass}
-                selectButtonClass={glassSelectButtonClass}
-                selectMenuClass={glassSelectMenuClass}
-                selectOptionClass={glassSelectOptionClass}
-                className={clsx(accordionPanelCardClass, 'space-y-4')}
-                showHeader={false}
-                showKeywordField={false}
-              />
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-
-        <footer className="flex flex-wrap items-center justify-between gap-4 rounded-[32px] border border-white/45 bg-white/45 px-6 py-4 shadow-[0_24px_70px_rgba(37,99,235,0.18)] backdrop-blur">
-          <div className="text-sm text-neutral-textMuted" aria-live="polite">
-            {helperText}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={reset}
-              disabled={isPending}
-              className="inline-flex items-center gap-2 rounded-full border border-white/55 bg-white/55 px-4 py-2 text-sm font-semibold text-brand-primary shadow-[0_10px_28px_rgba(37,99,235,0.18)] transition hover:border-brand-primary hover:bg-brand-primary/10 disabled:opacity-60"
-            >
-              すべてクリア
-            </button>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-6 py-2.5 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(37,99,235,0.26)] transition hover:from-brand-primary/90 hover:to-brand-secondary/90 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              この条件で検索する
-            </button>
-          </div>
+        {/* Footer with Search Button */}
+        <footer className="border-t border-neutral-100 bg-white/90 px-5 py-4 backdrop-blur-sm">
+          {currentConditionText && (
+            <p className="mb-3 text-center text-xs text-neutral-textMuted" aria-live="polite">
+              {currentConditionText}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={isPending}
+            className="w-full rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary py-3 text-sm font-bold text-white shadow-[0_4px_16px_rgba(37,99,235,0.3)] transition-all duration-150 hover:shadow-[0_6px_20px_rgba(37,99,235,0.4)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isPending ? '検索中...' : 'この条件で検索する'}
+          </button>
         </footer>
       </form>
     </section>

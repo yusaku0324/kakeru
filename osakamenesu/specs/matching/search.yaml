@@ -121,3 +121,29 @@ endpoints:
       - age_match: ideal=(min+max)/2; 1 - |diff|/15; missing =>0.5。
       - Candidates filtered by existing availability/profile visibility; recommended のみこのスコアでソート。
         他の sort は従来順序。
+
+ui_display:
+  next_available_slot_label:
+    description: >
+      検索結果カード（TherapistCard）に表示する「次回予約可能スロット」ラベルの表示仕様。
+      formatNextSlotLabel 関数で実装。
+    priority:
+      - order: 1
+        condition: next_available_slot.start_at が存在 & 本日
+        display: "本日 {時}時から" または "本日 {時}時{分}分から"
+        example: "本日 17時から"
+      - order: 2
+        condition: next_available_slot.start_at が存在 & 別日
+        display: "{月}月{日}日 {時}時から" または "{月}月{日}日 {時}時{分}分から"
+        example: "12月9日 14時から"
+      - order: 3
+        condition: today_available === true & next_available_slot なし
+        display: "本日空きあり"
+        example: "本日空きあり"
+      - order: 4
+        condition: それ以外
+        display: null（表示なし）
+    notes:
+      - 具体的なスロット情報（next_available_slot）がある場合は、それを優先して表示する。
+      - today_available フラグは、スロット情報がない場合のフォールバックとしてのみ使用する。
+      - 分が0の場合は「17時から」、それ以外は「17時30分から」のように表示する。
