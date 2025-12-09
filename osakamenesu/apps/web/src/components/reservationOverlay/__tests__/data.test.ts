@@ -18,11 +18,26 @@ import {
  * - injectDefaultStartSlot() で、カードの時間を常にカレンダーに注入する
  */
 
+// Helper to create a date string that represents a specific local time
+// regardless of the test runner's timezone
+function createLocalTimeString(dayOffset: number, hour: number, minute: number): string {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  now.setDate(now.getDate() + dayOffset)
+  now.setHours(hour, minute, 0, 0)
+  // Return ISO string with timezone offset
+  const tzOffset = -now.getTimezoneOffset()
+  const sign = tzOffset >= 0 ? '+' : '-'
+  const pad = (n: number) => String(Math.abs(n)).padStart(2, '0')
+  const offsetStr = `${sign}${pad(Math.floor(Math.abs(tzOffset) / 60))}:${pad(Math.abs(tzOffset) % 60)}`
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(hour)}:${pad(minute)}:00${offsetStr}`
+}
+
 describe('injectDefaultStartSlot', () => {
   beforeEach(() => {
-    // 固定日時でテスト: 2024-12-10 10:00:00 JST
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2024-12-10T10:00:00+09:00'))
+    // Set to a fixed time - use UTC to avoid timezone issues
+    vi.setSystemTime(new Date('2024-12-10T01:00:00Z'))
   })
 
   afterEach(() => {
@@ -49,8 +64,8 @@ describe('injectDefaultStartSlot', () => {
     const availability = [
       { dayOffset: 0, slots: [{ hour: 13, minute: 0, durationMinutes: 90, status: 'open' as const }] },
     ]
-    // Today at 10:00
-    const defaultStart = '2024-12-10T10:00:00+09:00'
+    // Use helper to create a local time string for today at 10:00
+    const defaultStart = createLocalTimeString(0, 10, 0)
     const result = injectDefaultStartSlot(availability, defaultStart)
 
     expect(result[0].slots).toHaveLength(2)
@@ -67,7 +82,7 @@ describe('injectDefaultStartSlot', () => {
       { dayOffset: 0, slots: [{ hour: 13, minute: 0, durationMinutes: 90, status: 'open' as const }] },
     ]
     // Tomorrow at 11:30
-    const defaultStart = '2024-12-11T11:30:00+09:00'
+    const defaultStart = createLocalTimeString(1, 11, 30)
     const result = injectDefaultStartSlot(availability, defaultStart)
 
     expect(result).toHaveLength(2)
@@ -84,7 +99,7 @@ describe('injectDefaultStartSlot', () => {
     const availability = [
       { dayOffset: 0, slots: [{ hour: 10, minute: 0, durationMinutes: 90, status: 'open' as const }] },
     ]
-    const defaultStart = '2024-12-10T10:00:00+09:00'
+    const defaultStart = createLocalTimeString(0, 10, 0)
     const result = injectDefaultStartSlot(availability, defaultStart)
 
     expect(result[0].slots).toHaveLength(1)
@@ -93,7 +108,7 @@ describe('injectDefaultStartSlot', () => {
   it('does not mutate original availability array', () => {
     const originalSlot = { hour: 13, minute: 0, durationMinutes: 90, status: 'open' as const }
     const availability = [{ dayOffset: 0, slots: [originalSlot] }]
-    const defaultStart = '2024-12-10T10:00:00+09:00'
+    const defaultStart = createLocalTimeString(0, 10, 0)
 
     injectDefaultStartSlot(availability, defaultStart)
 
@@ -112,7 +127,7 @@ describe('injectDefaultStartSlot', () => {
         ],
       },
     ]
-    const defaultStart = '2024-12-10T14:00:00+09:00'
+    const defaultStart = createLocalTimeString(0, 14, 0)
     const result = injectDefaultStartSlot(availability, defaultStart)
 
     expect(result[0].slots.map((s) => s.hour)).toEqual([13, 14, 15])
@@ -122,7 +137,7 @@ describe('injectDefaultStartSlot', () => {
 describe('generateDefaultAvailability', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2024-12-10T10:00:00+09:00'))
+    vi.setSystemTime(new Date('2024-12-10T01:00:00Z'))
   })
 
   afterEach(() => {
@@ -137,7 +152,7 @@ describe('generateDefaultAvailability', () => {
   })
 
   it('injects defaultStart into correct day', () => {
-    const defaultStart = '2024-12-10T09:00:00+09:00'
+    const defaultStart = createLocalTimeString(0, 9, 0)
     const result = generateDefaultAvailability(defaultStart)
 
     const today = result.find((d) => d.dayOffset === 0)
@@ -147,7 +162,7 @@ describe('generateDefaultAvailability', () => {
 
   it('creates new day entry for defaultStart beyond existing range', () => {
     // Day 10 - beyond the default 7 day range
-    const defaultStart = '2024-12-20T15:30:00+09:00'
+    const defaultStart = createLocalTimeString(10, 15, 30)
     const result = generateDefaultAvailability(defaultStart)
 
     const day10 = result.find((d) => d.dayOffset === 10)
@@ -191,7 +206,7 @@ describe('FALLBACK_STAFF_META consistency', () => {
 describe('Card-Calendar time consistency integration', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2024-12-10T10:00:00+09:00'))
+    vi.setSystemTime(new Date('2024-12-10T01:00:00Z'))
   })
 
   afterEach(() => {
@@ -200,7 +215,7 @@ describe('Card-Calendar time consistency integration', () => {
 
   it('ensures card time appears in calendar when using FALLBACK_STAFF_META', () => {
     // Simulate: 真央さんのカードに "本日 10:00〜" と表示
-    const cardTime = '2024-12-10T10:00:00+09:00'
+    const cardTime = createLocalTimeString(0, 10, 0)
     const maoMeta = FALLBACK_STAFF_META['真央']
 
     expect(maoMeta).toBeDefined()
@@ -221,7 +236,7 @@ describe('Card-Calendar time consistency integration', () => {
 
   it('ensures card time appears in calendar when no FALLBACK_STAFF_META exists', () => {
     // Simulate: 新しいセラピストのカードに "明日 14:30〜" と表示
-    const cardTime = '2024-12-11T14:30:00+09:00'
+    const cardTime = createLocalTimeString(1, 14, 30)
 
     // FALLBACK_STAFF_META に存在しないセラピスト
     const baseAvailability = generateDefaultAvailability()
@@ -236,7 +251,7 @@ describe('Card-Calendar time consistency integration', () => {
   })
 
   it('handles edge case: card time already exists in availability', () => {
-    const cardTime = '2024-12-10T13:00:00+09:00'
+    const cardTime = createLocalTimeString(0, 13, 0)
     const baseAvailability = generateDefaultAvailability()
 
     // Default availability already has 13:00 slot on day 0
