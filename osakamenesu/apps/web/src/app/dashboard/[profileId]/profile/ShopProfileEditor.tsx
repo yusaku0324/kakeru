@@ -1,9 +1,11 @@
 'use client'
 
-import { ChangeEvent, FormEvent, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, FormEvent, useMemo, useState } from 'react'
+import clsx from 'clsx'
 
 import { ToastContainer, useToast } from '@/components/useToast'
-import { Card } from '@/components/ui/Card'
+import { TagInput } from '@/components/ui/TagInput'
+import { PhotoGrid } from '@/components/ui/PhotoGrid'
 import {
   DashboardShopContact,
   DashboardShopMenu,
@@ -40,31 +42,52 @@ type ContactDraft = {
   business_hours: string
 }
 
-const SERVICE_TYPE_OPTIONS: { value: DashboardShopServiceType; label: string }[] = [
-  { value: 'store', label: '店舗型' },
-  { value: 'dispatch', label: '出張型' },
+const SERVICE_TYPE_OPTIONS: { value: DashboardShopServiceType; label: string; icon: string }[] = [
+  { value: 'store', label: '店舗型', icon: '🏪' },
+  { value: 'dispatch', label: '出張型', icon: '🚗' },
 ]
 
 const STATUS_OPTIONS: {
   value: 'draft' | 'published' | 'hidden'
   label: string
   description: string
+  icon: string
+  color: string
 }[] = [
   {
     value: 'draft',
     label: '下書き',
     description: '検索には表示されず、編集者だけが閲覧できます。',
+    icon: '📝',
+    color: 'bg-amber-100 text-amber-800 border-amber-200',
   },
   {
     value: 'published',
     label: '公開中',
     description: '検索結果に表示され、一般ユーザーが閲覧できます。',
+    icon: '✅',
+    color: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   },
   {
     value: 'hidden',
     label: '非公開',
     description: '検索には表示されず、URL を知っているユーザーだけがアクセスできます。',
+    icon: '🔒',
+    color: 'bg-neutral-100 text-neutral-700 border-neutral-200',
   },
+]
+
+const TAG_SUGGESTIONS = [
+  'アロマ',
+  'メンズエステ',
+  '出張可',
+  '完全個室',
+  '日本人セラピスト',
+  '深夜営業',
+  '指圧',
+  'オイルマッサージ',
+  'リンパ',
+  'ヘッドスパ',
 ]
 
 function toMenuDraft(menu: DashboardShopMenu): MenuDraft {
@@ -94,6 +117,72 @@ function emptyMenu(): MenuDraft {
   return { name: '', price: '', duration: '', description: '', tags: '' }
 }
 
+// Section Card component
+function SectionCard({
+  title,
+  description,
+  icon,
+  children,
+  className,
+}: {
+  title: string
+  description?: string
+  icon?: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <section
+      className={clsx(
+        'overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition-shadow hover:shadow-md',
+        className
+      )}
+    >
+      <div className="border-b border-neutral-100 bg-gradient-to-r from-neutral-50 to-white px-6 py-4">
+        <div className="flex items-center gap-3">
+          {icon && (
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary/10 text-lg">
+              {icon}
+            </span>
+          )}
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
+            {description && <p className="text-sm text-neutral-500">{description}</p>}
+          </div>
+        </div>
+      </div>
+      <div className="p-6">{children}</div>
+    </section>
+  )
+}
+
+// Input field component
+function InputField({
+  label,
+  required,
+  hint,
+  error,
+  children,
+}: {
+  label: string
+  required?: boolean
+  hint?: string
+  error?: string
+  children: React.ReactNode
+}) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="flex items-center gap-1 text-sm font-medium text-neutral-700">
+        {label}
+        {required && <span className="text-red-500">*</span>}
+      </span>
+      {children}
+      {hint && !error && <p className="text-xs text-neutral-500">{hint}</p>}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </label>
+  )
+}
+
 export function ShopProfileEditor({
   profileId,
   initialData,
@@ -115,7 +204,6 @@ export function ShopProfileEditor({
     initialData.service_type ?? 'store',
   )
   const [serviceTags, setServiceTags] = useState<string[]>(initialData.service_tags ?? [])
-  const [tagInput, setTagInput] = useState('')
   const [description, setDescription] = useState(initialData.description ?? '')
   const [catchCopy, setCatchCopy] = useState(initialData.catch_copy ?? '')
   const [address, setAddress] = useState(initialData.address ?? '')
@@ -124,7 +212,7 @@ export function ShopProfileEditor({
   )
   const [contact, setContact] = useState<ContactDraft>(normalizeContact(initialData.contact))
   const [photos, setPhotos] = useState<string[]>(
-    initialData.photos && initialData.photos.length ? [...initialData.photos] : [''],
+    initialData.photos && initialData.photos.length ? [...initialData.photos] : [],
   )
   const [menus, setMenus] = useState<MenuDraft[]>(
     initialData.menus && initialData.menus.length
@@ -136,7 +224,6 @@ export function ShopProfileEditor({
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [isPhotoUploading, setIsPhotoUploading] = useState(false)
-  const photoInputRef = useRef<HTMLInputElement>(null)
 
   const lastSavedAtLabel = useMemo(() => {
     if (!lastSavedAt) return null
@@ -159,103 +246,59 @@ export function ShopProfileEditor({
     setPriceMax(typeof data.price_max === 'number' ? String(data.price_max) : '')
     setServiceType(data.service_type ?? 'store')
     setServiceTags(data.service_tags ?? [])
-    setTagInput('')
     setDescription(data.description ?? '')
     setCatchCopy(data.catch_copy ?? '')
     setAddress(data.address ?? '')
     setStatusValue((data.status as 'draft' | 'published' | 'hidden' | undefined) ?? 'draft')
     setContact(normalizeContact(data.contact))
-    setPhotos(data.photos && data.photos.length ? [...data.photos] : [''])
+    setPhotos(data.photos && data.photos.length ? [...data.photos] : [])
     setMenus(data.menus && data.menus.length ? data.menus.map(toMenuDraft) : [emptyMenu()])
     setUpdatedAt(data.updated_at)
   }
 
-  function handleAddTag() {
-    const value = tagInput.trim()
-    if (!value) return
-    if (serviceTags.some((tag) => tag.toLowerCase() === value.toLowerCase())) {
-      setTagInput('')
-      return
-    }
-    setServiceTags((prev) => [...prev, value])
-    setTagInput('')
-  }
-
-  function handleRemoveTag(index: number) {
-    setServiceTags((prev) => prev.filter((_, idx) => idx !== index))
-  }
-
-  function handlePhotoChange(index: number, value: string) {
-    setPhotos((prev) => {
-      const next = [...prev]
-      next[index] = value
-      return next
-    })
-  }
-
-  function handleAddPhotoField() {
-    setPhotos((prev) => [...prev, ''])
-  }
-
-  function handleRemovePhotoField(index: number) {
-    setPhotos((prev) => {
-      const next = prev.filter((_, idx) => idx !== index)
-      return next.length ? next : ['']
-    })
-  }
-
-  async function handlePhotoUpload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) return
-
+  async function handlePhotoUpload(files: FileList) {
     setIsPhotoUploading(true)
     try {
-      const result = await uploadDashboardShopPhoto(profileId, file)
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const result = await uploadDashboardShopPhoto(profileId, file)
 
-      switch (result.status) {
-        case 'success':
-          setPhotos((prev) => {
-            const lastEmpty = prev.findIndex((url) => !url.trim())
-            if (lastEmpty >= 0) {
-              const next = [...prev]
-              next[lastEmpty] = result.data.url
-              return next
-            }
-            return [...prev, result.data.url]
-          })
-          push('success', '写真をアップロードしました。')
-          break
-        case 'too_large':
-          push('error', 'ファイルサイズが大きすぎます。5MB以下の画像をアップロードしてください。')
-          break
-        case 'unsupported_media_type':
-          push('error', '対応していないファイル形式です。JPG, PNG, WebP形式の画像をアップロードしてください。')
-          break
-        case 'validation_error':
-          push('error', result.message ?? '画像のアップロードに失敗しました。')
-          break
-        case 'unauthorized':
-          push('error', 'セッションが切れました。ログインし直してください。')
-          break
-        case 'forbidden':
-          push('error', '写真をアップロードする権限がありません。')
-          break
-        case 'not_found':
-          push('error', '対象の店舗が見つかりませんでした。')
-          break
-        case 'error':
-        default:
-          push('error', result.message ?? '写真のアップロードに失敗しました。')
-          break
+        switch (result.status) {
+          case 'success':
+            setPhotos((prev) => [...prev, result.data.url])
+            break
+          case 'too_large':
+            push('error', 'ファイルサイズが大きすぎます。5MB以下の画像をアップロードしてください。')
+            break
+          case 'unsupported_media_type':
+            push('error', '対応していないファイル形式です。JPG, PNG, WebP形式の画像をアップロードしてください。')
+            break
+          case 'validation_error':
+            push('error', result.message ?? '画像のアップロードに失敗しました。')
+            break
+          case 'unauthorized':
+            push('error', 'セッションが切れました。ログインし直してください。')
+            break
+          case 'forbidden':
+            push('error', '写真をアップロードする権限がありません。')
+            break
+          case 'not_found':
+            push('error', '対象の店舗が見つかりませんでした。')
+            break
+          case 'error':
+          default:
+            push('error', result.message ?? '写真のアップロードに失敗しました。')
+            break
+        }
+      }
+      if (files.length > 0) {
+        push('success', `${files.length}枚の写真をアップロードしました。`)
       }
     } catch (err) {
       console.error('[ShopProfileEditor] photo upload failed', err)
       push('error', '写真のアップロードに失敗しました。')
     } finally {
       setIsPhotoUploading(false)
-      if (photoInputRef.current) {
-        photoInputRef.current.value = ''
-      }
     }
   }
 
@@ -326,8 +369,6 @@ export function ShopProfileEditor({
       }))
       .filter((menu) => menu.name.length > 0)
 
-    const photoList = photos.map((url) => url.trim()).filter(Boolean)
-
     const normalizedContactValues: ContactDraft = {
       phone: contact.phone.trim(),
       line_id: contact.line_id.trim(),
@@ -358,7 +399,7 @@ export function ShopProfileEditor({
       description: description.trim() || null,
       catch_copy: catchCopy.trim() || null,
       address: address.trim() || null,
-      photos: photoList,
+      photos: photos,
       contact: contactPayload,
       menus: normalizedMenus,
       status: statusValue,
@@ -440,485 +481,395 @@ export function ShopProfileEditor({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <ToastContainer toasts={toasts} onDismiss={remove} />
 
-      {formError ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {formError}
-        </div>
-      ) : null}
-
-      <form className="space-y-6" onSubmit={handleSubmit}>
-        <Card className="space-y-6 p-6">
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold">基本情報</h2>
-            <p className="text-sm text-neutral-600">
-              サイト上に表示される店舗名や料金などの基本情報を設定してください。
-            </p>
-            <div className="flex flex-col gap-2 rounded-md border border-neutral-200 bg-neutral-surfaceAlt px-3 py-2 text-xs text-neutral-600 md:flex-row md:items-center md:gap-3">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold uppercase tracking-wide text-neutral-500">
-                  ステータス
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-semibold text-white">
-                  {selectedStatusOption.label}
-                </span>
-              </div>
-              <p className="text-neutral-500">{selectedStatusOption.description}</p>
-            </div>
+      {/* Status Banner */}
+      <div
+        className={clsx(
+          'flex items-center gap-4 rounded-2xl border p-4',
+          selectedStatusOption.color
+        )}
+      >
+        <span className="text-2xl">{selectedStatusOption.icon}</span>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">{selectedStatusOption.label}</span>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">店舗名 *</span>
+          <p className="text-sm opacity-80">{selectedStatusOption.description}</p>
+        </div>
+        <select
+          value={statusValue}
+          onChange={(event) =>
+            setStatusValue(event.target.value as 'draft' | 'published' | 'hidden')
+          }
+          className="rounded-lg border border-current/20 bg-white/50 px-3 py-1.5 text-sm font-medium backdrop-blur"
+        >
+          {STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.icon} {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {formError && (
+        <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+          <svg className="h-5 w-5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-sm text-red-700">{formError}</span>
+        </div>
+      )}
+
+      <form className="space-y-8" onSubmit={handleSubmit}>
+        {/* Basic Info */}
+        <SectionCard
+          title="基本情報"
+          description="サイト上に表示される店舗名や料金などの基本情報"
+          icon="🏢"
+        >
+          <div className="grid gap-6 md:grid-cols-2">
+            <InputField label="店舗名" required>
               <input
-                id="shop-name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                 placeholder="例: アロマリゾート 難波本店"
                 required
               />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">スラッグ</span>
+            </InputField>
+            <InputField label="スラッグ" hint="URLに使用される識別子">
               <input
-                id="shop-slug"
                 value={slug}
                 onChange={(event) => setSlug(event.target.value)}
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                 placeholder="例: aroma-namba"
               />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">エリア *</span>
+            </InputField>
+            <InputField label="エリア" required>
               <input
-                id="shop-area"
                 value={area}
                 onChange={(event) => setArea(event.target.value)}
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                 placeholder="例: 難波 / 心斎橋"
                 required
               />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">サービス形態</span>
-              <select
-                id="shop-service-type"
-                value={serviceType}
-                onChange={(event) => setServiceType(event.target.value as DashboardShopServiceType)}
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
-              >
+            </InputField>
+            <InputField label="サービス形態">
+              <div className="flex gap-3">
                 {SERVICE_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setServiceType(option.value)}
+                    className={clsx(
+                      'flex flex-1 items-center justify-center gap-2 rounded-xl border-2 px-4 py-2.5 text-sm font-medium transition-all',
+                      serviceType === option.value
+                        ? 'border-brand-primary bg-brand-primary/5 text-brand-primary'
+                        : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                    )}
+                  >
+                    <span>{option.icon}</span>
+                    <span>{option.label}</span>
+                  </button>
                 ))}
-              </select>
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">公開ステータス</span>
-              <select
-                id="shop-status"
-                value={statusValue}
-                onChange={(event) =>
-                  setStatusValue(event.target.value as 'draft' | 'published' | 'hidden')
-                }
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">料金（下限）</span>
+              </div>
+            </InputField>
+            <InputField label="料金（下限）" hint="円">
               <input
-                id="shop-price-min"
                 value={priceMin}
                 onChange={(event) => setPriceMin(event.target.value)}
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                 type="number"
                 min={0}
                 placeholder="例: 9000"
               />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">料金（上限）</span>
+            </InputField>
+            <InputField label="料金（上限）" hint="円">
               <input
-                id="shop-price-max"
                 value={priceMax}
                 onChange={(event) => setPriceMax(event.target.value)}
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                 type="number"
                 min={0}
                 placeholder="例: 16000"
               />
-            </label>
+            </InputField>
           </div>
-        </Card>
+        </SectionCard>
 
-        <Card className="space-y-6 p-6">
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold">店舗紹介</h2>
-            <p className="text-sm text-neutral-600">
-              サイトの店舗ページに表示される紹介文とキャッチコピーを設定します。
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">紹介文</span>
-              <textarea
-                id="shop-description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                className="h-32 w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
-                placeholder="お店の特徴やこだわりを記載してください。"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">キャッチコピー</span>
-              <textarea
-                id="shop-catch-copy"
+        {/* Shop Description */}
+        <SectionCard
+          title="店舗紹介"
+          description="サイトの店舗ページに表示される紹介文とキャッチコピー"
+          icon="📝"
+        >
+          <div className="space-y-6">
+            <InputField label="キャッチコピー" hint="短いフレーズで魅力を伝えましょう">
+              <input
                 value={catchCopy}
                 onChange={(event) => setCatchCopy(event.target.value)}
-                className="h-32 w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
-                placeholder="短いフレーズで魅力を伝えましょう。"
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                placeholder="例: 心と体を癒す至福のひととき"
               />
-            </label>
-          </div>
-          <label className="space-y-1">
-            <span className="text-xs font-semibold text-neutral-600">住所</span>
-            <input
-              id="shop-address"
-              value={address}
-              onChange={(event) => setAddress(event.target.value)}
-              className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
-              placeholder="例: 大阪市中央区○○1-2-3"
-            />
-          </label>
-        </Card>
-
-        <Card className="space-y-6 p-6">
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold">サービスタグ</h2>
-            <p className="text-sm text-neutral-600">
-              検索条件や店舗ページに表示されるタグです。例: アロマ, メンズエステ, 出張可
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {serviceTags.length === 0 ? (
-              <span className="rounded-full border border-dashed border-neutral-300 px-3 py-1 text-xs text-neutral-500">
-                タグ未設定
-              </span>
-            ) : (
-              serviceTags.map((tag, index) => (
-                <span
-                  key={`${tag}-${index}`}
-                  className="inline-flex items-center gap-2 rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700"
-                >
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(index)}
-                    className="text-neutral-400 transition hover:text-red-500"
-                    aria-label={`${tag} を削除`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))
-            )}
-          </div>
-          <div className="flex flex-col gap-3 md:flex-row">
-            <input
-              id="shop-tag-input"
-              value={tagInput}
-              onChange={(event) => setTagInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  handleAddTag()
-                }
-              }}
-              className="flex-1 rounded-md border border-neutral-200 px-3 py-2 text-sm"
-              placeholder="例: 指圧, よもぎ蒸し"
-            />
-            <button
-              type="button"
-              onClick={handleAddTag}
-              className="inline-flex items-center justify-center rounded-md border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100"
-            >
-              タグを追加
-            </button>
-          </div>
-        </Card>
-        <Card className="space-y-6 p-6">
-          <div className="flex items-start justify-between">
-            <div className="space-y-2">
-              <h2 className="text-xl font-semibold">掲載写真</h2>
-              <p className="text-sm text-neutral-600">
-                写真をアップロードするか、画像 URL を直接入力できます。1 枚目がリード画像になります。
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handlePhotoUpload}
-                className="hidden"
-                id="shop-photo-upload"
+            </InputField>
+            <InputField label="紹介文">
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                className="h-32 w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                placeholder="お店の特徴やこだわりを記載してください。"
               />
-              <label
-                htmlFor="shop-photo-upload"
-                className={`inline-flex cursor-pointer items-center rounded-md border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 ${
-                  isPhotoUploading ? 'pointer-events-none opacity-50' : ''
-                }`}
-              >
-                {isPhotoUploading ? 'アップロード中…' : '写真をアップロード'}
-              </label>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {photos.map((photo, index) => (
-              <div
-                key={`photo-${index}`}
-                className="flex flex-col gap-2 md:flex-row md:items-center"
-              >
-                <label className="flex-1">
-                  <span className="sr-only">写真 {index + 1}</span>
-                  <input
-                    value={photo}
-                    onChange={(event) => handlePhotoChange(index, event.target.value)}
-                    className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
-                    placeholder={`写真 ${index + 1} の URL`}
-                  />
-                </label>
-                {photo.trim() && (
-                  <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded border border-neutral-200">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- User-provided external URL preview */}
-                    <img
-                      src={photo}
-                      alt={`写真 ${index + 1} プレビュー`}
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none'
-                      }}
-                    />
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleRemovePhotoField(index)}
-                    className="rounded-md border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100"
-                  >
-                    削除
-                  </button>
-                  {index === photos.length - 1 ? (
-                    <button
-                      type="button"
-                      onClick={handleAddPhotoField}
-                      className="rounded-md border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-100"
-                    >
-                      追加
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="space-y-6 p-6">
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold">連絡先</h2>
-            <p className="text-sm text-neutral-600">
-              電話・LINE・公式サイトなどの連絡方法を登録します。未入力の項目は表示されません。
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">電話番号</span>
+            </InputField>
+            <InputField label="住所">
               <input
-                id="shop-contact-phone"
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                placeholder="例: 大阪市中央区○○1-2-3"
+              />
+            </InputField>
+          </div>
+        </SectionCard>
+
+        {/* Service Tags */}
+        <SectionCard
+          title="サービスタグ"
+          description="検索条件や店舗ページに表示されるタグです"
+          icon="🏷️"
+        >
+          <TagInput
+            tags={serviceTags}
+            onChange={setServiceTags}
+            suggestions={TAG_SUGGESTIONS}
+            placeholder="タグを入力して Enter"
+            maxTags={20}
+          />
+        </SectionCard>
+
+        {/* Photos */}
+        <SectionCard
+          title="掲載写真"
+          description="写真をアップロードするか、ドラッグ&ドロップで追加できます。1枚目がメイン画像になります。"
+          icon="📷"
+        >
+          <PhotoGrid
+            photos={photos}
+            onChange={setPhotos}
+            onUpload={handlePhotoUpload}
+            isUploading={isPhotoUploading}
+            maxPhotos={10}
+          />
+        </SectionCard>
+
+        {/* Contact */}
+        <SectionCard
+          title="連絡先"
+          description="電話・LINE・公式サイトなどの連絡方法を登録します"
+          icon="📞"
+        >
+          <div className="grid gap-6 md:grid-cols-2">
+            <InputField label="電話番号">
+              <input
                 value={contact.phone}
                 onChange={(event) => setContact((prev) => ({ ...prev, phone: event.target.value }))}
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                 placeholder="例: 06-1234-5678"
               />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">LINE ID / URL</span>
+            </InputField>
+            <InputField label="LINE ID / URL">
               <input
-                id="shop-contact-line"
                 value={contact.line_id}
-                onChange={(event) =>
-                  setContact((prev) => ({ ...prev, line_id: event.target.value }))
-                }
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
-                placeholder="LINE ID または https:// から始まる URL"
+                onChange={(event) => setContact((prev) => ({ ...prev, line_id: event.target.value }))}
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                placeholder="LINE ID または URL"
               />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">公式サイト</span>
+            </InputField>
+            <InputField label="公式サイト">
               <input
-                id="shop-contact-website"
                 value={contact.website_url}
-                onChange={(event) =>
-                  setContact((prev) => ({ ...prev, website_url: event.target.value }))
-                }
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                onChange={(event) => setContact((prev) => ({ ...prev, website_url: event.target.value }))}
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                 placeholder="例: https://example.com"
               />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-semibold text-neutral-600">WEB 予約フォーム</span>
+            </InputField>
+            <InputField label="WEB 予約フォーム">
               <input
-                id="shop-contact-reservation"
                 value={contact.reservation_form_url}
-                onChange={(event) =>
-                  setContact((prev) => ({
-                    ...prev,
-                    reservation_form_url: event.target.value,
-                  }))
-                }
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                onChange={(event) => setContact((prev) => ({ ...prev, reservation_form_url: event.target.value }))}
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                 placeholder="例: https://form.example.com"
               />
-            </label>
-            <label className="space-y-1 md:col-span-2">
-              <span className="text-xs font-semibold text-neutral-600">営業時間</span>
-              <input
-                id="shop-contact-business-hours"
-                value={contact.business_hours}
-                onChange={(event) =>
-                  setContact((prev) => ({
-                    ...prev,
-                    business_hours: event.target.value,
-                  }))
-                }
-                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
-                placeholder="例: 10:00 - 翌3:00 / 年中無休"
-              />
-            </label>
-          </div>
-        </Card>
-
-        <Card className="space-y-6 p-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <h2 className="text-xl font-semibold">メニュー</h2>
-              <p className="text-sm text-neutral-600">
-                代表的なコースや料金プランを登録してください。メニュー名が空の場合は保存時に除外されます。
-              </p>
+            </InputField>
+            <div className="md:col-span-2">
+              <InputField label="営業時間">
+                <input
+                  value={contact.business_hours}
+                  onChange={(event) => setContact((prev) => ({ ...prev, business_hours: event.target.value }))}
+                  className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                  placeholder="例: 10:00 - 翌3:00 / 年中無休"
+                />
+              </InputField>
             </div>
-            <button
-              type="button"
-              onClick={handleAddMenu}
-              className="inline-flex items-center rounded-md border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100"
-            >
-              メニューを追加
-            </button>
           </div>
+        </SectionCard>
+
+        {/* Menus */}
+        <SectionCard
+          title="メニュー"
+          description="代表的なコースや料金プランを登録してください"
+          icon="📋"
+        >
           <div className="space-y-4">
             {menus.map((menu, index) => (
               <div
                 key={menu.id ?? `menu-${index}`}
-                className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4"
+                className="group relative rounded-xl border border-neutral-200 bg-neutral-50/50 p-5 transition-all hover:border-neutral-300"
               >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-neutral-700">メニュー {index + 1}</p>
+                <div className="mb-4 flex items-center justify-between">
+                  <span className="inline-flex items-center gap-2 rounded-lg bg-brand-primary/10 px-3 py-1 text-sm font-medium text-brand-primary">
+                    <span>📋</span>
+                    メニュー {index + 1}
+                  </span>
                   <button
                     type="button"
                     onClick={() => handleRemoveMenu(index)}
-                    className="text-xs font-medium text-neutral-500 transition hover:text-red-500"
+                    className="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-red-50 hover:text-red-500"
                   >
-                    削除
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
                   </button>
                 </div>
-                <div className="grid gap-3 md:grid-cols-[2fr_1fr_1fr]">
-                  <label className="space-y-1">
-                    <span className="text-xs font-semibold text-neutral-600">メニュー名</span>
+                <div className="grid gap-4 md:grid-cols-[2fr_1fr_1fr]">
+                  <InputField label="メニュー名">
                     <input
                       value={menu.name}
                       onChange={(event) => handleMenuChange(index, 'name', event.target.value)}
-                      className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                       placeholder="例: 90分 コース"
                     />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-xs font-semibold text-neutral-600">料金 (円)</span>
+                  </InputField>
+                  <InputField label="料金 (円)">
                     <input
                       value={menu.price}
                       onChange={(event) => handleMenuChange(index, 'price', event.target.value)}
-                      className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                       type="number"
                       min={0}
                       placeholder="例: 13000"
                     />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-xs font-semibold text-neutral-600">施術時間 (分)</span>
+                  </InputField>
+                  <InputField label="施術時間 (分)">
                     <input
                       value={menu.duration}
                       onChange={(event) => handleMenuChange(index, 'duration', event.target.value)}
-                      className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                       type="number"
                       min={0}
                       placeholder="例: 90"
                     />
-                  </label>
+                  </InputField>
                 </div>
-                <label className="space-y-1">
-                  <span className="text-xs font-semibold text-neutral-600">説明</span>
-                  <textarea
-                    value={menu.description}
-                    onChange={(event) => handleMenuChange(index, 'description', event.target.value)}
-                    className="h-24 w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
-                    placeholder="コース内容やおすすめポイントを記載してください。"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs font-semibold text-neutral-600">
-                    タグ (カンマ区切り)
-                  </span>
-                  <input
-                    value={menu.tags}
-                    onChange={(event) => handleMenuChange(index, 'tags', event.target.value)}
-                    className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
-                    placeholder="例: オイル, ヘッドスパ"
-                  />
-                </label>
+                <div className="mt-4 space-y-4">
+                  <InputField label="説明">
+                    <textarea
+                      value={menu.description}
+                      onChange={(event) => handleMenuChange(index, 'description', event.target.value)}
+                      className="h-20 w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                      placeholder="コース内容やおすすめポイントを記載してください。"
+                    />
+                  </InputField>
+                  <InputField label="タグ" hint="カンマ区切りで入力">
+                    <input
+                      value={menu.tags}
+                      onChange={(event) => handleMenuChange(index, 'tags', event.target.value)}
+                      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                      placeholder="例: オイル, ヘッドスパ"
+                    />
+                  </InputField>
+                </div>
               </div>
             ))}
-          </div>
-        </Card>
-
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1 text-sm text-neutral-500">
-            <p>プロフィール ID: {profileId}</p>
-            {updatedAt ? <p>最終更新: {new Date(updatedAt).toLocaleString('ja-JP')}</p> : null}
-            {lastSavedAtLabel ? <p>直近の保存: {lastSavedAtLabel}</p> : null}
-          </div>
-          <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => hydrateFromData(snapshot)}
-              className="rounded-md border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-600 transition hover:bg-neutral-100"
+              onClick={handleAddMenu}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm font-medium text-neutral-600 transition-all hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary"
             >
-              保存済みの内容に戻す
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              メニューを追加
             </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="inline-flex items-center justify-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-400"
-            >
-              {isSaving ? '保存中…' : '変更を保存'}
-            </button>
+          </div>
+        </SectionCard>
+
+        {/* Action Footer */}
+        <div className="sticky bottom-4 z-10">
+          <div className="rounded-2xl border border-neutral-200 bg-white/95 p-4 shadow-lg backdrop-blur">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-500">
+                <span className="inline-flex items-center gap-1.5">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                  ID: {profileId.slice(0, 8)}...
+                </span>
+                {updatedAt && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    更新: {new Date(updatedAt).toLocaleString('ja-JP')}
+                  </span>
+                )}
+                {lastSavedAtLabel && (
+                  <span className="inline-flex items-center gap-1.5 text-emerald-600">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    保存: {lastSavedAtLabel}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => hydrateFromData(snapshot)}
+                  className="rounded-xl border border-neutral-200 px-4 py-2.5 text-sm font-medium text-neutral-600 transition-all hover:bg-neutral-50"
+                >
+                  変更を破棄
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className={clsx(
+                    'inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition-all',
+                    'bg-gradient-to-r from-brand-primary to-brand-secondary',
+                    'hover:shadow-xl hover:shadow-brand-primary/25',
+                    'disabled:cursor-not-allowed disabled:opacity-50'
+                  )}
+                >
+                  {isSaving ? (
+                    <>
+                      <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      保存中...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      変更を保存
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </form>

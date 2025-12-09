@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import clsx from 'clsx'
+import { ReactNode, useEffect, useMemo, useState, useTransition } from 'react'
 
 import {
   DashboardNotificationChannels,
@@ -13,13 +14,42 @@ import {
   updateDashboardNotificationSettings,
 } from '@/lib/dashboard-notifications'
 
-const STATUS_OPTIONS: { value: DashboardNotificationStatus; label: string }[] = [
-  { value: 'pending', label: '仮受付 (pending)' },
-  { value: 'confirmed', label: '確定 (confirmed)' },
-  { value: 'declined', label: '辞退 (declined)' },
-  { value: 'cancelled', label: 'キャンセル (cancelled)' },
-  { value: 'expired', label: '期限切れ (expired)' },
+const STATUS_OPTIONS: {
+  value: DashboardNotificationStatus
+  label: string
+  icon: string
+  color: string
+}[] = [
+  { value: 'pending', label: '仮受付', icon: '⏳', color: 'bg-amber-50 border-amber-200 text-amber-700' },
+  { value: 'confirmed', label: '確定', icon: '✅', color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+  { value: 'declined', label: '辞退', icon: '🚫', color: 'bg-red-50 border-red-200 text-red-700' },
+  { value: 'cancelled', label: 'キャンセル', icon: '❌', color: 'bg-neutral-100 border-neutral-300 text-neutral-700' },
+  { value: 'expired', label: '期限切れ', icon: '⏰', color: 'bg-slate-100 border-slate-300 text-slate-700' },
 ]
+
+const CHANNEL_CONFIG = {
+  email: {
+    icon: '📧',
+    label: 'メール通知',
+    description: '宛先は複数入力できます（改行またはカンマ区切り、最大 5 件）',
+    color: 'from-blue-500 to-blue-600',
+    bgActive: 'bg-blue-50 border-blue-200',
+  },
+  line: {
+    icon: '💬',
+    label: 'LINE Notify',
+    description: '店舗が取得した LINE Notify トークンを入力します',
+    color: 'from-green-500 to-green-600',
+    bgActive: 'bg-green-50 border-green-200',
+  },
+  slack: {
+    icon: '🔔',
+    label: 'Slack Webhook',
+    description: '運営チャンネルの Slack Incoming Webhook URL を入力します',
+    color: 'from-purple-500 to-purple-600',
+    bgActive: 'bg-purple-50 border-purple-200',
+  },
+}
 
 type MessageState =
   | { type: 'idle' }
@@ -141,6 +171,159 @@ function mergeConflict(conflict: DashboardNotificationSettingsResponse): FormSta
   }
 }
 
+function SectionCard({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: string
+  title: string
+  description?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+      <div className="border-b border-neutral-100 bg-neutral-50/50 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-xl shadow-sm">
+            {icon}
+          </span>
+          <div>
+            <h3 className="font-semibold text-neutral-900">{title}</h3>
+            {description && <p className="text-sm text-neutral-500">{description}</p>}
+          </div>
+        </div>
+      </div>
+      <div className="p-6">{children}</div>
+    </div>
+  )
+}
+
+function ChannelCard({
+  channelKey,
+  enabled,
+  onToggle,
+  disabled,
+  error,
+  children,
+}: {
+  channelKey: keyof typeof CHANNEL_CONFIG
+  enabled: boolean
+  onToggle: () => void
+  disabled: boolean
+  error?: string
+  children: ReactNode
+}) {
+  const config = CHANNEL_CONFIG[channelKey]
+
+  return (
+    <div
+      className={clsx(
+        'overflow-hidden rounded-2xl border-2 transition-all duration-200',
+        enabled ? config.bgActive : 'border-neutral-200 bg-white',
+      )}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={disabled}
+        className={clsx(
+          'flex w-full items-center gap-4 px-5 py-4 text-left transition-colors',
+          disabled && 'cursor-not-allowed opacity-60',
+        )}
+      >
+        <div
+          className={clsx(
+            'flex h-12 w-12 items-center justify-center rounded-xl text-2xl transition-all',
+            enabled ? `bg-gradient-to-br ${config.color} text-white shadow-lg` : 'bg-neutral-100',
+          )}
+        >
+          {config.icon}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-neutral-900">{config.label}</span>
+            <span
+              className={clsx(
+                'rounded-full px-2 py-0.5 text-xs font-medium transition-colors',
+                enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-neutral-100 text-neutral-500',
+              )}
+            >
+              {enabled ? '有効' : '無効'}
+            </span>
+          </div>
+          <p className="mt-0.5 text-sm text-neutral-500">{config.description}</p>
+        </div>
+        <div
+          className={clsx(
+            'h-6 w-11 rounded-full p-0.5 transition-colors',
+            enabled ? 'bg-emerald-500' : 'bg-neutral-300',
+          )}
+        >
+          <div
+            className={clsx(
+              'h-5 w-5 rounded-full bg-white shadow-sm transition-transform',
+              enabled && 'translate-x-5',
+            )}
+          />
+        </div>
+      </button>
+
+      {enabled && (
+        <div className="border-t border-neutral-200/50 bg-white/80 px-5 py-4">
+          {children}
+          {error && (
+            <p className="mt-2 flex items-center gap-1 text-sm text-red-600">
+              <span>⚠️</span>
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StatusToggle({
+  option,
+  checked,
+  onChange,
+  disabled,
+}: {
+  option: (typeof STATUS_OPTIONS)[number]
+  checked: boolean
+  onChange: () => void
+  disabled: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      disabled={disabled}
+      className={clsx(
+        'flex items-center gap-2 rounded-xl border-2 px-4 py-3 text-sm font-medium transition-all',
+        checked
+          ? option.color
+          : 'border-neutral-200 bg-white text-neutral-500 hover:border-neutral-300 hover:bg-neutral-50',
+        disabled && 'cursor-not-allowed opacity-60',
+      )}
+    >
+      <span className="text-lg">{option.icon}</span>
+      <span>{option.label}</span>
+      {checked && (
+        <svg className="ml-auto h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+          <path
+            fillRule="evenodd"
+            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+            clipRule="evenodd"
+          />
+        </svg>
+      )}
+    </button>
+  )
+}
+
 type Props = {
   profileId: string
   initialData: DashboardNotificationSettingsResponse
@@ -161,6 +344,12 @@ export function NotificationSettingsForm({ profileId, initialData }: Props) {
     () => Array.from(formState.triggerStatus),
     [formState.triggerStatus],
   )
+
+  const enabledChannelsCount = [
+    formState.channels.email.enabled,
+    formState.channels.line.enabled,
+    formState.channels.slack.enabled,
+  ].filter(Boolean).length
 
   const handleToggleChannel = (key: keyof DashboardNotificationChannels) => {
     setFormState((prev) => {
@@ -311,182 +500,208 @@ export function NotificationSettingsForm({ profileId, initialData }: Props) {
   }
 
   return (
-    <section className="space-y-6 rounded border border-neutral-200 bg-white p-6 shadow-sm">
-      <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Header with stats */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-6">
         <div>
-          <h2 className="text-xl font-semibold">通知チャネル</h2>
-          <p className="text-sm text-neutral-600">
-            有効にする通知チャネルを選択し、必要な情報を入力してください。
+          <h2 className="text-xl font-bold text-neutral-900">通知設定</h2>
+          <p className="mt-1 text-sm text-neutral-600">
+            予約ステータスが変更されたときに通知を受け取る設定を管理します
           </p>
         </div>
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 shadow-sm">
+            <span className="text-lg">📡</span>
+            <span className="font-medium text-neutral-700">
+              {enabledChannelsCount} チャネル有効
+            </span>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 shadow-sm">
+            <span className="text-lg">🎯</span>
+            <span className="font-medium text-neutral-700">
+              {triggerSelections.length} トリガー設定
+            </span>
+          </div>
+        </div>
+      </div>
 
+      {/* Notification channels */}
+      <SectionCard
+        icon="📬"
+        title="通知チャネル"
+        description="通知を受け取るチャネルを選択してください"
+      >
         <div className="space-y-4">
-          <div className="flex items-start gap-3">
-            <input
-              id="channel-email"
-              type="checkbox"
-              className="mt-1 h-4 w-4"
-              checked={formState.channels.email.enabled}
-              onChange={() =>
+          {/* Email */}
+          <ChannelCard
+            channelKey="email"
+            enabled={formState.channels.email.enabled}
+            onToggle={() =>
+              setFormState((prev) => ({
+                ...prev,
+                channels: {
+                  ...prev.channels,
+                  email: {
+                    ...prev.channels.email,
+                    enabled: !prev.channels.email.enabled,
+                  },
+                },
+              }))
+            }
+            disabled={isPending}
+            error={fieldErrors.email}
+          >
+            <textarea
+              className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-neutral-100"
+              rows={3}
+              value={formState.emailInput}
+              disabled={isPending}
+              onChange={(event) =>
                 setFormState((prev) => ({
                   ...prev,
-                  channels: {
-                    ...prev.channels,
-                    email: {
-                      ...prev.channels.email,
-                      enabled: !prev.channels.email.enabled,
-                    },
-                  },
+                  emailInput: event.target.value,
                 }))
               }
+              placeholder="store@example.com&#10;manager@example.com"
             />
-            <div className="flex-1">
-              <label htmlFor="channel-email" className="font-medium text-neutral-800">
-                メール通知
-              </label>
-              <p className="text-sm text-neutral-600">
-                宛先は複数入力できます（改行またはカンマ区切り、最大 5 件）。
-              </p>
-              <textarea
-                className="mt-2 w-full rounded border border-neutral-300 px-3 py-2 text-sm disabled:bg-neutral-100"
-                rows={4}
-                value={formState.emailInput}
-                disabled={!formState.channels.email.enabled || isPending}
-                onChange={(event) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    emailInput: event.target.value,
-                  }))
-                }
-                placeholder="store@example.com"
-              />
-              {formState.channels.email.enabled && fieldErrors.email && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
-              )}
-            </div>
-          </div>
+          </ChannelCard>
 
-          <div className="flex items-start gap-3">
+          {/* LINE */}
+          <ChannelCard
+            channelKey="line"
+            enabled={formState.channels.line.enabled}
+            onToggle={() => handleToggleChannel('line')}
+            disabled={isPending}
+            error={fieldErrors.line}
+          >
             <input
-              id="channel-line"
-              type="checkbox"
-              className="mt-1 h-4 w-4"
-              checked={formState.channels.line.enabled}
-              onChange={() => handleToggleChannel('line')}
+              type="text"
+              className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm transition-colors focus:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-100 disabled:bg-neutral-100"
+              value={formState.lineTokenInput}
+              disabled={isPending}
+              onChange={(event) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  lineTokenInput: event.target.value,
+                }))
+              }
+              placeholder="LINE Notify トークンを入力"
             />
-            <div className="flex-1">
-              <label htmlFor="channel-line" className="font-medium text-neutral-800">
-                LINE Notify
-              </label>
-              <p className="text-sm text-neutral-600">
-                店舗が取得した LINE Notify トークンを入力します。
-              </p>
-              <input
-                type="text"
-                className="mt-2 w-full rounded border border-neutral-300 px-3 py-2 text-sm disabled:bg-neutral-100"
-                value={formState.lineTokenInput}
-                disabled={!formState.channels.line.enabled || isPending}
-                onChange={(event) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    lineTokenInput: event.target.value,
-                  }))
-                }
-                placeholder="LINE Notify トークン"
-              />
-              {formState.channels.line.enabled && fieldErrors.line && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.line}</p>
-              )}
-            </div>
-          </div>
+          </ChannelCard>
 
-          <div className="flex items-start gap-3">
+          {/* Slack */}
+          <ChannelCard
+            channelKey="slack"
+            enabled={formState.channels.slack.enabled}
+            onToggle={() => handleToggleChannel('slack')}
+            disabled={isPending}
+            error={fieldErrors.slack}
+          >
             <input
-              id="channel-slack"
-              type="checkbox"
-              className="mt-1 h-4 w-4"
-              checked={formState.channels.slack.enabled}
-              onChange={() => handleToggleChannel('slack')}
+              type="url"
+              className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm transition-colors focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100 disabled:bg-neutral-100"
+              value={formState.slackUrlInput}
+              disabled={isPending}
+              onChange={(event) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  slackUrlInput: event.target.value,
+                }))
+              }
+              placeholder="https://hooks.slack.com/services/..."
             />
-            <div className="flex-1">
-              <label htmlFor="channel-slack" className="font-medium text-neutral-800">
-                Slack Webhook
-              </label>
-              <p className="text-sm text-neutral-600">
-                運営チャンネルの Slack Incoming Webhook URL を入力します。
-              </p>
-              <input
-                type="url"
-                className="mt-2 w-full rounded border border-neutral-300 px-3 py-2 text-sm disabled:bg-neutral-100"
-                value={formState.slackUrlInput}
-                disabled={!formState.channels.slack.enabled || isPending}
-                onChange={(event) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    slackUrlInput: event.target.value,
-                  }))
-                }
-                placeholder="https://hooks.slack.com/services/..."
-              />
-              {formState.channels.slack.enabled && fieldErrors.slack && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.slack}</p>
-              )}
-            </div>
-          </div>
+          </ChannelCard>
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="space-y-3">
-        <h3 className="text-lg font-semibold">通知トリガー</h3>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {/* Trigger status */}
+      <SectionCard
+        icon="🎯"
+        title="通知トリガー"
+        description="どのステータス変更で通知を受け取るか選択してください"
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {STATUS_OPTIONS.map((option) => (
-            <label key={option.value} className="flex items-center gap-2 text-sm text-neutral-700">
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={formState.triggerStatus.has(option.value)}
-                onChange={() => handleStatusToggle(option.value)}
-                disabled={isPending}
-              />
-              {option.label}
-            </label>
+            <StatusToggle
+              key={option.value}
+              option={option}
+              checked={formState.triggerStatus.has(option.value)}
+              onChange={() => handleStatusToggle(option.value)}
+              disabled={isPending}
+            />
           ))}
         </div>
-      </div>
+      </SectionCard>
 
+      {/* Message */}
       {message.type !== 'idle' && (
         <div
-          className={`rounded border px-4 py-3 text-sm ${
-            message.type === 'success'
-              ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-              : message.type === 'error'
-                ? 'border-red-300 bg-red-50 text-red-700'
-                : 'border-blue-200 bg-blue-50 text-blue-700'
-          }`}
+          className={clsx(
+            'flex items-center gap-3 rounded-2xl border-2 px-5 py-4',
+            message.type === 'success' && 'border-emerald-200 bg-emerald-50 text-emerald-800',
+            message.type === 'error' && 'border-red-200 bg-red-50 text-red-700',
+            message.type === 'info' && 'border-blue-200 bg-blue-50 text-blue-700',
+          )}
         >
-          {message.text}
+          <span className="text-xl">
+            {message.type === 'success' ? '✅' : message.type === 'error' ? '❌' : 'ℹ️'}
+          </span>
+          <p className="flex-1 text-sm font-medium">{message.text}</p>
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={isPending}
-          className="inline-flex items-center rounded bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-900 disabled:cursor-not-allowed disabled:bg-neutral-400"
-        >
-          {isPending ? '保存中…' : '設定を保存'}
-        </button>
-        <button
-          type="button"
-          onClick={handleTest}
-          disabled={isPending}
-          className="inline-flex items-center rounded border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-400"
-        >
-          テスト送信 (バリデーションのみ)
-        </button>
-        <p className="text-sm text-neutral-500">最後に保存した時刻: {updatedAtLabel || '---'}</p>
+      {/* Action footer */}
+      <div className="sticky bottom-0 -mx-4 bg-gradient-to-t from-white via-white to-white/80 px-4 pb-4 pt-4 sm:-mx-6 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-lg">
+          <div className="flex items-center gap-2 text-sm text-neutral-500">
+            <span className="text-lg">🕐</span>
+            <span>最終更新: {updatedAtLabel || '---'}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleTest}
+              disabled={isPending}
+              className="inline-flex items-center gap-2 rounded-xl border-2 border-neutral-200 bg-white px-5 py-2.5 text-sm font-semibold text-neutral-700 transition-all hover:border-neutral-300 hover:bg-neutral-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span>🧪</span>
+              テスト送信
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isPending}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-primary/25 transition-all hover:shadow-xl hover:shadow-brand-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isPending ? (
+                <>
+                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  <span>保存中…</span>
+                </>
+              ) : (
+                <>
+                  <span>💾</span>
+                  <span>設定を保存</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       </div>
-    </section>
+    </div>
   )
 }
