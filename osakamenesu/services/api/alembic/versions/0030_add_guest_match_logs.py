@@ -8,7 +8,8 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "0030_add_guest_match_logs"
-down_revision = "2b1da46b88f9"
+# Changed from "2b1da46b88f9" to ensure therapists table exists before 0031
+down_revision = "0023_reservation_approval_and_reminders"
 branch_labels = None
 depends_on = None
 
@@ -26,14 +27,29 @@ def upgrade() -> None:
         sa.Column("style_pref", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("look_pref", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("free_text", sa.Text(), nullable=True),
-        sa.Column("top_matches", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("other_candidates", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("selected_therapist_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column(
+            "top_matches", postgresql.JSONB(astext_type=sa.Text()), nullable=True
+        ),
+        sa.Column(
+            "other_candidates", postgresql.JSONB(astext_type=sa.Text()), nullable=True
+        ),
+        sa.Column(
+            "selected_therapist_id", postgresql.UUID(as_uuid=True), nullable=True
+        ),
         sa.Column("selected_shop_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("selected_slot", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "selected_slot", postgresql.JSONB(astext_type=sa.Text()), nullable=True
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
     )
-    op.create_index("ix_guest_match_logs_created_at", "guest_match_logs", ["created_at"])
+    op.create_index(
+        "ix_guest_match_logs_created_at", "guest_match_logs", ["created_at"]
+    )
 
 
 def downgrade() -> None:
