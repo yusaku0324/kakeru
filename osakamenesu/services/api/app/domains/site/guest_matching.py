@@ -527,8 +527,13 @@ def _score_photo_similarity(
     Compute photo similarity using embedding vectors.
     - If base or candidate lacks embeddings, return neutral 0.5.
     - If embeddings exist, compute cosine similarity and map to 0..1 range.
+    - If numpy is not available, return neutral 0.5.
     """
-    from .services.photo_embedding_service import PhotoEmbeddingService
+    try:
+        from .services.photo_embedding_service import PhotoEmbeddingService
+    except ImportError:
+        # numpy not available, return neutral score
+        return 0.5
 
     base_vec = (
         base.get("photo_embedding")

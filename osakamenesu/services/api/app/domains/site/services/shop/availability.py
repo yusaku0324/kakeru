@@ -233,10 +233,11 @@ async def get_therapist_next_available_slots_by_shop(
     now_value = now_jst()
 
     # 店舗に所属するセラピストを取得
+    # therapist_status enum: draft, published, archived
     therapist_stmt = (
         select(Therapist)
         .where(Therapist.profile_id.in_(shop_ids))
-        .where(Therapist.status.in_(["active", "draft", "published"]))
+        .where(Therapist.status.in_(["draft", "published"]))
     )
     therapist_res = await db.execute(therapist_stmt)
     therapists = list(therapist_res.scalars().all())

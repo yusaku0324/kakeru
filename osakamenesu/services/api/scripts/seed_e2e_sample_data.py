@@ -306,6 +306,40 @@ def _find_shop_by_slug(base: str, headers: Dict[str, str], slug: str) -> Optiona
     return None
 
 
+def _create_therapist(
+    base: str,
+    headers: Dict[str, str],
+    shop_id: str,
+    therapist_id: str,
+    staff_def: Dict[str, Any],
+) -> Optional[str]:
+    """Create a therapist in the Therapist table. Returns therapist_id or None on failure."""
+    payload = {
+        "profile_id": shop_id,
+        "name": staff_def["name"],
+        "photo_url": staff_def.get("avatar_url"),
+        "tags": staff_def.get("specialties", []),
+    }
+
+    try:
+        result = _request_json(
+            base,
+            "POST",
+            "/api/admin/therapists",
+            headers=headers,
+            payload=payload,
+            expected=(200, 201, 409),  # 409 = already exists
+        )
+        if isinstance(result, dict) and "id" in result:
+            created_id = result["id"]
+            _log(f"created therapist {staff_def['name']} (id={created_id})")
+            return created_id
+        return None
+    except Exception as exc:
+        _log(f"therapist creation failed for {staff_def['name']}: {exc}")
+        return None
+
+
 def _create_shop(
     base: str,
     headers: Dict[str, str],
@@ -443,13 +477,30 @@ def _add_availability(
     """Add availability slots for today and next 3 days."""
     for offset in range(4):
         slot_date = date.today() + timedelta(days=offset)
+        slot_date_iso = slot_date.isoformat()
+        # Create slots with open status (10:00-14:00, 15:00-22:00 JST)
+        slots_json = {
+            "slots": [
+                {
+                    "start_at": f"{slot_date_iso}T10:00:00+09:00",
+                    "end_at": f"{slot_date_iso}T14:00:00+09:00",
+                    "status": "open",
+                },
+                {
+                    "start_at": f"{slot_date_iso}T15:00:00+09:00",
+                    "end_at": f"{slot_date_iso}T22:00:00+09:00",
+                    "status": "open",
+                },
+            ]
+        }
         try:
             _request_json(
                 base,
                 "POST",
                 "/api/admin/availabilities",
                 headers=headers,
-                params={"profile_id": shop_id, "date": slot_date.isoformat()},
+                params={"profile_id": shop_id, "date": slot_date_iso},
+                payload=slots_json,
                 expected=(200, 201, 202, 204, 409),  # 409 = already exists
             )
         except Exception as exc:
@@ -637,20 +688,37 @@ def main(argv: Sequence[str]) -> int:
     try:
         for shop_def in SAMPLE_SHOPS:
             slug = shop_def["slug"]
-            therapist_ids = SAMPLE_THERAPIST_IDS.get(slug, [])
+            predefined_therapist_ids = SAMPLE_THERAPIST_IDS.get(slug, [])
 
-            shop_id = _create_shop(base, headers, shop_def, therapist_ids)
+            shop_id = _create_shop(base, headers, shop_def, predefined_therapist_ids)
             created_shops.append({"slug": slug, "id": shop_id})
+
+            # Create therapists in Therapist table (required for shifts)
+            created_therapist_ids = []
+            for i, staff_def in enumerate(shop_def.get("staff", [])):
+                predefined_id = (
+                    predefined_therapist_ids[i]
+                    if i < len(predefined_therapist_ids)
+                    else None
+                )
+                therapist_id = _create_therapist(
+                    base, headers, shop_id, predefined_id, staff_def
+                )
+                if therapist_id:
+                    created_therapist_ids.append(therapist_id)
 
             # Add availability
             _add_availability(base, headers, shop_id)
 
-            # Add therapist shifts (for availability display)
-            _add_therapist_shifts(base, headers, shop_id, therapist_ids)
+            # Add therapist shifts (for availability display) using created IDs
+            if created_therapist_ids:
+                _add_therapist_shifts(base, headers, shop_id, created_therapist_ids)
+            else:
+                _log(f"no therapists created for {slug}, skipping shifts")
 
             # Add reservations
-            if not args.skip_reservations:
-                _add_reservations(base, headers, shop_id, therapist_ids)
+            if not args.skip_reservations and created_therapist_ids:
+                _add_reservations(base, headers, shop_id, created_therapist_ids)
 
         # Trigger reindex
         try:

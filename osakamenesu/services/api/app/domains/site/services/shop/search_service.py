@@ -581,11 +581,8 @@ async def _search_shops_impl(
             page=page,
             page_size=page_size,
         )
-        response = ShopSearchResponse(
-            page=page, page_size=page_size, total=total, results=results, facets={}
-        )
-        return response.model_dump()
-    if isinstance(res, Exception):
+        res = None  # Fall through to availability processing below
+    if res is not None and isinstance(res, Exception):
         logger.warning(
             "shop search returned error, falling back to PostgreSQL: %s", res
         )
@@ -603,12 +600,13 @@ async def _search_shops_impl(
         except Exception as pg_error:
             logger.error("PostgreSQL fallback also failed: %s", pg_error)
             results, total = [], 0
-        response = ShopSearchResponse(
-            page=page, page_size=page_size, total=total, results=results, facets={}
-        )
-        return response.model_dump()
-    hits = res.get("hits", [])
-    results = [_doc_to_shop_summary(doc) for doc in hits]
+        res = None  # Fall through to availability processing below
+
+    # Process Meili results if we didn't fall back to PostgreSQL
+    if res is not None:
+        hits = res.get("hits", [])
+        results = [_doc_to_shop_summary(doc) for doc in hits]
+        total = res.get("estimatedTotalHits", len(results))
 
     if available_date:
         results = await _filter_results_by_availability(db, results, available_date)
@@ -669,12 +667,22 @@ async def _search_shops_impl(
     if diaries_only is not None:
         selected_facets["has_diaries"] = {"true" if diaries_only else "false"}
 
+    # Build response - handle both Meili and PostgreSQL fallback cases
+    if res is not None:
+        response_total = (
+            len(results) if available_date else res.get("estimatedTotalHits", 0)
+        )
+        response_facets = _build_facets(res.get("facetDistribution"), selected_facets)
+    else:
+        response_total = total
+        response_facets = {}
+
     response = ShopSearchResponse(
         page=page,
         page_size=page_size,
-        total=len(results) if available_date else res.get("estimatedTotalHits", 0),
+        total=response_total,
         results=results,
-        facets=_build_facets(res.get("facetDistribution"), selected_facets),
+        facets=response_facets,
     )
     return response.model_dump()
 

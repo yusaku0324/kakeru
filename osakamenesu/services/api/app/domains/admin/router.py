@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from ...deps import audit_admin, require_admin
+from ... import meili
 from .profiles_router import (
     router as profiles_router,
     reindex_all as profiles_reindex_all,
@@ -28,14 +29,14 @@ router.include_router(shop_dashboard_router)
 reindex_all = profiles_reindex_all
 
 
-async def purge_all() -> None:
-    """Placeholder purge hook that can be monkeypatched in tests."""
-    raise NotImplementedError("purge_all is not configured")
+def purge_all() -> None:
+    """Purge all documents from Meilisearch index."""
+    meili.purge_all()
 
 
-def index_bulk(_docs: list[dict]) -> None:
-    """Placeholder bulk index hook used in tests."""
-    raise NotImplementedError("index_bulk is not configured")
+def index_bulk(docs: list[dict]) -> None:
+    """Bulk index documents to Meilisearch."""
+    meili.index_bulk(docs)
 
 
 __all__ = ["router", "purge_all", "index_bulk", "reindex_all"]
