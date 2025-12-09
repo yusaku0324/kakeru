@@ -124,7 +124,13 @@
 - **パフォーマンス**: Meilisearch による高速検索、ページネーション。API は非同期 SQLAlchemy で実装。
 - **セキュリティ**: 18 歳確認モーダル、Admin API キー必須、操作ログ保存。
 - **運用**: Docker Compose によるローカル環境、Makefile でサービス起動 (`Makefile`)。
-- **品質管理**: `npm run lint` / `pytest` / GitHub Actions CI (`.github/workflows/ci.yml`) により lint・テストを実施。CI は API/WEB の lint、単体テスト、定期実行ワークフローを包含。
+- **品質管理**: `npm run lint` / `pytest` / GitHub Actions CI により lint・テストを実施。
+  - `ci-web.yml`: Web の TypeScript チェック、単体テスト、E2E スモークテスト
+  - `ci-api.yml`: Alembic マイグレーション整合性チェック
+  - `ci-api-integration.yml`: API 統合テスト（PostgreSQL + Meilisearch）、依存関係インポートチェック、enum 一貫性チェック
+  - `staging-smoke-test.yml`: Staging 環境デプロイ後のスモークテスト
+  - `architecture-check.yml`: ファイルサイズ制限、依存関係ルール検証
+  - PRテンプレート: DB変更・依存関係・API変更・環境変数変更のチェックリスト
 - **観測性**: Google Analytics で主要導線のアクセスを計測予定。追加のログ/モニタリングは今後拡張。
 
 ## 5. 既知の課題・検討事項
