@@ -21,10 +21,23 @@ type StaffMeta = Record<
   }
 >
 
+type SlotTemplate = {
+  hour: number
+  minute: number
+  durationMinutes: number
+  status: AvailabilityStatus
+}
+
+type DayTemplate = {
+  dayOffset: number
+  slots: SlotTemplate[]
+}
+
 // Helper to generate availability slots for a week
 // Exported to use as fallback when therapist is not in FALLBACK_STAFF_META
-export function generateDefaultAvailability(): StaffMeta[string]['availability'] {
-  return [
+// If defaultStart is provided, ensures that slot is included in the appropriate day
+export function generateDefaultAvailability(defaultStart?: string | null): DayTemplate[] {
+  const baseSlots: DayTemplate[] = [
     {
       dayOffset: 0,
       slots: [
@@ -83,6 +96,46 @@ export function generateDefaultAvailability(): StaffMeta[string]['availability']
       ],
     },
   ]
+
+  // If defaultStart is provided, inject it into the appropriate day
+  if (defaultStart) {
+    const startDate = new Date(defaultStart)
+    if (!Number.isNaN(startDate.getTime())) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const startDay = new Date(startDate)
+      startDay.setHours(0, 0, 0, 0)
+      const dayOffset = Math.round((startDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+      // Find or create the day entry
+      let dayEntry = baseSlots.find((d) => d.dayOffset === dayOffset)
+      if (!dayEntry && dayOffset >= 0 && dayOffset <= 13) {
+        dayEntry = { dayOffset, slots: [] }
+        baseSlots.push(dayEntry)
+        baseSlots.sort((a, b) => a.dayOffset - b.dayOffset)
+      }
+
+      if (dayEntry) {
+        const hour = startDate.getHours()
+        const minute = startDate.getMinutes()
+        // Check if slot already exists
+        const slotExists = dayEntry.slots.some((s) => s.hour === hour && s.minute === minute)
+        if (!slotExists) {
+          // Add the defaultStart slot at the beginning (it's the most important)
+          dayEntry.slots.unshift({
+            hour,
+            minute,
+            durationMinutes: 90,
+            status: 'open',
+          })
+          // Sort slots by time
+          dayEntry.slots.sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute))
+        }
+      }
+    }
+  }
+
+  return baseSlots
 }
 
 export const FALLBACK_STAFF_META: StaffMeta = {

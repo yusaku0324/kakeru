@@ -64,7 +64,8 @@ export default function ReservationOverlay({
   const fallbackMeta = FALLBACK_STAFF_META[hit.name] ?? null
 
   // Use fallback availability from FALLBACK_STAFF_META, or default availability if not found
-  const fallbackAvailability = fallbackMeta?.availability ?? generateDefaultAvailability()
+  // Pass defaultStart to ensure the slot shown on the card is included in the calendar
+  const fallbackAvailability = fallbackMeta?.availability ?? generateDefaultAvailability(defaultStart)
 
   const reservationState = useReservationOverlayState({
     availabilityDays,
