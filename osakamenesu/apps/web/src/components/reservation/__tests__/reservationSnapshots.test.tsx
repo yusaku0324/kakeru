@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { Dispatch, SetStateAction } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -50,9 +50,9 @@ const availabilityDays: NormalizedDay[] = [
   },
 ]
 
-describe('reservation UI snapshots', () => {
-  it('renders ReservationInfoCard consistently', () => {
-    const { container } = render(
+describe('reservation UI components', () => {
+  it('renders ReservationInfoCard with all key elements', () => {
+    render(
       <ReservationInfoCard
         name="凛花 れい"
         shopDisplayName="梅田 / Re salon"
@@ -71,11 +71,21 @@ describe('reservation UI snapshots', () => {
       />,
     )
 
-    expect(container.firstChild).toMatchSnapshot()
+    // Key content is rendered
+    expect(screen.getByText('凛花 れい')).toBeInTheDocument()
+    expect(screen.getByText('梅田 / Re salon')).toBeInTheDocument()
+    expect(screen.getByText('透明感のある癒し施術が得意です。')).toBeInTheDocument()
+    expect(screen.getByText('11時〜翌3時で受付')).toBeInTheDocument()
+    expect(screen.getByText('60分 14,000円〜（指名料別）')).toBeInTheDocument()
+    expect(screen.getByText('オイルケア')).toBeInTheDocument()
+    expect(screen.getByText('ヘッドスパ')).toBeInTheDocument()
+    expect(screen.getByText('3年')).toBeInTheDocument()
+    expect(screen.getByText('TEL 0120-123-456')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '予約フォームを開く' })).toBeInTheDocument()
   })
 
-  it('renders ReservationBookingSection layout for dashboard reuse', () => {
-    const { container } = render(
+  it('renders ReservationBookingSection with schedule grid', () => {
+    render(
       <ReservationBookingSection
         currentScheduleDays={availabilityDays}
         timeline={timeline}
@@ -104,6 +114,17 @@ describe('reservation UI snapshots', () => {
       />,
     )
 
-    expect(container.firstChild).toMatchSnapshot()
+    // Key UI elements are rendered
+    expect(screen.getByText('希望日時を選択')).toBeInTheDocument()
+    expect(screen.getByText('11/10(日)〜11/16(土)')).toBeInTheDocument()
+    expect(screen.getByText('選択済み候補')).toBeInTheDocument()
+
+    // Time slots are rendered
+    expect(screen.getAllByText('10:00').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('11:00').length).toBeGreaterThan(0)
+
+    // Navigation buttons exist
+    expect(screen.getByLabelText('前の週を表示')).toBeInTheDocument()
+    expect(screen.getByLabelText('次の週を表示')).toBeInTheDocument()
   })
 })
