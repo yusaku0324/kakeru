@@ -25,7 +25,6 @@ def upgrade() -> None:
             UUID(as_uuid=True),
             sa.ForeignKey("users.id", ondelete="SET NULL"),
             nullable=True,
-            index=True,
         ),
     )
     op.create_index(
