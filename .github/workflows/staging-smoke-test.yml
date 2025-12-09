@@ -66,7 +66,7 @@ jobs:
                   return False
 
           # Health check
-          test_endpoint('Health check', 'GET', '/health')
+          test_endpoint('Health check', 'GET', '/healthz')
 
           # API docs
           test_endpoint('OpenAPI docs', 'GET', '/docs', expected_status=200)
@@ -80,11 +80,11 @@ jobs:
               expected_status=200
           )
 
-          # Shop search
+          # Profile search (shop search)
           test_endpoint(
-              'Shop search',
+              'Profile search',
               'GET',
-              '/api/site/shops/search',
+              '/api/profiles/search',
               expected_status=200
           )
 
