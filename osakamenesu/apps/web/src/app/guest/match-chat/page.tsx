@@ -2,22 +2,56 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
-import Image from 'next/image'
 import Link from 'next/link'
 
 import { rerankMatchingCandidates } from '@/features/matching/recommendedRanking'
-import { NextAvailableSlotBadge } from '@/components/availability/NextAvailableSlotBadge'
-import { getNextAvailableSlot } from '@/lib/schedule'
+import { TherapistCard, type TherapistHit } from '@/components/staff/TherapistCard'
+import { TherapistFavoritesProvider } from '@/components/staff/TherapistFavoritesProvider'
 
 type MatchingCandidate = {
   therapist_id: string
   therapist_name: string
   shop_id: string
   shop_name: string
+  shop_area?: string | null
   score: number
   summary?: string | null
   avatar_url?: string | null
   slots?: { start_at: string; end_at: string; status?: string }[]
+}
+
+/**
+ * MatchingCandidate を TherapistHit に変換
+ */
+function toTherapistHit(m: MatchingCandidate): TherapistHit {
+  // slots の最初のものを nextAvailableSlot に変換
+  const firstSlot = m.slots?.[0]
+  const nextAvailableSlot = firstSlot
+    ? {
+        start_at: firstSlot.start_at,
+        status: firstSlot.status === 'open' ? 'ok' as const : 'maybe' as const,
+      }
+    : null
+
+  return {
+    id: m.therapist_id,
+    therapistId: m.therapist_id,
+    staffId: m.therapist_id,
+    name: m.therapist_name,
+    alias: null,
+    headline: m.summary ?? null,
+    specialties: [],
+    avatarUrl: m.avatar_url ?? null,
+    rating: null,
+    reviewCount: null,
+    shopId: m.shop_id,
+    shopSlug: null,
+    shopName: m.shop_name,
+    shopArea: m.shop_area ?? '',
+    shopAreaName: m.shop_area ?? null,
+    todayAvailable: firstSlot ? true : null,
+    nextAvailableSlot,
+  }
 }
 
 type MatchingResponse = {
@@ -479,92 +513,18 @@ export default function MatchChatPage() {
               </div>
             </div>
 
-            {/* Candidate Cards */}
-            <div className="grid gap-4 md:grid-cols-2">
-              {result.top_matches.map((m, index) => (
-                <div
-                  key={m.therapist_id}
-                  className="group relative overflow-hidden rounded-2xl border border-white/60 bg-white/90 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.06)] backdrop-blur-sm transition-all duration-300 hover:shadow-[0_16px_40px_rgba(37,99,235,0.15)] hover:border-brand-primary/30"
-                >
-                  {/* Rank Badge */}
-                  <div className="absolute -right-8 -top-8 h-16 w-16 rotate-45 bg-gradient-to-br from-amber-400 to-orange-500">
-                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 rotate-[-45deg] text-xs font-bold text-white">
-                      #{index + 1}
-                    </span>
-                  </div>
-
-                  <div className="flex items-start gap-4">
-                    {/* Avatar */}
-                    <div className="relative flex-shrink-0">
-                      {m.avatar_url ? (
-                        <Image
-                          src={m.avatar_url}
-                          alt={m.therapist_name}
-                          width={72}
-                          height={72}
-                          className="h-[72px] w-[72px] rounded-2xl object-cover shadow-md"
-                        />
-                      ) : (
-                        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-2xl bg-gradient-to-br from-brand-primary/20 to-brand-secondary/20 text-2xl font-bold text-brand-primary">
-                          {m.therapist_name.charAt(0)}
-                        </div>
-                      )}
-                      {/* Online indicator */}
-                      <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-400" />
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-base font-bold text-neutral-text">{m.therapist_name}</h4>
-                        <span className="rounded-full bg-brand-primary/10 px-2 py-0.5 text-[10px] font-bold text-brand-primary">
-                          あなたの条件に近い順
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-neutral-textMuted">{m.shop_name}</p>
-                      {m.summary ? (
-                        <p className="mt-2 line-clamp-2 text-xs text-neutral-600">{m.summary}</p>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {/* Slots - 共通コンポーネントで統一表示 */}
-                  {m.slots && m.slots.length ? (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {m.slots.slice(0, 3).map((slot, idx) => (
-                        <NextAvailableSlotBadge
-                          key={idx}
-                          slot={{
-                            start_at: slot.start_at,
-                            end_at: slot.end_at,
-                            status: slot.status || 'open',
-                          }}
-                          variant="inline"
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-4 text-xs text-neutral-textMuted">空き枠情報は後でご案内します</p>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="mt-4 flex gap-2">
-                    <Link
-                      className="flex-1 rounded-xl border border-neutral-200 bg-white py-2.5 text-center text-xs font-bold text-brand-primary transition-all duration-200 hover:border-brand-primary hover:bg-brand-primary/5"
-                      href={`/guest/therapists/${m.therapist_id}?shop_id=${m.shop_id}&name=${encodeURIComponent(m.therapist_name)}&shop_name=${encodeURIComponent(m.shop_name)}`}
-                    >
-                      詳細を見る
-                    </Link>
-                    <Link
-                      className="flex-1 rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary py-2.5 text-center text-xs font-bold text-white shadow-md shadow-brand-primary/20 transition-all duration-200 hover:shadow-lg hover:shadow-brand-primary/30"
-                      href={`/guest/therapists/${m.therapist_id}/reserve?shop_id=${m.shop_id}${date ? `&date=${date}` : ''}`}
-                    >
-                      この子で予約する
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {/* Candidate Cards - TherapistCardコンポーネントで統一 */}
+            <TherapistFavoritesProvider>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {result.top_matches.map((m) => (
+                  <TherapistCard
+                    key={m.therapist_id}
+                    hit={toTherapistHit(m)}
+                    useOverlay={false}
+                  />
+                ))}
+              </div>
+            </TherapistFavoritesProvider>
 
             {/* Other Candidates */}
             {result.other_candidates.length ? (
