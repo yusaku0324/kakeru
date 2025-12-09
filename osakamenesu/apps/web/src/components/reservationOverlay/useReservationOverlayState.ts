@@ -73,7 +73,8 @@ export function useReservationOverlayState({
   const dayFormatter = getJaFormatter('day')
   const timeFormatter = getJaFormatter('time')
 
-  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  // Use local date format to ensure consistent timezone handling (JST)
+  const todayIso = useMemo(() => formatLocalDate(new Date()), [])
 
   const availabilitySource = useMemo(() => {
     if (Array.isArray(availabilityDays) && availabilityDays.length) return availabilityDays
