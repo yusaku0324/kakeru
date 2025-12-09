@@ -517,14 +517,22 @@ exports[`reservation UI snapshots > renders ReservationInfoCard consistently 1`]
               <span
                 class="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 font-semibold text-brand-primary"
               >
-                ✦
-                オイルケア
+                <span>
+                  ✦
+                </span>
+                <span>
+                  オイルケア
+                </span>
               </span>
               <span
                 class="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 font-semibold text-brand-primary"
               >
-                ✦
-                ヘッドスパ
+                <span>
+                  ✦
+                </span>
+                <span>
+                  ヘッドスパ
+                </span>
               </span>
             </div>
           </div>

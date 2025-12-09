@@ -102,7 +102,8 @@ export function ReservationInfoCard({
                         key={`option-${option}`}
                         className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 font-semibold text-brand-primary"
                       >
-                        ✦ {option}
+                        <span>✦</span>
+                        <span>{option}</span>
                       </span>
                     ))}
                   </div>
