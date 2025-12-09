@@ -19,9 +19,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Use create_type=False to prevent automatic creation during create_table
     therapist_shift_status = postgresql.ENUM(
-        "available", "busy", "off", name="therapist_shift_status"
+        "available", "busy", "off", name="therapist_shift_status", create_type=False
     )
+    # Explicitly create the enum type, checking if it already exists
     therapist_shift_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
