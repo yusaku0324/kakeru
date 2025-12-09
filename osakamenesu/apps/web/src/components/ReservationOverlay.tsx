@@ -11,7 +11,7 @@ import { parsePricingText } from '@/utils/pricing'
 import ReservationOverlayBooking from './reservationOverlay/ReservationOverlayBooking'
 import ReservationOverlayProfile from './reservationOverlay/ReservationOverlayProfile'
 import ReservationOverlayReviews from './reservationOverlay/ReservationOverlayReviews'
-import { FALLBACK_STAFF_META, generateDefaultAvailability } from './reservationOverlay/data'
+import { FALLBACK_STAFF_META, generateDefaultAvailability, injectDefaultStartSlot } from './reservationOverlay/data'
 import type { ReservationContactItem } from '@/components/reservation'
 import { useReservationOverlayState } from './reservationOverlay/useReservationOverlayState'
 import {
@@ -64,8 +64,9 @@ export default function ReservationOverlay({
   const fallbackMeta = FALLBACK_STAFF_META[hit.name] ?? null
 
   // Use fallback availability from FALLBACK_STAFF_META, or default availability if not found
-  // Pass defaultStart to ensure the slot shown on the card is included in the calendar
-  const fallbackAvailability = fallbackMeta?.availability ?? generateDefaultAvailability(defaultStart)
+  // Always inject defaultStart to ensure the time shown on the card is available in the calendar
+  const baseAvailability = fallbackMeta?.availability ?? generateDefaultAvailability()
+  const fallbackAvailability = injectDefaultStartSlot(baseAvailability, defaultStart)
 
   const reservationState = useReservationOverlayState({
     availabilityDays,

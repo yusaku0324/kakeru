@@ -33,6 +33,57 @@ type DayTemplate = {
   slots: SlotTemplate[]
 }
 
+// Helper to inject a defaultStart slot into existing availability data
+// This ensures the time shown on the card is always available in the calendar
+export function injectDefaultStartSlot(
+  availability: DayTemplate[],
+  defaultStart?: string | null,
+): DayTemplate[] {
+  if (!defaultStart) return availability
+
+  const startDate = new Date(defaultStart)
+  if (Number.isNaN(startDate.getTime())) return availability
+
+  // Deep clone to avoid mutating the original
+  const result: DayTemplate[] = availability.map((day) => ({
+    dayOffset: day.dayOffset,
+    slots: day.slots.map((slot) => ({ ...slot })),
+  }))
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const startDay = new Date(startDate)
+  startDay.setHours(0, 0, 0, 0)
+  const dayOffset = Math.round((startDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+  // Find or create the day entry
+  let dayEntry = result.find((d) => d.dayOffset === dayOffset)
+  if (!dayEntry && dayOffset >= 0 && dayOffset <= 13) {
+    dayEntry = { dayOffset, slots: [] }
+    result.push(dayEntry)
+    result.sort((a, b) => a.dayOffset - b.dayOffset)
+  }
+
+  if (dayEntry) {
+    const hour = startDate.getHours()
+    const minute = startDate.getMinutes()
+    // Check if slot already exists
+    const slotExists = dayEntry.slots.some((s) => s.hour === hour && s.minute === minute)
+    if (!slotExists) {
+      dayEntry.slots.push({
+        hour,
+        minute,
+        durationMinutes: 90,
+        status: 'open',
+      })
+      // Sort slots by time
+      dayEntry.slots.sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute))
+    }
+  }
+
+  return result
+}
+
 // Helper to generate availability slots for a week
 // Exported to use as fallback when therapist is not in FALLBACK_STAFF_META
 // If defaultStart is provided, ensures that slot is included in the appropriate day
