@@ -16,6 +16,9 @@ IMPORTANT: When adding or modifying enum values:
 1. Update the VALUES tuple in this file
 2. Create an Alembic migration to update the database enum
 3. Run tests to ensure consistency
+
+Note: This file is the single source of truth for all enum values.
+Do not define enum values elsewhere in the codebase.
 """
 
 from typing import Literal, Tuple
