@@ -47,7 +47,9 @@ async def _get_session_user(
     return user
 
 
-async def require_admin(x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key")) -> None:
+async def require_admin(
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+) -> None:
     if not settings.admin_api_key:
         raise HTTPException(status_code=503, detail="admin_not_configured")
     if not x_admin_key or x_admin_key != settings.admin_api_key:
@@ -67,9 +69,15 @@ async def audit_admin(
 ) -> None:
     try:
         # Compute ip hash like outlink logging
-        ip = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "")
+        ip = request.headers.get("x-forwarded-for") or (
+            request.client.host if request.client else ""
+        )
         ip_hash = _hash_ip(ip)
-        key_hash = hashlib.sha256((x_admin_key or "").encode("utf-8")).hexdigest() if x_admin_key else None
+        key_hash = (
+            hashlib.sha256((x_admin_key or "").encode("utf-8")).hexdigest()
+            if x_admin_key
+            else None
+        )
         details = {
             "query": dict(request.query_params or {}),
             "path_params": dict(request.path_params or {}),
@@ -108,33 +116,26 @@ async def get_optional_site_user(
     request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> Optional[models.User]:
-    user = await _get_session_user(
+    """Get site user from site session cookie only. No fallback to dashboard."""
+    return await _get_session_user(
         request,
         db,
         cookie_name=settings.site_session_cookie_name,
         scope="site",
     )
-    if user:
-        return user
-
-    if settings.site_session_cookie_name != settings.dashboard_session_cookie_name:
-        # Allow legacy dashboard cookie to authenticate until new site cookie is issued
-        return await _get_session_user(
-            request,
-            db,
-            cookie_name=settings.dashboard_session_cookie_name,
-            scope="dashboard",
-        )
-    return None
 
 
-async def require_dashboard_user(user: Optional[models.User] = Depends(get_optional_dashboard_user)) -> models.User:
+async def require_dashboard_user(
+    user: Optional[models.User] = Depends(get_optional_dashboard_user),
+) -> models.User:
     if not user:
         raise HTTPException(status_code=401, detail="not_authenticated")
     return user
 
 
-async def require_site_user(user: Optional[models.User] = Depends(get_optional_site_user)) -> models.User:
+async def require_site_user(
+    user: Optional[models.User] = Depends(get_optional_site_user),
+) -> models.User:
     if not user:
         raise HTTPException(status_code=401, detail="not_authenticated")
     return user
@@ -144,27 +145,18 @@ async def get_optional_user(
     request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> Optional[models.User]:
-    user = await _get_session_user(
+    """Get user from site session cookie. Use scope-specific functions for strict auth."""
+    return await _get_session_user(
         request,
         db,
         cookie_name=settings.site_session_cookie_name,
         scope="site",
     )
-    if user:
-        return user
-
-    if settings.site_session_cookie_name != settings.dashboard_session_cookie_name:
-        # Fallback to dashboard cookie so existing sessions remain valid after rename
-        return await _get_session_user(
-            request,
-            db,
-            cookie_name=settings.dashboard_session_cookie_name,
-            scope="dashboard",
-        )
-    return None
 
 
-async def require_user(user: Optional[models.User] = Depends(get_optional_user)) -> models.User:
+async def require_user(
+    user: Optional[models.User] = Depends(get_optional_user),
+) -> models.User:
     if not user:
         raise HTTPException(status_code=401, detail="not_authenticated")
     return user

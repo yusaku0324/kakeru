@@ -70,13 +70,13 @@ class Settings(BaseSettings):
         ),
     )
     dashboard_session_cookie_name: str = Field(
-        default="osakamenesu_session",
+        default="osakamenesu_dashboard_session",
         validation_alias=AliasChoices(
-            "AUTH_SESSION_COOKIE_NAME", "DASHBOARD_SESSION_COOKIE_NAME"
+            "DASHBOARD_SESSION_COOKIE_NAME", "AUTH_SESSION_COOKIE_NAME"
         ),
     )
     site_session_cookie_name: str = Field(
-        default="osakamenesu_session",
+        default="osakamenesu_site_session",
         validation_alias=AliasChoices(
             "SITE_SESSION_COOKIE_NAME", "USER_SESSION_COOKIE_NAME"
         ),

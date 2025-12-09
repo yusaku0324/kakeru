@@ -73,6 +73,15 @@ def _hash_ip(ip: Optional[str]) -> Optional[str]:
 
 
 def _session_cookie_names(scope: str | None = None) -> list[str]:
+    """Get session cookie names for the given scope.
+
+    Args:
+        scope: 'dashboard', 'site', or None for all scopes
+
+    Returns:
+        List of cookie names. For specific scope, returns only that scope's cookie.
+        For None, returns both dashboard and site cookie names.
+    """
     names: list[str] = []
 
     def _append(value: str | None) -> None:
@@ -85,17 +94,19 @@ def _session_cookie_names(scope: str | None = None) -> list[str]:
         elif scope == "site":
             _append(getattr(candidate, "site_session_cookie_name", None))
         else:
+            # All scopes - include both
             _append(getattr(candidate, "dashboard_session_cookie_name", None))
             _append(getattr(candidate, "site_session_cookie_name", None))
 
-        if scope in (None, "dashboard"):
-            _append(getattr(candidate, "auth_session_cookie_name", None))
-
+    # Fallback to new defaults if settings not found
     if not names:
-        if scope == "site":
-            names.append("osakamenesu_session")
+        if scope == "dashboard":
+            names.append("osakamenesu_dashboard_session")
+        elif scope == "site":
+            names.append("osakamenesu_site_session")
         else:
-            names.append("osakamenesu_session")
+            names.append("osakamenesu_dashboard_session")
+            names.append("osakamenesu_site_session")
     return names
 
 
