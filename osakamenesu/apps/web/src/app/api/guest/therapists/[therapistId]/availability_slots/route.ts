@@ -27,10 +27,27 @@ function generateTimeSlots(
   availableSlots: AvailabilitySlot[],
   isToday: boolean,
 ): DaySlots['slots'] {
+  // If no available slots, return empty array (no blocked slots needed)
+  if (availableSlots.length === 0) {
+    return []
+  }
+
   const slots: DaySlots['slots'] = []
   const slotDuration = 30 // 30 minutes per slot
-  const dayStart = 10 // 10:00
-  const dayEnd = 24 // 24:00 (midnight)
+
+  // Determine time range from available slots (with 1-hour buffer)
+  let minHour = 24
+  let maxHour = 0
+  for (const avail of availableSlots) {
+    const start = new Date(avail.start_at)
+    const end = new Date(avail.end_at)
+    minHour = Math.min(minHour, start.getHours())
+    maxHour = Math.max(maxHour, end.getHours() + (end.getMinutes() > 0 ? 1 : 0))
+  }
+
+  // Add 1-hour buffer before and after, capped at reasonable hours
+  const dayStart = Math.max(9, minHour - 1)
+  const dayEnd = Math.min(24, maxHour + 1)
 
   for (let hour = dayStart; hour < dayEnd; hour++) {
     for (let minute = 0; minute < 60; minute += slotDuration) {

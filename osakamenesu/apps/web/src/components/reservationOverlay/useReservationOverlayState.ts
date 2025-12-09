@@ -230,11 +230,22 @@ export function useReservationOverlayState({
   }, [])
 
   const openForm = useCallback(() => {
-    ensureSelection()
-    setSchedulePage(0)
+    const selection = ensureSelection()
+    // Find the page containing the first selected slot
+    let targetPage = 0
+    if (selection.length > 0) {
+      const selectedDate = selection[0].date
+      const pageIndex = schedulePages.findIndex((page) =>
+        page.some((day) => day.date === selectedDate)
+      )
+      if (pageIndex >= 0) {
+        targetPage = pageIndex
+      }
+    }
+    setSchedulePage(targetPage)
     setFormTab(hasAvailability ? 'schedule' : 'info')
     setFormOpen(true)
-  }, [ensureSelection, hasAvailability])
+  }, [ensureSelection, hasAvailability, schedulePages])
 
   useEffect(() => {
     if (!formOpen) return
