@@ -938,10 +938,19 @@ async def guest_matching_search(
 
     phase = _resolve_phase(payload, parsed_date)
 
+    # 広域エリア（「大阪市内」「指定なし」等）の場合はエリアフィルタを無効化
+    # これらは実際の店舗エリア（「難波/日本橋」「心斎橋」等）と完全一致しないため
+    BROAD_AREA_KEYWORDS = ["大阪市内", "指定なし", "全エリア", "すべて", "osaka", "all"]
+    search_area = payload.area
+    if search_area and any(
+        kw in search_area.lower() for kw in [k.lower() for k in BROAD_AREA_KEYWORDS]
+    ):
+        search_area = None  # 全店舗を対象にしてスコアリングで並び替え
+
     search_service = ShopSearchService(db)
     try:
         search_res = await search_service.search(
-            area=payload.area,
+            area=search_area,
             available_date=parsed_date,
             open_now=True,
             page=1,
