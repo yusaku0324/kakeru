@@ -1,6 +1,6 @@
 'use client'
 
-import React, { ChangeEvent, FormEvent, KeyboardEvent, useMemo, useState } from 'react'
+import React, { ChangeEvent, DragEvent, FormEvent, KeyboardEvent, useMemo, useState } from 'react'
 
 import SafeImage from '@/components/SafeImage'
 import { Card } from '@/components/ui/Card'
@@ -143,11 +143,37 @@ export function TherapistPhotoField({
 }: TherapistPhotoFieldProps) {
   const [manualUrl, setManualUrl] = useState('')
   const [copyMessage, setCopyMessage] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const files = event.target.files
     await onUpload(files)
     event.target.value = ''
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!disabled && !isUploading) {
+      setIsDragOver(true)
+    }
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  async function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(false)
+    if (disabled || isUploading) return
+    const files = event.dataTransfer.files
+    if (files && files.length > 0) {
+      await onUpload(files)
+    }
   }
 
   async function handleCopy(url: string) {
@@ -176,21 +202,42 @@ export function TherapistPhotoField({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <label className="inline-flex">
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            className="hidden"
-            onChange={handleFileChange}
-            multiple
-            disabled={disabled || isUploading}
-          />
-          <span className="inline-flex cursor-pointer items-center rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60">
-            {isUploading ? 'アップロード中…' : '画像をアップロード'}
-          </span>
-        </label>
-        <p className="text-xs text-neutral-500">PNG / JPG / WEBP / GIF（最大 8MB）</p>
+      <div
+        className={`rounded-lg border-2 border-dashed p-4 transition ${
+          isDragOver
+            ? 'border-brand-primary bg-brand-primary/5'
+            : 'border-neutral-200 bg-neutral-50'
+        } ${disabled || isUploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="text-3xl text-neutral-400">
+            {isUploading ? '⏳' : '📷'}
+          </div>
+          <p className="text-sm text-neutral-600">
+            {isUploading
+              ? 'アップロード中…'
+              : isDragOver
+                ? 'ドロップしてアップロード'
+                : '画像をドラッグ&ドロップ、またはクリックして選択'}
+          </p>
+          <label className="inline-flex">
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={handleFileChange}
+              multiple
+              disabled={disabled || isUploading}
+            />
+            <span className="inline-flex cursor-pointer items-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60">
+              ファイルを選択
+            </span>
+          </label>
+          <p className="text-xs text-neutral-500">PNG / JPG / WEBP / GIF（最大 8MB）</p>
+        </div>
       </div>
       {errorMessage ? <p className="text-xs text-red-600">{errorMessage}</p> : null}
       {photoUrls.length ? (

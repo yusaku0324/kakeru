@@ -26,7 +26,7 @@ describe('TherapistPhotoField', () => {
       />,
     )
 
-    expect(screen.getByText('画像をアップロード')).toBeInTheDocument()
+    expect(screen.getByText('ファイルを選択')).toBeInTheDocument()
     expect(screen.getByText('エラーがあります')).toBeInTheDocument()
     expect(screen.getByAltText('セラピスト写真 1')).toBeInTheDocument()
 
