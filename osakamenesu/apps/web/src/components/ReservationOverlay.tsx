@@ -11,7 +11,7 @@ import { parsePricingText } from '@/utils/pricing'
 import ReservationOverlayBooking from './reservationOverlay/ReservationOverlayBooking'
 import ReservationOverlayProfile from './reservationOverlay/ReservationOverlayProfile'
 import ReservationOverlayReviews from './reservationOverlay/ReservationOverlayReviews'
-import { FALLBACK_STAFF_META } from './reservationOverlay/data'
+import { FALLBACK_STAFF_META, generateDefaultAvailability } from './reservationOverlay/data'
 import type { ReservationContactItem } from '@/components/reservation'
 import { useReservationOverlayState } from './reservationOverlay/useReservationOverlayState'
 import {
@@ -63,9 +63,12 @@ export default function ReservationOverlay({
   const [activeTab, setActiveTab] = useState<OverlayTab>('profile')
   const fallbackMeta = FALLBACK_STAFF_META[hit.name] ?? null
 
+  // Use fallback availability from FALLBACK_STAFF_META, or default availability if not found
+  const fallbackAvailability = fallbackMeta?.availability ?? generateDefaultAvailability()
+
   const reservationState = useReservationOverlayState({
     availabilityDays,
-    fallbackAvailability: fallbackMeta?.availability,
+    fallbackAvailability,
     defaultStart,
   })
   const { ensureSelection, openForm, closeForm, formOpen } = reservationState

@@ -22,7 +22,8 @@ type StaffMeta = Record<
 >
 
 // Helper to generate availability slots for a week
-function generateDefaultAvailability(): StaffMeta[string]['availability'] {
+// Exported to use as fallback when therapist is not in FALLBACK_STAFF_META
+export function generateDefaultAvailability(): StaffMeta[string]['availability'] {
   return [
     {
       dayOffset: 0,
