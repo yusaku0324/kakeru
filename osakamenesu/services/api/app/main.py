@@ -16,6 +16,7 @@ from .domains.auth import router as auth_router
 from .domains.dashboard import (
     notifications_router as dashboard_notifications_router,
     reservations_router as dashboard_reservations_router,
+    reviews_router as dashboard_reviews_router,
     shops_router as dashboard_shops_router,
     therapists_router as dashboard_therapists_router,
 )
@@ -164,6 +165,7 @@ app.include_router(line_router)
 app.include_router(ops_router)
 app.include_router(dashboard_notifications_router)
 app.include_router(dashboard_reservations_router)
+app.include_router(dashboard_reviews_router)
 app.include_router(dashboard_shops_router)
 app.include_router(dashboard_therapists_router)
 app.include_router(therapists_router)

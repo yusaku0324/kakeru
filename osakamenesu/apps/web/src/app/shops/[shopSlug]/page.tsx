@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { openReservationOverlay } from '@/components/reservationOverlayBus'
+import { ShopReviewList } from './ShopReviewList'
 
 type AvailabilitySlot = {
   start_at: string
@@ -32,6 +33,18 @@ type StaffMember = {
 type ReviewSummary = {
   average_score: number
   review_count: number
+}
+
+type ReviewItem = {
+  id: string
+  profile_id: string
+  status: string
+  score: number
+  title: string | null
+  body: string
+  author_alias: string | null
+  visited_at: string | null
+  created_at: string
 }
 
 type ShopDetail = {
@@ -402,6 +415,12 @@ export default function ShopDetailPage() {
           </div>
         </section>
       )}
+
+      {/* Reviews */}
+      <ShopReviewList
+        shopId={shop.id}
+        initialReviewCount={shop.reviews?.review_count ?? 0}
+      />
 
       {/* Address */}
       {shop.address && (

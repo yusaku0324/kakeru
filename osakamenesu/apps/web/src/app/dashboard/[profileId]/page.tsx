@@ -138,6 +138,21 @@ export default async function DashboardHomePage({
             </Link>
           </div>
         </Card>
+
+        <Card className="p-6">
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-neutral-900">口コミ管理</h2>
+            <p className="text-sm text-neutral-600">
+              お客様から投稿された口コミを確認し、承認・非承認の管理ができます。
+            </p>
+            <Link
+              href={`/dashboard/${data.id}/reviews`}
+              className="inline-flex items-center justify-center rounded-md border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-100"
+            >
+              口コミ管理へ進む
+            </Link>
+          </div>
+        </Card>
       </section>
 
       <DashboardReservationAvailabilityPreview

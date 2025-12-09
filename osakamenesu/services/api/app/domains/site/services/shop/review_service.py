@@ -14,6 +14,7 @@ from app.schemas import (
     ReviewAspectScore,
 )
 from app.utils.profiles import normalize_review_aspects
+from app.review_notifications import send_review_notification
 
 from ..shop_services import (
     _collect_shop_review_aspect_stats,
@@ -46,13 +47,24 @@ async def fetch_published_reviews(
     shop_id: UUID,
     limit: int | None = None,
     offset: int = 0,
+    sort_by: str = "newest",
 ) -> list[models.Review]:
-    stmt = (
-        select(models.Review)
-        .where(models.Review.profile_id == shop_id, models.Review.status == "published")
-        .order_by(models.Review.visited_at.desc(), models.Review.created_at.desc())
-        .offset(offset)
+    stmt = select(models.Review).where(
+        models.Review.profile_id == shop_id, models.Review.status == "published"
     )
+
+    if sort_by == "highest":
+        stmt = stmt.order_by(
+            models.Review.score.desc(), models.Review.created_at.desc()
+        )
+    elif sort_by == "lowest":
+        stmt = stmt.order_by(models.Review.score.asc(), models.Review.created_at.desc())
+    else:
+        stmt = stmt.order_by(
+            models.Review.visited_at.desc(), models.Review.created_at.desc()
+        )
+
+    stmt = stmt.offset(offset)
     if limit is not None:
         stmt = stmt.limit(limit)
     result = await db.scalars(stmt)
@@ -190,6 +202,7 @@ class ShopReviewService:
         *,
         page: int = 1,
         page_size: int = 10,
+        sort_by: str = "newest",
     ) -> ReviewListResponse:
         profile = await self.db.get(models.Profile, shop_id)
         if not profile:
@@ -198,7 +211,7 @@ class ShopReviewService:
         total = await count_published_reviews(self.db, shop_id)
         offset = (page - 1) * page_size
         reviews = await fetch_published_reviews(
-            self.db, shop_id, limit=page_size, offset=offset
+            self.db, shop_id=shop_id, limit=page_size, offset=offset, sort_by=sort_by
         )
         items = [_serialize_review(r) for r in reviews]
         aspect_averages, aspect_counts = {}, {}
@@ -233,4 +246,10 @@ class ShopReviewService:
         self.db.add(review)
         await self.db.commit()
         await self.db.refresh(review)
+
+        try:
+            await send_review_notification(self.db, review)
+        except Exception:
+            pass
+
         return _serialize_review(review)

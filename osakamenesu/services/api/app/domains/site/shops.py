@@ -248,11 +248,14 @@ async def list_shop_reviews(
     shop_id: UUID,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=50),
+    sort_by: str = Query(default="newest", pattern="^(newest|highest|lowest)$"),
     db: AsyncSession = Depends(get_session),
 ):
     service = ShopReviewService(db)
     try:
-        return await service.list_reviews(shop_id, page=page, page_size=page_size)
+        return await service.list_reviews(
+            shop_id, page=page, page_size=page_size, sort_by=sort_by
+        )
     except ShopNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
