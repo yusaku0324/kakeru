@@ -810,6 +810,7 @@ class DashboardShopContact(BaseModel):
     line_id: Optional[str] = None
     website_url: Optional[str] = None
     reservation_form_url: Optional[str] = None
+    business_hours: Optional[str] = None
 
 
 class DashboardShopMenu(BaseModel):

@@ -2,9 +2,6 @@ import { Buffer } from 'node:buffer'
 
 import { getServerConfig } from '@/lib/server-config'
 
-const FALLBACK_USER = 'yusaku0324'
-const FALLBACK_PASS = 'sakanon0402'
-
 export const ADMIN_KEY = process.env.ADMIN_API_KEY || process.env.OSAKAMENESU_ADMIN_API_KEY || ''
 const serverConfig = getServerConfig()
 export const PUBLIC_BASE = serverConfig.publicApiBase
@@ -13,16 +10,17 @@ export const INTERNAL_BASE =
   process.env.E2E_SEED_API_BASE ||
   serverConfig.internalApiBase
 
-const ADMIN_BASIC_USER = process.env.ADMIN_BASIC_USER || FALLBACK_USER
-const ADMIN_BASIC_PASS = process.env.ADMIN_BASIC_PASS || FALLBACK_PASS
+// Basic auth is only used when explicitly configured via environment variables
+const ADMIN_BASIC_USER = process.env.ADMIN_BASIC_USER || ''
+const ADMIN_BASIC_PASS = process.env.ADMIN_BASIC_PASS || ''
 const BASIC_AUTH_HEADER =
   ADMIN_BASIC_USER && ADMIN_BASIC_PASS
     ? `Basic ${Buffer.from(`${ADMIN_BASIC_USER}:${ADMIN_BASIC_PASS}`, 'utf8').toString('base64')}`
     : null
 
-if (!ADMIN_KEY) {
+if (!ADMIN_KEY && !BASIC_AUTH_HEADER) {
   console.warn(
-    '[api/admin] ADMIN_API_KEY (or OSAKAMENESU_ADMIN_API_KEY) is not set; admin requests will fail',
+    '[api/admin] Neither ADMIN_API_KEY nor ADMIN_BASIC_USER/ADMIN_BASIC_PASS is set; admin requests will fail',
   )
 }
 

@@ -5,7 +5,7 @@ import { FormEvent, useState } from 'react'
 import { ToastContainer, useToast } from '@/components/useToast'
 import { requestDashboardMagicLink } from '@/lib/auth'
 
-type Status = 'idle' | 'sending' | 'success' | 'error'
+type Status = 'idle' | 'sending' | 'success' | 'success_no_mail' | 'error'
 
 export function MagicLinkRequestForm() {
   const { toasts, push, remove } = useToast()
@@ -28,8 +28,14 @@ export function MagicLinkRequestForm() {
     const result = await requestDashboardMagicLink(trimmed)
     switch (result.status) {
       case 'success':
-        setStatus('success')
-        push('success', 'ログインリンクを送信しました。メールをご確認ください。')
+        if (result.mailSent) {
+          setStatus('success')
+          push('success', 'ログインリンクを送信しました。メールをご確認ください。')
+        } else {
+          setStatus('success_no_mail')
+          // Note: using 'success' type since 'info' is not supported by useToast
+          push('success', 'ログインリンクを発行しました。メール送信は現在無効です。')
+        }
         break
       case 'rate_limited':
         setStatus('error')
@@ -79,6 +85,11 @@ export function MagicLinkRequestForm() {
       {status === 'success' ? (
         <div className="rounded border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
           メールに記載されたリンクを同じブラウザで開くと自動的にログインが完了します。リンクの有効期限は数分間です。
+        </div>
+      ) : status === 'success_no_mail' ? (
+        <div className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          ログインリンクは発行されましたが、メール送信機能が現在無効のため、お手数ですがサーバーログからリンクを確認してください。本番環境では
+          MAIL_APIKEY 環境変数を設定するとメールが送信されるようになります。
         </div>
       ) : (
         <p className="text-sm text-neutral-600">

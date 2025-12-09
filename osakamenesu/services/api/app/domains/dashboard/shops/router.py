@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import uuid as uuid_module
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .... import models
@@ -24,6 +26,12 @@ from ....services.dashboard_shop_service import (
     DEFAULT_BUST_TAG,
     DashboardShopError,
     DashboardShopService,
+)
+from ....storage import MediaStorageError, get_media_storage
+from ..therapists.service import (
+    MAX_PHOTO_BYTES,
+    ALLOWED_IMAGE_CONTENT_TYPES,
+    detect_image_type,
 )
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -111,6 +119,87 @@ async def update_dashboard_shop_profile(
         )
     except DashboardShopError as error:
         _handle_dashboard_error(error)
+
+
+class ShopPhotoUploadResponse(BaseModel):
+    url: str
+    filename: str
+    content_type: str
+    size: int
+
+
+@router.post(
+    "/shops/{profile_id}/photos/upload",
+    response_model=ShopPhotoUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_shop_photo(
+    profile_id: UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_session),
+    user: models.User = Depends(require_dashboard_user),
+) -> ShopPhotoUploadResponse:
+    _ = user
+
+    profile = await db.get(models.Profile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="shop_not_found")
+
+    max_bytes = MAX_PHOTO_BYTES
+    chunk_size = 512 * 1024
+    size = 0
+    payload_bytes = bytearray()
+
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        size += len(chunk)
+        if size > max_bytes:
+            await file.close()
+            raise HTTPException(
+                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail={"message": "file_too_large", "limit_bytes": MAX_PHOTO_BYTES},
+            )
+        payload_bytes.extend(chunk)
+
+    await file.close()
+    if not payload_bytes:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": "empty_file"},
+        )
+
+    payload = bytes(payload_bytes)
+
+    try:
+        mime, extension = detect_image_type(file.filename, file.content_type, payload)
+    except Exception:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail={"message": "unsupported_image_type"},
+        )
+
+    storage = get_media_storage()
+    stored_name = f"{uuid_module.uuid4().hex}{extension}"
+    folder = f"shops/{profile_id}"
+
+    try:
+        stored = await storage.save_photo(
+            folder=folder, filename=stored_name, content=payload, content_type=mime
+        )
+    except MediaStorageError as exc:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"message": "upload_failed"},
+        ) from exc
+
+    return ShopPhotoUploadResponse(
+        url=stored.url,
+        filename=stored_name,
+        content_type=mime,
+        size=len(payload),
+    )
 
 
 __all__ = [

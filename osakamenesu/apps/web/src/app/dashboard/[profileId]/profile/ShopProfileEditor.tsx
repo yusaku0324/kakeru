@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useMemo, useState } from 'react'
+import { ChangeEvent, FormEvent, useMemo, useRef, useState } from 'react'
 
 import { ToastContainer, useToast } from '@/components/useToast'
 import { Card } from '@/components/ui/Card'
@@ -11,6 +11,7 @@ import {
   DashboardShopProfileUpdatePayload,
   DashboardShopServiceType,
   updateDashboardShopProfile,
+  uploadDashboardShopPhoto,
 } from '@/lib/dashboard-shops'
 import { DashboardTherapistSummary } from '@/lib/dashboard-therapists'
 import { TherapistManager } from './TherapistManager'
@@ -36,6 +37,7 @@ type ContactDraft = {
   line_id: string
   website_url: string
   reservation_form_url: string
+  business_hours: string
 }
 
 const SERVICE_TYPE_OPTIONS: { value: DashboardShopServiceType; label: string }[] = [
@@ -84,6 +86,7 @@ function normalizeContact(contact: DashboardShopContact | null | undefined): Con
     line_id: contact?.line_id ?? '',
     website_url: contact?.website_url ?? '',
     reservation_form_url: contact?.reservation_form_url ?? '',
+    business_hours: contact?.business_hours ?? '',
   }
 }
 
@@ -132,6 +135,8 @@ export function ShopProfileEditor({
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isPhotoUploading, setIsPhotoUploading] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   const lastSavedAtLabel = useMemo(() => {
     if (!lastSavedAt) return null
@@ -197,6 +202,61 @@ export function ShopProfileEditor({
       const next = prev.filter((_, idx) => idx !== index)
       return next.length ? next : ['']
     })
+  }
+
+  async function handlePhotoUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setIsPhotoUploading(true)
+    try {
+      const result = await uploadDashboardShopPhoto(profileId, file)
+
+      switch (result.status) {
+        case 'success':
+          setPhotos((prev) => {
+            const lastEmpty = prev.findIndex((url) => !url.trim())
+            if (lastEmpty >= 0) {
+              const next = [...prev]
+              next[lastEmpty] = result.data.url
+              return next
+            }
+            return [...prev, result.data.url]
+          })
+          push('success', '写真をアップロードしました。')
+          break
+        case 'too_large':
+          push('error', 'ファイルサイズが大きすぎます。5MB以下の画像をアップロードしてください。')
+          break
+        case 'unsupported_media_type':
+          push('error', '対応していないファイル形式です。JPG, PNG, WebP形式の画像をアップロードしてください。')
+          break
+        case 'validation_error':
+          push('error', result.message ?? '画像のアップロードに失敗しました。')
+          break
+        case 'unauthorized':
+          push('error', 'セッションが切れました。ログインし直してください。')
+          break
+        case 'forbidden':
+          push('error', '写真をアップロードする権限がありません。')
+          break
+        case 'not_found':
+          push('error', '対象の店舗が見つかりませんでした。')
+          break
+        case 'error':
+        default:
+          push('error', result.message ?? '写真のアップロードに失敗しました。')
+          break
+      }
+    } catch (err) {
+      console.error('[ShopProfileEditor] photo upload failed', err)
+      push('error', '写真のアップロードに失敗しました。')
+    } finally {
+      setIsPhotoUploading(false)
+      if (photoInputRef.current) {
+        photoInputRef.current.value = ''
+      }
+    }
   }
 
   function handleMenuChange<T extends keyof MenuDraft>(index: number, key: T, value: MenuDraft[T]) {
@@ -273,6 +333,7 @@ export function ShopProfileEditor({
       line_id: contact.line_id.trim(),
       website_url: contact.website_url.trim(),
       reservation_form_url: contact.reservation_form_url.trim(),
+      business_hours: contact.business_hours.trim(),
     }
     const hasContactValue = Object.values(normalizedContactValues).some((value) => value.length > 0)
     const contactPayload: DashboardShopContact | null = hasContactValue
@@ -281,6 +342,7 @@ export function ShopProfileEditor({
           line_id: normalizedContactValues.line_id || undefined,
           website_url: normalizedContactValues.website_url || undefined,
           reservation_form_url: normalizedContactValues.reservation_form_url || undefined,
+          business_hours: normalizedContactValues.business_hours || undefined,
         }
       : null
 
@@ -594,11 +656,31 @@ export function ShopProfileEditor({
           </div>
         </Card>
         <Card className="space-y-6 p-6">
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold">掲載写真</h2>
-            <p className="text-sm text-neutral-600">
-              ギャラリーに表示する画像 URL を登録してください。1 枚目がリード画像になります。
-            </p>
+          <div className="flex items-start justify-between">
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold">掲載写真</h2>
+              <p className="text-sm text-neutral-600">
+                写真をアップロードするか、画像 URL を直接入力できます。1 枚目がリード画像になります。
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handlePhotoUpload}
+                className="hidden"
+                id="shop-photo-upload"
+              />
+              <label
+                htmlFor="shop-photo-upload"
+                className={`inline-flex cursor-pointer items-center rounded-md border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 ${
+                  isPhotoUploading ? 'pointer-events-none opacity-50' : ''
+                }`}
+              >
+                {isPhotoUploading ? 'アップロード中…' : '写真をアップロード'}
+              </label>
+            </div>
           </div>
           <div className="space-y-3">
             {photos.map((photo, index) => (
@@ -615,6 +697,19 @@ export function ShopProfileEditor({
                     placeholder={`写真 ${index + 1} の URL`}
                   />
                 </label>
+                {photo.trim() && (
+                  <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded border border-neutral-200">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- User-provided external URL preview */}
+                    <img
+                      src={photo}
+                      alt={`写真 ${index + 1} プレビュー`}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -693,6 +788,21 @@ export function ShopProfileEditor({
                 }
                 className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
                 placeholder="例: https://form.example.com"
+              />
+            </label>
+            <label className="space-y-1 md:col-span-2">
+              <span className="text-xs font-semibold text-neutral-600">営業時間</span>
+              <input
+                id="shop-contact-business-hours"
+                value={contact.business_hours}
+                onChange={(event) =>
+                  setContact((prev) => ({
+                    ...prev,
+                    business_hours: event.target.value,
+                  }))
+                }
+                className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+                placeholder="例: 10:00 - 翌3:00 / 年中無休"
               />
             </label>
           </div>

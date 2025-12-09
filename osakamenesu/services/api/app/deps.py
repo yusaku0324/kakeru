@@ -47,13 +47,50 @@ async def _get_session_user(
     return user
 
 
+async def get_optional_admin_user(
+    request: Request,
+    db: AsyncSession = Depends(get_session),
+) -> Optional[models.User]:
+    """Get admin user from admin session cookie.
+
+    Admin sessions are created via specific admin login routes,
+    so having a valid admin-scoped session implies admin access.
+    """
+    return await _get_session_user(
+        request,
+        db,
+        cookie_name=settings.admin_session_cookie_name,
+        scope="admin",
+    )
+
+
 async def require_admin(
+    request: Request,
+    db: AsyncSession = Depends(get_session),
     x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
-) -> None:
+) -> Optional[models.User]:
+    """
+    Require admin authentication.
+
+    Supports two authentication methods (checked in order):
+    1. Cookie-based session with admin scope (preferred)
+    2. X-Admin-Key header (legacy, for backwards compatibility)
+
+    Returns the admin user if cookie auth is used, None if API key auth.
+    """
+    # Try cookie-based auth first
+    admin_user = await get_optional_admin_user(request, db)
+    if admin_user:
+        return admin_user
+
+    # Fall back to API key auth
+    if settings.admin_api_key and x_admin_key == settings.admin_api_key:
+        return None  # API key auth doesn't have a user object
+
+    # Neither auth method succeeded
     if not settings.admin_api_key:
         raise HTTPException(status_code=503, detail="admin_not_configured")
-    if not x_admin_key or x_admin_key != settings.admin_api_key:
-        raise HTTPException(status_code=401, detail="unauthorized")
+    raise HTTPException(status_code=401, detail="unauthorized")
 
 
 def _hash_ip(ip: Optional[str]) -> Optional[str]:

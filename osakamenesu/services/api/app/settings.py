@@ -81,6 +81,12 @@ class Settings(BaseSettings):
             "SITE_SESSION_COOKIE_NAME", "USER_SESSION_COOKIE_NAME"
         ),
     )
+    admin_session_cookie_name: str = Field(
+        default="osakamenesu_admin_session",
+        validation_alias=AliasChoices(
+            "ADMIN_SESSION_COOKIE_NAME",
+        ),
+    )
     auth_session_cookie_secure: bool = False
     auth_session_cookie_domain: str | None = None
     auth_session_cookie_same_site: str = Field(

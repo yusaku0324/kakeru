@@ -1,78 +1,77 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-import { ADMIN_KEY, adminBases, buildAdminHeaders } from '@/app/api/admin/client'
+import { createAdminClient, type ApiErrorResult } from '@/lib/http-clients'
+import { ADMIN_KEY } from '@/app/api/admin/client'
 
-async function proxyAdminRequest(
-  input: Request,
-  params: { id: string },
-  init: RequestInit & { method: string },
-) {
-  if (!ADMIN_KEY) {
-    return NextResponse.json({ detail: 'admin key not configured' }, { status: 500 })
-  }
+const ADMIN_BASIC_USER = process.env.ADMIN_BASIC_USER || ''
+const ADMIN_BASIC_PASS = process.env.ADMIN_BASIC_PASS || ''
 
-  const headers = new Headers(buildAdminHeaders())
-  const incoming = new Headers(init.headers || {})
-  incoming.forEach((value, key) => {
-    headers.set(key, value)
+function getAdminClient() {
+  if (!ADMIN_KEY) return null
+  return createAdminClient({
+    adminKey: ADMIN_KEY,
+    basicAuth: ADMIN_BASIC_USER && ADMIN_BASIC_PASS
+      ? { user: ADMIN_BASIC_USER, pass: ADMIN_BASIC_PASS }
+      : undefined,
   })
-
-  const url = new URL(input.url)
-  const search = url.search ? url.search : ''
-
-  let lastError: any = null
-  for (const base of adminBases()) {
-    try {
-      const resp = await fetch(`${base}/api/admin/shops/${params.id}/availability${search}`, {
-        ...init,
-        headers,
-        cache: 'no-store',
-      })
-      const text = await resp.text()
-      let json: any = null
-      if (text) {
-        try {
-          json = JSON.parse(text)
-        } catch {
-          json = { detail: text }
-        }
-      }
-      if (resp.ok) {
-        return NextResponse.json(json)
-      }
-      lastError = { status: resp.status, body: json }
-    } catch (err) {
-      lastError = err
-    }
-  }
-
-  if (lastError?.status && lastError.body) {
-    return NextResponse.json(lastError.body, { status: lastError.status })
-  }
-
-  return NextResponse.json({ detail: 'admin availability request failed' }, { status: 503 })
 }
 
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const client = getAdminClient()
+  if (!client) {
+    return NextResponse.json({ detail: 'admin key not configured' }, { status: 500 })
+  }
+
   const { id } = await context.params
-  return proxyAdminRequest(request, { id }, { method: 'GET' })
+  const url = new URL(request.url)
+  const queryString = url.search ? url.search.slice(1) : ''
+  const path = queryString ? `shops/${id}/availability?${queryString}` : `shops/${id}/availability`
+
+  const result = await client.get<unknown>(path)
+
+  if (result.ok) {
+    return NextResponse.json(result.data)
+  }
+
+  if (result.status === 0) {
+    return NextResponse.json({ detail: 'admin availability request failed' }, { status: 503 })
+  }
+
+  const err = result as ApiErrorResult
+  return NextResponse.json(
+    err.detail ?? { detail: err.error },
+    { status: err.status }
+  )
 }
 
 export async function PUT(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const client = getAdminClient()
+  if (!client) {
+    return NextResponse.json({ detail: 'admin key not configured' }, { status: 500 })
+  }
+
   const { id } = await context.params
-  let body: string
+
+  let body: unknown
   try {
-    body = JSON.stringify(await request.json())
+    body = await request.json()
   } catch {
     return NextResponse.json({ detail: 'invalid JSON body' }, { status: 400 })
   }
-  return proxyAdminRequest(
-    request,
-    { id },
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-    },
+
+  const result = await client.put<unknown>(`shops/${id}/availability`, body)
+
+  if (result.ok) {
+    return NextResponse.json(result.data)
+  }
+
+  if (result.status === 0) {
+    return NextResponse.json({ detail: 'admin availability request failed' }, { status: 503 })
+  }
+
+  const err = result as ApiErrorResult
+  return NextResponse.json(
+    err.detail ?? { detail: err.error },
+    { status: err.status }
   )
 }

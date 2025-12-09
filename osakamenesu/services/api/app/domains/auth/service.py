@@ -76,11 +76,11 @@ def _session_cookie_names(scope: str | None = None) -> list[str]:
     """Get session cookie names for the given scope.
 
     Args:
-        scope: 'dashboard', 'site', or None for all scopes
+        scope: 'dashboard', 'site', 'admin', or None for all scopes
 
     Returns:
         List of cookie names. For specific scope, returns only that scope's cookie.
-        For None, returns both dashboard and site cookie names.
+        For None, returns dashboard, site, and admin cookie names.
     """
     names: list[str] = []
 
@@ -93,10 +93,13 @@ def _session_cookie_names(scope: str | None = None) -> list[str]:
             _append(getattr(candidate, "dashboard_session_cookie_name", None))
         elif scope == "site":
             _append(getattr(candidate, "site_session_cookie_name", None))
+        elif scope == "admin":
+            _append(getattr(candidate, "admin_session_cookie_name", None))
         else:
-            # All scopes - include both
+            # All scopes - include all
             _append(getattr(candidate, "dashboard_session_cookie_name", None))
             _append(getattr(candidate, "site_session_cookie_name", None))
+            _append(getattr(candidate, "admin_session_cookie_name", None))
 
     # Fallback to new defaults if settings not found
     if not names:

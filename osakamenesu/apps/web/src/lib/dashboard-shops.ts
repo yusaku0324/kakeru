@@ -1,3 +1,4 @@
+import { dashboardClient, type ApiErrorResult } from '@/lib/http-clients'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 
 export type DashboardShopServiceType = 'store' | 'dispatch'
@@ -7,6 +8,7 @@ export type DashboardShopContact = {
   line_id?: string | null
   website_url?: string | null
   reservation_form_url?: string | null
+  business_hours?: string | null
 }
 
 export type DashboardShopMenu = {
@@ -130,128 +132,38 @@ export type DashboardShopProfileCreateResult =
   | { status: 'forbidden'; detail?: string }
   | { status: 'error'; message: string }
 
-function createRequestInit(
-  method: string,
-  options?: DashboardShopRequestOptions,
-  body?: unknown,
-): RequestInit {
-  const headers: Record<string, string> = {}
-  if (options?.cookieHeader) {
-    headers.cookie = options.cookieHeader
-  }
-  if (body !== undefined) {
-    headers['Content-Type'] = 'application/json'
-  }
-
-  const init: RequestInit = {
-    method,
-    cache: options?.cache ?? 'no-store',
-    signal: options?.signal,
-    credentials: options?.cookieHeader ? 'omit' : 'include',
-  }
-
-  if (Object.keys(headers).length) {
-    init.headers = headers
-  }
-
-  if (body !== undefined) {
-    init.body = JSON.stringify(body)
-  }
-
-  return init
-}
-
-async function requestJson<T>(
-  path: string,
-  init: RequestInit,
-  successStatuses: number[],
-): Promise<{ response: Response; data?: T }> {
-  let lastError: DashboardShopProfileFetchResult | DashboardShopProfileUpdateResult | null = null
-
-  for (const base of resolveApiBases()) {
-    try {
-      const res = await fetch(buildApiUrl(base, path), init)
-
-      if (successStatuses.includes(res.status)) {
-        let data: T | undefined
-        if (res.status !== 204 && res.headers.get('content-type')?.includes('json')) {
-          data = (await res.json()) as T
-        }
-        return { response: res, data }
-      }
-
-      switch (res.status) {
-        case 401:
-        case 403:
-        case 404:
-        case 409:
-        case 422: {
-          let data: T | undefined
-          if (res.headers.get('content-type')?.includes('json')) {
-            data = (await res.json()) as T
-          }
-          return { response: res, data }
-        }
-        default:
-          lastError = {
-            status: 'error',
-            message: `リクエストに失敗しました (status=${res.status})`,
-          }
-          continue
-      }
-    } catch (error) {
-      lastError = {
-        status: 'error',
-        message: error instanceof Error ? error.message : 'リクエスト中にエラーが発生しました',
-      }
-    }
-  }
-
-  throw (
-    lastError ?? {
-      status: 'error',
-      message: 'API リクエストが完了しませんでした',
-    }
-  )
-}
-
 export async function fetchDashboardShopProfile(
   profileId: string,
   options?: DashboardShopRequestOptions,
 ): Promise<DashboardShopProfileFetchResult> {
-  try {
-    const { response, data } = await requestJson<DashboardShopProfile>(
-      `api/dashboard/shops/${profileId}/profile`,
-      createRequestInit('GET', options),
-      [200],
-    )
+  const result = await dashboardClient.get<DashboardShopProfile>(`shops/${profileId}/profile`, {
+    cookieHeader: options?.cookieHeader,
+    signal: options?.signal,
+    cache: options?.cache,
+  })
 
-    switch (response.status) {
-      case 200:
-        return { status: 'success', data: data! }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 404:
-        return { status: 'not_found' }
-      default:
-        return {
-          status: 'error',
-          message: `店舗情報の取得に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardShopProfileFetchResult
-    }
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : '店舗情報の取得に失敗しました',
-    }
+  if (result.ok) {
+    return { status: 'success', data: result.data }
+  }
+
+  const err = result as ApiErrorResult
+  switch (err.status) {
+    case 401:
+      return { status: 'unauthorized' }
+    case 403:
+      return {
+        status: 'forbidden',
+        detail: typeof err.detail === 'object' && err.detail !== null
+          ? (err.detail as { detail?: string }).detail
+          : undefined,
+      }
+    case 404:
+      return { status: 'not_found' }
+    default:
+      return {
+        status: 'error',
+        message: err.error || `店舗情報の取得に失敗しました (status=${err.status})`,
+      }
   }
 }
 
@@ -260,68 +172,69 @@ export async function updateDashboardShopProfile(
   payload: DashboardShopProfileUpdatePayload,
   options?: DashboardShopRequestOptions,
 ): Promise<DashboardShopProfileUpdateResult> {
-  try {
-    const { response, data } = await requestJson<
-      DashboardShopProfile | { detail?: { current?: DashboardShopProfile } }
-    >(`api/dashboard/shops/${profileId}/profile`, createRequestInit('PUT', options, payload), [200])
+  const result = await dashboardClient.put<
+    DashboardShopProfile | { detail?: { current?: DashboardShopProfile } }
+  >(`shops/${profileId}/profile`, payload, {
+    cookieHeader: options?.cookieHeader,
+    signal: options?.signal,
+    cache: options?.cache,
+  })
 
-    switch (response.status) {
-      case 200:
-        return { status: 'success', data: data as DashboardShopProfile }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 404:
-        return { status: 'not_found' }
-      case 409: {
-        const detail = data as { detail?: { current?: DashboardShopProfile } } | undefined
-        if (detail?.detail?.current) {
-          return { status: 'conflict', current: detail.detail.current }
-        }
-        const refreshed = await fetchDashboardShopProfile(profileId, options)
-        if (refreshed.status === 'success') {
-          return { status: 'conflict', current: refreshed.data }
-        }
-        const fallback = (data as DashboardShopProfile | undefined) ?? {
-          id: profileId,
-          name: payload.name ?? '',
-          area: payload.area ?? '',
-          price_min: payload.price_min ?? 0,
-          price_max: payload.price_max ?? 0,
-          service_type: payload.service_type ?? 'store',
-          service_tags: payload.service_tags ?? [],
-          description: payload.description ?? null,
-          catch_copy: payload.catch_copy ?? null,
-          address: payload.address ?? null,
-          photos: payload.photos ?? [],
-          contact: payload.contact ?? null,
-          menus: payload.menus ?? [],
-          staff: payload.staff ?? [],
-          updated_at: payload.updated_at,
-          status: payload.status ?? 'draft',
-        }
-        return { status: 'conflict', current: fallback }
+  if (result.ok) {
+    return { status: 'success', data: result.data as DashboardShopProfile }
+  }
+
+  const err = result as ApiErrorResult
+  switch (err.status) {
+    case 401:
+      return { status: 'unauthorized' }
+    case 403:
+      return {
+        status: 'forbidden',
+        detail: typeof err.detail === 'object' && err.detail !== null
+          ? (err.detail as { detail?: string }).detail
+          : undefined,
       }
-      case 422:
-        return { status: 'validation_error', detail: data }
-      default:
-        return {
-          status: 'error',
-          message: `店舗情報の更新に失敗しました (status=${response.status})`,
-        }
+    case 404:
+      return { status: 'not_found' }
+    case 409: {
+      const conflictDetail = err.detail as
+        | { detail?: { current?: DashboardShopProfile } }
+        | undefined
+      if (conflictDetail?.detail?.current) {
+        return { status: 'conflict', current: conflictDetail.detail.current }
+      }
+      const refreshed = await fetchDashboardShopProfile(profileId, options)
+      if (refreshed.status === 'success') {
+        return { status: 'conflict', current: refreshed.data }
+      }
+      const fallback: DashboardShopProfile = {
+        id: profileId,
+        name: payload.name ?? '',
+        area: payload.area ?? '',
+        price_min: payload.price_min ?? 0,
+        price_max: payload.price_max ?? 0,
+        service_type: payload.service_type ?? 'store',
+        service_tags: payload.service_tags ?? [],
+        description: payload.description ?? null,
+        catch_copy: payload.catch_copy ?? null,
+        address: payload.address ?? null,
+        photos: payload.photos ?? [],
+        contact: payload.contact ?? null,
+        menus: payload.menus ?? [],
+        staff: payload.staff ?? [],
+        updated_at: payload.updated_at,
+        status: payload.status ?? 'draft',
+      }
+      return { status: 'conflict', current: fallback }
     }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardShopProfileUpdateResult
-    }
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : '店舗情報の更新に失敗しました',
-    }
+    case 422:
+      return { status: 'validation_error', detail: err.detail }
+    default:
+      return {
+        status: 'error',
+        message: err.error || `店舗情報の更新に失敗しました (status=${err.status})`,
+      }
   }
 }
 
@@ -329,38 +242,143 @@ export async function createDashboardShopProfile(
   payload: DashboardShopProfileCreatePayload,
   options?: DashboardShopRequestOptions,
 ): Promise<DashboardShopProfileCreateResult> {
-  try {
-    const { response, data } = await requestJson<DashboardShopProfile | { detail?: unknown }>(
-      'api/dashboard/shops',
-      createRequestInit('POST', options, payload),
-      [201],
-    )
+  const result = await dashboardClient.post<DashboardShopProfile | { detail?: unknown }>(
+    'shops',
+    payload,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 201:
-        return { status: 'success', data: data as DashboardShopProfile }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return { status: 'forbidden', detail: (data as { detail?: string } | undefined)?.detail }
-      case 422:
-        return {
-          status: 'validation_error',
-          detail: (data as { detail?: unknown } | undefined)?.detail,
-        }
-      default:
-        return {
-          status: 'error',
-          message: `店舗情報の作成に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardShopProfileCreateResult
-    }
+  if (result.ok && result.status === 201) {
+    return { status: 'success', data: result.data as DashboardShopProfile }
+  }
+
+  if (result.ok) {
+    // Unexpected success status - treat as error
     return {
       status: 'error',
-      message: error instanceof Error ? error.message : '店舗情報の作成に失敗しました',
+      message: `店舗情報の作成に失敗しました (status=${result.status})`,
+    }
+  }
+
+  const err = result as ApiErrorResult
+  switch (err.status) {
+    case 401:
+      return { status: 'unauthorized' }
+    case 403:
+      return {
+        status: 'forbidden',
+        detail: typeof err.detail === 'object' && err.detail !== null
+          ? (err.detail as { detail?: string }).detail
+          : undefined,
+      }
+    case 422:
+      return {
+        status: 'validation_error',
+        detail: typeof err.detail === 'object' && err.detail !== null
+          ? (err.detail as { detail?: unknown }).detail
+          : err.detail,
+      }
+    default:
+      return {
+        status: 'error',
+        message: err.error || `店舗情報の作成に失敗しました (status=${err.status})`,
+      }
+  }
+}
+
+export type DashboardShopPhotoUploadResponse = {
+  url: string
+  filename: string
+  content_type: string
+  size: number
+}
+
+export type DashboardShopPhotoUploadResult =
+  | { status: 'success'; data: DashboardShopPhotoUploadResponse }
+  | { status: 'too_large'; limitBytes?: number }
+  | { status: 'unsupported_media_type'; message?: string }
+  | { status: 'validation_error'; message?: string }
+  | { status: 'unauthorized' }
+  | { status: 'forbidden'; detail?: string }
+  | { status: 'not_found' }
+  | { status: 'error'; message: string }
+
+export async function uploadDashboardShopPhoto(
+  profileId: string,
+  file: File,
+  options?: DashboardShopRequestOptions,
+): Promise<DashboardShopPhotoUploadResult> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const headers: Record<string, string> = {}
+  if (options?.cookieHeader) {
+    headers.cookie = options.cookieHeader
+  }
+
+  const init: RequestInit = {
+    method: 'POST',
+    cache: options?.cache ?? 'no-store',
+    signal: options?.signal,
+    credentials: options?.cookieHeader ? 'omit' : 'include',
+    body: formData,
+  }
+
+  if (Object.keys(headers).length) {
+    init.headers = headers
+  }
+
+  try {
+    for (const base of resolveApiBases()) {
+      try {
+        const res = await fetch(
+          buildApiUrl(base, `api/dashboard/shops/${profileId}/photos/upload`),
+          init,
+        )
+
+        if (res.status === 201) {
+          const data = (await res.json()) as DashboardShopPhotoUploadResponse
+          return { status: 'success', data }
+        }
+
+        switch (res.status) {
+          case 401:
+            return { status: 'unauthorized' }
+          case 403: {
+            const json = (await res.json().catch(() => ({}))) as { detail?: string }
+            return { status: 'forbidden', detail: json?.detail }
+          }
+          case 404:
+            return { status: 'not_found' }
+          case 413: {
+            const json = (await res.json().catch(() => ({}))) as { limit_bytes?: number }
+            return { status: 'too_large', limitBytes: json?.limit_bytes }
+          }
+          case 415: {
+            const json = (await res.json().catch(() => ({}))) as { message?: string }
+            return { status: 'unsupported_media_type', message: json?.message }
+          }
+          case 422: {
+            const json = (await res.json().catch(() => ({}))) as { message?: string }
+            return { status: 'validation_error', message: json?.message }
+          }
+          default:
+            continue
+        }
+      } catch {
+        continue
+      }
+    }
+
+    return { status: 'error', message: '写真のアップロードに失敗しました' }
+  } catch (error) {
+    return {
+      status: 'error',
+      message: error instanceof Error ? error.message : '写真のアップロードに失敗しました',
     }
   }
 }
