@@ -7,17 +7,18 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, select
-from sqlalchemy import desc
+from sqlalchemy import and_, or_, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...models import (
     GuestReservation,
     GuestReservationStatus as _GuestReservationStatus,
     Therapist,
+    User,
     now_utc,
 )
 from ...db import get_session
+from ...deps import get_optional_site_user
 from .therapist_availability import is_available
 from ...rate_limiters import rate_limit_reservation
 
@@ -79,6 +80,7 @@ def validate_request(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]
     normalized["payment_method"] = payload.get("payment_method")
     normalized["contact_info"] = payload.get("contact_info")
     normalized["guest_token"] = payload.get("guest_token")
+    normalized["user_id"] = payload.get("user_id")
     normalized["notes"] = payload.get("notes")
     normalized["base_staff_id"] = payload.get("base_staff_id")
 
@@ -292,6 +294,7 @@ async def create_guest_reservation(
             payment_method=normalized.get("payment_method"),
             contact_info=normalized.get("contact_info"),
             guest_token=normalized.get("guest_token"),
+            user_id=normalized.get("user_id"),
             notes=normalized.get("notes"),
             status="confirmed",
             base_staff_id=normalized.get("base_staff_id"),
@@ -325,6 +328,7 @@ class GuestReservationPayload(BaseModel):
     payment_method: str | None = None
     contact_info: dict[str, Any] | None = None
     guest_token: str | None = None
+    user_id: UUID | None = None
     notes: str | None = None
     base_staff_id: UUID | None = None
 
@@ -342,6 +346,7 @@ class GuestReservationResponse(BaseModel):
     payment_method: str | None = None
     contact_info: dict[str, Any] | None = None
     guest_token: str | None = None
+    user_id: UUID | None = None
     notes: str | None = None
     base_staff_id: UUID | None = None
     created_at: datetime
@@ -368,6 +373,7 @@ def _serialize(
         payment_method=reservation.payment_method,
         contact_info=reservation.contact_info,
         guest_token=reservation.guest_token,
+        user_id=reservation.user_id,
         notes=reservation.notes,
         base_staff_id=reservation.base_staff_id,
         created_at=reservation.created_at,
@@ -450,11 +456,14 @@ async def update_guest_reservation_status(
 async def create_guest_reservation_api(
     payload: GuestReservationPayload,
     db: AsyncSession = Depends(get_session),
+    user: Optional[User] = Depends(get_optional_site_user),
     _: None = Depends(rate_limit_reservation),
 ):
-    reservation, debug = await create_guest_reservation(
-        db, payload.model_dump(), now=None
-    )
+    data = payload.model_dump()
+    # If user is authenticated, use their user_id
+    if user:
+        data["user_id"] = user.id
+    reservation, debug = await create_guest_reservation(db, data, now=None)
     if reservation:
         return _serialize(reservation, debug=None)
     # fail-soft: 200で返却し、debugに理由を含める
@@ -471,6 +480,7 @@ async def create_guest_reservation_api(
         payment_method=payload.payment_method,
         contact_info=payload.contact_info,
         guest_token=payload.guest_token,
+        user_id=user.id if user else None,
         notes=payload.notes,
         base_staff_id=payload.base_staff_id,
         created_at=now_utc(),
@@ -522,13 +532,31 @@ async def get_guest_reservation_api(
     status_code=status.HTTP_200_OK,
 )
 async def list_guest_reservations_api(
-    guest_token: str,
+    guest_token: Optional[str] = None,
     db: AsyncSession = Depends(get_session),
+    user: Optional[User] = Depends(get_optional_site_user),
 ):
-    res = await db.execute(
-        select(GuestReservation)
-        .where(GuestReservation.guest_token == guest_token)
-        .order_by(desc(GuestReservation.start_at))
-    )
+    # Build query based on authentication status
+    if user:
+        # Authenticated user: get reservations by user_id (and optionally guest_token)
+        conditions = [GuestReservation.user_id == user.id]
+        if guest_token:
+            # Also include any reservations with the guest_token (for migration)
+            conditions.append(GuestReservation.guest_token == guest_token)
+        res = await db.execute(
+            select(GuestReservation)
+            .where(or_(*conditions))
+            .order_by(desc(GuestReservation.start_at))
+        )
+    elif guest_token:
+        # Anonymous user with guest_token
+        res = await db.execute(
+            select(GuestReservation)
+            .where(GuestReservation.guest_token == guest_token)
+            .order_by(desc(GuestReservation.start_at))
+        )
+    else:
+        # No user and no guest_token - return empty list
+        return []
     reservations = res.scalars().all()
     return [_serialize(r, debug=None) for r in reservations]

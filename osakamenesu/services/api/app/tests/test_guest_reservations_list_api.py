@@ -25,6 +25,7 @@ class DummyReservation:
         self.payment_method = None
         self.contact_info = None
         self.guest_token = guest_token
+        self.user_id = None
         self.notes = None
         self.base_staff_id = None
         self.created_at = now

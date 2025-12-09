@@ -894,6 +894,12 @@ class GuestReservation(Base):
     payment_method: Mapped[str | None] = mapped_column(String(64), nullable=True)
     contact_info: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     guest_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
         GuestReservationStatus, nullable=False, index=True, default="pending"

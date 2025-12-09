@@ -60,6 +60,7 @@ class StubReservation:
         self.payment_method = None
         self.contact_info = None
         self.guest_token = None
+        self.user_id = None
         self.notes = None
         self.base_staff_id = None
         self.created_at = now
