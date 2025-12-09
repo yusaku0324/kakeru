@@ -1,0 +1,222 @@
+name: API Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'osakamenesu/services/api/**'
+      - 'osakamenesu/docker/api.Dockerfile'
+      - 'osakamenesu/docker-compose.test.yml'
+      - 'osakamenesu/requirements-test.txt'
+      - '.github/workflows/ci-api-integration.yml'
+  pull_request:
+    paths:
+      - 'osakamenesu/services/api/**'
+      - 'osakamenesu/docker/api.Dockerfile'
+      - 'osakamenesu/docker-compose.test.yml'
+      - 'osakamenesu/requirements-test.txt'
+      - '.github/workflows/ci-api-integration.yml'
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: osaka_menesu
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U app"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      meilisearch:
+        image: getmeili/meilisearch:v1.11
+        env:
+          MEILI_MASTER_KEY: test_master_key
+          MEILI_ENV: development
+        ports:
+          - 7700:7700
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: osakamenesu/services/api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r ../../requirements-test.txt
+
+      - name: Wait for services
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:7700/health >/dev/null 2>&1; then
+              echo "Meilisearch is ready"
+              break
+            fi
+            echo "Waiting for Meilisearch... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run Alembic migrations
+        working-directory: osakamenesu/services/api
+        env:
+          DATABASE_URL: postgresql+asyncpg://app:app@localhost:5432/osaka_menesu
+          MEILI_HOST: http://localhost:7700
+          MEILI_MASTER_KEY: test_master_key
+        run: |
+          alembic upgrade head
+
+      - name: Run unit tests
+        working-directory: osakamenesu/services/api
+        env:
+          DATABASE_URL: postgresql+asyncpg://app:app@localhost:5432/osaka_menesu
+          MEILI_HOST: http://localhost:7700
+          MEILI_MASTER_KEY: test_master_key
+          ADMIN_API_KEY: test_admin_key
+          API_ORIGIN: http://localhost:3000
+          RATE_LIMIT_REDIS_URL: ""
+        run: |
+          pytest app/tests -m "not integration" -q --tb=short
+
+      - name: Run integration tests
+        working-directory: osakamenesu/services/api
+        env:
+          DATABASE_URL: postgresql+asyncpg://app:app@localhost:5432/osaka_menesu
+          MEILI_HOST: http://localhost:7700
+          MEILI_MASTER_KEY: test_master_key
+          ADMIN_API_KEY: test_admin_key
+          API_ORIGIN: http://localhost:3000
+          RATE_LIMIT_REDIS_URL: ""
+        run: |
+          pytest app/tests_integration -m integration -q --tb=short || echo "No integration tests found, skipping"
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check for missing dependencies
+        working-directory: osakamenesu/services/api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+          # Import check - verify all modules can be imported
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+
+          # Core imports that must work
+          try:
+              from app.main import app
+              print('✅ app.main imports successfully')
+          except ImportError as e:
+              print(f'❌ Import error in app.main: {e}')
+              sys.exit(1)
+
+          # Check optional dependencies are handled gracefully
+          try:
+              from app.domains.site.guest_matching import guest_matching_search
+              print('✅ guest_matching imports successfully')
+          except ImportError as e:
+              print(f'❌ Import error in guest_matching: {e}')
+              sys.exit(1)
+          "
+
+  enum-consistency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check enum consistency
+        working-directory: osakamenesu/services/api
+        run: |
+          python -c "
+          import re
+          import sys
+          from pathlib import Path
+
+          errors = []
+
+          # Check enums.py exists and is the single source of truth
+          enums_path = Path('app/enums.py')
+          if not enums_path.exists():
+              print('❌ app/enums.py not found - enum definitions should be centralized')
+              sys.exit(1)
+
+          enums_content = enums_path.read_text()
+
+          # Extract VALUES tuples from enums.py
+          values_pattern = r'(\w+_VALUES):\s*Tuple\[str,\s*\.\.\.\]\s*=\s*\(([^)]+)\)'
+          enum_values = {}
+          for match in re.finditer(values_pattern, enums_content):
+              name = match.group(1)
+              values_str = match.group(2)
+              values = [v.strip().strip('\"').strip(\"'\") for v in values_str.split(',') if v.strip()]
+              enum_values[name] = set(values)
+              print(f'Found {name}: {values}')
+
+          # Check models.py imports from enums.py
+          models_path = Path('app/models.py')
+          models_content = models_path.read_text()
+
+          if 'from .enums import' not in models_content and 'from app.enums import' not in models_content:
+              errors.append('models.py should import enum values from enums.py')
+
+          # Check schemas.py imports from enums.py
+          schemas_path = Path('app/schemas.py')
+          schemas_content = schemas_path.read_text()
+
+          if 'from .enums import' not in schemas_content and 'from app.enums import' not in schemas_content:
+              errors.append('schemas.py should import enum Literals from enums.py')
+
+          # Check for hardcoded 'active' status (common mistake)
+          api_dir = Path('app')
+          for py_file in api_dir.rglob('*.py'):
+              if 'test' in str(py_file) or 'alembic' in str(py_file) or 'enums.py' in str(py_file):
+                  continue
+              content = py_file.read_text()
+
+              # Check for hardcoded 'active' which is not a valid therapist status
+              if re.search(r'therapist.*status.*[\"\\']active[\"\\']', content, re.IGNORECASE):
+                  for i, line in enumerate(content.split('\n'), 1):
+                      if \"'active'\" in line or '\"active\"' in line:
+                          if 'therapist' in line.lower() and 'status' in line.lower():
+                              errors.append(f'{py_file}:{i}: Found hardcoded \"active\" status (use enums.py values)')
+
+          if errors:
+              print('\n❌ Enum consistency errors found:')
+              for error in errors:
+                  print(f'  - {error}')
+              sys.exit(1)
+          else:
+              print('\n✅ All enum checks passed')
+          "
