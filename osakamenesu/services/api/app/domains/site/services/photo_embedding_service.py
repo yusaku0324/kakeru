@@ -10,8 +10,17 @@ import io
 import logging
 from datetime import datetime, UTC
 from typing import Optional, Sequence
-import numpy as np
-from PIL import Image
+
+try:
+    import numpy as np
+    from PIL import Image
+
+    NUMPY_AVAILABLE = True
+except ImportError:
+    np = None  # type: ignore
+    Image = None  # type: ignore
+    NUMPY_AVAILABLE = False
+
 import requests
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +39,9 @@ class PhotoEmbeddingService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def compute_embedding_for_photo_url(self, photo_url: str) -> Optional[list[float]]:
+    async def compute_embedding_for_photo_url(
+        self, photo_url: str
+    ) -> Optional[list[float]]:
         """Compute embedding vector for a single photo URL.
 
         For MVP, this generates a deterministic pseudo-embedding based on the URL.
@@ -40,6 +51,10 @@ class PhotoEmbeddingService:
         3. Pass through a vision model (CLIP, ResNet, etc.)
         4. Return the feature vector
         """
+        if not NUMPY_AVAILABLE:
+            logger.warning("numpy not available, cannot compute photo embedding")
+            return None
+
         try:
             # For MVP: Generate deterministic pseudo-embedding from URL hash
             # This ensures same photo always gets same embedding
@@ -51,7 +66,7 @@ class PhotoEmbeddingService:
             chunk_size = len(url_hash) // EMBEDDING_DIM
 
             for i in range(EMBEDDING_DIM):
-                chunk = url_hash[i * chunk_size:(i + 1) * chunk_size]
+                chunk = url_hash[i * chunk_size : (i + 1) * chunk_size]
                 # Convert hex to int and normalize to [-1, 1]
                 value = int(chunk[:4], 16) / 32768.0 - 1.0
                 embedding.append(value)
@@ -103,7 +118,9 @@ class PhotoEmbeddingService:
             embedding = await self.compute_embedding_for_photo_url(photo_url)
 
             if embedding is None:
-                logger.warning(f"Failed to compute embedding for therapist {therapist_id}")
+                logger.warning(
+                    f"Failed to compute embedding for therapist {therapist_id}"
+                )
                 return False
 
             # Update therapist with embedding
@@ -113,7 +130,7 @@ class PhotoEmbeddingService:
                 .values(
                     photo_embedding=embedding,
                     photo_embedding_computed_at=datetime.now(UTC),
-                    main_photo_index=main_index
+                    main_photo_index=main_index,
                 )
             )
             await self.db.commit()
@@ -127,9 +144,7 @@ class PhotoEmbeddingService:
             return False
 
     async def compute_embeddings_batch(
-        self,
-        therapist_ids: Optional[Sequence[str]] = None,
-        limit: int = 100
+        self, therapist_ids: Optional[Sequence[str]] = None, limit: int = 100
     ) -> dict[str, bool]:
         """Compute embeddings for multiple therapists.
 
@@ -145,8 +160,7 @@ class PhotoEmbeddingService:
         try:
             # Build query
             query = select(Therapist).where(
-                Therapist.status == "published",
-                Therapist.photo_urls != None
+                Therapist.status == "published", Therapist.photo_urls != None
             )
 
             if therapist_ids:
@@ -199,14 +213,18 @@ class PhotoEmbeddingService:
             return False
 
         # Check if updated after embedding was computed
-        if (therapist.photo_embedding_computed_at and
-            therapist.updated_at > therapist.photo_embedding_computed_at):
+        if (
+            therapist.photo_embedding_computed_at
+            and therapist.updated_at > therapist.photo_embedding_computed_at
+        ):
             return True
 
         return False
 
     @staticmethod
-    def compute_cosine_similarity(embedding1: list[float], embedding2: list[float]) -> float:
+    def compute_cosine_similarity(
+        embedding1: list[float], embedding2: list[float]
+    ) -> float:
         """Compute cosine similarity between two embeddings.
 
         Returns value between -1 and 1, where:
@@ -220,14 +238,18 @@ class PhotoEmbeddingService:
             return 0.0
 
         if len(embedding1) != len(embedding2):
-            logger.warning(f"Embedding dimension mismatch: {len(embedding1)} vs {len(embedding2)}")
+            logger.warning(
+                f"Embedding dimension mismatch: {len(embedding1)} vs {len(embedding2)}"
+            )
             return 0.0
 
         try:
             # Compute dot product and norms
+            import math
+
             dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
-            norm1 = np.sqrt(sum(a * a for a in embedding1))
-            norm2 = np.sqrt(sum(b * b for b in embedding2))
+            norm1 = math.sqrt(sum(a * a for a in embedding1))
+            norm2 = math.sqrt(sum(b * b for b in embedding2))
 
             if norm1 == 0 or norm2 == 0:
                 return 0.0
