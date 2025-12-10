@@ -56,11 +56,15 @@ export function SafeImage({
     return null
   }
 
+  // R2ドメインの画像は unoptimized フラグを追加して Next.js の最適化を回避
+  const isR2Domain = typeof currentSrc === 'string' && currentSrc.includes('.r2.dev')
+
   return (
     <Image
       {...rest}
       alt={alt}
       src={currentSrc}
+      unoptimized={isR2Domain || rest.unoptimized}
       onError={(event) => {
         const fallback = isMeaningfulString(fallbackSrc) ? fallbackSrc : null
         if (fallback && currentSrc !== fallback) {
