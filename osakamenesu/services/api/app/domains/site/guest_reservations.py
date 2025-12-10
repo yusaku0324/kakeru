@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, or_, select, desc
+from sqlalchemy import or_, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...models import (
@@ -19,15 +19,13 @@ from ...models import (
 )
 from ...db import get_session
 from ...deps import get_optional_site_user
-from .therapist_availability import is_available
+from .therapist_availability import is_available, has_overlapping_reservation
 from ...rate_limiters import rate_limit_reservation
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/guest/reservations", tags=["guest-reservations"])
 
-# ステータスが重複判定の対象となるもの（pending/confirmed を重複禁止とみなす）
-ACTIVE_STATUSES = ("pending", "confirmed")
 GuestReservationStatus = _GuestReservationStatus  # backward-compat for existing imports
 
 
@@ -123,6 +121,8 @@ async def check_shift_and_overlap(
 ) -> list[str]:
     """
     シフト/営業時間の厳密判定は未実装。まずは重複予約のみチェック。
+
+    共通ヘルパー has_overlapping_reservation を使用。
     """
     reasons: list[str] = []
     if not therapist_id:
@@ -131,14 +131,19 @@ async def check_shift_and_overlap(
     if not db or not hasattr(db, "execute"):
         return reasons
 
-    stmt = select(GuestReservation).where(
-        GuestReservation.therapist_id == therapist_id,
-        GuestReservation.status.in_(ACTIVE_STATUSES),
-        and_(GuestReservation.start_at < end_at, GuestReservation.end_at > start_at),
-    )
-    res = await db.execute(stmt)
-    if res.scalar():
-        reasons.append("overlap_existing_reservation")
+    # 共通ヘルパーを使用して重複チェック
+    try:
+        therapist_uuid = (
+            therapist_id if isinstance(therapist_id, UUID) else UUID(str(therapist_id))
+        )
+        has_overlap = await has_overlapping_reservation(
+            db, therapist_uuid, start_at, end_at
+        )
+        if has_overlap:
+            reasons.append("overlap_existing_reservation")
+    except (ValueError, TypeError):
+        # therapist_id が UUID に変換できない場合はスキップ
+        pass
 
     # シフト整合は将来拡張。現時点では未検証。
     return reasons

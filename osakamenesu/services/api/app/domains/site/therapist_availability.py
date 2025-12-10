@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Iterable
 from uuid import UUID
@@ -14,6 +15,7 @@ from sqlalchemy.orm import joinedload
 from ...models import GuestReservation, TherapistShift, Therapist, Profile, Availability
 from ...db import get_session
 from .services.shop.availability import convert_slots
+from ...utils.datetime import ensure_jst_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,50 @@ def _overlaps(
     return a_start < b_end and b_start < a_end
 
 
+async def _fetch_therapist_with_buffer(
+    db: AsyncSession,
+    therapist_id: UUID,
+) -> tuple[Therapist | None, int, UUID | None]:
+    """Therapist と buffer_minutes, profile_id を一括取得するヘルパー。"""
+    stmt = (
+        select(Therapist)
+        .options(joinedload(Therapist.profile))
+        .where(Therapist.id == therapist_id)
+    )
+    result = await db.execute(stmt)
+    therapist = result.scalar_one_or_none()
+
+    if not therapist:
+        return None, 0, None
+
+    buffer_minutes = 0
+    profile_id = None
+    if therapist.profile:
+        buffer_minutes = therapist.profile.buffer_minutes or 0
+        profile_id = therapist.profile_id
+
+    return therapist, buffer_minutes, profile_id
+
+
+async def has_overlapping_reservation(
+    db: AsyncSession,
+    therapist_id: UUID,
+    start_at: datetime,
+    end_at: datetime,
+) -> bool:
+    """指定時間帯に重複する予約があるかチェック。"""
+    stmt = select(GuestReservation).where(
+        GuestReservation.therapist_id == therapist_id,
+        GuestReservation.status.in_(("pending", "confirmed")),
+        and_(
+            GuestReservation.start_at < end_at,
+            GuestReservation.end_at > start_at,
+        ),
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none() is not None
+
+
 async def is_available(
     db: AsyncSession,
     therapist_id: UUID,
@@ -32,74 +78,51 @@ async def is_available(
     end_at: datetime,
     check_buffer: bool = True,
 ) -> tuple[bool, dict[str, Any]]:
-    """シフトと既存予約を見て予約可否を判定する (fail-soft)。"""
+    """シフトと既存予約を見て予約可否を判定する (fail-soft)。
+
+    バッファ時間の適用ルール:
+    - シフト境界: バッファなしで予約時間がシフト内に収まっているかチェック
+    - 休憩との重なり: バッファ込みでチェック（休憩の前後にバッファを確保）
+    - 既存予約との重なり: バッファ込みでチェック（予約と予約の間にバッファを確保）
+    """
     if not start_at or not end_at or start_at >= end_at:
         return False, {"rejected_reasons": ["invalid_time_range"]}
 
     try:
-        # Get buffer minutes from the therapist's profile
+        # 共通ヘルパーで buffer_minutes を取得
         buffer_minutes = 0
         if check_buffer:
-            therapist_stmt = (
-                select(Therapist)
-                .options(joinedload(Therapist.profile))
-                .where(Therapist.id == therapist_id)
-            )
-            therapist_res = await db.execute(therapist_stmt)
-            therapist = therapist_res.scalar_one_or_none()
-            if therapist and therapist.profile:
-                buffer_minutes = therapist.profile.buffer_minutes or 0
+            _, buffer_minutes, _ = await _fetch_therapist_with_buffer(db, therapist_id)
 
-        # Apply buffer to the requested time range
         buffer_delta = timedelta(minutes=buffer_minutes)
-        buffered_start = start_at - buffer_delta
-        buffered_end = end_at + buffer_delta
 
-        # 1) シフト存在（availability_status=available で内包しているか）
+        # 1) シフト存在チェック（バッファなしで予約時間がシフト内に収まっているか）
+        # シフト開始/終了時刻ぴったりの予約は許可する
         shift_stmt = select(TherapistShift).where(
             TherapistShift.therapist_id == therapist_id,
             TherapistShift.availability_status == "available",
-            TherapistShift.start_at <= buffered_start,
-            TherapistShift.end_at >= buffered_end,
+            TherapistShift.start_at <= start_at,  # バッファなし
+            TherapistShift.end_at >= end_at,  # バッファなし
         )
         shift_res = await db.execute(shift_stmt)
         shift = shift_res.scalar_one_or_none()
         if not shift:
             return False, {"rejected_reasons": ["no_shift"]}
 
-        # 2) 休憩との重なり (check with buffered time)
-        for br in shift.break_slots or []:
-            br_start = br.get("start_at")
-            br_end = br.get("end_at")
-            if not br_start or not br_end:
-                continue
-            try:
-                br_start_dt = (
-                    br_start
-                    if isinstance(br_start, datetime)
-                    else datetime.fromisoformat(br_start)
-                )
-                br_end_dt = (
-                    br_end
-                    if isinstance(br_end, datetime)
-                    else datetime.fromisoformat(br_end)
-                )
-            except Exception:
-                continue
+        # バッファ込みの時間範囲（休憩・予約チェック用）
+        buffered_start = start_at - buffer_delta
+        buffered_end = end_at + buffer_delta
+
+        # 2) 休憩との重なり（バッファ込みでチェック）
+        breaks = _parse_breaks(shift.break_slots)
+        for br_start_dt, br_end_dt in breaks:
             if _overlaps(buffered_start, buffered_end, br_start_dt, br_end_dt):
                 return False, {"rejected_reasons": ["on_break"]}
 
-        # 3) 既存予約との重なり (pending/confirmed) - check with buffer
-        res_stmt = select(GuestReservation).where(
-            GuestReservation.therapist_id == therapist_id,
-            GuestReservation.status.in_(("pending", "confirmed")),
-            and_(
-                GuestReservation.start_at < buffered_end,
-                GuestReservation.end_at > buffered_start,
-            ),
-        )
-        res_res = await db.execute(res_stmt)
-        if res_res.scalar_one_or_none():
+        # 3) 既存予約との重なり（バッファ込みでチェック）
+        if await has_overlapping_reservation(
+            db, therapist_id, buffered_start, buffered_end
+        ):
             return False, {"rejected_reasons": ["overlap_existing_reservation"]}
 
         return True, {"rejected_reasons": []}
@@ -289,6 +312,17 @@ async def _fetch_availability_slots(
     if not availability or not availability.slots_json:
         return []
 
+    return _extract_slots_from_availability(availability, therapist_id)
+
+
+def _extract_slots_from_availability(
+    availability: Availability,
+    therapist_id: UUID,
+) -> list[tuple[datetime, datetime]]:
+    """Availability レコードからスロットを抽出（共通処理）。"""
+    if not availability.slots_json:
+        return []
+
     slots = convert_slots(availability.slots_json)
     result: list[tuple[datetime, datetime]] = []
     for slot in slots:
@@ -301,6 +335,30 @@ async def _fetch_availability_slots(
     return result
 
 
+async def _fetch_availability_slots_batch(
+    db: AsyncSession,
+    profile_id: UUID,
+    therapist_id: UUID,
+    date_from: date,
+    date_to: date,
+) -> dict[date, list[tuple[datetime, datetime]]]:
+    """Availability テーブルから日付範囲のスロットをバッチ取得。"""
+    stmt = select(Availability).where(
+        Availability.profile_id == profile_id,
+        Availability.date >= date_from,
+        Availability.date <= date_to,
+    )
+    res = await db.execute(stmt)
+    availabilities = res.scalars().all()
+
+    result: dict[date, list[tuple[datetime, datetime]]] = {}
+    for avail in availabilities:
+        slots = _extract_slots_from_availability(avail, therapist_id)
+        if slots:
+            result[avail.date] = slots
+    return result
+
+
 async def list_daily_slots(
     db: AsyncSession,
     therapist_id: UUID,
@@ -310,19 +368,8 @@ async def list_daily_slots(
     shifts = await _fetch_shifts(db, therapist_id, target_date, target_date)
     reservations = await _fetch_reservations(db, therapist_id, day_start, day_end)
 
-    # Get buffer minutes and profile_id from the therapist's profile
-    buffer_minutes = 0
-    profile_id: UUID | None = None
-    therapist_stmt = (
-        select(Therapist)
-        .options(joinedload(Therapist.profile))
-        .where(Therapist.id == therapist_id)
-    )
-    therapist_res = await db.execute(therapist_stmt)
-    therapist = therapist_res.scalar_one_or_none()
-    if therapist and therapist.profile:
-        buffer_minutes = therapist.profile.buffer_minutes or 0
-        profile_id = therapist.profile_id
+    # 共通ヘルパーで buffer_minutes と profile_id を取得
+    _, buffer_minutes, profile_id = await _fetch_therapist_with_buffer(db, therapist_id)
 
     slots = _calculate_available_slots(shifts, reservations, buffer_minutes)
 
@@ -339,7 +386,18 @@ async def list_daily_slots(
                 db, profile_id, therapist_id, target_date
             )
             if fallback_slots:
-                slots = fallback_slots
+                # タイムゾーンを UTC に統一（Availability は JST で返される可能性がある）
+                slots = [
+                    (
+                        s.astimezone(timezone.utc)
+                        if s.tzinfo
+                        else s.replace(tzinfo=timezone.utc),
+                        e.astimezone(timezone.utc)
+                        if e.tzinfo
+                        else e.replace(tzinfo=timezone.utc),
+                    )
+                    for s, e in fallback_slots
+                ]
         else:
             # Therapist レコードが見つからない場合、therapist_id が実際には profile_id の可能性がある
             # （検索APIがshop_id/profile_idをtherapist_idとして返すケースに対応）
@@ -351,7 +409,18 @@ async def list_daily_slots(
                 db, therapist_id, therapist_id, target_date
             )
             if fallback_slots:
-                slots = fallback_slots
+                # タイムゾーンを UTC に統一
+                slots = [
+                    (
+                        s.astimezone(timezone.utc)
+                        if s.tzinfo
+                        else s.replace(tzinfo=timezone.utc),
+                        e.astimezone(timezone.utc)
+                        if e.tzinfo
+                        else e.replace(tzinfo=timezone.utc),
+                    )
+                    for s, e in fallback_slots
+                ]
 
     return [
         (
@@ -363,18 +432,86 @@ async def list_daily_slots(
     ]
 
 
+def _filter_slots_by_date(
+    slots: list[tuple[datetime, datetime]],
+    target_date: date,
+) -> list[tuple[datetime, datetime]]:
+    """指定日に重なるスロットをフィルタリングする。"""
+    day_start, day_end = _day_window(target_date)
+    return [
+        (max(slot_start, day_start), min(slot_end, day_end))
+        for slot_start, slot_end in slots
+        if slot_end > day_start and slot_start < day_end
+    ]
+
+
 async def list_availability_summary(
     db: AsyncSession,
     therapist_id: UUID,
     date_from: date,
     date_to: date,
 ) -> AvailabilitySummaryResponse:
+    """
+    複数日の空き状況サマリーを取得する（N+1 問題を解消したバッチ版）。
+
+    改善点:
+    - Therapist + buffer_minutes を1回のみ取得
+    - シフトと予約を日付範囲でバッチ取得
+    - メモリ上で日ごとに処理
+    """
+    # 1. Therapist 情報を1回のみ取得
+    _, buffer_minutes, profile_id = await _fetch_therapist_with_buffer(db, therapist_id)
+
+    # 2. 日付範囲全体でシフトと予約をバッチ取得
+    shifts = await _fetch_shifts(db, therapist_id, date_from, date_to)
+
+    range_start = datetime.combine(date_from, time.min).replace(tzinfo=timezone.utc)
+    range_end = datetime.combine(date_to, time.max).replace(
+        tzinfo=timezone.utc
+    ) + timedelta(days=1)
+    reservations = await _fetch_reservations(db, therapist_id, range_start, range_end)
+
+    # 3. シフトを日付ごとにグループ化
+    shifts_by_date: dict[date, list[TherapistShift]] = defaultdict(list)
+    for shift in shifts:
+        shifts_by_date[shift.date].append(shift)
+
+    # 4. Availability フォールバック用データをバッチ取得（N+1 解消）
+    fallback_profile_id = profile_id if profile_id else therapist_id
+    availability_slots_by_date = await _fetch_availability_slots_batch(
+        db, fallback_profile_id, therapist_id, date_from, date_to
+    )
+
+    # 5. 予約を日付ごとにフィルタリングするヘルパー
+    def get_reservations_for_date(target_date: date) -> list[GuestReservation]:
+        day_start, day_end = _day_window(target_date)
+        return [
+            r for r in reservations if r.start_at < day_end and r.end_at > day_start
+        ]
+
+    # 6. 日ごとにスロットを計算
     items: list[AvailabilitySummaryItem] = []
     current = date_from
     while current <= date_to:
-        slots = await list_daily_slots(db, therapist_id, current)
-        items.append(AvailabilitySummaryItem(date=current, has_available=bool(slots)))
+        day_shifts = shifts_by_date.get(current, [])
+        day_reservations = get_reservations_for_date(current)
+
+        slots = _calculate_available_slots(day_shifts, day_reservations, buffer_minutes)
+
+        # TherapistShift にデータがない場合は Availability テーブルにフォールバック（バッチ取得済み）
+        if not slots:
+            fallback_slots = availability_slots_by_date.get(current, [])
+            if fallback_slots:
+                slots = fallback_slots
+
+        # 日付範囲でフィルタリング
+        filtered_slots = _filter_slots_by_date(slots, current) if slots else []
+
+        items.append(
+            AvailabilitySummaryItem(date=current, has_available=bool(filtered_slots))
+        )
         current += timedelta(days=1)
+
     return AvailabilitySummaryResponse(therapist_id=therapist_id, items=items)
 
 
