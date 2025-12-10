@@ -42,12 +42,16 @@ async function forward(request: NextRequest, context: RouteContext) {
   response.headers.forEach((value, key) => {
     if (key.toLowerCase() === 'set-cookie') {
       responseHeaders.append('set-cookie', value)
-    } else {
+    } else if (key.toLowerCase() !== 'content-encoding' && key.toLowerCase() !== 'content-length') {
+      // Skip content-encoding and content-length as we're reading the body
       responseHeaders.set(key, value)
     }
   })
 
-  const proxyResponse = new NextResponse(response.body, {
+  // Read body as ArrayBuffer to avoid stream issues on Vercel Edge
+  const bodyBuffer = await response.arrayBuffer()
+
+  const proxyResponse = new NextResponse(bodyBuffer, {
     status: response.status,
     headers: responseHeaders,
   })
