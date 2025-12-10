@@ -1,7 +1,6 @@
 import io
 import os
 import sys
-import types
 import uuid
 from datetime import datetime, UTC
 from pathlib import Path
@@ -19,92 +18,24 @@ from starlette.datastructures import Headers, UploadFile
 
 ROOT = configure_paths(Path(__file__))
 
-dummy_settings_module = types.ModuleType("app.settings")
+# Import fixtures first (this sets up dummy settings)
+from _dashboard_fixtures import (
+    DummyShopManager,
+    FakeRequest,
+    FakeSession,
+    setup_dummy_settings,
+)
 
-
-class _DummySettings:
-    def __init__(self) -> None:
-        self.database_url = "postgresql+asyncpg://app:app@localhost:5432/osaka_menesu"
-        self.api_origin = "http://localhost:3000"
-        self.api_public_base_url = "http://localhost:8000"
-        self.meili_host = "http://127.0.0.1:7700"
-        self.meili_master_key = "dev_key"
-        self.admin_api_key = "dev_admin_key"
-        self.rate_limit_redis_url = None
-        self.rate_limit_namespace = "test"
-        self.rate_limit_redis_error_cooldown = 0.0
-        self.init_db_on_startup = False
-        self.slack_webhook_url = None
-        self.notify_email_endpoint = None
-        self.notify_line_endpoint = None
-        self.escalation_pending_threshold_minutes = 30
-        self.escalation_check_interval_minutes = 5
-        self.notify_from_email = None
-        self.mail_api_key = "test-mail-key"
-        self.mail_from_address = "no-reply@example.com"
-        self.mail_provider_base_url = "https://api.resend.com"
-        self.reservation_notification_max_attempts = 3
-        self.reservation_notification_retry_base_seconds = 1
-        self.reservation_notification_retry_backoff_multiplier = 2.0
-        self.reservation_notification_worker_interval_seconds = 1.0
-        self.reservation_notification_batch_size = 10
-        self.dashboard_session_cookie_name = "osakamenesu_session"
-        self.site_session_cookie_name = "osakamenesu_session"
-        self.site_base_url = None
-        self.media_storage_backend = "local"
-        self.media_local_directory = "test-media"
-        self.media_url_prefix = "/media"
-        self.media_cdn_base_url = None
-        self.media_s3_bucket = None
-        self.media_s3_region = None
-        self.media_s3_endpoint = None
-        self.media_s3_access_key_id = None
-        self.media_s3_secret_access_key = None
-
-    @property
-    def media_root(self) -> Path:
-        return Path.cwd() / self.media_local_directory
-
-
-dummy_settings_module.Settings = _DummySettings  # type: ignore[attr-defined]
-dummy_settings_module.settings = _DummySettings()
-sys.modules.setdefault("app.settings", dummy_settings_module)
+# Ensure settings are set up before importing dashboard modules
+setup_dummy_settings()
 
 import importlib
+from app import models  # noqa: E402
 
-from app import models  # type: ignore  # noqa: E402
-dashboard_therapists = importlib.import_module("app.domains.dashboard.therapists.router")  # type: ignore  # noqa: E402
-from app.storage import StoredMedia  # type: ignore  # noqa: E402
-
-
-class FakeSession:
-    def __init__(self, profile: models.Profile) -> None:
-        self.profile = profile
-        self.committed = False
-        self.added: list[models.AdminChangeLog] = []
-
-    async def get(self, model, pk):  # type: ignore[override]
-        if model is models.Profile and pk == self.profile.id:
-            return self.profile
-        return None
-
-    async def commit(self) -> None:
-        self.committed = True
-
-    async def flush(self, *args, **kwargs):  # type: ignore[override]
-        return None
-
-    async def refresh(self, instance):  # type: ignore[override]
-        return None
-
-    def add(self, instance):  # type: ignore[override]
-        self.added.append(instance)
-
-
-class FakeRequest:
-    def __init__(self) -> None:
-        self.headers: dict[str, str] = {}
-        self.client = SimpleNamespace(host="127.0.0.1")
+dashboard_therapists = importlib.import_module(
+    "app.domains.dashboard.therapists.router"
+)  # noqa: E402
+from app.storage import StoredMedia  # noqa: E402
 
 
 def test_sanitize_strings_filters_blanks():
@@ -147,7 +78,9 @@ def test_serialize_and_summary_roundtrip():
 
 def test_detect_image_type_accepts_png():
     payload = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
-    mime, extension = dashboard_therapists._detect_image_type("photo.png", "image/png", payload)  # type: ignore[attr-defined]
+    mime, extension = dashboard_therapists._detect_image_type(
+        "photo.png", "image/png", payload
+    )  # type: ignore[attr-defined]
     assert mime == "image/png"
     assert extension == ".png"
 
@@ -161,6 +94,7 @@ def test_detect_image_type_rejects_unknown():
 @pytest.mark.anyio
 async def test_upload_dashboard_therapist_photo_saves_image(monkeypatch, tmp_path):
     now = datetime.now(UTC)
+    user_id = uuid.uuid4()
     profile = models.Profile(
         id=uuid.uuid4(),
         name="アップロードテスト",
@@ -174,14 +108,19 @@ async def test_upload_dashboard_therapist_photo_saves_image(monkeypatch, tmp_pat
         created_at=now,
         updated_at=now,
     )
-    session = FakeSession(profile)
+    shop_manager = DummyShopManager(user_id=user_id, shop_id=profile.id)
+    session = FakeSession(profile, shop_managers=[shop_manager])
 
     class DummyStorage:
         def __init__(self) -> None:
             self.calls: list[dict[str, str]] = []
 
-        async def save_photo(self, *, folder: str, filename: str, content: bytes, content_type: str) -> StoredMedia:
-            self.calls.append({"folder": folder, "filename": filename, "content_type": content_type})
+        async def save_photo(
+            self, *, folder: str, filename: str, content: bytes, content_type: str
+        ) -> StoredMedia:
+            self.calls.append(
+                {"folder": folder, "filename": filename, "content_type": content_type}
+            )
             return StoredMedia(
                 key=f"{folder}/{filename}",
                 url=f"https://cdn.test/{folder}/{filename}",
@@ -194,14 +133,18 @@ async def test_upload_dashboard_therapist_photo_saves_image(monkeypatch, tmp_pat
     monkeypatch.setattr(dashboard_therapists, "get_media_storage", lambda: storage)  # type: ignore[attr-defined]
 
     payload = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
-    upload = UploadFile(file=io.BytesIO(payload), filename="photo.png", headers=Headers({"content-type": "image/png"}))
+    upload = UploadFile(
+        file=io.BytesIO(payload),
+        filename="photo.png",
+        headers=Headers({"content-type": "image/png"}),
+    )
 
     response = await dashboard_therapists.upload_dashboard_therapist_photo(  # type: ignore[attr-defined]
         request=FakeRequest(),
         profile_id=profile.id,
         file=upload,
         db=session,
-        user=SimpleNamespace(id=uuid.uuid4()),
+        user=SimpleNamespace(id=user_id),
     )
 
     assert response.content_type == "image/png"
@@ -209,12 +152,16 @@ async def test_upload_dashboard_therapist_photo_saves_image(monkeypatch, tmp_pat
     assert response.url.endswith(response.filename)
     assert storage.calls[0]["folder"] == f"therapists/{profile.id}"
     assert session.committed is True
-    assert any(isinstance(item, models.AdminChangeLog) and item.action == "upload_photo" for item in session.added)
+    assert any(
+        isinstance(item, models.AdminChangeLog) and item.action == "upload_photo"
+        for item in session.added
+    )
 
 
 @pytest.mark.anyio
 async def test_upload_dashboard_therapist_photo_rejects_large_file():
     now = datetime.now(UTC)
+    user_id = uuid.uuid4()
     profile = models.Profile(
         id=uuid.uuid4(),
         name="サイズエラー",
@@ -228,10 +175,15 @@ async def test_upload_dashboard_therapist_photo_rejects_large_file():
         created_at=now,
         updated_at=now,
     )
-    session = FakeSession(profile)
+    shop_manager = DummyShopManager(user_id=user_id, shop_id=profile.id)
+    session = FakeSession(profile, shop_managers=[shop_manager])
 
     payload = b"\x00" * (dashboard_therapists.MAX_PHOTO_BYTES + 1)  # type: ignore[attr-defined]
-    upload = UploadFile(file=io.BytesIO(payload), filename="photo.png", headers=Headers({"content-type": "image/png"}))
+    upload = UploadFile(
+        file=io.BytesIO(payload),
+        filename="photo.png",
+        headers=Headers({"content-type": "image/png"}),
+    )
 
     with pytest.raises(HTTPException) as exc:
         await dashboard_therapists.upload_dashboard_therapist_photo(  # type: ignore[attr-defined]
@@ -239,7 +191,7 @@ async def test_upload_dashboard_therapist_photo_rejects_large_file():
             profile_id=profile.id,
             file=upload,
             db=session,
-            user=SimpleNamespace(id=uuid.uuid4()),
+            user=SimpleNamespace(id=user_id),
         )
 
     assert exc.value.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE

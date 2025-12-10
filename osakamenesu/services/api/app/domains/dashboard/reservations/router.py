@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from .... import models, schemas
 from ....constants import RESERVATION_STATUS_SET
 from ....db import get_session
-from ....deps import require_dashboard_user
+from ....deps import require_dashboard_user, verify_shop_manager
 from ....notifications import (
     ReservationNotification,
     enqueue_reservation_notification,
@@ -234,7 +234,7 @@ async def list_dashboard_reservations(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> schemas.DashboardReservationListResponse:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
     profile = await _ensure_profile(db, profile_id)
 
     filters = [models.Reservation.shop_id == profile.id]
@@ -393,6 +393,7 @@ async def update_dashboard_reservation(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> schemas.DashboardReservationItem:
+    await verify_shop_manager(db, user.id, profile_id)
     profile = await _ensure_profile(db, profile_id)
 
     stmt = (

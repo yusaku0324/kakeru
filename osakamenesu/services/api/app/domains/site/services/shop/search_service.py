@@ -613,23 +613,49 @@ async def _search_shops_impl(
 
     if results:
         shop_ids = [shop.id for shop in results]
+        # Availabilityテーブルからのデータ（レガシー、フォールバック用）
         shop_slots, staff_slots = await get_next_available_slots(db, shop_ids)
-        # TherapistShiftからセラピストの次回空き時間を取得
+        # TherapistShiftからセラピストの次回空き時間を取得（優先ソース）
         therapist_slots_by_shop = await get_therapist_next_available_slots_by_shop(
             db, shop_ids
         )
         if shop_slots or staff_slots or therapist_slots_by_shop:
             for shop in results:
-                slot = shop_slots.get(shop.id)
-                if slot:
-                    shop.next_available_slot = slot
+                # TherapistShiftから店舗の最も早いスロットを計算
+                therapist_name_slots = therapist_slots_by_shop.get(shop.id, {})
+                earliest_therapist_slot = None
+                if therapist_name_slots:
+                    for slot in therapist_name_slots.values():
+                        if (
+                            earliest_therapist_slot is None
+                            or slot.start_at < earliest_therapist_slot.start_at
+                        ):
+                            earliest_therapist_slot = slot
+
+                # 優先順位: TherapistShift > Availability
+                if earliest_therapist_slot:
+                    shop.next_available_slot = earliest_therapist_slot
                     if shop.next_available_at is None:
-                        shop.next_available_at = slot.start_at
+                        shop.next_available_at = earliest_therapist_slot.start_at
+                else:
+                    # TherapistShiftがない場合はAvailabilityにフォールバック
+                    availability_slot = shop_slots.get(shop.id)
+                    if availability_slot:
+                        shop.next_available_slot = availability_slot
+                        if shop.next_available_at is None:
+                            shop.next_available_at = availability_slot.start_at
+
                 if shop.staff_preview:
-                    # 店舗に紐づくセラピストの名前ベースのスロットマップを取得
-                    therapist_name_slots = therapist_slots_by_shop.get(shop.id, {})
                     for member in shop.staff_preview:
-                        # 1. まずスタッフIDで既存のstaff_slotsから取得を試みる
+                        # 優先順位: TherapistShift（名前マッチ） > Availability（スタッフID）
+                        # 1. まず名前でTherapistShiftのスロットを取得（優先）
+                        if member.name and member.name in therapist_name_slots:
+                            therapist_slot = therapist_name_slots[member.name]
+                            member.next_available_slot = therapist_slot
+                            if member.next_available_at is None:
+                                member.next_available_at = therapist_slot.start_at
+                            continue
+                        # 2. TherapistShiftがない場合、スタッフIDでAvailabilityから取得
                         staff_uuid = normalize_staff_uuid(member.id)
                         if staff_uuid:
                             staff_slot = staff_slots.get(staff_uuid)
@@ -637,13 +663,6 @@ async def _search_shops_impl(
                                 member.next_available_slot = staff_slot
                                 if member.next_available_at is None:
                                     member.next_available_at = staff_slot.start_at
-                                continue
-                        # 2. スタッフIDがない場合、名前でTherapistのスロットを取得
-                        if member.name and member.name in therapist_name_slots:
-                            therapist_slot = therapist_name_slots[member.name]
-                            member.next_available_slot = therapist_slot
-                            if member.next_available_at is None:
-                                member.next_available_at = therapist_slot.start_at
 
     selected_facets: Dict[str, Set[str]] = {}
     if area:

@@ -34,9 +34,10 @@ class DummyProfile:
 class DummyTherapist:
     """Minimal therapist stub."""
 
-    def __init__(self, therapist_id=None, profile_id=None):
+    def __init__(self, therapist_id=None, profile_id=None, name="Test Therapist"):
         self.id = therapist_id or uuid4()
         self.profile_id = profile_id
+        self.name = name
 
 
 class DummyShift:
@@ -66,13 +67,24 @@ class DummyShift:
         self.updated_at = now
 
 
+class DummyShopManager:
+    """Minimal shop manager stub."""
+
+    def __init__(self, user_id, shop_id, role="owner"):
+        self.id = uuid4()
+        self.user_id = user_id
+        self.shop_id = shop_id
+        self.role = role
+
+
 class DummySession:
     """Session stub that returns configured values."""
 
-    def __init__(self, profile=None, therapists=None, shifts=None):
+    def __init__(self, profile=None, therapists=None, shifts=None, shop_managers=None):
         self.profile = profile
         self.therapists = therapists or []
         self.shifts = shifts or []
+        self.shop_managers = shop_managers or []
         self._committed = False
         self._added = []
         self._deleted = []
@@ -98,6 +110,9 @@ class DummySession:
 
         # Very rough heuristic based on model type
         stmt_str = str(stmt)
+        # Check for shop_managers query first
+        if "shop_managers" in stmt_str.lower():
+            return Result(self.shop_managers)
         # For overlap check, return None (no overlap) to allow tests to pass
         if "therapist_shift" in stmt_str.lower() and "!=" in stmt_str:
             # This is likely the overlap check with exclude_id
@@ -145,7 +160,8 @@ def test_list_shifts_empty():
     """List shifts returns empty list when no shifts exist."""
     user = DummyUser()
     profile = DummyProfile()
-    session = DummySession(profile=profile)
+    shop_manager = DummyShopManager(user_id=user.id, shop_id=profile.id)
+    session = DummySession(profile=profile, shop_managers=[shop_manager])
 
     app.dependency_overrides[require_dashboard_user] = lambda: user
     app.dependency_overrides[get_session] = lambda: session
@@ -160,6 +176,7 @@ def test_list_shifts_with_data():
     user = DummyUser()
     profile = DummyProfile()
     therapist = DummyTherapist(profile_id=profile.id)
+    shop_manager = DummyShopManager(user_id=user.id, shop_id=profile.id)
 
     today = date.today()
     start = datetime.combine(today, datetime.min.time()) + timedelta(hours=10)
@@ -173,7 +190,12 @@ def test_list_shifts_with_data():
         end_at=end,
         notes="テストシフト",
     )
-    session = DummySession(profile=profile, therapists=[therapist], shifts=[shift])
+    session = DummySession(
+        profile=profile,
+        therapists=[therapist],
+        shifts=[shift],
+        shop_managers=[shop_manager],
+    )
 
     app.dependency_overrides[require_dashboard_user] = lambda: user
     app.dependency_overrides[get_session] = lambda: session
@@ -190,7 +212,10 @@ def test_create_shift_success():
     user = DummyUser()
     profile = DummyProfile()
     therapist = DummyTherapist(profile_id=profile.id)
-    session = DummySession(profile=profile, therapists=[therapist], shifts=[])
+    shop_manager = DummyShopManager(user_id=user.id, shop_id=profile.id)
+    session = DummySession(
+        profile=profile, therapists=[therapist], shifts=[], shop_managers=[shop_manager]
+    )
 
     app.dependency_overrides[require_dashboard_user] = lambda: user
     app.dependency_overrides[get_session] = lambda: session
@@ -221,7 +246,10 @@ def test_create_shift_invalid_time_range():
     user = DummyUser()
     profile = DummyProfile()
     therapist = DummyTherapist(profile_id=profile.id)
-    session = DummySession(profile=profile, therapists=[therapist], shifts=[])
+    shop_manager = DummyShopManager(user_id=user.id, shop_id=profile.id)
+    session = DummySession(
+        profile=profile, therapists=[therapist], shifts=[], shop_managers=[shop_manager]
+    )
 
     app.dependency_overrides[require_dashboard_user] = lambda: user
     app.dependency_overrides[get_session] = lambda: session
@@ -245,7 +273,8 @@ def test_get_shift_not_found():
     """Return 404 for non-existent shift."""
     user = DummyUser()
     profile = DummyProfile()
-    session = DummySession(profile=profile, shifts=[])
+    shop_manager = DummyShopManager(user_id=user.id, shop_id=profile.id)
+    session = DummySession(profile=profile, shifts=[], shop_managers=[shop_manager])
 
     app.dependency_overrides[require_dashboard_user] = lambda: user
     app.dependency_overrides[get_session] = lambda: session
@@ -259,6 +288,7 @@ def test_update_shift_success():
     user = DummyUser()
     profile = DummyProfile()
     therapist = DummyTherapist(profile_id=profile.id)
+    shop_manager = DummyShopManager(user_id=user.id, shop_id=profile.id)
 
     today = date.today()
     start = datetime.combine(today, datetime.min.time()) + timedelta(hours=10)
@@ -271,7 +301,12 @@ def test_update_shift_success():
         start_at=start,
         end_at=end,
     )
-    session = DummySession(profile=profile, therapists=[therapist], shifts=[shift])
+    session = DummySession(
+        profile=profile,
+        therapists=[therapist],
+        shifts=[shift],
+        shop_managers=[shop_manager],
+    )
 
     app.dependency_overrides[require_dashboard_user] = lambda: user
     app.dependency_overrides[get_session] = lambda: session
@@ -295,12 +330,18 @@ def test_delete_shift_success():
     user = DummyUser()
     profile = DummyProfile()
     therapist = DummyTherapist(profile_id=profile.id)
+    shop_manager = DummyShopManager(user_id=user.id, shop_id=profile.id)
 
     shift = DummyShift(
         therapist_id=therapist.id,
         shop_id=profile.id,
     )
-    session = DummySession(profile=profile, therapists=[therapist], shifts=[shift])
+    session = DummySession(
+        profile=profile,
+        therapists=[therapist],
+        shifts=[shift],
+        shop_managers=[shop_manager],
+    )
 
     app.dependency_overrides[require_dashboard_user] = lambda: user
     app.dependency_overrides[get_session] = lambda: session
@@ -311,15 +352,17 @@ def test_delete_shift_success():
 
 
 def test_shop_not_found():
-    """Return 404 when shop doesn't exist."""
+    """Return 403 when user is not a manager of the shop."""
     user = DummyUser()
-    session = DummySession(profile=None)
+    session = DummySession(profile=None, shop_managers=[])  # No shop manager record
 
     app.dependency_overrides[require_dashboard_user] = lambda: user
     app.dependency_overrides[get_session] = lambda: session
 
     res = client.get(f"/api/dashboard/shops/{uuid4()}/shifts")
-    assert res.status_code == 404
+    assert (
+        res.status_code == 403
+    )  # Changed from 404 to 403 since verify_shop_manager fails first
 
 
 def test_list_shifts_with_date_filter():
@@ -327,6 +370,7 @@ def test_list_shifts_with_date_filter():
     user = DummyUser()
     profile = DummyProfile()
     therapist = DummyTherapist(profile_id=profile.id)
+    shop_manager = DummyShopManager(user_id=user.id, shop_id=profile.id)
 
     today = date.today()
     tomorrow = today + timedelta(days=1)
@@ -342,7 +386,10 @@ def test_list_shifts_with_date_filter():
         shift_date=tomorrow,
     )
     session = DummySession(
-        profile=profile, therapists=[therapist], shifts=[shift1, shift2]
+        profile=profile,
+        therapists=[therapist],
+        shifts=[shift1, shift2],
+        shop_managers=[shop_manager],
     )
 
     app.dependency_overrides[require_dashboard_user] = lambda: user

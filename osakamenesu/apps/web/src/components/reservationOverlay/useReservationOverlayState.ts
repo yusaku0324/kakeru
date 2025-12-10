@@ -17,6 +17,8 @@ import { formatLocalDate, getJaFormatter, toIsoWithOffset } from '@/utils/date'
 import type { ReservationOverlayProps } from '../ReservationOverlay'
 import type { NormalizedDay, NormalizedSlot } from '@/components/reservation'
 import { buildTimelineTimes, calculateSchedulePages } from './utils'
+// lib/availability.ts のユーティリティは NormalizedAvailabilityDay 型を使用するため
+// ここでは NormalizedDay 型との互換性のためローカルヘルパーを使用
 
 type AvailabilityTemplate = Array<{
   dayOffset: number
@@ -165,18 +167,47 @@ export function useReservationOverlayState({
     }
   }, [schedulePage, schedulePages.length])
 
+  // NormalizedDay[] から選択可能なスロットを検索するローカルヘルパー
+  const findSelectableSlot = useCallback(
+    (startAt: string | null | undefined): { day: NormalizedDay; slot: NormalizedSlot & { status: SlotStatus } } | null => {
+      if (!startAt) return null
+      const targetTs = new Date(startAt).getTime()
+      if (Number.isNaN(targetTs)) return null
+
+      for (const day of normalizedAvailability) {
+        for (const slot of day.slots) {
+          if (slot.status === 'blocked') continue
+          const slotTs = new Date(slot.start_at).getTime()
+          if (!Number.isNaN(slotTs) && slotTs === targetTs) {
+            return { day, slot: slot as NormalizedSlot & { status: SlotStatus } }
+          }
+        }
+      }
+      return null
+    },
+    [normalizedAvailability],
+  )
+
+  const getFirstSelectableSlotLocal = useCallback(
+    (): { day: NormalizedDay; slot: NormalizedSlot & { status: SlotStatus } } | null => {
+      for (const day of normalizedAvailability) {
+        for (const slot of day.slots) {
+          if (slot.status !== 'blocked') {
+            return { day, slot: slot as NormalizedSlot & { status: SlotStatus } }
+          }
+        }
+      }
+      return null
+    },
+    [normalizedAvailability],
+  )
+
   useEffect(() => {
-    if (!defaultStart || selectedSlots.length) return
-    // Normalize defaultStart to timestamp for comparison (handles timezone format differences)
-    const defaultStartTs = new Date(defaultStart).getTime()
-    if (Number.isNaN(defaultStartTs)) return
-    const match = normalizedAvailability
-      .flatMap((day) => day.slots.map((slot) => ({ day, slot })))
-      .find(({ slot }) => {
-        const slotTs = new Date(slot.start_at).getTime()
-        return !Number.isNaN(slotTs) && slotTs === defaultStartTs
-      })
-    if (match && match.slot.status !== 'blocked') {
+    if (selectedSlots.length) return
+
+    // defaultStart に一致するスロット、または最初の選択可能なスロットを取得
+    const match = findSelectableSlot(defaultStart) ?? getFirstSelectableSlotLocal()
+    if (match) {
       setSelectedSlots([
         {
           startAt: match.slot.start_at,
@@ -186,7 +217,7 @@ export function useReservationOverlayState({
         },
       ])
     }
-  }, [defaultStart, normalizedAvailability, selectedSlots.length])
+  }, [defaultStart, findSelectableSlot, getFirstSelectableSlotLocal, selectedSlots.length])
 
   const toggleSlot = useCallback((day: NormalizedDay, slot: NormalizedSlot) => {
     if (slot.status === 'blocked') return
@@ -207,24 +238,19 @@ export function useReservationOverlayState({
 
   const ensureSelection = useCallback(() => {
     if (selectedSlots.length) return selectedSlots
-    const first = normalizedAvailability
-      .flatMap((day) => day.slots.map((slot) => ({ day, slot })))
-      .find(({ slot }) => slot.status !== 'blocked')
-    if (first) {
-      const slot = first.slot
-      if (slot.status === 'blocked') return []
-      const safeStatus: SlotStatus = slot.status
-      const initial = {
-        startAt: slot.start_at,
-        endAt: slot.end_at,
-        date: first.day.date,
-        status: safeStatus,
-      } as const
+    const match = getFirstSelectableSlotLocal()
+    if (match) {
+      const initial: SelectedSlot = {
+        startAt: match.slot.start_at,
+        endAt: match.slot.end_at,
+        date: match.day.date,
+        status: match.slot.status,
+      }
       setSelectedSlots([initial])
       return [initial]
     }
     return []
-  }, [normalizedAvailability, selectedSlots])
+  }, [getFirstSelectableSlotLocal, selectedSlots])
 
   const removeSlot = useCallback((startAt: string) => {
     setSelectedSlots((prev) => prev.filter((item) => item.startAt !== startAt))

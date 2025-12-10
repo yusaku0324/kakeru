@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .... import models, schemas
 from ....db import get_session
-from ....deps import require_dashboard_user
+from ....deps import require_dashboard_user, verify_shop_manager
 from ....utils.datetime import ensure_aware_datetime
 from ....utils.text import strip_or_none
 
@@ -35,12 +35,24 @@ def _normalize_trigger_status(statuses: List[str]) -> List[str]:
     seen = set()
     for value in statuses:
         if value not in _ALLOWED_STATUSES:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"field": "trigger_status", "message": "不正なステータスが含まれています。"})
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "field": "trigger_status",
+                    "message": "不正なステータスが含まれています。",
+                },
+            )
         if value not in seen:
             seen.add(value)
             unique.append(value)
     if not unique:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"field": "trigger_status", "message": "少なくとも 1 つのステータスを選択してください。"})
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "field": "trigger_status",
+                "message": "少なくとも 1 つのステータスを選択してください。",
+            },
+        )
     return unique
 
 
@@ -53,22 +65,35 @@ def _sanitize_email_recipients(recipients: List[str]) -> List[str]:
             continue
         lowered_key = candidate.lower()
         if lowered_key in lowered:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"field": "email", "message": "メール宛先が重複しています。"})
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"field": "email", "message": "メール宛先が重複しています。"},
+            )
         lowered.add(lowered_key)
         cleaned.append(candidate)
     if not cleaned:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"field": "email", "message": "メール宛先を入力してください。"})
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"field": "email", "message": "メール宛先を入力してください。"},
+        )
     if len(cleaned) > 5:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"field": "email", "message": "メール宛先は最大 5 件までです。"})
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"field": "email", "message": "メール宛先は最大 5 件までです。"},
+        )
     return cleaned
 
 
-def _normalize_channels(channels: schemas.DashboardNotificationChannels) -> Dict[str, Dict[str, Any]]:
+def _normalize_channels(
+    channels: schemas.DashboardNotificationChannels,
+) -> Dict[str, Dict[str, Any]]:
     normalized = _default_channels_dict()
 
     if channels.email.enabled:
         normalized["email"]["enabled"] = True
-        normalized["email"]["recipients"] = _sanitize_email_recipients(channels.email.recipients)
+        normalized["email"]["recipients"] = _sanitize_email_recipients(
+            channels.email.recipients
+        )
     else:
         normalized["email"]["enabled"] = False
         normalized["email"]["recipients"] = []
@@ -76,9 +101,25 @@ def _normalize_channels(channels: schemas.DashboardNotificationChannels) -> Dict
     if channels.line.enabled:
         token = strip_or_none(channels.line.token)
         if not token:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"field": "line", "message": "LINE Notify トークンを入力してください。"})
-        if len(token) < 40 or len(token) > 60 or not all(c.isalnum() or c in "-_" for c in token):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"field": "line", "message": "LINE Notify トークンの形式が正しくありません。"})
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "field": "line",
+                    "message": "LINE Notify トークンを入力してください。",
+                },
+            )
+        if (
+            len(token) < 40
+            or len(token) > 60
+            or not all(c.isalnum() or c in "-_" for c in token)
+        ):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "field": "line",
+                    "message": "LINE Notify トークンの形式が正しくありません。",
+                },
+            )
         normalized["line"] = {"enabled": True, "token": token}
     else:
         normalized["line"] = {"enabled": False, "token": None}
@@ -86,9 +127,21 @@ def _normalize_channels(channels: schemas.DashboardNotificationChannels) -> Dict
     if channels.slack.enabled:
         url = strip_or_none(channels.slack.webhook_url)
         if not url:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"field": "slack", "message": "Slack Webhook URL を入力してください。"})
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "field": "slack",
+                    "message": "Slack Webhook URL を入力してください。",
+                },
+            )
         if not url.startswith("https://hooks.slack.com/"):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"field": "slack", "message": "Slack Webhook URL の形式が正しくありません。"})
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "field": "slack",
+                    "message": "Slack Webhook URL の形式が正しくありません。",
+                },
+            )
         normalized["slack"] = {"enabled": True, "webhook_url": url}
     else:
         normalized["slack"] = {"enabled": False, "webhook_url": None}
@@ -96,7 +149,9 @@ def _normalize_channels(channels: schemas.DashboardNotificationChannels) -> Dict
     return normalized
 
 
-def _build_channels_response(raw: Dict[str, Any]) -> schemas.DashboardNotificationChannels:
+def _build_channels_response(
+    raw: Dict[str, Any],
+) -> schemas.DashboardNotificationChannels:
     merged = _default_channels_dict()
     for key, value in raw.items():
         if key in merged and isinstance(value, dict):
@@ -108,7 +163,9 @@ def _build_channels_response(raw: Dict[str, Any]) -> schemas.DashboardNotificati
     )
 
 
-def _serialize(setting: models.DashboardNotificationSetting) -> schemas.DashboardNotificationSettingsResponse:
+def _serialize(
+    setting: models.DashboardNotificationSetting,
+) -> schemas.DashboardNotificationSettingsResponse:
     trigger_status = setting.trigger_status or []
     if not trigger_status:
         trigger_status = _DEFAULT_TRIGGER_STATUS.copy()
@@ -149,25 +206,32 @@ async def _get_or_create_setting(
     return setting
 
 
-@router.get("/shops/{profile_id}/notifications", response_model=schemas.DashboardNotificationSettingsResponse)
+@router.get(
+    "/shops/{profile_id}/notifications",
+    response_model=schemas.DashboardNotificationSettingsResponse,
+)
 async def get_dashboard_notifications(
     profile_id: UUID,
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> schemas.DashboardNotificationSettingsResponse:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
     profile = await _ensure_profile(db, profile_id)
     setting = await _get_or_create_setting(db, profile)
     return _serialize(setting)
 
 
-@router.put("/shops/{profile_id}/notifications", response_model=schemas.DashboardNotificationSettingsResponse)
+@router.put(
+    "/shops/{profile_id}/notifications",
+    response_model=schemas.DashboardNotificationSettingsResponse,
+)
 async def update_dashboard_notifications(
     profile_id: UUID,
     payload: schemas.DashboardNotificationSettingsUpdatePayload,
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> schemas.DashboardNotificationSettingsResponse:
+    await verify_shop_manager(db, user.id, profile_id)
     profile = await _ensure_profile(db, profile_id)
     setting = await _get_or_create_setting(db, profile)
 
@@ -192,14 +256,16 @@ async def update_dashboard_notifications(
     return _serialize(setting)
 
 
-@router.post("/shops/{profile_id}/notifications/test", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/shops/{profile_id}/notifications/test", status_code=status.HTTP_204_NO_CONTENT
+)
 async def test_dashboard_notifications(
     profile_id: UUID,
     payload: schemas.DashboardNotificationSettingsTestPayload,
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> Response:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
     profile = await _ensure_profile(db, profile_id)
     await _get_or_create_setting(db, profile)
 

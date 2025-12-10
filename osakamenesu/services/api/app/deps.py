@@ -1,5 +1,6 @@
 from typing import Optional
 from datetime import datetime, UTC
+from uuid import UUID
 
 import logging
 
@@ -197,3 +198,50 @@ async def require_user(
     if not user:
         raise HTTPException(status_code=401, detail="not_authenticated")
     return user
+
+
+async def verify_shop_manager(
+    db: AsyncSession,
+    user_id: UUID,
+    shop_id: UUID,
+    required_roles: list[str] | None = None,
+) -> models.ShopManager:
+    """
+    ユーザーが指定した店舗の管理者かどうかを確認する。
+
+    Args:
+        db: データベースセッション
+        user_id: ユーザーID
+        shop_id: 店舗ID (profile_id)
+        required_roles: 必要なロールのリスト (None の場合はすべてのロールを許可)
+
+    Returns:
+        ShopManager: 店舗管理者レコード
+
+    Raises:
+        HTTPException: 403 (権限なし) または 404 (店舗が見つからない)
+    """
+    stmt = select(models.ShopManager).where(
+        models.ShopManager.user_id == user_id,
+        models.ShopManager.shop_id == shop_id,
+    )
+    result = await db.execute(stmt)
+    manager = result.scalar_one_or_none()
+
+    if not manager:
+        raise HTTPException(status_code=403, detail="not_shop_manager")
+
+    if required_roles and manager.role not in required_roles:
+        raise HTTPException(status_code=403, detail="insufficient_role")
+
+    return manager
+
+
+async def get_user_managed_shops(
+    db: AsyncSession,
+    user_id: UUID,
+) -> list[models.ShopManager]:
+    """ユーザーが管理している店舗のリストを取得する。"""
+    stmt = select(models.ShopManager).where(models.ShopManager.user_id == user_id)
+    result = await db.execute(stmt)
+    return list(result.scalars().all())

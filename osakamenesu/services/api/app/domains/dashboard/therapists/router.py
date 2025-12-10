@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .... import models
 from ....db import get_session
-from ....deps import require_dashboard_user
+from ....deps import require_dashboard_user, verify_shop_manager
 from ....schemas import (
     DashboardTherapistCreatePayload,
     DashboardTherapistDetail,
@@ -92,7 +92,7 @@ async def list_dashboard_therapists(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> list[DashboardTherapistSummary]:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
     return await _run_service(_service.list_therapists(profile_id=profile_id, db=db))
 
 
@@ -108,7 +108,7 @@ async def create_dashboard_therapist(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> DashboardTherapistDetail:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
     context = _audit_context_from_request(request)
     return await _run_service(
         _service.create_therapist(
@@ -130,7 +130,7 @@ async def get_dashboard_therapist(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> DashboardTherapistDetail:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
     return await _run_service(
         _service.get_therapist(profile_id=profile_id, therapist_id=therapist_id, db=db)
     )
@@ -148,7 +148,7 @@ async def update_dashboard_therapist(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> DashboardTherapistDetail:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
     context = _audit_context_from_request(request)
     return await _run_service(
         _service.update_therapist(
@@ -173,7 +173,7 @@ async def delete_dashboard_therapist(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> Response:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
     context = _audit_context_from_request(request)
     await _run_service(
         _service.delete_therapist(
@@ -198,7 +198,7 @@ async def upload_dashboard_therapist_photo(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> DashboardTherapistPhotoUploadResponse:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
     context = _audit_context_from_request(request)
     max_bytes = MAX_PHOTO_BYTES
     chunk_size = 512 * 1024
@@ -251,7 +251,7 @@ async def reorder_dashboard_therapists(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> list[DashboardTherapistSummary]:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
     context = _audit_context_from_request(request)
     return await _run_service(
         _service.reorder_therapists(

@@ -136,6 +136,9 @@ class Profile(Base):
         cascade="all, delete-orphan",
         order_by="Therapist.display_order",
     )
+    managers: Mapped[list["ShopManager"]] = relationship(
+        back_populates="profile", cascade="all, delete-orphan"
+    )
 
 
 class Therapist(Base):
@@ -271,6 +274,37 @@ class User(Base):
     notification_settings_updated: Mapped[list["DashboardNotificationSetting"]] = (
         relationship(back_populates="updated_by_user")
     )
+    managed_shops: Mapped[list["ShopManager"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class ShopManager(Base):
+    """店舗管理者の関連付けテーブル"""
+
+    __tablename__ = "shop_managers"
+    __table_args__ = (
+        UniqueConstraint("shop_id", "user_id", name="uq_shop_managers_shop_user"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    role: Mapped[str] = mapped_column(
+        String(32), default="owner", nullable=False
+    )  # owner, manager, staff
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_utc, nullable=False
+    )
+
+    user: Mapped[User] = relationship(back_populates="managed_shops")
+    profile: Mapped[Profile] = relationship(back_populates="managers")
 
 
 class UserAuthToken(Base):

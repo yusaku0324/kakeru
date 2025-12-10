@@ -636,6 +636,19 @@ export function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
               : null
         // nextAvailableSlot follows same fallback pattern: staff-level > shop-level > null
         const nextAvailableSlot = staff.next_available_slot ?? hit.next_available_slot ?? null
+        // Build availabilitySlots from nextAvailableSlot so overlay calendar matches badge
+        const availabilitySlots: Array<{ start_at: string; end_at: string; status?: string }> | null =
+          nextAvailableSlot?.start_at
+            ? [
+                {
+                  start_at: nextAvailableSlot.start_at,
+                  end_at:
+                    nextAvailableSlot.end_at ??
+                    new Date(new Date(nextAvailableSlot.start_at).getTime() + 90 * 60 * 1000).toISOString(),
+                  status: nextAvailableSlot.status === 'ok' ? 'open' : 'tentative',
+                },
+              ]
+            : null
         return {
           id: uniqueId,
           therapistId: staff.id ? String(staff.id) : null,
@@ -654,6 +667,7 @@ export function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
           shopAreaName: hit.area_name ?? null,
           todayAvailable,
           nextAvailableSlot,
+          availabilitySlots,
           mood_tag: staff.mood_tag ?? null,
           style_tag: staff.style_tag ?? null,
           look_type: staff.look_type ?? null,

@@ -2,7 +2,7 @@
 
 import { forwardRef } from 'react'
 
-import { cn } from '@/lib/utils'
+import clsx from 'clsx'
 import {
   type InstinctKind,
   instinctKindToLabel,
@@ -90,7 +90,7 @@ export const InstinctTag = forwardRef<HTMLButtonElement, InstinctTagProps>(
         aria-pressed={active}
         data-instinct-kind={kind}
         data-active={active}
-        className={cn(
+        className={clsx(
           baseStyles,
           sizeStyles[size],
           stateClasses,

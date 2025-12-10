@@ -1,6 +1,5 @@
 import os
 import sys
-import types
 import uuid
 from datetime import datetime, UTC
 from pathlib import Path
@@ -37,107 +36,28 @@ for key in [
 ]:
     os.environ.pop(key, None)
 
+# Import fixtures first (this sets up dummy settings)
+from _dashboard_fixtures import (
+    DummyShopManager,
+    FakeRequest,
+    FakeSession,
+    FakeListSession,
+    setup_dummy_settings,
+)
 
-dummy_settings_module = types.ModuleType("app.settings")
-
-
-class _DummySettings:
-    def __init__(self) -> None:
-        self.database_url = "postgresql+asyncpg://app:app@localhost:5432/osaka_menesu"
-        self.api_origin = "http://localhost:3000"
-        self.api_public_base_url = "http://localhost:8000"
-        self.meili_host = "http://127.0.0.1:7700"
-        self.meili_master_key = "dev_key"
-        self.admin_api_key = "dev_admin_key"
-        self.rate_limit_redis_url = None
-        self.rate_limit_namespace = "test"
-        self.rate_limit_redis_error_cooldown = 0.0
-        self.init_db_on_startup = False
-        self.slack_webhook_url = None
-        self.notify_email_endpoint = None
-        self.notify_line_endpoint = None
-        self.notify_from_email = None
-        self.mail_api_key = "test-mail-key"
-        self.mail_from_address = "no-reply@example.com"
-        self.mail_provider_base_url = "https://api.resend.com"
-        self.dashboard_session_cookie_name = "osakamenesu_session"
-        self.site_session_cookie_name = "osakamenesu_session"
-        self.escalation_pending_threshold_minutes = 30
-        self.escalation_check_interval_minutes = 5
-        self.site_base_url = None
-        self.reservation_notification_max_attempts = 3
-        self.reservation_notification_retry_base_seconds = 1
-        self.reservation_notification_retry_backoff_multiplier = 2.0
-        self.reservation_notification_worker_interval_seconds = 1.0
-        self.reservation_notification_batch_size = 10
-
-
-dummy_settings_module.Settings = _DummySettings  # type: ignore[attr-defined]
-dummy_settings_module.settings = _DummySettings()
-sys.modules.setdefault("app.settings", dummy_settings_module)
+# Ensure settings are set up before importing dashboard modules
+setup_dummy_settings()
 
 import importlib
+from app import models  # noqa: E402
 
-from app import models  # type: ignore  # noqa: E402
-dashboard_shops = importlib.import_module("app.domains.dashboard.shops.router")  # type: ignore  # noqa: E402
-
-
-class FakeSession:
-    def __init__(self, profile: models.Profile) -> None:
-        self._profile = profile
-        self.committed = False
-        self.refreshed = False
-        self.logs: list[models.AdminChangeLog] = []
-
-    async def get(self, model, pk):  # type: ignore[override]
-        if model is models.Profile and pk == self._profile.id:
-            return self._profile
-        return None
-
-    async def commit(self) -> None:
-        self.committed = True
-
-    async def refresh(self, instance):  # type: ignore[override]
-        self.refreshed = True
-
-    def add(self, instance):  # type: ignore[override]
-        if isinstance(instance, models.AdminChangeLog):
-            self.logs.append(instance)
-
-
-class FakeListSession:
-    def __init__(self, profiles: list[models.Profile]) -> None:
-        self._profiles = profiles
-
-    async def execute(self, stmt):  # type: ignore[override]
-        _ = stmt
-
-        class _ScalarResult:
-            def __init__(self, profiles: list[models.Profile]) -> None:
-                self._profiles = profiles
-
-            def all(self) -> list[models.Profile]:
-                return self._profiles
-
-        class _Result:
-            def __init__(self, profiles: list[models.Profile]) -> None:
-                self._profiles = profiles
-
-            def scalars(self) -> _ScalarResult:
-                return _ScalarResult(self._profiles)
-
-        return _Result(self._profiles)
-
-
-class FakeRequest:
-    def __init__(self) -> None:
-        self.headers: dict[str, str] = {}
-        self.client = SimpleNamespace(host="127.0.0.1")
+dashboard_shops = importlib.import_module("app.domains.dashboard.shops.router")  # noqa: E402
 
 
 @pytest.mark.anyio
 async def test_update_profile_changes_status(monkeypatch):
     now = datetime.now(UTC)
+    user_id = uuid.uuid4()
     profile = models.Profile(
         id=uuid.uuid4(),
         name="ステータステスト",
@@ -151,7 +71,8 @@ async def test_update_profile_changes_status(monkeypatch):
         created_at=now,
         updated_at=now,
     )
-    session = FakeSession(profile)
+    shop_manager = DummyShopManager(user_id=user_id, shop_id=profile.id)
+    session = FakeSession(profile, shop_managers=[shop_manager])
 
     async def _noop_reindex(db, prof):  # type: ignore
         return None
@@ -168,14 +89,17 @@ async def test_update_profile_changes_status(monkeypatch):
         profile.id,
         payload,
         db=session,
-        user=SimpleNamespace(id=uuid.uuid4()),
+        user=SimpleNamespace(id=user_id),
     )
 
     assert profile.status == "published"
     assert response.status == "published"
     assert session.committed is True
     assert session.refreshed is True
-    assert any(log.action == "update" for log in session.logs)
+    assert any(
+        isinstance(log, models.AdminChangeLog) and log.action == "update"
+        for log in session.added
+    )
 
 
 @pytest.mark.anyio

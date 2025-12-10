@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+import logging
+from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -11,7 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .... import models
 from ....db import get_session
-from ....deps import require_dashboard_user
+from ....deps import require_dashboard_user, verify_shop_manager
+from ....services.availability_sync import sync_availability_for_date
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard-shifts"])
 
@@ -142,6 +146,9 @@ async def _verify_therapist_belongs_to_shop(
     return therapist
 
 
+# 同期処理は app.services.availability_sync からインポート
+
+
 @router.get(
     "/shops/{profile_id}/shifts",
     response_model=list[ShiftItem],
@@ -154,7 +161,8 @@ async def list_shifts(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> list[ShiftItem]:
-    _ = user
+    # 店舗所属確認
+    await verify_shop_manager(db, user.id, profile_id)
     await _get_shop(db, profile_id)
 
     stmt = select(models.TherapistShift).where(
@@ -184,7 +192,8 @@ async def create_shift(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> ShiftItem:
-    _ = user
+    # 店舗所属確認
+    await verify_shop_manager(db, user.id, profile_id)
     await _get_shop(db, profile_id)
     await _verify_therapist_belongs_to_shop(db, profile_id, payload.therapist_id)
 
@@ -207,6 +216,11 @@ async def create_shift(
     db.add(shift)
     await db.commit()
     await db.refresh(shift)
+
+    # Availabilityテーブルを同期
+    await sync_availability_for_date(db, profile_id, payload.date)
+    await db.commit()
+
     return _serialize(shift)
 
 
@@ -220,7 +234,8 @@ async def get_shift(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> ShiftItem:
-    _ = user
+    # 店舗所属確認
+    await verify_shop_manager(db, user.id, profile_id)
     shift = await _get_shift(db, profile_id, shift_id)
     return _serialize(shift)
 
@@ -236,7 +251,8 @@ async def update_shift(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> ShiftItem:
-    _ = user
+    # 店舗所属確認
+    await verify_shop_manager(db, user.id, profile_id)
     shift = await _get_shift(db, profile_id, shift_id)
 
     new_start = payload.start_at if payload.start_at else shift.start_at
@@ -264,6 +280,11 @@ async def update_shift(
     db.add(shift)
     await db.commit()
     await db.refresh(shift)
+
+    # Availabilityテーブルを同期
+    await sync_availability_for_date(db, profile_id, shift.date)
+    await db.commit()
+
     return _serialize(shift)
 
 
@@ -277,7 +298,14 @@ async def delete_shift(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ):
-    _ = user
+    # 店舗所属確認
+    await verify_shop_manager(db, user.id, profile_id)
     shift = await _get_shift(db, profile_id, shift_id)
+    shift_date = shift.date
+    shop_id = shift.shop_id
     await db.delete(shift)
+    await db.commit()
+
+    # Availabilityテーブルを同期（シフト削除後）
+    await sync_availability_for_date(db, shop_id, shift_date)
     await db.commit()

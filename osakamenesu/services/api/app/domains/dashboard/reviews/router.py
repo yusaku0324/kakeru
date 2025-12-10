@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .... import models
 from ....db import get_session
-from ....deps import require_dashboard_user
+from ....deps import require_dashboard_user, verify_shop_manager
 from ....schemas import ReviewItem, ReviewListResponse, ReviewModerationRequest
 from ...site import shops as site_shops
 
@@ -30,6 +30,7 @@ async def _verify_shop_access(
     user: models.User,
 ) -> models.Profile:
     """Verify the user has access to the given shop profile."""
+    await verify_shop_manager(db, user.id, profile_id)
     profile = await db.get(models.Profile, profile_id)
     if not profile:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="shop not found")

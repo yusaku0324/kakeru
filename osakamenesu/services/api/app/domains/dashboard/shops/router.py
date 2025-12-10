@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .... import models
 from ....db import get_session
-from ....deps import require_dashboard_user
+from ....deps import require_dashboard_user, verify_shop_manager
 from ....schemas import (
     DashboardShopListResponse,
     DashboardShopSummaryItem,
@@ -63,8 +63,7 @@ async def list_dashboard_shops(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> DashboardShopListResponse:
-    _ = user
-    return await _service.list_shops(limit=limit, db=db)
+    return await _service.list_shops(limit=limit, db=db, user=user)
 
 
 @router.post(
@@ -92,7 +91,7 @@ async def get_dashboard_shop_profile(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> DashboardShopProfileResponse:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
     try:
         return await _service.get_profile_response(profile_id=profile_id, db=db)
     except DashboardShopError as error:
@@ -107,6 +106,7 @@ async def update_dashboard_shop_profile(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> DashboardShopProfileResponse:
+    await verify_shop_manager(db, user.id, profile_id)
     try:
         return await _service.update_profile(
             request=request,
@@ -139,7 +139,7 @@ async def upload_shop_photo(
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> ShopPhotoUploadResponse:
-    _ = user
+    await verify_shop_manager(db, user.id, profile_id)
 
     profile = await db.get(models.Profile, profile_id)
     if not profile:

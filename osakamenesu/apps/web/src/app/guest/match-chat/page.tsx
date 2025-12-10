@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { rerankMatchingCandidates } from '@/features/matching/recommendedRanking'
 import { TherapistCard, type TherapistHit } from '@/components/staff/TherapistCard'
 import { TherapistFavoritesProvider } from '@/components/staff/TherapistFavoritesProvider'
+import { isTodayIso, normalizeSlotStatus } from '@/lib/availability'
 
 type MatchingCandidate = {
   therapist_id: string
@@ -26,12 +27,17 @@ type MatchingCandidate = {
 function toTherapistHit(m: MatchingCandidate): TherapistHit {
   // slots の最初のものを nextAvailableSlot に変換
   const firstSlot = m.slots?.[0]
+  const normalizedStatus = normalizeSlotStatus(firstSlot?.status)
   const nextAvailableSlot = firstSlot
     ? {
         start_at: firstSlot.start_at,
-        status: firstSlot.status === 'open' ? 'ok' as const : 'maybe' as const,
+        end_at: firstSlot.end_at ?? null,
+        status: normalizedStatus === 'open' ? 'ok' as const : 'maybe' as const,
       }
     : null
+
+  // todayAvailable: 実際にスロットが本日かどうかを判定（統一ユーティリティ使用）
+  const isToday = firstSlot ? isTodayIso(firstSlot.start_at) : false
 
   return {
     id: m.therapist_id,
@@ -49,8 +55,10 @@ function toTherapistHit(m: MatchingCandidate): TherapistHit {
     shopName: m.shop_name,
     shopArea: m.shop_area ?? '',
     shopAreaName: m.shop_area ?? null,
-    todayAvailable: firstSlot ? true : null,
+    todayAvailable: isToday ? true : null,
     nextAvailableSlot,
+    // API から取得した slots を保持
+    availabilitySlots: m.slots ?? null,
   }
 }
 
@@ -520,7 +528,7 @@ export default function MatchChatPage() {
                   <TherapistCard
                     key={m.therapist_id}
                     hit={toTherapistHit(m)}
-                    useOverlay={false}
+                    useOverlay
                   />
                 ))}
               </div>

@@ -60,11 +60,16 @@ class DashboardShopService:
         self._indexer = indexer
 
     async def list_shops(
-        self, *, limit: int, db: AsyncSession
+        self, *, limit: int, db: AsyncSession, user: models.User
     ) -> DashboardShopListResponse:
         limit_value = max(1, min(limit, 100))
+        # Filter by shops the user manages
+        managed_shop_ids_stmt = select(models.ShopManager.shop_id).where(
+            models.ShopManager.user_id == user.id
+        )
         stmt = (
             select(models.Profile)
+            .where(models.Profile.id.in_(managed_shop_ids_stmt))
             .order_by(models.Profile.updated_at.desc())
             .limit(limit_value)
         )
@@ -160,6 +165,15 @@ class DashboardShopService:
 
         db.add(profile)
         await db.flush()
+
+        # Auto-create ShopManager record for the user as owner
+        shop_manager = models.ShopManager(
+            shop_id=profile.id,
+            user_id=user.id,
+            role="owner",
+        )
+        db.add(shop_manager)
+
         await db.commit()
         await db.refresh(profile)
 

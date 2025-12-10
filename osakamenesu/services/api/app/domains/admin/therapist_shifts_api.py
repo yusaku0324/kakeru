@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
 from ...models import TherapistShift, TherapistShiftStatus
+from ...services.availability_sync import sync_availability_for_date
 
 logger = logging.getLogger(__name__)
 
@@ -125,13 +126,21 @@ async def create_shift(
         date=payload.date,
         start_at=payload.start_at,
         end_at=payload.end_at,
-        break_slots=[bs.model_dump() for bs in payload.break_slots],
+        break_slots=[bs.model_dump(mode="json") for bs in payload.break_slots],
         availability_status=payload.availability_status or "available",
         notes=payload.notes,
     )
     db.add(shift)
     await db.commit()
     await db.refresh(shift)
+
+    # Availabilityテーブルを同期
+    try:
+        await sync_availability_for_date(db, payload.shop_id, payload.date)
+        await db.commit()
+    except Exception as e:
+        logger.warning("Failed to sync availability after shift create: %s", e)
+
     return _serialize(shift)
 
 
@@ -153,18 +162,37 @@ async def update_shift(
     ):
         raise HTTPException(status_code=409, detail="shift_overlaps_existing")
 
+    # 日付が変わる場合は両方の日付を同期
+    old_date = shift.date
+    old_shop_id = shift.shop_id
+    dates_to_sync = {payload.date}
+    if old_date != payload.date or old_shop_id != payload.shop_id:
+        dates_to_sync.add(old_date)
+
     shift.therapist_id = payload.therapist_id
     shift.shop_id = payload.shop_id
     shift.date = payload.date
     shift.start_at = payload.start_at
     shift.end_at = payload.end_at
-    shift.break_slots = [bs.model_dump() for bs in payload.break_slots]
+    shift.break_slots = [bs.model_dump(mode="json") for bs in payload.break_slots]
     shift.availability_status = payload.availability_status or "available"
     shift.notes = payload.notes
 
     db.add(shift)
     await db.commit()
     await db.refresh(shift)
+
+    # Availabilityテーブルを同期
+    try:
+        for sync_date in dates_to_sync:
+            await sync_availability_for_date(db, payload.shop_id, sync_date)
+        # 店舗が変わった場合は旧店舗も同期
+        if old_shop_id != payload.shop_id:
+            await sync_availability_for_date(db, old_shop_id, old_date)
+        await db.commit()
+    except Exception as e:
+        logger.warning("Failed to sync availability after shift update: %s", e)
+
     return _serialize(shift)
 
 
@@ -178,6 +206,18 @@ async def delete_shift(
     shift = await _get_shift(db, shift_id)
     if not shift:
         raise HTTPException(status_code=404, detail="shift_not_found")
+
+    shop_id = shift.shop_id
+    shift_date = shift.date
+
     await db.delete(shift)
     await db.commit()
+
+    # Availabilityテーブルを同期（シフト削除後）
+    try:
+        await sync_availability_for_date(db, shop_id, shift_date)
+        await db.commit()
+    except Exception as e:
+        logger.warning("Failed to sync availability after shift delete: %s", e)
+
     return {"ok": True}
