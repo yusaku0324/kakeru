@@ -220,7 +220,7 @@ class DashboardShopService:
             current = self.serialize_profile(profile)
             raise DashboardShopError(
                 HTTPStatus.CONFLICT,
-                {"current": current.model_dump()},
+                {"current": current.model_dump(mode="json")},
             )
 
         before_state = self.serialize_profile(profile).model_dump()

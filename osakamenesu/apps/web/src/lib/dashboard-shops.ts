@@ -336,7 +336,7 @@ export async function uploadDashboardShopPhoto(
     for (const base of resolveApiBases()) {
       try {
         const res = await fetch(
-          buildApiUrl(base, `api/dashboard/shops/${profileId}/photos/upload`),
+          buildApiUrl(base, `dashboard/shops/${profileId}/photos/upload`),
           init,
         )
 
