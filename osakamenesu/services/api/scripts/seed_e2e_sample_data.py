@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import sys
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence
@@ -31,27 +32,35 @@ from uuid import UUID
 DEFAULT_TIMEOUT = 30
 
 # Fixed UUIDs for sample therapists (used in E2E tests)
+# Each shop now has 5 therapists for better testing
 SAMPLE_THERAPIST_IDS = {
     "sample-namba-resort": [
         "11111111-1111-1111-8888-111111111111",
-        "22222222-2222-2222-8888-222222222222",
-        "22222222-2222-2222-8888-222222222223",
+        "11111111-1111-1111-8888-111111111112",
+        "11111111-1111-1111-8888-111111111113",
+        "11111111-1111-1111-8888-111111111114",
+        "11111111-1111-1111-8888-111111111115",
     ],
     "sample-umeda-suite": [
+        "22222222-2222-2222-8888-222222222221",
+        "22222222-2222-2222-8888-222222222222",
+        "22222222-2222-2222-8888-222222222223",
         "22222222-2222-2222-8888-222222222224",
         "22222222-2222-2222-8888-222222222225",
-        "22222222-2222-2222-8888-222222222226",
     ],
     "sample-shinsaibashi-lounge": [
         "33333333-3333-3333-8888-333333333331",
         "33333333-3333-3333-8888-333333333332",
         "33333333-3333-3333-8888-333333333333",
+        "33333333-3333-3333-8888-333333333334",
+        "33333333-3333-3333-8888-333333333335",
     ],
     "sample-tennoji-garden": [
         "44444444-4444-4444-8888-444444444441",
         "44444444-4444-4444-8888-444444444442",
         "44444444-4444-4444-8888-444444444443",
         "44444444-4444-4444-8888-444444444444",
+        "44444444-4444-4444-8888-444444444445",
     ],
 }
 
@@ -92,6 +101,20 @@ SAMPLE_SHOPS = [
                 "headline": "笑顔が魅力のセラピスト。丁寧なカウンセリング付き。",
                 "specialties": ["ホットストーン", "ストレッチ"],
             },
+            {
+                "name": "桜",
+                "alias": "技術派",
+                "avatar_url": "https://i.pravatar.cc/160?img=8",
+                "headline": "整体資格を持つ本格派セラピスト。",
+                "specialties": ["整体", "ストレッチ", "指圧"],
+            },
+            {
+                "name": "紬",
+                "alias": "癒し系",
+                "avatar_url": "https://i.pravatar.cc/160?img=9",
+                "headline": "ゆったりとした時間をお約束します。",
+                "specialties": ["アロマ", "リフレ"],
+            },
         ],
     },
     {
@@ -129,6 +152,20 @@ SAMPLE_SHOPS = [
                 "headline": "丁寧な接客で急成長中の若手セラピスト。",
                 "specialties": ["オイル", "ヘッドスパ"],
             },
+            {
+                "name": "陽菜",
+                "alias": "笑顔担当",
+                "avatar_url": "https://i.pravatar.cc/160?img=13",
+                "headline": "明るい笑顔で元気をお届けします。",
+                "specialties": ["オイル", "リンパ"],
+            },
+            {
+                "name": "芽依",
+                "alias": "新人エース",
+                "avatar_url": "https://i.pravatar.cc/160?img=14",
+                "headline": "研修を終えたばかりの期待の新人。",
+                "specialties": ["ドライヘッド", "肩甲骨"],
+            },
         ],
     },
     {
@@ -165,6 +202,20 @@ SAMPLE_SHOPS = [
                 "avatar_url": "https://i.pravatar.cc/160?img=17",
                 "headline": "優しい雰囲気で心からリラックス。",
                 "specialties": ["アロマ", "ヘッドマッサージ"],
+            },
+            {
+                "name": "莉子",
+                "alias": "人気No.2",
+                "avatar_url": "https://i.pravatar.cc/160?img=18",
+                "headline": "リピーター続出の実力派セラピスト。",
+                "specialties": ["オイル", "ストレッチ"],
+            },
+            {
+                "name": "澪",
+                "alias": "おっとり系",
+                "avatar_url": "https://i.pravatar.cc/160?img=19",
+                "headline": "ゆっくりとした施術が特徴です。",
+                "specialties": ["リフレ", "フェイシャル"],
             },
         ],
     },
@@ -209,6 +260,13 @@ SAMPLE_SHOPS = [
                 "avatar_url": "https://i.pravatar.cc/160?img=23",
                 "headline": "5年の経験で安定した技術を提供。",
                 "specialties": ["全身", "ストレッチ", "指圧"],
+            },
+            {
+                "name": "優奈",
+                "alias": "人気急上昇",
+                "avatar_url": "https://i.pravatar.cc/160?img=24",
+                "headline": "お客様目線の丁寧なカウンセリング。",
+                "specialties": ["ドライヘッド", "肩こりケア"],
             },
         ],
     },
@@ -516,12 +574,16 @@ def _add_therapist_shifts(
     """Add therapist shifts for today and next 3 days to enable availability display."""
     today = date.today()
 
-    for therapist_id in therapist_ids:
+    # Random start hours for variety (10, 11, 12, 13, 14, 15, 16)
+    start_hours = [10, 11, 12, 13, 14, 15, 16]
+    for idx, therapist_id in enumerate(therapist_ids):
+        # Use deterministic but varied start hour based on therapist index
+        start_hour = start_hours[idx % len(start_hours)]
         for offset in range(4):  # Today + 3 days
             shift_date = today + timedelta(days=offset)
-            # Shift from 10:00 to 22:00
+            # Shift with varied start times
             start_at = datetime.combine(shift_date, datetime.min.time()).replace(
-                hour=10, tzinfo=timezone.utc
+                hour=start_hour, tzinfo=timezone.utc
             )
             end_at = datetime.combine(shift_date, datetime.min.time()).replace(
                 hour=22, tzinfo=timezone.utc
