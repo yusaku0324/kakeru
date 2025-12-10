@@ -17,6 +17,9 @@ primary_region = 'nrt'
   min_machines_running = 1
   processes = ['app']
 
+[env]
+  MEDIA_CDN_BASE_URL = "https://pub-f573ead3e2054ef0a2e2fcc4af0e2203.r2.dev"
+
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'
