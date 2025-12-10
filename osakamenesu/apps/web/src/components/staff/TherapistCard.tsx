@@ -1,13 +1,34 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import SafeImage from '@/components/SafeImage'
 import { openReservationOverlay } from '@/components/reservationOverlayBus'
+import { normalizeAvailabilityDays, hasTodayAvailability } from '@/lib/availability'
 import { type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { formatSlotJp, type ScheduleSlot } from '@/lib/schedule'
 import { useTherapistFavorites } from './TherapistFavoritesProvider'
+
+type AvailabilityDay = {
+  date: string
+  is_today?: boolean | null
+  slots: Array<{ start_at: string; end_at: string; status: 'open' | 'tentative' | 'blocked' }>
+}
+
+/**
+ * セラピストの空き状況を API から取得
+ */
+async function fetchTherapistAvailability(therapistId: string): Promise<AvailabilityDay[]> {
+  try {
+    const resp = await fetch(`/api/guest/therapists/${therapistId}/availability_slots`)
+    if (!resp.ok) return []
+    const data = await resp.json()
+    return Array.isArray(data?.days) ? data.days : []
+  } catch {
+    return []
+  }
+}
 
 export type TherapistHit = {
   id: string
@@ -27,6 +48,8 @@ export type TherapistHit = {
   shopAreaName: string | null
   todayAvailable: boolean | null
   nextAvailableSlot: NextAvailableSlotPayload | null
+  // API から取得した全てのスロット情報（ReservationOverlay に渡す用）
+  availabilitySlots?: Array<{ start_at: string; end_at: string; status?: string }> | null
   mood_tag?: string | null
   style_tag?: string | null
   look_type?: string | null
@@ -42,7 +65,7 @@ function toScheduleSlot(slot: NextAvailableSlotPayload | null): ScheduleSlot | n
   if (!slot?.start_at) return null
   return {
     start_at: slot.start_at,
-    end_at: slot.start_at, // end_atがない場合はstart_atを使用
+    end_at: slot.end_at ?? slot.start_at, // end_atがある場合はそれを使用、なければstart_atで代用
     status: slot.status === 'ok' ? 'open' : 'tentative',
   }
 }
@@ -107,6 +130,7 @@ type TherapistCardProps = {
 
 export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistCardProps) {
   const { isFavorite, toggleFavorite, isProcessing } = useTherapistFavorites()
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false)
   const staffHref = buildStaffHref(hit)
   const therapistId = useMemo(() => {
     const candidate = hit.therapistId?.trim()
@@ -120,23 +144,68 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
   const nextSlotPayload = hit.nextAvailableSlot ?? null
   const availabilityLabel = formatNextSlotLabel(nextSlotPayload, hit.todayAvailable ?? null)
 
-  const handleOverlayReserve = useCallback(() => {
-    openReservationOverlay({
-      hit,
-      defaultStart: nextSlotPayload?.start_at ?? null,
-    })
-  }, [hit, nextSlotPayload])
+  // API から取得した availabilitySlots を availabilityDays 形式に変換（統一ユーティリティ使用）
+  const availabilityDays = useMemo(
+    () => normalizeAvailabilityDays(hit.availabilitySlots),
+    [hit.availabilitySlots],
+  )
+
+  // todayAvailable を availabilityDays からも判定（より正確）
+  const isTodayAvailable = useMemo(() => {
+    // availabilityDays がある場合はそこから判定
+    if (availabilityDays) {
+      return hasTodayAvailability(availabilityDays)
+    }
+    // fallback: hit.todayAvailable を使用
+    return hit.todayAvailable ?? false
+  }, [availabilityDays, hit.todayAvailable])
+
+  const handleOverlayReserve = useCallback(async () => {
+    // hit.availabilitySlots がある場合はそれを使用、ない場合は API から取得
+    if (availabilityDays && availabilityDays.length > 0) {
+      openReservationOverlay({
+        hit,
+        defaultStart: nextSlotPayload?.start_at ?? null,
+        availabilityDays,
+      })
+      return
+    }
+
+    // API から空き状況を取得
+    const targetId = therapistId ?? hit.staffId
+    if (!targetId) {
+      // ID がない場合は fallback なしでオーバーレイを開く
+      openReservationOverlay({
+        hit,
+        defaultStart: nextSlotPayload?.start_at ?? null,
+      })
+      return
+    }
+
+    setIsLoadingAvailability(true)
+    try {
+      const fetchedDays = await fetchTherapistAvailability(targetId)
+      openReservationOverlay({
+        hit,
+        defaultStart: nextSlotPayload?.start_at ?? null,
+        availabilityDays: fetchedDays.length > 0 ? fetchedDays : undefined,
+      })
+    } finally {
+      setIsLoadingAvailability(false)
+    }
+  }, [hit, nextSlotPayload, availabilityDays, therapistId])
 
   // When useOverlay or onReserve is set, clicking anywhere on the card opens the overlay/calls onReserve
   const isClickableCard = useOverlay || !!onReserve
 
-  const handleCardClick = useCallback(() => {
+  const handleCardClick = useCallback(async () => {
+    if (isLoadingAvailability) return
     if (onReserve) {
       onReserve(hit)
     } else if (useOverlay) {
-      handleOverlayReserve()
+      await handleOverlayReserve()
     }
-  }, [onReserve, useOverlay, hit, handleOverlayReserve])
+  }, [onReserve, useOverlay, hit, handleOverlayReserve, isLoadingAvailability])
 
   return (
     <div
@@ -196,11 +265,11 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
           {/* Availability badge on image */}
           {availabilityLabel && (
             <div className={`absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-lg backdrop-blur-sm ${
-              hit.todayAvailable
+              isTodayAvailable
                 ? 'bg-emerald-500/90 text-white'
                 : 'bg-amber-500/90 text-white'
             }`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${hit.todayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
+              <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
               {availabilityLabel}
             </div>
           )}
@@ -227,11 +296,11 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
             {/* Availability badge on image */}
             {availabilityLabel && (
               <div className={`absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-lg backdrop-blur-sm ${
-                hit.todayAvailable
+                isTodayAvailable
                   ? 'bg-emerald-500/90 text-white'
                   : 'bg-amber-500/90 text-white'
               }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${hit.todayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
+                <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
                 {availabilityLabel}
               </div>
             )}
@@ -271,9 +340,9 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
         </div>
         {isClickableCard ? (
           <div
-            className="w-full rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary py-2.5 text-xs font-bold text-white text-center shadow-[0_4px_16px_rgba(37,99,235,0.3)] transition-all duration-200 hover:shadow-[0_6px_20px_rgba(37,99,235,0.4)] active:scale-[0.98]"
+            className={`w-full rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary py-2.5 text-xs font-bold text-white text-center shadow-[0_4px_16px_rgba(37,99,235,0.3)] transition-all duration-200 hover:shadow-[0_6px_20px_rgba(37,99,235,0.4)] active:scale-[0.98] ${isLoadingAvailability ? 'opacity-70' : ''}`}
           >
-            予約する
+            {isLoadingAvailability ? '読み込み中...' : '予約する'}
           </div>
         ) : (
           <Link
