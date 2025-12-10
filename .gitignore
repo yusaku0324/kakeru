@@ -110,3 +110,5 @@ credentials.json
 .gcloud-config/
 
 staging.sql
+.vercel
+.env*.local

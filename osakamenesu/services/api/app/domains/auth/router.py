@@ -349,6 +349,7 @@ async def line_connection_status(
 
 class GoogleLoginUrlRequest(BaseModel):
     redirect_path: str = "/therapist/settings"
+    callback_url: str | None = None  # フロントエンドから動的に渡されるコールバックURL
 
 
 class GoogleLoginUrlResponse(BaseModel):
@@ -359,6 +360,8 @@ class GoogleLoginUrlResponse(BaseModel):
 class GoogleCallbackRequest(BaseModel):
     code: str
     state: str
+    callback_url: str | None = None  # トークン交換時に使用するコールバックURL
+    scope: str | None = None  # セッションスコープ (site or dashboard)
 
 
 class GoogleConnectionStatusResponse(BaseModel):
@@ -378,7 +381,8 @@ async def google_login_url(
     """
     try:
         login_url, state = google_auth_service.generate_login_url(
-            redirect_path=payload.redirect_path
+            redirect_path=payload.redirect_path,
+            callback_url=payload.callback_url,
         )
         return GoogleLoginUrlResponse(login_url=login_url, state=state)
     except GoogleAuthError as e:
@@ -397,15 +401,20 @@ async def google_callback(
     and creates/updates user session.
     """
     try:
+        # Determine scope from payload (default to site)
+        scope = payload.scope if payload.scope in ("site", "dashboard") else "site"
+
         result = await google_auth_service.authenticate(
             code=payload.code,
             db=db,
+            callback_url=payload.callback_url,
+            scope=scope,
         )
 
         response = JSONResponse(
             {
                 "ok": True,
-                "scope": "site",
+                "scope": scope,
                 "is_new_user": result.is_new_user,
                 "session_token": result.session_token,
                 "user": {
@@ -415,7 +424,7 @@ async def google_callback(
                 },
             }
         )
-        _set_session_cookie(response, result.session_token, scope="site")
+        _set_session_cookie(response, result.session_token, scope=scope)
         return response
     except GoogleAuthError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e

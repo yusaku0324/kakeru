@@ -19,44 +19,56 @@ async function getHandler(request: NextRequest) {
   const error = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
 
+  // リダイレクト先をクッキーから取得（デフォルトは/dashboard）
+  const redirectCookie = request.cookies.get('google_oauth_redirect')
+  const redirectPath = redirectCookie?.value
+    ? decodeURIComponent(redirectCookie.value)
+    : '/dashboard'
+  // エラーページのベースパスを決定（/dashboard/* なら /dashboard、それ以外は /therapist）
+  const errorBasePath = redirectPath.startsWith('/dashboard') ? '/dashboard' : '/therapist'
+
   // エラーがあればエラーページにリダイレクト
   if (error) {
     console.error('Google OAuth error:', error, errorDescription)
-    const errorUrl = new URL('/therapist?error=google_auth_failed', request.url)
+    const errorUrl = new URL(`${errorBasePath}?error=google_auth_failed`, request.url)
     return NextResponse.redirect(errorUrl)
   }
 
   // codeとstateが必須
   if (!code || !state) {
     console.error('Missing code or state in Google callback')
-    const errorUrl = new URL('/therapist?error=missing_params', request.url)
+    const errorUrl = new URL(`${errorBasePath}?error=missing_params`, request.url)
     return NextResponse.redirect(errorUrl)
   }
 
   try {
-    // バックエンドAPIにcodeとstateを送信
+    // 現在のリクエストのホストからcallback_urlを生成
+    const host = request.headers.get('host') || 'localhost:3000'
+    const protocol = request.headers.get('x-forwarded-proto') || 'https'
+    const callbackUrl = `${protocol}://${host}/api/auth/google/callback`
+
+    // redirect_pathからscopeを決定（/dashboard* はdashboard、それ以外はsite）
+    const scope = redirectPath.startsWith('/dashboard') ? 'dashboard' : 'site'
+
+    // バックエンドAPIにcodeとstateとcallback_urlとscopeを送信
     const response = await fetch(`${API_BASE}/api/auth/google/callback`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ code, state }),
+      body: JSON.stringify({ code, state, callback_url: callbackUrl, scope }),
     })
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       console.error('Backend Google callback failed:', response.status, errorData)
-      const errorUrl = new URL('/therapist?error=auth_failed', request.url)
+      const errorUrl = new URL(`${errorBasePath}?error=auth_failed`, request.url)
       return NextResponse.redirect(errorUrl)
     }
 
     const data = await response.json()
 
-    // クッキーからリダイレクト先を取得（デフォルトは/therapist/settings）
-    const redirectCookie = request.cookies.get('google_oauth_redirect')
-    const redirectPath = redirectCookie?.value
-      ? decodeURIComponent(redirectCookie.value)
-      : '/therapist/settings'
+    // 成功時のリダイレクト先（上で取得済みのredirectPathを使用）
     const redirectUrl = new URL(redirectPath, request.url)
 
     const redirectResponse = NextResponse.redirect(redirectUrl)
@@ -77,7 +89,7 @@ async function getHandler(request: NextRequest) {
     return redirectResponse
   } catch (err) {
     console.error('Google callback error:', err)
-    const errorUrl = new URL('/therapist?error=callback_error', request.url)
+    const errorUrl = new URL(`${errorBasePath}?error=callback_error`, request.url)
     return NextResponse.redirect(errorUrl)
   }
 }

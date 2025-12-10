@@ -96,12 +96,14 @@ class GoogleAuthService:
         self,
         redirect_path: str = "/therapist/settings",
         state: str | None = None,
+        callback_url: str | None = None,
     ) -> tuple[str, str]:
         """Generate Google OAuth authorization URL.
 
         Args:
             redirect_path: Path to redirect after successful authentication
             state: Optional state parameter for CSRF protection
+            callback_url: Optional callback URL from frontend (for dynamic deployments)
 
         Returns:
             Tuple of (authorization_url, state)
@@ -111,10 +113,13 @@ class GoogleAuthService:
         if state is None:
             state = secrets.token_urlsafe(32)
 
+        # callback_urlが渡された場合はそれを使用、なければ従来の方法
+        redirect_uri = callback_url if callback_url else self._get_callback_url()
+
         params = {
             "response_type": "code",
             "client_id": settings.google_client_id,
-            "redirect_uri": self._get_callback_url(),
+            "redirect_uri": redirect_uri,
             "state": state,
             "scope": "openid email profile",
             "access_type": "offline",
@@ -124,21 +129,26 @@ class GoogleAuthService:
         url = f"{GOOGLE_AUTHORIZE_URL}?{urlencode(params)}"
         return url, state
 
-    async def exchange_code_for_token(self, code: str) -> dict[str, Any]:
+    async def exchange_code_for_token(
+        self, code: str, callback_url: str | None = None
+    ) -> dict[str, Any]:
         """Exchange authorization code for access token.
 
         Args:
             code: Authorization code from Google
+            callback_url: Optional callback URL (must match the one used in authorization)
 
         Returns:
             Token response containing access_token, id_token, etc.
         """
         self._ensure_configured()
 
+        redirect_uri = callback_url if callback_url else self._get_callback_url()
+
         data = {
             "grant_type": "authorization_code",
             "code": code,
-            "redirect_uri": self._get_callback_url(),
+            "redirect_uri": redirect_uri,
             "client_id": settings.google_client_id,
             "client_secret": settings.google_client_secret,
         }
@@ -202,6 +212,8 @@ class GoogleAuthService:
         self,
         code: str,
         db: AsyncSession,
+        callback_url: str | None = None,
+        scope: str = "site",
     ) -> GoogleAuthResult:
         """Complete Google OAuth authentication flow.
 
@@ -213,12 +225,14 @@ class GoogleAuthService:
         Args:
             code: Authorization code from Google callback
             db: Database session
+            callback_url: Optional callback URL (must match the one used in authorization)
+            scope: Session scope ('site' or 'dashboard')
 
         Returns:
             GoogleAuthResult with user, session, and profile data
         """
         # Exchange code for token
-        token_data = await self.exchange_code_for_token(code)
+        token_data = await self.exchange_code_for_token(code, callback_url)
         access_token = token_data["access_token"]
 
         # Get user profile
@@ -265,7 +279,7 @@ class GoogleAuthService:
             token_hash=session_hash,
             issued_at=now,
             expires_at=session_expiry(now),
-            scope="site",
+            scope=scope,
         )
         db.add(session)
 

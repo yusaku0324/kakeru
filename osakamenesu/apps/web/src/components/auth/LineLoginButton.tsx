@@ -37,9 +37,8 @@ export function LineLoginButton({
     setError(null)
 
     try {
-      // バックエンドAPIからLINE認可URLを取得
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE || ''
-      const response = await fetch(`${apiBase}/api/auth/line/login-url`, {
+      // Next.js API Route経由でLINE認可URLを取得（CORS回避）
+      const response = await fetch('/api/auth/line/login-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ redirect_path: redirectPath }),
@@ -61,6 +60,9 @@ export function LineLoginButton({
       // stateをセッションストレージに保存（CSRF対策）
       sessionStorage.setItem('line_oauth_state', data.state)
       sessionStorage.setItem('line_oauth_redirect', redirectPath)
+
+      // リダイレクト先をクッキーに保存（サーバーサイドで読み取るため）
+      document.cookie = `line_oauth_redirect=${encodeURIComponent(redirectPath)}; path=/; max-age=600; SameSite=Lax`
 
       // LINE認証ページにリダイレクト
       window.location.href = data.login_url
