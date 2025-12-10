@@ -1,6 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { resolveInternalApiBase } from '@/lib/server-config'
+
+// Force Node.js runtime instead of Edge
+export const runtime = 'nodejs'
 
 const normalizeBase = (base: string) => base.replace(/\/+$/, '')
 
@@ -16,7 +19,7 @@ async function forward(request: NextRequest, context: RouteContext) {
   const headers = new Headers(request.headers)
   const cookieHeader = request.headers.get('cookie') ?? ''
   headers.set('cookie', cookieHeader)
-  // Avoid zstd encoding - Vercel Edge doesn't handle it well
+  // Avoid zstd encoding
   headers.set('accept-encoding', 'gzip, deflate, br')
   console.log('[Dashboard API proxy] forwarding', request.method, targetUrl, {
     hasCookie: Boolean(cookieHeader),
@@ -40,25 +43,35 @@ async function forward(request: NextRequest, context: RouteContext) {
 
   const responseHeaders = new Headers()
   response.headers.forEach((value, key) => {
-    if (key.toLowerCase() === 'set-cookie') {
+    const lowerKey = key.toLowerCase()
+    if (lowerKey === 'set-cookie') {
       responseHeaders.append('set-cookie', value)
-    } else if (key.toLowerCase() !== 'content-encoding' && key.toLowerCase() !== 'content-length') {
-      // Skip content-encoding and content-length as we're reading the body
+    } else if (lowerKey !== 'content-encoding' && lowerKey !== 'content-length' && lowerKey !== 'transfer-encoding') {
+      // Skip encoding headers as we're reading the body fully
       responseHeaders.set(key, value)
     }
   })
 
-  // Read body as ArrayBuffer to avoid stream issues on Vercel Edge
-  const bodyBuffer = await response.arrayBuffer()
-  console.log('[Dashboard API proxy] body size:', bodyBuffer.byteLength)
+  // Read body as text for JSON responses, or arrayBuffer for binary
+  const contentType = response.headers.get('content-type') || ''
+  let responseBody: BodyInit
 
-  const proxyResponse = new NextResponse(bodyBuffer, {
+  if (contentType.includes('application/json')) {
+    const text = await response.text()
+    console.log('[Dashboard API proxy] JSON body length:', text.length)
+    responseBody = text
+  } else {
+    const buffer = await response.arrayBuffer()
+    console.log('[Dashboard API proxy] binary body size:', buffer.byteLength)
+    responseBody = buffer
+  }
+
+  // Use native Response instead of NextResponse to avoid potential issues
+  return new Response(responseBody, {
     status: response.status,
+    statusText: response.statusText,
     headers: responseHeaders,
   })
-  console.log('[Dashboard API proxy] returning response with body size:', bodyBuffer.byteLength)
-
-  return proxyResponse
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
