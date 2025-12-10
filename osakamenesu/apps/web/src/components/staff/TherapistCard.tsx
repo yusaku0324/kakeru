@@ -172,9 +172,10 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
     }
 
     // API から空き状況を取得
-    const targetId = therapistId ?? hit.staffId
+    // 優先順位: therapistId (UUID) > staffId > name (バックエンドで名前からUUIDを解決)
+    const targetId = therapistId ?? hit.staffId ?? hit.name
     if (!targetId) {
-      // ID がない場合は fallback なしでオーバーレイを開く
+      // ID も名前もない場合は fallback なしでオーバーレイを開く
       openReservationOverlay({
         hit,
         defaultStart: nextSlotPayload?.start_at ?? null,

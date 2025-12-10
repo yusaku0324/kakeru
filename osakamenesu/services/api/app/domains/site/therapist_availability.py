@@ -39,9 +39,11 @@ async def is_available(
         # Get buffer minutes from the therapist's profile
         buffer_minutes = 0
         if check_buffer:
-            therapist_stmt = select(Therapist).options(
-                joinedload(Therapist.profile)
-            ).where(Therapist.id == therapist_id)
+            therapist_stmt = (
+                select(Therapist)
+                .options(joinedload(Therapist.profile))
+                .where(Therapist.id == therapist_id)
+            )
             therapist_res = await db.execute(therapist_stmt)
             therapist = therapist_res.scalar_one_or_none()
             if therapist and therapist.profile:
@@ -92,7 +94,7 @@ async def is_available(
             GuestReservation.status.in_(("pending", "confirmed")),
             and_(
                 GuestReservation.start_at < buffered_end,
-                GuestReservation.end_at > buffered_start
+                GuestReservation.end_at > buffered_start,
             ),
         )
         res_res = await db.execute(res_stmt)
@@ -136,7 +138,9 @@ class AvailabilitySlotsResponse(BaseModel):
     slots: list[AvailabilitySlot]
 
 
-def _parse_breaks(break_slots: Iterable[dict[str, Any]] | None) -> list[tuple[datetime, datetime]]:
+def _parse_breaks(
+    break_slots: Iterable[dict[str, Any]] | None,
+) -> list[tuple[datetime, datetime]]:
     parsed: list[tuple[datetime, datetime]] = []
     for br in break_slots or []:
         start_raw = br.get("start_at")
@@ -144,8 +148,16 @@ def _parse_breaks(break_slots: Iterable[dict[str, Any]] | None) -> list[tuple[da
         if not start_raw or not end_raw:
             continue
         try:
-            start_dt = start_raw if isinstance(start_raw, datetime) else datetime.fromisoformat(start_raw)
-            end_dt = end_raw if isinstance(end_raw, datetime) else datetime.fromisoformat(end_raw)
+            start_dt = (
+                start_raw
+                if isinstance(start_raw, datetime)
+                else datetime.fromisoformat(start_raw)
+            )
+            end_dt = (
+                end_raw
+                if isinstance(end_raw, datetime)
+                else datetime.fromisoformat(end_raw)
+            )
         except Exception:
             continue
         if start_dt >= end_dt:
@@ -179,7 +191,9 @@ def _subtract_intervals(
     return remaining
 
 
-def _normalize_intervals(intervals: list[tuple[datetime, datetime]]) -> list[tuple[datetime, datetime]]:
+def _normalize_intervals(
+    intervals: list[tuple[datetime, datetime]],
+) -> list[tuple[datetime, datetime]]:
     if not intervals:
         return []
     intervals.sort(key=lambda x: x[0])
@@ -252,8 +266,7 @@ def _calculate_available_slots(
     # Apply buffer to reservations
     buffer_delta = timedelta(minutes=buffer_minutes)
     subtracts = [
-        (r.start_at - buffer_delta, r.end_at + buffer_delta)
-        for r in reservations
+        (r.start_at - buffer_delta, r.end_at + buffer_delta) for r in reservations
     ]
     open_intervals = _subtract_intervals(intervals, subtracts)
     return _normalize_intervals(open_intervals)
@@ -270,9 +283,11 @@ async def list_daily_slots(
 
     # Get buffer minutes from the therapist's profile
     buffer_minutes = 0
-    therapist_stmt = select(Therapist).options(
-        joinedload(Therapist.profile)
-    ).where(Therapist.id == therapist_id)
+    therapist_stmt = (
+        select(Therapist)
+        .options(joinedload(Therapist.profile))
+        .where(Therapist.id == therapist_id)
+    )
     therapist_res = await db.execute(therapist_stmt)
     therapist = therapist_res.scalar_one_or_none()
     if therapist and therapist.profile:
@@ -323,21 +338,46 @@ async def get_availability_summary_api(
     return summary
 
 
+async def resolve_therapist_id(
+    db: AsyncSession, therapist_id_or_name: str
+) -> UUID | None:
+    """
+    therapist_id (UUID文字列) または名前からTherapist UUIDを解決する。
+    1. UUID形式ならそのまま使用
+    2. それ以外は名前で検索
+    """
+    # UUIDとしてパースを試みる
+    try:
+        return UUID(therapist_id_or_name)
+    except (ValueError, TypeError):
+        pass
+
+    # 名前でTherapistを検索
+    stmt = select(Therapist.id).where(Therapist.name == therapist_id_or_name).limit(1)
+    res = await db.execute(stmt)
+    row = res.scalar_one_or_none()
+    return row
+
+
 @router.get(
     "/{therapist_id}/availability_slots",
     response_model=AvailabilitySlotsResponse,
     status_code=status.HTTP_200_OK,
 )
 async def get_availability_slots_api(
-    therapist_id: UUID,
+    therapist_id: str,
     date: date = Query(..., description="target YYYY-MM-DD"),
     db: AsyncSession = Depends(get_session),
 ):
-    slots = await list_daily_slots(db, therapist_id, date)
+    resolved_id = await resolve_therapist_id(db, therapist_id)
+    if not resolved_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="therapist_not_found",
+        )
+    slots = await list_daily_slots(db, resolved_id, date)
     return AvailabilitySlotsResponse(
-        therapist_id=therapist_id,
+        therapist_id=resolved_id,
         date=date,
-        slots=[
-            AvailabilitySlot(start_at=start, end_at=end) for start, end in slots
-        ],
+        slots=[AvailabilitySlot(start_at=start, end_at=end) for start, end in slots],
     )
