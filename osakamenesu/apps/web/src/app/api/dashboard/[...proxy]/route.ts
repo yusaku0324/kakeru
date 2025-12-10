@@ -16,6 +16,8 @@ async function forward(request: NextRequest, context: RouteContext) {
   const headers = new Headers(request.headers)
   const cookieHeader = request.headers.get('cookie') ?? ''
   headers.set('cookie', cookieHeader)
+  // Avoid zstd encoding - Vercel Edge doesn't handle it well
+  headers.set('accept-encoding', 'gzip, deflate, br')
   console.log('[Dashboard API proxy] forwarding', request.method, targetUrl, {
     hasCookie: Boolean(cookieHeader),
   })

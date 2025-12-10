@@ -32,6 +32,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     headers: {
       cookie: headers.get('cookie') ?? '',
       accept: headers.get('accept') ?? 'application/json',
+      'accept-encoding': 'gzip, deflate, br',
     },
     redirect: 'manual',
     cache: 'no-store',

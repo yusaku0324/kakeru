@@ -411,19 +411,22 @@ async def google_callback(
             scope=scope,
         )
 
-        response = JSONResponse(
-            {
-                "ok": True,
-                "scope": scope,
-                "is_new_user": result.is_new_user,
-                "session_token": result.session_token,
-                "user": {
-                    "id": str(result.user.id),
-                    "email": result.user.email,
-                    "display_name": result.user.display_name,
-                },
-            }
-        )
+        response_data = {
+            "ok": True,
+            "scope": scope,
+            "is_new_user": result.is_new_user,
+            "session_token": result.session_token,
+            "user": {
+                "id": str(result.user.id),
+                "email": result.user.email,
+                "display_name": result.user.display_name,
+            },
+        }
+        # Include site_session_token for dashboard logins (to enable site features)
+        if result.site_session_token:
+            response_data["site_session_token"] = result.site_session_token
+
+        response = JSONResponse(response_data)
         _set_session_cookie(response, result.session_token, scope=scope)
         return response
     except GoogleAuthError as e:

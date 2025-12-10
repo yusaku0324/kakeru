@@ -145,8 +145,9 @@ class DashboardShopService:
         if payload.address:
             contact_json["address"] = payload.address
 
-        contact_json["menus"] = menus_to_contact_json(payload.menus or [])
-        contact_json["staff"] = staff_to_contact_json(payload.staff or [])
+        # menus and staff are not part of CreatePayload - use empty lists for initial creation
+        contact_json["menus"] = []
+        contact_json["staff"] = []
         contact_json["service_tags"] = service_tags
         contact_json.setdefault("store_name", name)
 

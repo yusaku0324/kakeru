@@ -62,6 +62,9 @@ class GoogleAuthResult:
     session_token: str
     is_new_user: bool
     google_profile: GoogleUserProfile
+    site_session_token: str | None = (
+        None  # Additional site session token for dashboard users
+    )
 
 
 class GoogleAuthService:
@@ -268,7 +271,7 @@ class GoogleAuthService:
                 user.display_name = profile.name
             logger.info(f"Found existing user for Google email: {profile.email}")
 
-        # Create session token
+        # Create session tokens
         from datetime import datetime, UTC
 
         now = datetime.now(UTC)
@@ -283,6 +286,20 @@ class GoogleAuthService:
         )
         db.add(session)
 
+        # For dashboard scope, also create a site session so user can use site features
+        site_session_token = None
+        if scope == "dashboard":
+            site_session_token = generate_token()
+            site_session_hash = hash_token(site_session_token)
+            site_session = models.UserSession(
+                user_id=user.id,
+                token_hash=site_session_hash,
+                issued_at=now,
+                expires_at=session_expiry(now),
+                scope="site",
+            )
+            db.add(site_session)
+
         # Update last login
         user.last_login_at = now
 
@@ -293,6 +310,7 @@ class GoogleAuthService:
             session_token=session_token,
             is_new_user=is_new_user,
             google_profile=profile,
+            site_session_token=site_session_token,
         )
 
     async def get_connection_status(

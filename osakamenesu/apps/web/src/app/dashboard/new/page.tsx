@@ -3,13 +3,14 @@ import { cookies } from 'next/headers'
 
 import { Card } from '@/components/ui/Card'
 import { ShopCreateForm } from './ShopCreateForm'
+import { DASHBOARD_SESSION_COOKIE_NAME } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function DashboardNewShopPage() {
   const store = await cookies()
-  const sessionCookie = store.get('osakamenesu_session')
+  const sessionCookie = store.get(DASHBOARD_SESSION_COOKIE_NAME)
   const isAuthenticated = Boolean(sessionCookie?.value)
 
   return (

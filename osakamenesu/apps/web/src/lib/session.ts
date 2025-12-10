@@ -29,8 +29,11 @@ export function sessionCookieOptions(): SessionCookieOptions {
     maxAge: ONE_WEEK_SECONDS,
   }
 
-  if (isProduction) {
-    base.domain = '.osakamenes.com'
+  // Only set domain for custom domain, not for vercel.app deployments
+  // When domain is not set, cookie is scoped to the current host
+  const cookieDomain = process.env.SESSION_COOKIE_DOMAIN
+  if (cookieDomain) {
+    base.domain = cookieDomain
   }
 
   return base

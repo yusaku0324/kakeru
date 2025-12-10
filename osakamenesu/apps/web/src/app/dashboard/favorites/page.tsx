@@ -74,32 +74,38 @@ async function serializeCookies(): Promise<string | undefined> {
 }
 
 async function fetchSiteUser(cookieHeader?: string): Promise<SiteUserResult> {
-  for (const base of resolveApiBases()) {
-    try {
-      const res = await fetch(buildApiUrl(base, 'api/auth/me/site'), {
-        headers: cookieHeader ? { cookie: cookieHeader } : undefined,
-        credentials: cookieHeader ? 'omit' : 'include',
-        cache: 'no-store',
-      })
+  // Try both site and dashboard sessions (dashboard users should also be recognized)
+  const endpoints = ['api/auth/me/site', 'api/auth/me']
 
-      if (res.status === 401) {
-        return { status: 'guest' }
-      }
+  for (const endpoint of endpoints) {
+    for (const base of resolveApiBases()) {
+      try {
+        const res = await fetch(buildApiUrl(base, endpoint), {
+          headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+          credentials: cookieHeader ? 'omit' : 'include',
+          cache: 'no-store',
+        })
 
-      if (!res.ok) {
+        if (res.status === 401) {
+          // Try next endpoint
+          break
+        }
+
+        if (!res.ok) {
+          continue
+        }
+
+        const data = await res.json().catch(() => ({}))
+        const displayName = (() => {
+          const rawName = typeof data?.display_name === 'string' ? data.display_name.trim() : ''
+          if (rawName) return rawName
+          const rawEmail = typeof data?.email === 'string' ? data.email.trim() : ''
+          return rawEmail || null
+        })()
+        return { status: 'authenticated', displayName }
+      } catch (error) {
         continue
       }
-
-      const data = await res.json().catch(() => ({}))
-      const displayName = (() => {
-        const rawName = typeof data?.display_name === 'string' ? data.display_name.trim() : ''
-        if (rawName) return rawName
-        const rawEmail = typeof data?.email === 'string' ? data.email.trim() : ''
-        return rawEmail || null
-      })()
-      return { status: 'authenticated', displayName }
-    } catch (error) {
-      continue
     }
   }
 

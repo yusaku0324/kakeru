@@ -83,6 +83,11 @@ async function getHandler(request: NextRequest) {
       const cookieName =
         scope === 'dashboard' ? DASHBOARD_SESSION_COOKIE_NAME : SITE_SESSION_COOKIE_NAME
       redirectResponse.cookies.set(cookieName, data.session_token, cookieOptions)
+
+      // Dashboard login also gets a site session token for site features (favorites, etc.)
+      if (scope === 'dashboard' && data.site_session_token) {
+        redirectResponse.cookies.set(SITE_SESSION_COOKIE_NAME, data.site_session_token, cookieOptions)
+      }
     }
 
     // CSRFトークンを生成
