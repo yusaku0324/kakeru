@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { generateCsrfToken, setCsrfCookie } from '@/lib/csrf.server'
 import { withErrorReporting } from '@/lib/monitoring'
-import { SITE_SESSION_COOKIE_NAME, sessionCookieOptions } from '@/lib/session'
+import {
+  DASHBOARD_SESSION_COOKIE_NAME,
+  SITE_SESSION_COOKIE_NAME,
+  sessionCookieOptions,
+} from '@/lib/session'
 
 const API_BASE = process.env.OSAKAMENESU_API_BASE || 'http://localhost:8000'
 
@@ -73,10 +77,12 @@ async function getHandler(request: NextRequest) {
 
     const redirectResponse = NextResponse.redirect(redirectUrl)
 
-    // バックエンドからのセッショントークンをクッキーに設定
+    // バックエンドからのセッショントークンをクッキーに設定（scopeに基づいて適切なクッキー名を使用）
     if (data.session_token) {
       const cookieOptions = sessionCookieOptions()
-      redirectResponse.cookies.set(SITE_SESSION_COOKIE_NAME, data.session_token, cookieOptions)
+      const cookieName =
+        scope === 'dashboard' ? DASHBOARD_SESSION_COOKIE_NAME : SITE_SESSION_COOKIE_NAME
+      redirectResponse.cookies.set(cookieName, data.session_token, cookieOptions)
     }
 
     // CSRFトークンを生成
