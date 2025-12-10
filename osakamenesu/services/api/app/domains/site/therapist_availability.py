@@ -11,8 +11,9 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from ...models import GuestReservation, TherapistShift, Therapist, Profile
+from ...models import GuestReservation, TherapistShift, Therapist, Profile, Availability
 from ...db import get_session
+from .services.shop.availability import convert_slots
 
 logger = logging.getLogger(__name__)
 
@@ -272,6 +273,34 @@ def _calculate_available_slots(
     return _normalize_intervals(open_intervals)
 
 
+async def _fetch_availability_slots(
+    db: AsyncSession,
+    profile_id: UUID,
+    therapist_id: UUID,
+    target_date: date,
+) -> list[tuple[datetime, datetime]]:
+    """Availability テーブルからスロットを取得（フォールバック用）。"""
+    stmt = select(Availability).where(
+        Availability.profile_id == profile_id,
+        Availability.date == target_date,
+    )
+    res = await db.execute(stmt)
+    availability = res.scalar_one_or_none()
+    if not availability or not availability.slots_json:
+        return []
+
+    slots = convert_slots(availability.slots_json)
+    result: list[tuple[datetime, datetime]] = []
+    for slot in slots:
+        # staff_id が一致するか、staff_id が None（全員対象）のスロットのみ
+        if slot.staff_id is not None and slot.staff_id != therapist_id:
+            continue
+        if slot.status not in ("open", "tentative", None):
+            continue
+        result.append((slot.start_at, slot.end_at))
+    return result
+
+
 async def list_daily_slots(
     db: AsyncSession,
     therapist_id: UUID,
@@ -281,8 +310,9 @@ async def list_daily_slots(
     shifts = await _fetch_shifts(db, therapist_id, target_date, target_date)
     reservations = await _fetch_reservations(db, therapist_id, day_start, day_end)
 
-    # Get buffer minutes from the therapist's profile
+    # Get buffer minutes and profile_id from the therapist's profile
     buffer_minutes = 0
+    profile_id: UUID | None = None
     therapist_stmt = (
         select(Therapist)
         .options(joinedload(Therapist.profile))
@@ -292,8 +322,23 @@ async def list_daily_slots(
     therapist = therapist_res.scalar_one_or_none()
     if therapist and therapist.profile:
         buffer_minutes = therapist.profile.buffer_minutes or 0
+        profile_id = therapist.profile_id
 
     slots = _calculate_available_slots(shifts, reservations, buffer_minutes)
+
+    # TherapistShift にデータがない場合は Availability テーブルにフォールバック
+    if not slots and profile_id:
+        logger.debug(
+            "No TherapistShift data for therapist %s on %s, falling back to Availability",
+            therapist_id,
+            target_date,
+        )
+        fallback_slots = await _fetch_availability_slots(
+            db, profile_id, therapist_id, target_date
+        )
+        if fallback_slots:
+            slots = fallback_slots
+
     return [
         (
             max(slot_start, day_start),
