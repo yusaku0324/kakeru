@@ -103,7 +103,9 @@ class Settings(BaseSettings):
     )
     media_storage_backend: str = Field(
         default="local",
-        validation_alias=AliasChoices("MEDIA_STORAGE_BACKEND", "MEDIA_BACKEND"),
+        validation_alias=AliasChoices(
+            "MEDIA_STORAGE_BACKEND", "MEDIA_BACKEND", "R2_STORAGE_BACKEND"
+        ),
     )
     media_local_directory: str = Field(
         default="var/media",
@@ -119,7 +121,9 @@ class Settings(BaseSettings):
     )
     media_s3_bucket: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("MEDIA_S3_BUCKET", "MEDIA_BUCKET"),
+        validation_alias=AliasChoices(
+            "MEDIA_S3_BUCKET", "MEDIA_BUCKET", "R2_BUCKET_NAME"
+        ),
     )
     media_s3_region: str | None = Field(
         default=None,
@@ -127,15 +131,21 @@ class Settings(BaseSettings):
     )
     media_s3_endpoint: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("MEDIA_S3_ENDPOINT", "MEDIA_ENDPOINT_URL"),
+        validation_alias=AliasChoices(
+            "MEDIA_S3_ENDPOINT", "MEDIA_ENDPOINT_URL", "R2_ENDPOINT"
+        ),
     )
     media_s3_access_key_id: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("MEDIA_S3_ACCESS_KEY_ID", "MEDIA_ACCESS_KEY"),
+        validation_alias=AliasChoices(
+            "MEDIA_S3_ACCESS_KEY_ID", "MEDIA_ACCESS_KEY", "R2_ACCESS_KEY_ID"
+        ),
     )
     media_s3_secret_access_key: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("MEDIA_S3_SECRET_ACCESS_KEY", "MEDIA_SECRET_KEY"),
+        validation_alias=AliasChoices(
+            "MEDIA_S3_SECRET_ACCESS_KEY", "MEDIA_SECRET_KEY", "R2_SECRET_ACCESS_KEY"
+        ),
     )
     sentry_traces_sample_rate: float | None = Field(
         default=None,
