@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...settings import settings
 from ... import models
+from ...utils.auth import generate_token, hash_token, session_expiry
 
 logger = logging.getLogger(__name__)
 
@@ -251,18 +252,22 @@ class LineAuthService:
             logger.info(f"Found existing user for LINE ID: {profile.user_id}")
 
         # Create session token
-        session_token = secrets.token_urlsafe(32)
+        from datetime import datetime, UTC
+
+        now = datetime.now(UTC)
+        session_token = generate_token()
+        session_hash = hash_token(session_token)
         session = models.UserSession(
             user_id=user.id,
-            session_token=session_token,
+            token_hash=session_hash,
+            issued_at=now,
+            expires_at=session_expiry(now),
             scope="site",  # therapist portal uses site scope
         )
         db.add(session)
 
         # Update last login
-        from datetime import datetime, UTC
-
-        user.last_login_at = datetime.now(UTC)
+        user.last_login_at = now
 
         await db.commit()
 

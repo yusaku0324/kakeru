@@ -320,6 +320,7 @@ async def line_callback(
                 "ok": True,
                 "scope": "site",
                 "is_new_user": result.is_new_user,
+                "session_token": result.session_token,
                 "user": {
                     "id": str(result.user.id),
                     "display_name": result.user.display_name,
@@ -406,6 +407,7 @@ async def google_callback(
                 "ok": True,
                 "scope": "site",
                 "is_new_user": result.is_new_user,
+                "session_token": result.session_token,
                 "user": {
                     "id": str(result.user.id),
                     "email": result.user.email,

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { CSRF_HEADER_NAME } from '@/lib/csrf'
 import { generateCsrfToken, setCsrfCookie } from '@/lib/csrf.server'
-import { SESSION_COOKIE_NAME, sessionCookieOptions } from '@/lib/session'
 import { withErrorReporting } from '@/lib/monitoring'
+import { SITE_SESSION_COOKIE_NAME, sessionCookieOptions } from '@/lib/session'
 
 const API_BASE = process.env.OSAKAMENESU_API_BASE || 'http://localhost:8000'
 
@@ -53,27 +52,27 @@ async function getHandler(request: NextRequest) {
 
     const data = await response.json()
 
-    // バックエンドからSet-Cookieヘッダーを取得
-    // バックエンドがセッションクッキーを設定している場合は、そのまま転送
-    const setCookieHeader = response.headers.get('set-cookie')
-
-    // 成功時はセラピスト設定ページにリダイレクト
-    // デフォルトリダイレクト先
-    const redirectPath = '/therapist/settings'
+    // クッキーからリダイレクト先を取得（デフォルトは/therapist/settings）
+    const redirectCookie = request.cookies.get('line_oauth_redirect')
+    const redirectPath = redirectCookie?.value
+      ? decodeURIComponent(redirectCookie.value)
+      : '/therapist/settings'
     const redirectUrl = new URL(redirectPath, request.url)
 
     const redirectResponse = NextResponse.redirect(redirectUrl)
 
-    // バックエンドからのセッショントークンがあればクッキーに設定
-    // (バックエンドのレスポンスボディにセッション情報がある場合)
-    if (setCookieHeader) {
-      // バックエンドからのSet-Cookieをそのまま転送
-      redirectResponse.headers.append('Set-Cookie', setCookieHeader)
+    // バックエンドからのセッショントークンをクッキーに設定
+    if (data.session_token) {
+      const cookieOptions = sessionCookieOptions()
+      redirectResponse.cookies.set(SITE_SESSION_COOKIE_NAME, data.session_token, cookieOptions)
     }
 
     // CSRFトークンを生成
     const csrfToken = generateCsrfToken()
     setCsrfCookie(redirectResponse, csrfToken)
+
+    // リダイレクトクッキーを削除
+    redirectResponse.cookies.delete('line_oauth_redirect')
 
     return redirectResponse
   } catch (err) {
