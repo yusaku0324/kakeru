@@ -45,6 +45,8 @@ const nextConfig = {
       { protocol: 'https', hostname: 'i.pravatar.cc' },
       { protocol: 'http', hostname: 'localhost' },
       { protocol: 'http', hostname: '127.0.0.1' },
+      // Cloudflare R2 public bucket for shop photos
+      { protocol: 'https', hostname: 'pub-f573ead3e2054ef0a2e2fcc4af0e2203.r2.dev' },
     ],
   },
   cacheComponents: enableCacheComponents,

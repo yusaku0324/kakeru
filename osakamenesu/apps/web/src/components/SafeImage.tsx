@@ -19,10 +19,12 @@ function sanitizeSrc(
   value: ImageProps['src'] | null | undefined,
   fallback?: ImageProps['src'] | null,
 ) {
-  if (typeof value === 'string' && /^https?:\/\//.test(value)) {
-    return fallback && isMeaningfulString(fallback) ? fallback : null
+  // Return value as-is if it's meaningful (including valid URLs)
+  if (isMeaningfulString(value)) {
+    return value
   }
-  return value
+  // Fall back if value is empty/invalid
+  return fallback && isMeaningfulString(fallback) ? fallback : null
 }
 
 export type SafeImageProps = Omit<ImageProps, 'src'> & {
