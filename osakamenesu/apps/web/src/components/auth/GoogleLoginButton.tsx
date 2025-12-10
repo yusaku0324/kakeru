@@ -37,9 +37,8 @@ export function GoogleLoginButton({
     setError(null)
 
     try {
-      // バックエンドAPIからGoogle認可URLを取得
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE || ''
-      const response = await fetch(`${apiBase}/api/auth/google/login-url`, {
+      // Next.js API Route経由でGoogle認可URLを取得（CORS回避）
+      const response = await fetch('/api/auth/google/login-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ redirect_path: redirectPath }),
@@ -49,8 +48,19 @@ export function GoogleLoginButton({
         const errorData = await response.json().catch(() => ({}))
         if (response.status === 503) {
           setError('Google連携は現在準備中です')
+        } else if (response.status === 429) {
+          // Rate Limit - errorData.detail is {message, retry_after}
+          const retryAfter = errorData.detail?.retry_after
+          const retryMessage = retryAfter
+            ? `しばらく待ってから再試行してください（${Math.ceil(retryAfter)}秒後）`
+            : 'しばらく待ってから再試行してください'
+          setError(retryMessage)
         } else {
-          setError(errorData.detail || 'Googleログインの開始に失敗しました')
+          // detail can be string or object, handle both
+          const errorMessage = typeof errorData.detail === 'string'
+            ? errorData.detail
+            : errorData.detail?.message || 'Googleログインの開始に失敗しました'
+          setError(errorMessage)
         }
         setIsLoading(false)
         return
@@ -61,6 +71,9 @@ export function GoogleLoginButton({
       // stateをセッションストレージに保存（CSRF対策）
       sessionStorage.setItem('google_oauth_state', data.state)
       sessionStorage.setItem('google_oauth_redirect', redirectPath)
+
+      // リダイレクト先をクッキーに保存（サーバーサイドで読み取るため）
+      document.cookie = `google_oauth_redirect=${encodeURIComponent(redirectPath)}; path=/; max-age=600; SameSite=Lax`
 
       // Google認証ページにリダイレクト
       window.location.href = data.login_url
