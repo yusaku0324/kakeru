@@ -327,17 +327,31 @@ async def list_daily_slots(
     slots = _calculate_available_slots(shifts, reservations, buffer_minutes)
 
     # TherapistShift にデータがない場合は Availability テーブルにフォールバック
-    if not slots and profile_id:
-        logger.debug(
-            "No TherapistShift data for therapist %s on %s, falling back to Availability",
-            therapist_id,
-            target_date,
-        )
-        fallback_slots = await _fetch_availability_slots(
-            db, profile_id, therapist_id, target_date
-        )
-        if fallback_slots:
-            slots = fallback_slots
+    if not slots:
+        # profile_id が取得できている場合
+        if profile_id:
+            logger.debug(
+                "No TherapistShift data for therapist %s on %s, falling back to Availability",
+                therapist_id,
+                target_date,
+            )
+            fallback_slots = await _fetch_availability_slots(
+                db, profile_id, therapist_id, target_date
+            )
+            if fallback_slots:
+                slots = fallback_slots
+        else:
+            # Therapist レコードが見つからない場合、therapist_id が実際には profile_id の可能性がある
+            # （検索APIがshop_id/profile_idをtherapist_idとして返すケースに対応）
+            logger.debug(
+                "Therapist %s not found, trying therapist_id as profile_id",
+                therapist_id,
+            )
+            fallback_slots = await _fetch_availability_slots(
+                db, therapist_id, therapist_id, target_date
+            )
+            if fallback_slots:
+                slots = fallback_slots
 
     return [
         (
