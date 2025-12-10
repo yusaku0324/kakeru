@@ -2,6 +2,7 @@ import Link from 'next/link'
 
 import { Card } from '@/components/ui/Card'
 import { MagicLinkRequestForm } from './MagicLinkRequestForm'
+import { SocialLoginButtons } from './SocialLoginButtons'
 
 const BENEFITS = [
   '掲載情報の編集や即日のお知らせ投稿が可能',
@@ -50,6 +51,19 @@ export default function DashboardLoginPage() {
             </p>
           </div>
           <MagicLinkRequestForm />
+
+          {/* Social Login Section */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-neutral-200" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white px-4 text-neutral-500">または</span>
+            </div>
+          </div>
+
+          <SocialLoginButtons redirectPath="/dashboard" />
+
           <div className="rounded-2xl border border-dashed border-brand-primary/30 bg-brand-primary/5 px-4 py-3 text-xs text-brand-primaryDark">
             店舗アカウント未登録の方は、お手元の掲載申込メールまたはサポート窓口より発行依頼を行ってください。
           </div>

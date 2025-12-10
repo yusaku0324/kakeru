@@ -36,6 +36,7 @@ from .service import (
     _settings_candidates,
 )
 from .line import LineAuthService, LineAuthError, line_auth_service
+from .google import GoogleAuthService, GoogleAuthError, google_auth_service
 
 _T = TypeVar("_T")
 
@@ -340,6 +341,93 @@ async def line_connection_status(
     return LineConnectionStatusResponse(**status)
 
 
+# =============================================================================
+# Google OAuth Endpoints
+# =============================================================================
+
+
+class GoogleLoginUrlRequest(BaseModel):
+    redirect_path: str = "/therapist/settings"
+
+
+class GoogleLoginUrlResponse(BaseModel):
+    login_url: str
+    state: str
+
+
+class GoogleCallbackRequest(BaseModel):
+    code: str
+    state: str
+
+
+class GoogleConnectionStatusResponse(BaseModel):
+    connected: bool
+    email: str | None = None
+    display_name: str | None = None
+
+
+@router.post("/google/login-url", response_model=GoogleLoginUrlResponse)
+async def google_login_url(
+    payload: GoogleLoginUrlRequest,
+    _: None = Depends(rate_limit_auth),
+):
+    """Generate Google OAuth authorization URL.
+
+    Returns a URL that the client should redirect the user to for Google authentication.
+    """
+    try:
+        login_url, state = google_auth_service.generate_login_url(
+            redirect_path=payload.redirect_path
+        )
+        return GoogleLoginUrlResponse(login_url=login_url, state=state)
+    except GoogleAuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+
+
+@router.post("/google/callback")
+async def google_callback(
+    payload: GoogleCallbackRequest,
+    db: AsyncSession = Depends(get_session),
+    _: None = Depends(rate_limit_auth),
+) -> JSONResponse:
+    """Handle Google OAuth callback.
+
+    Exchanges authorization code for access token, fetches user profile,
+    and creates/updates user session.
+    """
+    try:
+        result = await google_auth_service.authenticate(
+            code=payload.code,
+            db=db,
+        )
+
+        response = JSONResponse(
+            {
+                "ok": True,
+                "scope": "site",
+                "is_new_user": result.is_new_user,
+                "user": {
+                    "id": str(result.user.id),
+                    "email": result.user.email,
+                    "display_name": result.user.display_name,
+                },
+            }
+        )
+        _set_session_cookie(response, result.session_token, scope="site")
+        return response
+    except GoogleAuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+
+
+@router.get("/google/status", response_model=GoogleConnectionStatusResponse)
+async def google_connection_status(
+    user: models.User = Depends(require_site_user),
+):
+    """Get Google connection status for the current user."""
+    status = await google_auth_service.get_connection_status(user)
+    return GoogleConnectionStatusResponse(**status)
+
+
 __all__ = [
     "router",
     "request_link",
@@ -354,4 +442,7 @@ __all__ = [
     "line_login_url",
     "line_callback",
     "line_connection_status",
+    "google_login_url",
+    "google_callback",
+    "google_connection_status",
 ]

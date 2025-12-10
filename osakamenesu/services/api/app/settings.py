@@ -164,6 +164,22 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("LINE_CALLBACK_URL", "LINE_REDIRECT_URI"),
     )
 
+    # Google OAuth Settings
+    google_client_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GOOGLE_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_ID"),
+    )
+    google_client_secret: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "GOOGLE_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET"
+        ),
+    )
+    google_callback_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GOOGLE_CALLBACK_URL", "GOOGLE_REDIRECT_URI"),
+    )
+
     @property
     def auth_session_cookie_name(self) -> str:
         """Backward compatibility accessor for dashboard session cookie name."""

@@ -306,6 +306,7 @@ def _request_json(
     params: Optional[Dict[str, Any]] = None,
     payload: Optional[Dict[str, Any]] = None,
     expected: Sequence[int] = (200, 201, 202, 204),
+    timeout: int = DEFAULT_TIMEOUT,
 ) -> Any:
     url = urljoin(f"{base}/", path.lstrip("/"))
     if params:
@@ -319,7 +320,7 @@ def _request_json(
 
     req = urllib_request.Request(url, data=data, headers=req_headers, method=method)
     try:
-        with urllib_request.urlopen(req, timeout=DEFAULT_TIMEOUT) as resp:
+        with urllib_request.urlopen(req, timeout=timeout) as resp:
             status = resp.getcode()
             body = resp.read()
     except urllib_error.HTTPError as exc:
@@ -782,7 +783,7 @@ def main(argv: Sequence[str]) -> int:
             if not args.skip_reservations and created_therapist_ids:
                 _add_reservations(base, headers, shop_id, created_therapist_ids)
 
-        # Trigger reindex
+        # Trigger reindex (use longer timeout as reindex can take a while)
         try:
             _request_json(
                 base,
@@ -791,6 +792,7 @@ def main(argv: Sequence[str]) -> int:
                 headers=headers,
                 params={},
                 expected=(200, 201, 202, 204),
+                timeout=120,  # 2 minutes for reindex
             )
             _log("reindex triggered")
         except Exception as exc:
