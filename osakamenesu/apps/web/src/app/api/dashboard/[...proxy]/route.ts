@@ -50,11 +50,13 @@ async function forward(request: NextRequest, context: RouteContext) {
 
   // Read body as ArrayBuffer to avoid stream issues on Vercel Edge
   const bodyBuffer = await response.arrayBuffer()
+  console.log('[Dashboard API proxy] body size:', bodyBuffer.byteLength)
 
   const proxyResponse = new NextResponse(bodyBuffer, {
     status: response.status,
     headers: responseHeaders,
   })
+  console.log('[Dashboard API proxy] returning response with body size:', bodyBuffer.byteLength)
 
   return proxyResponse
 }
