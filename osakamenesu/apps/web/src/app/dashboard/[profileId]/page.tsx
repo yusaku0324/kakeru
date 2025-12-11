@@ -173,6 +173,7 @@ export default async function DashboardHomePage({
       <DashboardReservationAvailabilityPreview
         availabilityDays={data.availability_calendar?.days}
         generatedAt={data.availability_calendar?.generated_at}
+        slotDurationMinutes={data.default_slot_duration_minutes}
       />
 
       <DashboardReservationDaySummary profileId={data.id} />

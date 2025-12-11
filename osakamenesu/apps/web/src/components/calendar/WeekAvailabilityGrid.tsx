@@ -12,6 +12,12 @@ import {
   type CalendarTime,
 } from './types'
 
+export enum CellState {
+  AVAILABLE = 'AVAILABLE',
+  UNAVAILABLE = 'UNAVAILABLE',
+  NOT_APPLICABLE = 'NOT_APPLICABLE',
+}
+
 export type SelectedSlot = {
   startAt: string
   endAt: string
@@ -27,14 +33,46 @@ type WeekAvailabilityGridProps = {
   timeFormatter: Intl.DateTimeFormat
   maxSelection?: number
   variant?: 'desktop' | 'mobile'
+  slotDurationMinutes?: number
 }
 
 const WEEKDAY_FORMATTER = getJaFormatter('weekday')
 const MONTH_FORMATTER = getJaFormatter('monthShort')
 
+/**
+ * ISO 文字列から時刻部分（HH:MM）を抽出
+ * タイムゾーンオフセット付きの場合も対応
+ */
+function extractTimeKey(isoString: string): string {
+  const timeMatch = isoString.match(/T(\d{2}):(\d{2})/)
+  if (timeMatch) {
+    return `${timeMatch[1]}:${timeMatch[2]}`
+  }
+  return isoString.slice(11, 16)
+}
+
 function buildSlotKey(day: AvailabilityDay, slot: AvailabilitySlot) {
-  const key = slot.timeKey ?? slot.start_at.slice(11, 16)
+  const key = slot.timeKey ?? extractTimeKey(slot.start_at)
   return `${day.date}-${key}`
+}
+
+function getCellState(
+  timeKey: string,
+  slot: AvailabilitySlot | undefined,
+  _slotDurationMinutes: number
+): CellState {
+  // スロットが存在しない場合は NOT_APPLICABLE
+  if (!slot) {
+    return CellState.NOT_APPLICABLE
+  }
+
+  // blocked ステータスの場合は UNAVAILABLE
+  if (slot.status === 'blocked') {
+    return CellState.UNAVAILABLE
+  }
+
+  // スロットが存在し、open または tentative なら AVAILABLE
+  return CellState.AVAILABLE
 }
 
 export function WeekAvailabilityGrid({
@@ -45,6 +83,7 @@ export function WeekAvailabilityGrid({
   timeFormatter,
   maxSelection = 3,
   variant = 'desktop',
+  slotDurationMinutes = 60,
 }: WeekAvailabilityGridProps) {
   const days = useMemo<AvailabilityDay[]>(
     () => (Array.isArray(daysInput) ? daysInput : []),
@@ -156,15 +195,28 @@ export function WeekAvailabilityGrid({
             <div className={timeCellClass}>{time.label}</div>
             {days.map((day) => {
               const slot = slotMap.get(`${day.date}-${time.key}`)
+              const cellState = getCellState(time.key, slot, slotDurationMinutes)
+
               // Compare using timestamp to handle format differences (selectedMap uses camelCase startAt, slot uses snake_case start_at)
-              const selectedNow = slot
+              const selectedNow = slot && cellState === CellState.AVAILABLE
                 ? selected.some((s) => {
                     const selectedTs = new Date(s.startAt).getTime()
                     const slotTs = new Date(slot.start_at).getTime()
                     return !Number.isNaN(selectedTs) && !Number.isNaN(slotTs) && selectedTs === slotTs
                   })
                 : false
-              if (!slot || slot.status === 'blocked') {
+
+              if (cellState === CellState.NOT_APPLICABLE) {
+                return (
+                  <div
+                    key={`${day.date}-${time.key}`}
+                    className="h-14 border-b border-white/65 bg-white/50"
+                    aria-hidden="true"
+                  />
+                )
+              }
+
+              if (cellState === CellState.UNAVAILABLE) {
                 return (
                   <div
                     key={`${day.date}-${time.key}`}
@@ -178,9 +230,9 @@ export function WeekAvailabilityGrid({
                 )
               }
 
-              const statusMeta = AVAILABILITY_STATUS_META[slot.status]
+              const statusMeta = AVAILABILITY_STATUS_META[slot!.status]
               const disabled = !selectedNow && selected.length >= maxSelection
-              const iconClass = buildIconClass(slot.status, selectedNow)
+              const iconClass = buildIconClass(slot!.status, selectedNow)
 
               return (
                 <button
@@ -188,7 +240,7 @@ export function WeekAvailabilityGrid({
                   type="button"
                   onClick={() => {
                     if (disabled) return
-                    onToggle(day, slot)
+                    onToggle(day, slot!)
                   }}
                   disabled={disabled}
                   className={clsx(
@@ -197,10 +249,10 @@ export function WeekAvailabilityGrid({
                     disabled && !selectedNow && 'cursor-not-allowed opacity-60',
                   )}
                   aria-pressed={selectedNow}
-                  aria-label={`${day.label} ${timeFormatter.format(new Date(slot.start_at))} ${statusMeta.icon} ${statusMeta.label}`}
+                  aria-label={`${day.label} ${timeFormatter.format(new Date(slot!.start_at))} ${statusMeta.icon} ${statusMeta.label}`}
                 >
                   <span className={iconClass} aria-hidden>
-                    {slot.status === 'open' ? '●' : statusMeta.icon}
+                    {slot!.status === 'open' ? '●' : statusMeta.icon}
                   </span>
                 </button>
               )

@@ -34,6 +34,7 @@ type ReservationBookingSectionProps = {
   onRemoveSlot: (startAt: string) => void
   onEnsureSelection: () => void
   onMobileAdvance?: () => void
+  slotDurationMinutes?: number
 }
 
 export function ReservationBookingSection({
@@ -56,6 +57,7 @@ export function ReservationBookingSection({
   onRemoveSlot,
   onEnsureSelection,
   onMobileAdvance,
+  slotDurationMinutes,
 }: ReservationBookingSectionProps) {
   const containerClass = clsx(
     variant === 'form' && formTab === 'info' ? 'hidden lg:flex lg:flex-col' : 'flex flex-col',
@@ -111,6 +113,7 @@ export function ReservationBookingSection({
             onToggle={(day, slot) => onToggleSlot(day as NormalizedDay, slot)}
             timeFormatter={timeFormatter}
             legendItems={RESERVATION_LEGEND_ITEMS}
+            slotDurationMinutes={slotDurationMinutes}
           />
         </div>
       </div>

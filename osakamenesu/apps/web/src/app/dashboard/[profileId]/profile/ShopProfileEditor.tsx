@@ -210,6 +210,9 @@ export function ShopProfileEditor({
   const [statusValue, setStatusValue] = useState<'draft' | 'published' | 'hidden'>(
     (initialData.status as 'draft' | 'published' | 'hidden' | undefined) ?? 'draft',
   )
+  const [defaultSlotDuration, setDefaultSlotDuration] = useState(
+    initialData.default_slot_duration_minutes?.toString() ?? '',
+  )
   const [contact, setContact] = useState<ContactDraft>(normalizeContact(initialData.contact))
   const [photos, setPhotos] = useState<string[]>(
     initialData.photos && initialData.photos.length ? [...initialData.photos] : [],
@@ -250,6 +253,7 @@ export function ShopProfileEditor({
     setCatchCopy(data.catch_copy ?? '')
     setAddress(data.address ?? '')
     setStatusValue((data.status as 'draft' | 'published' | 'hidden' | undefined) ?? 'draft')
+    setDefaultSlotDuration(data.default_slot_duration_minutes?.toString() ?? '')
     setContact(normalizeContact(data.contact))
     setPhotos(data.photos && data.photos.length ? [...data.photos] : [])
     setMenus(data.menus && data.menus.length ? data.menus.map(toMenuDraft) : [emptyMenu()])
@@ -387,6 +391,8 @@ export function ShopProfileEditor({
         }
       : null
 
+    const slotDurationValue = toInt(defaultSlotDuration, 0)
+
     const payload: DashboardShopProfileUpdatePayload = {
       updated_at: updatedAt,
       name: trimmedName,
@@ -403,6 +409,7 @@ export function ShopProfileEditor({
       contact: contactPayload,
       menus: normalizedMenus,
       status: statusValue,
+      default_slot_duration_minutes: slotDurationValue || null,
     }
 
     return payload
@@ -595,6 +602,22 @@ export function ShopProfileEditor({
                 min={0}
                 placeholder="例: 16000"
               />
+            </InputField>
+            <InputField label="デフォルト予約枠時間" hint="分（空欄の場合は60分）">
+              <select
+                value={defaultSlotDuration}
+                onChange={(event) => setDefaultSlotDuration(event.target.value)}
+                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+              >
+                <option value="">デフォルト (60分)</option>
+                <option value="30">30分</option>
+                <option value="45">45分</option>
+                <option value="60">60分</option>
+                <option value="90">90分</option>
+                <option value="120">120分</option>
+                <option value="150">150分</option>
+                <option value="180">180分</option>
+              </select>
             </InputField>
           </div>
         </SectionCard>

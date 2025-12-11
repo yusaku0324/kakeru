@@ -862,6 +862,8 @@ class DashboardShopProfileResponse(BaseModel):
     staff: List[DashboardShopStaff] = Field(default_factory=list)
     updated_at: datetime
     status: Optional[str] = None
+    availability_calendar: Optional[AvailabilityCalendar] = None
+    default_slot_duration_minutes: Optional[int] = None
 
 
 class DashboardShopProfileCreatePayload(BaseModel):
@@ -895,6 +897,7 @@ class DashboardShopProfileUpdatePayload(BaseModel):
     menus: Optional[List[DashboardShopMenu]] = None
     staff: Optional[List[DashboardShopStaff]] = None
     status: Optional[str] = None
+    default_slot_duration_minutes: Optional[int] = None
 
 
 class DashboardReservationPreferredSlot(BaseModel):

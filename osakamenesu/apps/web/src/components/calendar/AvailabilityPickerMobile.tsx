@@ -10,6 +10,7 @@ export type AvailabilityPickerMobileProps = {
   onToggle: (day: AvailabilityDay, slot: AvailabilitySlot) => void
   timeFormatter: Intl.DateTimeFormat
   maxSelection?: number
+  slotDurationMinutes?: number
 }
 
 export function AvailabilityPickerMobile({
@@ -19,6 +20,7 @@ export function AvailabilityPickerMobile({
   onToggle,
   timeFormatter,
   maxSelection,
+  slotDurationMinutes,
 }: AvailabilityPickerMobileProps) {
   if (!Array.isArray(timeline)) {
     return null
@@ -33,6 +35,7 @@ export function AvailabilityPickerMobile({
         timeFormatter={timeFormatter}
         maxSelection={maxSelection}
         variant="mobile"
+        slotDurationMinutes={slotDurationMinutes}
       />
     </div>
   )

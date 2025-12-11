@@ -37,6 +37,7 @@ type UseReservationOverlayStateParams = {
   availabilityDays?: ReservationOverlayProps['availabilityDays']
   fallbackAvailability?: AvailabilityTemplate
   defaultStart?: string | null
+  slotDurationMinutes?: number | null
 }
 
 export type ReservationOverlayState = {
@@ -66,6 +67,7 @@ export function useReservationOverlayState({
   availabilityDays,
   fallbackAvailability,
   defaultStart,
+  slotDurationMinutes,
 }: UseReservationOverlayStateParams): ReservationOverlayState {
   const [formOpen, setFormOpen] = useState(false)
   const [formTab, setFormTab] = useState<OverlayFormTab>('schedule')
@@ -123,8 +125,10 @@ export function useReservationOverlayState({
   }, [availabilitySource, dayFormatter, todayIso])
 
   const timelineTimes = useMemo(
-    () => buildTimelineTimes(normalizedAvailability),
-    [normalizedAvailability],
+    () => buildTimelineTimes(normalizedAvailability, {
+      slotDurationMinutes: slotDurationMinutes ?? undefined,
+    }),
+    [normalizedAvailability, slotDurationMinutes],
   )
 
   const schedulePages = useMemo(

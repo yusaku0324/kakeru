@@ -10,6 +10,7 @@ export type AvailabilityPickerDesktopProps = {
   onToggle: (day: AvailabilityDay, slot: AvailabilitySlot) => void
   timeFormatter: Intl.DateTimeFormat
   maxSelection?: number
+  slotDurationMinutes?: number
 }
 
 export function AvailabilityPickerDesktop({
@@ -19,6 +20,7 @@ export function AvailabilityPickerDesktop({
   onToggle,
   timeFormatter,
   maxSelection,
+  slotDurationMinutes,
 }: AvailabilityPickerDesktopProps) {
   if (!Array.isArray(timeline)) {
     return null
@@ -32,6 +34,7 @@ export function AvailabilityPickerDesktop({
       timeFormatter={timeFormatter}
       maxSelection={maxSelection}
       variant="desktop"
+      slotDurationMinutes={slotDurationMinutes}
     />
   )
 }

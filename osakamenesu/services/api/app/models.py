@@ -109,6 +109,11 @@ class Profile(Base):
     buffer_minutes: Mapped[int] = mapped_column(
         Integer, default=0, nullable=False, server_default="0"
     )
+    default_slot_duration_minutes: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Default slot duration in minutes (60, 90, 120, etc)",
+    )
     status: Mapped[str] = mapped_column(StatusProfile, default="draft", index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, nullable=False

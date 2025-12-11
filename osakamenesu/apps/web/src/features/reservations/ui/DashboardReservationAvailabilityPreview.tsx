@@ -15,15 +15,18 @@ type DashboardReservationAvailabilityPreviewProps = {
   availabilityDays?: ReservationOverlayProps['availabilityDays']
   generatedAt?: string | null
   className?: string
+  slotDurationMinutes?: number | null
 }
 
 export function DashboardReservationAvailabilityPreview({
   availabilityDays,
   generatedAt,
   className,
+  slotDurationMinutes,
 }: DashboardReservationAvailabilityPreviewProps) {
   const state = useReservationOverlayState({
     availabilityDays,
+    slotDurationMinutes,
   })
   const updatedLabel = useMemo(() => {
     if (!generatedAt) return null

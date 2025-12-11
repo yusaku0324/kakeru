@@ -24,6 +24,7 @@ type ReservationAvailabilitySectionProps = {
   timeFormatter: Intl.DateTimeFormat
   legendItems: readonly LegendItem[]
   showLegend?: boolean
+  slotDurationMinutes?: number
 }
 
 export function ReservationAvailabilitySection({
@@ -35,6 +36,7 @@ export function ReservationAvailabilitySection({
   timeFormatter,
   legendItems,
   showLegend = true,
+  slotDurationMinutes,
 }: ReservationAvailabilitySectionProps) {
   return (
     <div className={clsx('space-y-6', className)}>
@@ -45,6 +47,7 @@ export function ReservationAvailabilitySection({
           selected={selected}
           onToggle={onToggle}
           timeFormatter={timeFormatter}
+          slotDurationMinutes={slotDurationMinutes}
         />
       </div>
       <div className="lg:hidden">
@@ -54,6 +57,7 @@ export function ReservationAvailabilitySection({
           selected={selected}
           onToggle={onToggle}
           timeFormatter={timeFormatter}
+          slotDurationMinutes={slotDurationMinutes}
         />
       </div>
       {showLegend ? (

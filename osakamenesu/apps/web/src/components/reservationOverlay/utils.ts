@@ -6,50 +6,60 @@ type BuildTimelineOptions = {
   intervalMinutes?: number
   fallbackStartHour?: number
   fallbackEndHour?: number
+  slotDurationMinutes?: number
+}
+
+/**
+ * JST のタイムゾーンオフセット付き ISO 文字列から時刻部分（HH:MM）を抽出
+ * 例: "2024-12-12T09:00:00+09:00" -> "09:00"
+ */
+function extractTimeFromIso(isoString: string): string {
+  // ISO文字列から時刻部分を抽出（タイムゾーンを考慮）
+  const timeMatch = isoString.match(/T(\d{2}):(\d{2})/)
+  if (timeMatch) {
+    return `${timeMatch[1]}:${timeMatch[2]}`
+  }
+  // フォールバック: 11-16文字目を使用
+  return isoString.slice(11, 16)
 }
 
 export function buildTimelineTimes(
   days: NormalizedDay[],
-  { intervalMinutes = 30, fallbackStartHour = 10, fallbackEndHour = 22 }: BuildTimelineOptions = {},
+  { intervalMinutes = 30, fallbackStartHour = 10, fallbackEndHour = 22, slotDurationMinutes = 60 }: BuildTimelineOptions = {},
 ): TimelineEntry[] {
   if (!days.length) {
-    return buildFallbackTimes({ intervalMinutes, fallbackStartHour, fallbackEndHour })
+    return buildFallbackTimes({ intervalMinutes, fallbackStartHour, fallbackEndHour, slotDurationMinutes })
   }
 
-  const activeMinutes: number[] = []
+  // スロットの開始時間を収集（店舗の slotDurationMinutes 刻みで）
+  const slotStartMinutes = new Set<number>()
 
   days.forEach((day) => {
     day.slots.forEach((slot) => {
-      const startKey = slot.timeKey ?? slot.start_at.slice(11, 16)
+      // timeKey があればそれを使用、なければ start_at から抽出
+      const startKey = slot.timeKey ?? extractTimeFromIso(slot.start_at)
       const [hourStr, minuteStr] = startKey.split(':')
       const startHour = Number.parseInt(hourStr ?? '', 10)
       const startMinute = Number.parseInt(minuteStr ?? '', 10)
       if (Number.isNaN(startHour) || Number.isNaN(startMinute)) return
 
       const startMinutes = startHour * 60 + startMinute
-      const durationMinutes = Math.max(
-        intervalMinutes,
-        Math.round(
-          (new Date(slot.end_at).getTime() - new Date(slot.start_at).getTime()) / 60000,
-        ) || 0,
-      )
-      const endMinutes = Math.min(24 * 60, startMinutes + durationMinutes)
-      for (let minutes = startMinutes; minutes < endMinutes; minutes += intervalMinutes) {
-        activeMinutes.push(minutes)
-      }
+      slotStartMinutes.add(startMinutes)
     })
   })
 
-  if (!activeMinutes.length) {
-    return buildFallbackTimes({ intervalMinutes, fallbackStartHour, fallbackEndHour })
+  if (!slotStartMinutes.size) {
+    return buildFallbackTimes({ intervalMinutes, fallbackStartHour, fallbackEndHour, slotDurationMinutes })
   }
 
-  activeMinutes.sort((a, b) => a - b)
-  const minMinutes = Math.max(0, activeMinutes[0] - intervalMinutes)
-  const maxMinutes = Math.min(24 * 60, activeMinutes[activeMinutes.length - 1] + 2 * intervalMinutes)
+  // スロット開始時間をソート
+  const sortedMinutes = Array.from(slotStartMinutes).sort((a, b) => a - b)
+  const minMinutes = Math.max(0, sortedMinutes[0] - slotDurationMinutes)
+  const maxMinutes = Math.min(24 * 60, sortedMinutes[sortedMinutes.length - 1] + slotDurationMinutes)
 
+  // slotDurationMinutes 刻みで時間軸を生成
   const times: TimelineEntry[] = []
-  for (let minutes = minMinutes; minutes <= maxMinutes; minutes += intervalMinutes) {
+  for (let minutes = minMinutes; minutes <= maxMinutes; minutes += slotDurationMinutes) {
     const hour = Math.floor(minutes / 60)
     const minute = minutes % 60
     const key = `${pad(hour)}:${pad(minute)}`
@@ -161,9 +171,12 @@ function buildFallbackTimes({
   intervalMinutes,
   fallbackStartHour,
   fallbackEndHour,
+  slotDurationMinutes,
 }: Required<BuildTimelineOptions>): TimelineEntry[] {
   const entries: TimelineEntry[] = []
-  for (let minutes = fallbackStartHour * 60; minutes <= fallbackEndHour * 60; minutes += intervalMinutes) {
+  // slotDurationMinutes を使用して時間軸を生成（店舗設定に合わせる）
+  const step = slotDurationMinutes || intervalMinutes
+  for (let minutes = fallbackStartHour * 60; minutes <= fallbackEndHour * 60; minutes += step) {
     const hour = Math.floor(minutes / 60)
     const minute = minutes % 60
     const key = `${pad(hour)}:${pad(minute)}`

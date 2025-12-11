@@ -68,6 +68,7 @@ export type DashboardShopProfile = {
   availability_calendar?: DashboardAvailabilityCalendar | null
   updated_at?: string
   status?: string | null
+  default_slot_duration_minutes?: number | null
 }
 
 export type DashboardShopRequestOptions = {
@@ -100,6 +101,7 @@ export type DashboardShopProfileUpdatePayload = {
   menus?: DashboardShopMenu[]
   staff?: DashboardShopStaff[]
   status?: string
+  default_slot_duration_minutes?: number | null
 }
 
 export type DashboardShopProfileCreatePayload = {

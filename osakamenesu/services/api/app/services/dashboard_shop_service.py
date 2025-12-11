@@ -180,7 +180,7 @@ class DashboardShopService:
 
         reindex_fn = reindex or self._reindex_profile
         await reindex_fn(db, profile)
-        response = self.serialize_profile(profile)
+        response = self.serialize_profile(profile, availability_calendar=None)
         record_fn = recorder or self._record_change
         await record_fn(
             request,
@@ -198,8 +198,21 @@ class DashboardShopService:
         profile_id: UUID,
         db: AsyncSession,
     ) -> DashboardShopProfileResponse:
+        from ..domains.site.services.shop.availability import fetch_availability
+        from datetime import date, timedelta
+
         profile = await self.get_profile(db=db, profile_id=profile_id)
-        return self.serialize_profile(profile)
+
+        # Fetch availability calendar for the next 7 days
+        today = date.today()
+        end_date = today + timedelta(days=7)
+        availability_calendar = await fetch_availability(
+            db=db, shop_id=profile_id, start_date=today, end_date=end_date
+        )
+
+        return self.serialize_profile(
+            profile, availability_calendar=availability_calendar
+        )
 
     async def update_profile(
         self,
@@ -217,13 +230,15 @@ class DashboardShopService:
         current_updated_at = ensure_aware_datetime(profile.updated_at)
         incoming_updated_at = ensure_aware_datetime(payload.updated_at)
         if incoming_updated_at != current_updated_at:
-            current = self.serialize_profile(profile)
+            current = self.serialize_profile(profile, availability_calendar=None)
             raise DashboardShopError(
                 HTTPStatus.CONFLICT,
                 {"current": current.model_dump(mode="json")},
             )
 
-        before_state = self.serialize_profile(profile).model_dump()
+        before_state = self.serialize_profile(
+            profile, availability_calendar=None
+        ).model_dump()
 
         if payload.name is not None:
             normalized = strip_or_none(payload.name)
@@ -274,6 +289,19 @@ class DashboardShopService:
                 )
             profile.status = status_value.lower()
 
+        if payload.default_slot_duration_minutes is not None:
+            # Validate slot duration (must be positive, typically 60, 90, 120 minutes)
+            duration = payload.default_slot_duration_minutes
+            if duration < 30 or duration > 240:
+                raise DashboardShopError(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "field": "default_slot_duration_minutes",
+                        "message": "スロット時間は30分から240分の間で設定してください。",
+                    },
+                )
+            profile.default_slot_duration_minutes = duration
+
         contact_json = dict(profile.contact_json or {})
         if payload.contact is not None:
             update_contact_json(contact_json, payload.contact)
@@ -311,7 +339,7 @@ class DashboardShopService:
         reindex_fn = reindex or self._reindex_profile
         await reindex_fn(db, profile)
 
-        response = self.serialize_profile(profile)
+        response = self.serialize_profile(profile, availability_calendar=None)
         record_fn = recorder or self._record_change
         await record_fn(
             request,
@@ -423,7 +451,7 @@ class DashboardShopService:
         return members
 
     def serialize_profile(
-        self, profile: models.Profile
+        self, profile: models.Profile, availability_calendar=None
     ) -> DashboardShopProfileResponse:
         contact_json = profile.contact_json or {}
         contact = extract_contact(contact_json)
@@ -451,6 +479,8 @@ class DashboardShopService:
             staff=staff,
             updated_at=profile.updated_at,
             status=profile.status,
+            availability_calendar=availability_calendar,
+            default_slot_duration_minutes=profile.default_slot_duration_minutes,
         )
 
     async def reindex_profile(self, db: AsyncSession, profile: models.Profile) -> None:

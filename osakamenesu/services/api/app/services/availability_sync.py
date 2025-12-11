@@ -8,7 +8,7 @@ TherapistShift から Availability テーブルへの同期ユーティリティ
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone, time as dt_time
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -19,6 +19,49 @@ from .. import models
 logger = logging.getLogger(__name__)
 
 JST = timezone(timedelta(hours=9))
+UTC = timezone.utc
+
+
+def get_default_slot_duration_minutes(profile: models.Profile | None) -> int:
+    """
+    店舗のデフォルトスロット時間を取得する。
+
+    Args:
+        profile: 店舗のProfileオブジェクト
+
+    Returns:
+        スロット時間（分）。デフォルトは60分。
+    """
+    if profile and profile.default_slot_duration_minutes:
+        return profile.default_slot_duration_minutes
+
+    # 将来的にメニューから最短コース時間を取得する場合はここに実装
+    # duration = get_min_course_duration_from_menu(profile.id)
+    # if duration:
+    #     return duration
+
+    # デフォルトは60分
+    return 60
+
+
+def _ensure_jst(dt: datetime) -> datetime:
+    """
+    datetime を JST として解釈する。
+    naive な datetime は JST とみなし、aware な datetime は JST に変換する。
+    """
+    if dt.tzinfo is None:
+        # naive datetime は JST として扱う
+        return dt.replace(tzinfo=JST)
+    return dt.astimezone(JST)
+
+
+def _format_slot_time_jst(dt: datetime) -> str:
+    """
+    datetime を JST の ISO 形式文字列に変換する。
+    フロントエンドでの解析を容易にするため、タイムゾーン情報を含める。
+    """
+    jst_dt = _ensure_jst(dt)
+    return jst_dt.isoformat()
 
 
 async def sync_availability_for_date(
@@ -52,6 +95,11 @@ async def sync_availability_for_date(
         )
         await db.execute(del_stmt)
 
+        # 店舗のProfileを取得
+        profile_stmt = select(models.Profile).where(models.Profile.id == shop_id)
+        profile_res = await db.execute(profile_stmt)
+        profile = profile_res.scalar_one_or_none()
+
         if not shifts:
             logger.debug(
                 "No available shifts for shop %s on %s, cleared availability",
@@ -68,26 +116,48 @@ async def sync_availability_for_date(
         therapist_res = await db.execute(therapist_stmt)
         therapists = {t.id: t for t in therapist_res.scalars().all()}
 
+        # 店舗のデフォルトスロット時間を取得
+        slot_duration_minutes = get_default_slot_duration_minutes(profile)
+        slot_delta = timedelta(minutes=slot_duration_minutes)
+
         # スロットを構築
         slots = []
         for shift in shifts:
             therapist = therapists.get(shift.therapist_id)
             staff_name = therapist.name if therapist else None
 
-            # 1時間刻みでスロットを生成
-            current = shift.start_at
-            while current < shift.end_at:
-                slot_end = min(current + timedelta(hours=1), shift.end_at)
+            # シフトの開始・終了時間を JST として解釈
+            shift_start_jst = _ensure_jst(shift.start_at)
+            shift_end_jst = _ensure_jst(shift.end_at)
+
+            logger.debug(
+                "Processing shift: therapist=%s, start=%s, end=%s (JST: %s - %s)",
+                shift.therapist_id,
+                shift.start_at,
+                shift.end_at,
+                shift_start_jst,
+                shift_end_jst,
+            )
+
+            # 指定された時間刻みでスロットを生成
+            # 修正: slot_start が shift.end_at より前であれば予約可能
+            # （slot_end が shift.end_at を超えても、slot_start が範囲内なら OK）
+            current = shift_start_jst
+            while current < shift_end_jst:
+                slot_end = current + slot_delta
+
+                # スロット開始時間がシフト終了時間より前なら予約可能
+                # slot_end > shift_end_jst でも、current < shift_end_jst なら許可
                 slots.append(
                     {
-                        "start_at": current.isoformat(),
-                        "end_at": slot_end.isoformat(),
+                        "start_at": _format_slot_time_jst(current),
+                        "end_at": _format_slot_time_jst(slot_end),
                         "status": "open",
                         "staff_name": staff_name,
                         "therapist_id": str(shift.therapist_id),
                     }
                 )
-                current = slot_end
+                current = current + slot_delta
 
         # 今日かどうか判定
         now_utc = datetime.now(timezone.utc)
