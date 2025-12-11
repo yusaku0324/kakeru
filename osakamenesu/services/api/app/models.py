@@ -987,12 +987,3 @@ class TherapistShift(Base):
             "therapist_id", "start_at", "end_at", name="uq_therapist_shifts_slot"
         ),
     )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "therapist_id",
-            "start_at",
-            "end_at",
-            name="uq_guest_reservations_therapist_slot",
-        ),
-    )

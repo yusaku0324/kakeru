@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+
+from app.utils.datetime import JST
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -37,10 +39,11 @@ def teardown_function() -> None:
 
 
 def _shift(day: date, start_hour: int, end_hour: int) -> SimpleNamespace:
-    start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(
+    """Create a shift in JST timezone (matching production behavior)."""
+    start = datetime.combine(day, datetime.min.time(), tzinfo=JST) + timedelta(
         hours=start_hour
     )
-    end = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(
+    end = datetime.combine(day, datetime.min.time(), tzinfo=JST) + timedelta(
         hours=end_hour
     )
     return SimpleNamespace(
@@ -56,10 +59,11 @@ def _shift(day: date, start_hour: int, end_hour: int) -> SimpleNamespace:
 def _reservation(
     day: date, start_hour: int, end_hour: int, status: str = "confirmed"
 ) -> SimpleNamespace:
-    start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(
+    """Create a reservation in JST timezone (matching production behavior)."""
+    start = datetime.combine(day, datetime.min.time(), tzinfo=JST) + timedelta(
         hours=start_hour
     )
-    end = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc) + timedelta(
+    end = datetime.combine(day, datetime.min.time(), tzinfo=JST) + timedelta(
         hours=end_hour
     )
     return SimpleNamespace(start_at=start, end_at=end, status=status)
@@ -187,9 +191,6 @@ def test_slots_reopen_after_cancel(monkeypatch: pytest.MonkeyPatch) -> None:
     assert slots[0]["start_at"].startswith("2025-01-03T10:00")
 
 
-@pytest.mark.xfail(
-    reason="Timezone conversion issue: UTC to JST shifts end_at to next day"
-)
 def test_shift_with_different_time_returns_correct_slots(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -222,9 +223,6 @@ def test_shift_with_different_time_returns_correct_slots(
     assert slots[0]["end_at"].startswith("2025-01-05T18:00")
 
 
-@pytest.mark.xfail(
-    reason="Timezone conversion issue: UTC to JST shifts end_at to next day"
-)
 def test_availability_fallback_to_availability_table(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -242,13 +240,13 @@ def test_availability_fallback_to_availability_table(
     async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
         return []
 
-    # Mock _fetch_availability_slots to return fallback data with different time (13:00-17:00)
-    fallback_start = datetime.combine(
-        day, datetime.min.time(), tzinfo=timezone.utc
-    ) + timedelta(hours=13)
-    fallback_end = datetime.combine(
-        day, datetime.min.time(), tzinfo=timezone.utc
-    ) + timedelta(hours=17)
+    # Mock _fetch_availability_slots to return fallback data with different time (13:00-17:00 JST)
+    fallback_start = datetime.combine(day, datetime.min.time(), tzinfo=JST) + timedelta(
+        hours=13
+    )
+    fallback_end = datetime.combine(day, datetime.min.time(), tzinfo=JST) + timedelta(
+        hours=17
+    )
 
     async def fake_fetch_availability_slots(db, pid, therapist_id, target_date):
         # Only return data when profile_id matches
