@@ -44,7 +44,7 @@ async def test_assign_for_free_prefers_base_staff(monkeypatch, sample_rows):
     # 2 candidates, base_staff_id matches second => score 0.9 vs 0.5
     base_id = sample_rows[1][0]
 
-    async def _avail(db, therapist_id, start_at, end_at):
+    async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
     monkeypatch.setattr(domain, "is_available", _avail)
@@ -64,7 +64,7 @@ async def test_assign_for_free_prefers_base_staff(monkeypatch, sample_rows):
 
 @pytest.mark.asyncio
 async def test_assign_for_free_no_available(monkeypatch, sample_rows):
-    async def _avail(db, therapist_id, start_at, end_at):
+    async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return False, {"rejected_reasons": ["overlap_existing_reservation"]}
 
     monkeypatch.setattr(domain, "is_available", _avail)

@@ -275,10 +275,11 @@ async def create_guest_reservation(
         rejected.extend(check_deadline(start_at, now, shop_settings=None))
 
     # 指名予約の場合のみ is_available をチェック（フリーは v1 ではスキップ。将来は assign_for_free 内で可否判定を入れる TODO）
+    # lock=True でレースコンディションを防ぐ（SELECT FOR UPDATE）
     if therapist_id and start_at and end_at:
         try:
             available, availability_debug = await is_available(
-                db, therapist_id, start_at, end_at
+                db, therapist_id, start_at, end_at, lock=True
             )
         except Exception:  # pragma: no cover - defensive fail-soft
             available = False

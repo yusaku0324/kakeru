@@ -74,7 +74,7 @@ async def test_create_cancel_and_recreate(monkeypatch: pytest.MonkeyPatch):
     ) -> bool:
         return a_start < b_end and b_start < a_end
 
-    async def fake_is_available(db, tid, start_at, end_at):
+    async def fake_is_available(db, tid, start_at, end_at, lock=False):
         if str(tid) != str(therapist_id):
             return False, {"rejected_reasons": ["no_shift"]}
         if not (shift_start <= start_at and end_at <= shift_end):

@@ -15,7 +15,7 @@ from sqlalchemy.orm import joinedload
 from ...models import GuestReservation, TherapistShift, Therapist, Profile, Availability
 from ...db import get_session
 from .services.shop.availability import convert_slots
-from ...utils.datetime import ensure_jst_datetime
+from ...utils.datetime import ensure_jst_datetime, JST
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +57,19 @@ async def has_overlapping_reservation(
     therapist_id: UUID,
     start_at: datetime,
     end_at: datetime,
+    *,
+    lock: bool = False,
 ) -> bool:
-    """指定時間帯に重複する予約があるかチェック。"""
+    """指定時間帯に重複する予約があるかチェック。
+
+    Args:
+        db: データベースセッション
+        therapist_id: セラピストID
+        start_at: 開始時刻
+        end_at: 終了時刻
+        lock: Trueの場合、SELECT FOR UPDATEでロックを取得（レースコンディション対策）
+              SQLiteなどFOR UPDATEをサポートしないDBでは自動的にスキップ
+    """
     stmt = select(GuestReservation).where(
         GuestReservation.therapist_id == therapist_id,
         GuestReservation.status.in_(("pending", "confirmed")),
@@ -67,6 +78,14 @@ async def has_overlapping_reservation(
             GuestReservation.end_at > start_at,
         ),
     )
+    if lock:
+        # SQLite等ではFOR UPDATEがサポートされないため、例外時はロックなしで再実行
+        try:
+            result = await db.execute(stmt.with_for_update())
+            return result.scalar_one_or_none() is not None
+        except Exception:
+            # FOR UPDATEが失敗した場合はロックなしで実行
+            pass
     result = await db.execute(stmt)
     return result.scalar_one_or_none() is not None
 
@@ -77,6 +96,8 @@ async def is_available(
     start_at: datetime,
     end_at: datetime,
     check_buffer: bool = True,
+    *,
+    lock: bool = False,
 ) -> tuple[bool, dict[str, Any]]:
     """シフトと既存予約を見て予約可否を判定する (fail-soft)。
 
@@ -84,6 +105,9 @@ async def is_available(
     - シフト境界: バッファなしで予約時間がシフト内に収まっているかチェック
     - 休憩との重なり: バッファ込みでチェック（休憩の前後にバッファを確保）
     - 既存予約との重なり: バッファ込みでチェック（予約と予約の間にバッファを確保）
+
+    Args:
+        lock: Trueの場合、予約重複チェック時にSELECT FOR UPDATEでロックを取得（レースコンディション対策）
     """
     if not start_at or not end_at or start_at >= end_at:
         return False, {"rejected_reasons": ["invalid_time_range"]}
@@ -120,8 +144,9 @@ async def is_available(
                 return False, {"rejected_reasons": ["on_break"]}
 
         # 3) 既存予約との重なり（バッファ込みでチェック）
+        # lock=Trueの場合、SELECT FOR UPDATEでロックを取得してレースコンディションを防ぐ
         if await has_overlapping_reservation(
-            db, therapist_id, buffered_start, buffered_end
+            db, therapist_id, buffered_start, buffered_end, lock=lock
         ):
             return False, {"rejected_reasons": ["overlap_existing_reservation"]}
 
@@ -162,9 +187,17 @@ class AvailabilitySlotsResponse(BaseModel):
     slots: list[AvailabilitySlot]
 
 
+def _ensure_aware(dt: datetime) -> datetime:
+    """Ensure datetime is timezone-aware. Naive datetimes are treated as JST."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=JST)
+    return dt
+
+
 def _parse_breaks(
     break_slots: Iterable[dict[str, Any]] | None,
 ) -> list[tuple[datetime, datetime]]:
+    """Parse break slots and ensure all datetimes are timezone-aware (JST if naive)."""
     parsed: list[tuple[datetime, datetime]] = []
     for br in break_slots or []:
         start_raw = br.get("start_at")
@@ -182,6 +215,9 @@ def _parse_breaks(
                 if isinstance(end_raw, datetime)
                 else datetime.fromisoformat(end_raw)
             )
+            # Ensure timezone-aware (naive datetimes are treated as JST)
+            start_dt = _ensure_aware(start_dt)
+            end_dt = _ensure_aware(end_dt)
         except Exception:
             continue
         if start_dt >= end_dt:
@@ -265,7 +301,8 @@ async def _fetch_reservations(
 
 
 def _day_window(target_date: date) -> tuple[datetime, datetime]:
-    start = datetime.combine(target_date, time.min).replace(tzinfo=timezone.utc)
+    """Return the JST day window [00:00 JST, 24:00 JST) for the target date."""
+    start = datetime.combine(target_date, time.min).replace(tzinfo=JST)
     end = start + timedelta(days=1)
     return start, end
 
@@ -279,7 +316,10 @@ def _calculate_available_slots(
     for shift in shifts:
         if shift.availability_status != "available":
             continue
-        base_intervals = [(shift.start_at, shift.end_at)]
+        # Ensure shift times are timezone-aware (JST if naive)
+        shift_start = _ensure_aware(shift.start_at)
+        shift_end = _ensure_aware(shift.end_at)
+        base_intervals = [(shift_start, shift_end)]
         breaks = _parse_breaks(shift.break_slots)
         base_minus_breaks = _subtract_intervals(base_intervals, breaks)
         intervals.extend(base_minus_breaks)
@@ -287,10 +327,14 @@ def _calculate_available_slots(
     if not intervals:
         return []
 
-    # Apply buffer to reservations
+    # Apply buffer to reservations (ensure timezone-aware)
     buffer_delta = timedelta(minutes=buffer_minutes)
     subtracts = [
-        (r.start_at - buffer_delta, r.end_at + buffer_delta) for r in reservations
+        (
+            _ensure_aware(r.start_at) - buffer_delta,
+            _ensure_aware(r.end_at) + buffer_delta,
+        )
+        for r in reservations
     ]
     open_intervals = _subtract_intervals(intervals, subtracts)
     return _normalize_intervals(open_intervals)
@@ -386,17 +430,9 @@ async def list_daily_slots(
                 db, profile_id, therapist_id, target_date
             )
             if fallback_slots:
-                # タイムゾーンを UTC に統一（Availability は JST で返される可能性がある）
+                # タイムゾーンを JST に統一（naive datetime は JST とみなす）
                 slots = [
-                    (
-                        s.astimezone(timezone.utc)
-                        if s.tzinfo
-                        else s.replace(tzinfo=timezone.utc),
-                        e.astimezone(timezone.utc)
-                        if e.tzinfo
-                        else e.replace(tzinfo=timezone.utc),
-                    )
-                    for s, e in fallback_slots
+                    (_ensure_aware(s), _ensure_aware(e)) for s, e in fallback_slots
                 ]
         else:
             # Therapist レコードが見つからない場合、therapist_id が実際には profile_id の可能性がある
@@ -409,17 +445,9 @@ async def list_daily_slots(
                 db, therapist_id, therapist_id, target_date
             )
             if fallback_slots:
-                # タイムゾーンを UTC に統一
+                # タイムゾーンを JST に統一（naive datetime は JST とみなす）
                 slots = [
-                    (
-                        s.astimezone(timezone.utc)
-                        if s.tzinfo
-                        else s.replace(tzinfo=timezone.utc),
-                        e.astimezone(timezone.utc)
-                        if e.tzinfo
-                        else e.replace(tzinfo=timezone.utc),
-                    )
-                    for s, e in fallback_slots
+                    (_ensure_aware(s), _ensure_aware(e)) for s, e in fallback_slots
                 ]
 
     return [
@@ -465,10 +493,11 @@ async def list_availability_summary(
     # 2. 日付範囲全体でシフトと予約をバッチ取得
     shifts = await _fetch_shifts(db, therapist_id, date_from, date_to)
 
-    range_start = datetime.combine(date_from, time.min).replace(tzinfo=timezone.utc)
-    range_end = datetime.combine(date_to, time.max).replace(
-        tzinfo=timezone.utc
-    ) + timedelta(days=1)
+    # JST での日付範囲に対応する datetime 範囲を計算
+    range_start = datetime.combine(date_from, time.min).replace(tzinfo=JST)
+    range_end = datetime.combine(date_to, time.min).replace(tzinfo=JST) + timedelta(
+        days=1
+    )
     reservations = await _fetch_reservations(db, therapist_id, range_start, range_end)
 
     # 3. シフトを日付ごとにグループ化

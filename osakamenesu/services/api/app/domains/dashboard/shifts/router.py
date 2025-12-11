@@ -120,7 +120,16 @@ async def _has_overlap(
     start_at: datetime,
     end_at: datetime,
     exclude_id: UUID | None = None,
+    *,
+    lock: bool = True,
 ) -> bool:
+    """指定時間帯に重複するシフトがあるかチェック。
+
+    Args:
+        lock: Trueの場合、SELECT FOR UPDATEでロックを取得（レースコンディション対策）
+              シフト作成・更新時は必ずTrueにすること
+              SQLiteなどFOR UPDATEをサポートしないDBでは自動的にスキップ
+    """
     stmt = select(models.TherapistShift).where(
         models.TherapistShift.therapist_id == therapist_id,
         models.TherapistShift.start_at < end_at,
@@ -128,6 +137,14 @@ async def _has_overlap(
     )
     if exclude_id:
         stmt = stmt.where(models.TherapistShift.id != exclude_id)
+    if lock:
+        # SQLite等ではFOR UPDATEがサポートされないため、例外時はロックなしで再実行
+        try:
+            res = await db.execute(stmt.with_for_update())
+            return res.scalar_one_or_none() is not None
+        except Exception:
+            # FOR UPDATEが失敗した場合はロックなしで実行
+            pass
     res = await db.execute(stmt)
     return res.scalar_one_or_none() is not None
 

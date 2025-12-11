@@ -41,7 +41,7 @@ async def stub_session():
 
 @pytest.mark.asyncio
 async def test_is_available_ok(monkeypatch, stub_session):
-    async def _avail(db, therapist_id, start_at, end_at):
+    async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
     monkeypatch.setattr(domain, "is_available", _avail)
@@ -58,7 +58,7 @@ async def test_is_available_ok(monkeypatch, stub_session):
 
 @pytest.mark.asyncio
 async def test_is_available_no_shift(monkeypatch, stub_session):
-    async def _avail(db, therapist_id, start_at, end_at):
+    async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return False, {"rejected_reasons": ["no_shift"]}
 
     monkeypatch.setattr(domain, "is_available", _avail)
@@ -75,7 +75,7 @@ async def test_is_available_no_shift(monkeypatch, stub_session):
 
 @pytest.mark.asyncio
 async def test_is_available_on_break(monkeypatch, stub_session):
-    async def _avail(db, therapist_id, start_at, end_at):
+    async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return False, {"rejected_reasons": ["on_break"]}
 
     monkeypatch.setattr(domain, "is_available", _avail)
@@ -92,7 +92,7 @@ async def test_is_available_on_break(monkeypatch, stub_session):
 
 @pytest.mark.asyncio
 async def test_is_available_overlap(monkeypatch, stub_session):
-    async def _avail(db, therapist_id, start_at, end_at):
+    async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return False, {"rejected_reasons": ["overlap_existing_reservation"]}
 
     monkeypatch.setattr(domain, "is_available", _avail)
@@ -109,7 +109,7 @@ async def test_is_available_overlap(monkeypatch, stub_session):
 
 @pytest.mark.asyncio
 async def test_is_available_internal_error(monkeypatch, stub_session):
-    async def _avail(db, therapist_id, start_at, end_at):
+    async def _avail(db, therapist_id, start_at, end_at, lock=False):
         raise RuntimeError("boom")
 
     # simulate fail-soft: wrap to return internal_error

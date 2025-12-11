@@ -60,7 +60,7 @@ def client(monkeypatch: pytest.MonkeyPatch, matching_module) -> TestClient:
 def test_search_availability_true(
     monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
 ):
-    async def fake_available(db, therapist_id, start_at, end_at):
+    async def fake_available(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
     monkeypatch.setattr(matching_module, "is_available", fake_available)
@@ -84,7 +84,7 @@ def test_search_availability_true(
 def test_search_availability_false(
     monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
 ):
-    async def fake_reject(db, therapist_id, start_at, end_at):
+    async def fake_reject(db, therapist_id, start_at, end_at, lock=False):
         return False, {"rejected_reasons": ["no_shift"]}
 
     monkeypatch.setattr(matching_module, "is_available", fake_reject)
@@ -109,7 +109,7 @@ def test_search_availability_false(
 def test_search_availability_null(
     monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
 ):
-    async def fake_available(db, therapist_id, start_at, end_at):
+    async def fake_available(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
     monkeypatch.setattr(matching_module, "is_available", fake_available)

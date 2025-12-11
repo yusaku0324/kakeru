@@ -68,7 +68,7 @@ def client(monkeypatch: pytest.MonkeyPatch, matching_module) -> TestClient:
 def test_availability_annotation(
     monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
 ):
-    async def fake_available(db, therapist_id, start_at, end_at):
+    async def fake_available(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
     monkeypatch.setattr(matching_module, "is_available", fake_available)
@@ -92,7 +92,7 @@ def test_availability_annotation(
 def test_availability_rejected(
     monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
 ):
-    async def fake_reject(db, therapist_id, start_at, end_at):
+    async def fake_reject(db, therapist_id, start_at, end_at, lock=False):
         return False, {"rejected_reasons": ["no_shift"]}
 
     monkeypatch.setattr(matching_module, "is_available", fake_reject)
@@ -116,7 +116,7 @@ def test_availability_rejected(
 def test_availability_null_when_no_time(
     monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
 ):
-    async def fake_available(db, therapist_id, start_at, end_at):
+    async def fake_available(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
     monkeypatch.setattr(matching_module, "is_available", fake_available)
@@ -136,7 +136,7 @@ def test_phase_explore_skips_availability(
 ):
     called = False
 
-    async def fake_available(db, therapist_id, start_at, end_at):
+    async def fake_available(db, therapist_id, start_at, end_at, lock=False):
         nonlocal called
         called = True
         return True, {"rejected_reasons": []}
@@ -165,7 +165,7 @@ def test_phase_explore_skips_availability(
 def test_phase_narrow_keeps_unavailable(
     monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
 ):
-    async def fake_available(db, therapist_id, start_at, end_at):
+    async def fake_available(db, therapist_id, start_at, end_at, lock=False):
         ok = therapist_id == "A"
         reasons = [] if ok else ["no_shift"]
         return ok, {"rejected_reasons": reasons}
@@ -197,7 +197,7 @@ def test_phase_narrow_keeps_unavailable(
 def test_phase_book_filters_unavailable(
     monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
 ):
-    async def fake_available(db, therapist_id, start_at, end_at):
+    async def fake_available(db, therapist_id, start_at, end_at, lock=False):
         ok = therapist_id == "A"
         reasons = [] if ok else ["no_shift"]
         return ok, {"rejected_reasons": reasons}
@@ -224,7 +224,7 @@ def test_phase_book_filters_unavailable(
 def test_phase_default_book_when_time(
     monkeypatch: pytest.MonkeyPatch, matching_module, client: TestClient
 ):
-    async def fake_available(db, therapist_id, start_at, end_at):
+    async def fake_available(db, therapist_id, start_at, end_at, lock=False):
         ok = therapist_id == "A"
         reasons = [] if ok else ["no_shift"]
         return ok, {"rejected_reasons": reasons}
@@ -250,7 +250,7 @@ def test_phase_default_explore_when_no_time(
 ):
     called = False
 
-    async def fake_available(db, therapist_id, start_at, end_at):
+    async def fake_available(db, therapist_id, start_at, end_at, lock=False):
         nonlocal called
         called = True
         return True, {"rejected_reasons": []}

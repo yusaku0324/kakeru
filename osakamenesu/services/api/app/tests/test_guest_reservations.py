@@ -70,7 +70,7 @@ async def stub_session():
 
 @pytest.mark.asyncio
 async def test_create_guest_reservation_success(monkeypatch, stub_session: StubSession):
-    async def _avail(db, therapist_id, start_at, end_at):
+    async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
     monkeypatch.setattr(domain, "is_available", _avail)
@@ -91,7 +91,7 @@ async def test_create_guest_reservation_success(monkeypatch, stub_session: StubS
 async def test_create_guest_reservation_deadline_over(
     monkeypatch, stub_session: StubSession
 ):
-    async def _avail(db, therapist_id, start_at, end_at):
+    async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
     monkeypatch.setattr(domain, "is_available", _avail)
@@ -111,7 +111,7 @@ async def test_create_guest_reservation_deadline_over(
 async def test_create_guest_reservation_double_booking(
     monkeypatch, stub_session: StubSession
 ):
-    async def _avail_ok(db, therapist_id, start_at, end_at):
+    async def _avail_ok(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
     monkeypatch.setattr(domain, "is_available", _avail_ok)
@@ -126,7 +126,7 @@ async def test_create_guest_reservation_double_booking(
     assert res1 is not None
 
     # is_available が重複を検知するケースをシミュレート
-    async def _avail_ng(db, therapist_id, start_at, end_at):
+    async def _avail_ng(db, therapist_id, start_at, end_at, lock=False):
         return False, {"rejected_reasons": ["overlap_existing_reservation"]}
 
     monkeypatch.setattr(domain, "is_available", _avail_ng)
@@ -160,7 +160,7 @@ async def test_create_guest_reservation_free_assign_failed(
 async def test_cancel_guest_reservation_idempotent(
     monkeypatch, stub_session: StubSession
 ):
-    async def _avail(db, therapist_id, start_at, end_at):
+    async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
     monkeypatch.setattr(domain, "is_available", _avail)

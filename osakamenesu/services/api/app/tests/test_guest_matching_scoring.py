@@ -93,7 +93,7 @@ def test_scoring_availability_boost(monkeypatch, matching_module):
 
     called_ids: list[str] = []
 
-    async def fake_available(db, therapist_id, start_at, end_at):
+    async def fake_available(db, therapist_id, start_at, end_at, lock=False):
         called_ids.append(therapist_id)
         if therapist_id == "a":
             return True, {"rejected_reasons": []}
