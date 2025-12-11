@@ -89,7 +89,14 @@ def ensure_indexes() -> None:
                 "ranking_badges",
             ],
             # Keep default ranking rules; use `sort` at query time for ordering
-            "rankingRules": ["words", "typo", "proximity", "attribute", "sort", "exactness"],
+            "rankingRules": [
+                "words",
+                "typo",
+                "proximity",
+                "attribute",
+                "sort",
+                "exactness",
+            ],
         }
     )
     _wait_for_task(settings_task, client)
@@ -141,6 +148,13 @@ def purge_all():
     _wait_for_task(task, client)
 
 
+def escape_meili_filter_value(value: str) -> str:
+    """Escape single quotes for Meilisearch filter syntax."""
+    if not value:
+        return value
+    return value.replace("'", "\\'")
+
+
 def build_filter(
     area: str | None,
     station: str | None,
@@ -165,33 +179,40 @@ def build_filter(
 ) -> str | None:
     parts: list[str] = []
     if area:
-        parts.append(f"area = '{area}'")
+        parts.append(f"area = '{escape_meili_filter_value(area)}'")
     if station:
-        parts.append(f"nearest_station = '{station}'")
+        parts.append(f"nearest_station = '{escape_meili_filter_value(station)}'")
     if bust_tags:
         if len(bust_tags) == 1:
-            parts.append(f"bust_tag = '{bust_tags[0]}'")
+            parts.append(f"bust_tag = '{escape_meili_filter_value(bust_tags[0])}'")
         else:
-            or_clause = " OR ".join(f"bust_tag = '{tag}'" for tag in bust_tags)
+            or_clause = " OR ".join(
+                f"bust_tag = '{escape_meili_filter_value(tag)}'" for tag in bust_tags
+            )
             if or_clause:
                 parts.append(f"({or_clause})")
     elif bust:
-        parts.append(f"bust_tag = '{bust}'")
+        parts.append(f"bust_tag = '{escape_meili_filter_value(bust)}'")
     if service_type:
-        parts.append(f"service_type = '{service_type}'")
+        parts.append(f"service_type = '{escape_meili_filter_value(service_type)}'")
     if body_tags:
         for t in body_tags:
-            parts.append(f"body_tags = '{t}'")
+            parts.append(f"body_tags = '{escape_meili_filter_value(t)}'")
     if today is not None:
         parts.append(f"today = {'true' if today else 'false'}")
     if status:
-        parts.append(f"status = '{status}'")
+        parts.append(f"status = '{escape_meili_filter_value(status)}'")
     if price_bands:
-        or_clause = " OR ".join(f"price_band = '{band}'" for band in price_bands)
+        or_clause = " OR ".join(
+            f"price_band = '{escape_meili_filter_value(band)}'" for band in price_bands
+        )
         if or_clause:
             parts.append(f"({or_clause})")
     if ranking_badges:
-        or_clause = " OR ".join(f"ranking_badges = '{badge}'" for badge in ranking_badges)
+        or_clause = " OR ".join(
+            f"ranking_badges = '{escape_meili_filter_value(badge)}'"
+            for badge in ranking_badges
+        )
         if or_clause:
             parts.append(f"({or_clause})")
     if has_promotions is not None:
@@ -246,7 +267,9 @@ def search(
     except MeilisearchApiError as exc:
         message = str(exc).lower()
         if exc.error_code == "invalid_search_filter" or "not filterable" in message:
-            logger.warning("meilisearch invalid filter detected; reapplying index settings and retrying")
+            logger.warning(
+                "meilisearch invalid filter detected; reapplying index settings and retrying"
+            )
             try:
                 with _index_init_lock:
                     ensure_indexes()
@@ -256,6 +279,8 @@ def search(
             try:
                 return idx.search(q or "", options)
             except MeilisearchApiError as retry_exc:
-                logger.error("meilisearch retry failed after settings reapplied: %s", retry_exc)
+                logger.error(
+                    "meilisearch retry failed after settings reapplied: %s", retry_exc
+                )
                 raise
         raise

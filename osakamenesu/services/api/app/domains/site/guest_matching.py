@@ -38,7 +38,7 @@ DEFAULT_BREAKDOWN = {
 
 
 class GuestMatchingRequest(BaseModel):
-    area: Optional[str] = None
+    area: Optional[str] = Field(default=None, max_length=100)
     date: Optional[str] = None
     time_from: str | None = None
     time_to: str | None = None
@@ -47,7 +47,7 @@ class GuestMatchingRequest(BaseModel):
     talk_pref: dict[str, float] | None = None
     style_pref: dict[str, float] | None = None
     look_pref: dict[str, float] | None = None
-    free_text: str | None = None
+    free_text: str | None = Field(default=None, max_length=500)
     guest_token: str | None = None
     # v2 scoring options (optional)
     mood_tags: list[str] | None = None

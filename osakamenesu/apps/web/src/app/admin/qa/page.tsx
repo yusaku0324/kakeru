@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { notFound } from "next/navigation"
 
 type Shop = {
   id: string
@@ -20,6 +21,9 @@ type Therapist = {
 const FAVORITE_SHOP_ID = process.env.NEXT_PUBLIC_QA_FAVORITE_SHOP_ID || ""
 const FAVORITE_THERAPIST_ID = process.env.NEXT_PUBLIC_QA_FAVORITE_THERAPIST_ID || ""
 
+// 開発環境でのみアクセス可能
+const isDevelopment = process.env.NODE_ENV === "development"
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2 rounded border bg-white p-4 shadow-sm">
@@ -30,6 +34,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function QAMenuPage() {
+  // 本番環境では404を返す
+  if (!isDevelopment) {
+    notFound()
+  }
+
   const [shops, setShops] = useState<Shop[]>([])
   const [selectedShop, setSelectedShop] = useState<string>("")
   const [therapists, setTherapists] = useState<Therapist[]>([])
