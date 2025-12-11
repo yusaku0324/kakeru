@@ -138,10 +138,13 @@ async def get_optional_dashboard_user(
     request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> Optional[models.User]:
+    # セキュリティ: セッションクッキーの内容はログに出力しない（機密情報漏洩防止）
+    # デバッグが必要な場合はクッキー名の有無のみ確認
     try:
-        logger.info("[dashboard auth] incoming cookies=%s", dict(request.cookies or {}))
+        cookie_names = list((request.cookies or {}).keys())
+        logger.debug("[dashboard auth] cookie names present: %s", cookie_names)
     except Exception:
-        logger.info("[dashboard auth] failed to log cookies")
+        pass
     return await _get_session_user(
         request,
         db,

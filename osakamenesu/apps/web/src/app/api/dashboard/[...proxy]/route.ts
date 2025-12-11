@@ -68,8 +68,10 @@ async function forward(request: NextRequest, context: RouteContext) {
     })
   } catch (error) {
     console.error('[Dashboard API proxy] Error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    return new Response(JSON.stringify({ error: 'Proxy error', detail: errorMessage }), {
+    // 本番環境では詳細なエラーメッセージを隠す
+    const isProduction = process.env.NODE_ENV === 'production'
+    const errorMessage = isProduction ? 'Internal server error' : (error instanceof Error ? error.message : 'Unknown error')
+    return new Response(JSON.stringify({ error: 'Proxy error', ...(isProduction ? {} : { detail: errorMessage }) }), {
       status: 500,
       headers: { 'content-type': 'application/json' },
     })

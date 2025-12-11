@@ -23,8 +23,9 @@ class StoredMedia:
 
 
 class StorageBackend(Protocol):
-    async def save(self, *, folder: str, filename: str, content: bytes, content_type: str) -> StoredMedia:
-        ...
+    async def save(
+        self, *, folder: str, filename: str, content: bytes, content_type: str
+    ) -> StoredMedia: ...
 
 
 class LocalMediaStorage:
@@ -43,13 +44,34 @@ class LocalMediaStorage:
         self._url_prefix = normalized_prefix.rstrip("/") or "/media"
         self._cdn_base_url = cdn_base_url.rstrip("/") if cdn_base_url else None
         self._public_base_url = public_base_url.rstrip("/") if public_base_url else None
-        self._fallback_base_url = fallback_base_url.rstrip("/") if fallback_base_url else None
+        self._fallback_base_url = (
+            fallback_base_url.rstrip("/") if fallback_base_url else None
+        )
 
-    async def save(self, *, folder: str, filename: str, content: bytes, content_type: str) -> StoredMedia:
-        parts = [segment for segment in folder.split("/") if segment and segment not in (".", "..")]
+    async def save(
+        self, *, folder: str, filename: str, content: bytes, content_type: str
+    ) -> StoredMedia:
+        # パストラバーサル対策: 危険なセグメントを除去
+        parts = [
+            segment
+            for segment in folder.split("/")
+            if segment and segment not in (".", "..")
+        ]
+        # ファイル名からも危険な文字を除去
+        safe_filename = filename.replace("..", "").replace("/", "").replace("\\", "")
+        if not safe_filename:
+            raise MediaStorageError("Invalid filename")
+
         destination = self._root.joinpath(*parts)
+
+        # パストラバーサル攻撃チェック: 解決後のパスがルート配下にあることを確認
+        resolved_destination = destination.resolve()
+        resolved_root = self._root.resolve()
+        if not str(resolved_destination).startswith(str(resolved_root)):
+            raise MediaStorageError("Invalid folder path: path traversal detected")
+
         await asyncio.to_thread(destination.mkdir, parents=True, exist_ok=True)
-        file_path = destination / filename
+        file_path = destination / safe_filename
         await asyncio.to_thread(file_path.write_bytes, content)
 
         if self._cdn_base_url:
@@ -63,11 +85,11 @@ class LocalMediaStorage:
         plain_folder = "/".join(parts)
         quoted_folder = "/".join(quote(part) for part in parts)
         if quoted_folder:
-            url = f"{base_url.rstrip('/')}/{quoted_folder}/{quote(filename)}"
-            key = f"{plain_folder}/{filename}"
+            url = f"{base_url.rstrip('/')}/{quoted_folder}/{quote(safe_filename)}"
+            key = f"{plain_folder}/{safe_filename}"
         else:
-            url = f"{base_url.rstrip('/')}/{quote(filename)}"
-            key = filename
+            url = f"{base_url.rstrip('/')}/{quote(safe_filename)}"
+            key = safe_filename
         return StoredMedia(
             key=key,
             url=url,
@@ -107,7 +129,9 @@ class S3MediaStorage:
             aws_secret_access_key=secret_access_key,
         )
 
-    async def save(self, *, folder: str, filename: str, content: bytes, content_type: str) -> StoredMedia:
+    async def save(
+        self, *, folder: str, filename: str, content: bytes, content_type: str
+    ) -> StoredMedia:
         key = f"{folder.strip('/')}/{filename}"
         try:
             await asyncio.to_thread(
@@ -117,7 +141,9 @@ class S3MediaStorage:
                 Body=content,
                 ContentType=content_type,
             )
-        except self._boto_errors as exc:  # pragma: no cover - depends on AWS connectivity
+        except (
+            self._boto_errors
+        ) as exc:  # pragma: no cover - depends on AWS connectivity
             raise MediaStorageError(str(exc)) from exc
 
         if self._base_url:
@@ -156,7 +182,9 @@ class MediaStorage:
             return cls(backend)
         if backend_name == "s3":
             if not config.media_s3_bucket:
-                raise RuntimeError("MEDIA_S3_BUCKET must be set when MEDIA_STORAGE_BACKEND=s3")
+                raise RuntimeError(
+                    "MEDIA_S3_BUCKET must be set when MEDIA_STORAGE_BACKEND=s3"
+                )
             backend = S3MediaStorage(
                 bucket=config.media_s3_bucket,
                 region=config.media_s3_region,
@@ -168,9 +196,16 @@ class MediaStorage:
             return cls(backend)
         raise RuntimeError(f"Unsupported media storage backend: {backend_name}")
 
-    async def save_photo(self, *, folder: str, filename: str, content: bytes, content_type: str) -> StoredMedia:
+    async def save_photo(
+        self, *, folder: str, filename: str, content: bytes, content_type: str
+    ) -> StoredMedia:
         try:
-            return await self._backend.save(folder=folder, filename=filename, content=content, content_type=content_type)
+            return await self._backend.save(
+                folder=folder,
+                filename=filename,
+                content=content,
+                content_type=content_type,
+            )
         except MediaStorageError:
             raise
         except Exception as exc:  # pragma: no cover - defensive

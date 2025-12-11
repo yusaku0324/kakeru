@@ -11,6 +11,28 @@ export function shouldBypassCsrf(pathname: string) {
   return false
 }
 
+/**
+ * タイミング攻撃耐性のある文字列比較
+ * 常に全文字を比較し、処理時間から情報が漏れないようにする
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // 長さが違う場合でもダミー比較を行い、処理時間を均一化
+    let result = 1
+    const minLen = Math.min(a.length, b.length) || 1
+    for (let i = 0; i < minLen; i++) {
+      result |= a.charCodeAt(i % a.length) ^ b.charCodeAt(i % b.length)
+    }
+    return false
+  }
+
+  let result = 0
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return result === 0
+}
+
 export function validateCsrfToken(request: Request): boolean {
   const method = request.method?.toUpperCase?.() ?? 'GET'
   if (!isCsrfProtectedMethod(method)) {
@@ -29,7 +51,7 @@ export function validateCsrfToken(request: Request): boolean {
         if (name === CSRF_COOKIE_NAME) {
           const value = valueParts.join('=')
           if (value) {
-            return header.length === value.length && header === value
+            return timingSafeEqual(header, value)
           }
         }
       }
@@ -38,5 +60,5 @@ export function validateCsrfToken(request: Request): boolean {
   }
 
   if (!cookie) return false
-  return header.length === cookie.length && header === cookie
+  return timingSafeEqual(header, cookie)
 }

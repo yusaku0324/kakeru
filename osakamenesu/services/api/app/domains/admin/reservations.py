@@ -257,10 +257,8 @@ async def update_reservation(
         )
         db.add(event)
 
-    await db.commit()
-    await db.refresh(reservation)
-    await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
-
+    # 通知送信をステータス更新と同じトランザクション内で実行
+    # 通知エンキューが失敗した場合、ステータス変更もロールバックされる
     if status_changed:
         shop = await _ensure_shop(db, reservation.shop_id)
         await _enqueue_reservation_notification_for_reservation(
@@ -269,6 +267,9 @@ async def update_reservation(
             shop,
             note_override=note,
         )
-        await db.commit()
+
+    await db.commit()
+    await db.refresh(reservation)
+    await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
 
     return _reservation_to_schema(reservation).model_dump()

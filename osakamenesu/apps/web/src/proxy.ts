@@ -10,13 +10,15 @@ import { resolveInternalApiBase } from '@/lib/server-config'
 import { SESSION_COOKIE_NAME } from '@/lib/session'
 
 const BASIC_REALM = 'Admin'
-const FALLBACK_USER = 'yusaku0324'
-const FALLBACK_PASS = 'sakanon0402'
+
+// 認証情報は環境変数から取得（ハードコード禁止）
+const ADMIN_BASIC_USER = process.env.ADMIN_BASIC_USER
+const ADMIN_BASIC_PASS = process.env.ADMIN_BASIC_PASS
 
 const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX_REQUESTS = 30
-const DISABLE_RATE_LIMIT =
-  process.env.E2E_DISABLE_RATE_LIMIT === '1' || process.env.NODE_ENV !== 'production'
+// E2E テスト時のみ明示的にレート制限を無効化（開発環境でも有効に）
+const DISABLE_RATE_LIMIT = process.env.E2E_DISABLE_RATE_LIMIT === '1'
 type RateLimitRecord = {
   windowStart: number
   count: number
@@ -156,8 +158,14 @@ function enforceAdminBasicAuth(request: NextRequest): NextResponse | null {
     return null
   }
 
-  const user = process.env.ADMIN_BASIC_USER || FALLBACK_USER
-  const pass = process.env.ADMIN_BASIC_PASS || FALLBACK_PASS
+  // 環境変数が設定されていない場合は認証をブロック
+  if (!ADMIN_BASIC_USER || !ADMIN_BASIC_PASS) {
+    console.error('[Admin Auth] ADMIN_BASIC_USER and ADMIN_BASIC_PASS must be set')
+    return unauthorized('Admin authentication not configured')
+  }
+
+  const user = ADMIN_BASIC_USER
+  const pass = ADMIN_BASIC_PASS
   const authHeader = request.headers.get('authorization')
 
   if (!authHeader || !authHeader.startsWith('Basic ')) {

@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import logging
+import os
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, select, desc
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...models import (
     GuestReservation,
     GuestReservationStatus as _GuestReservationStatus,
+    Profile,
     Therapist,
     User,
     now_utc,
@@ -21,6 +23,11 @@ from ...db import get_session
 from ...deps import get_optional_site_user
 from .therapist_availability import is_available, has_overlapping_reservation
 from ...rate_limiters import rate_limit_reservation
+
+# 本番環境ではdebug情報を隠す
+_IS_PRODUCTION = (
+    os.getenv("FLY_APP_NAME") is not None or os.getenv("VERCEL") is not None
+)
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +180,14 @@ async def assign_for_free(
         if not db or not hasattr(db, "execute"):
             debug["rejected_reasons"].append("internal_error")
             return None, debug
+
+        # ショップの存在確認（セキュリティ強化）
+        # db.get が使用できない場合（テスト用モックなど）はスキップ
+        if hasattr(db, "get"):
+            shop = await db.get(Profile, shop_id)
+            if not shop:
+                debug["rejected_reasons"].append("shop_not_found")
+                return None, debug
 
         res = await db.execute(
             select(
@@ -465,13 +480,23 @@ async def create_guest_reservation_api(
     _: None = Depends(rate_limit_reservation),
 ):
     data = payload.model_dump()
-    # If user is authenticated, use their user_id
+    # If user is authenticated, use their user_id (ignore any user_id from payload)
     if user:
         data["user_id"] = user.id
+    else:
+        # Anonymous user cannot specify user_id
+        data["user_id"] = None
     reservation, debug = await create_guest_reservation(db, data, now=None)
     if reservation:
         return _serialize(reservation, debug=None)
-    # fail-soft: 200で返却し、debugに理由を含める
+    # fail-soft: 200で返却し、debugに理由を含める（本番環境では詳細を隠す）
+    # 本番環境では rejected_reasons のみを返し、skipped などの詳細は隠す
+    safe_debug: dict[str, Any] | None = None
+    if not _IS_PRODUCTION:
+        safe_debug = debug
+    elif debug:
+        # 本番環境では rejected_reasons のみを公開
+        safe_debug = {"rejected_reasons": debug.get("rejected_reasons", [])}
     return GuestReservationResponse(
         id=UUID(int=0),
         status="rejected",
@@ -490,7 +515,7 @@ async def create_guest_reservation_api(
         base_staff_id=payload.base_staff_id,
         created_at=now_utc(),
         updated_at=now_utc(),
-        debug=debug,
+        debug=safe_debug,
     )
 
 
@@ -542,15 +567,15 @@ async def list_guest_reservations_api(
     user: Optional[User] = Depends(get_optional_site_user),
 ):
     # Build query based on authentication status
+    # Security: guest_token is only used for anonymous users or to migrate
+    # anonymous reservations to a logged-in user's account (same token ownership required)
     if user:
-        # Authenticated user: get reservations by user_id (and optionally guest_token)
-        conditions = [GuestReservation.user_id == user.id]
-        if guest_token:
-            # Also include any reservations with the guest_token (for migration)
-            conditions.append(GuestReservation.guest_token == guest_token)
+        # Authenticated user: get reservations by user_id only
+        # guest_token is ignored for security - we don't want OR condition
+        # that could expose other users' reservations
         res = await db.execute(
             select(GuestReservation)
-            .where(or_(*conditions))
+            .where(GuestReservation.user_id == user.id)
             .order_by(desc(GuestReservation.start_at))
         )
     elif guest_token:
