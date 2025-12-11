@@ -34,7 +34,11 @@ function formatDate(dateStr: string): string {
 
 function formatTime(datetimeStr: string): string {
   const d = new Date(datetimeStr)
-  return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleTimeString('ja-JP', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Tokyo'
+  })
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string; bgColor: string }> = {
