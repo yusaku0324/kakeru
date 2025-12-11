@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -117,8 +117,9 @@ class UpdateBufferMinutesPayload(BaseModel):
         ge=0, le=120, description="Buffer minutes between reservations (0-120)"
     )
 
-    @validator("buffer_minutes")
-    def validate_buffer_minutes(cls, v):
+    @field_validator("buffer_minutes")
+    @classmethod
+    def validate_buffer_minutes(cls, v: int) -> int:
         if v < 0 or v > 120:
             raise ValueError("Buffer minutes must be between 0 and 120")
         return v

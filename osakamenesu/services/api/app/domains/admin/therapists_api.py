@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,8 +34,7 @@ class TherapistPayload(BaseModel):
     hobby_tags: list[str] | None = Field(default=None, description="趣味タグ")
     price_rank: int | None = Field(default=None, ge=1, le=5, description="価格帯 (1-5)")
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 def _serialize(th: Therapist) -> dict[str, Any]:
@@ -60,7 +59,8 @@ def _serialize(th: Therapist) -> dict[str, Any]:
         "updated_at": th.updated_at.isoformat() if th.updated_at else None,
         "has_embedding": th.photo_embedding is not None,
         "embedding_computed_at": th.photo_embedding_computed_at.isoformat()
-            if th.photo_embedding_computed_at else None,
+        if th.photo_embedding_computed_at
+        else None,
     }
 
 
@@ -78,7 +78,9 @@ async def list_therapists(
 
 
 @router.post("/api/admin/therapists", status_code=status.HTTP_201_CREATED)
-async def create_therapist(payload: TherapistPayload, db: AsyncSession = Depends(get_session)):
+async def create_therapist(
+    payload: TherapistPayload, db: AsyncSession = Depends(get_session)
+):
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="name_required")
@@ -108,6 +110,7 @@ async def create_therapist(payload: TherapistPayload, db: AsyncSession = Depends
 
 class TherapistUpdatePayload(BaseModel):
     """Payload for updating therapist matching tags."""
+
     name: str | None = None
     mood_tag: str | None = None
     style_tag: str | None = None
@@ -127,15 +130,12 @@ async def update_therapist(
     db: AsyncSession = Depends(get_session),
 ):
     """Update therapist matching tags."""
-    result = await db.execute(
-        select(Therapist).where(Therapist.id == therapist_id)
-    )
+    result = await db.execute(select(Therapist).where(Therapist.id == therapist_id))
     therapist = result.scalar_one_or_none()
 
     if not therapist:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Therapist not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Therapist not found"
         )
 
     # Update fields if provided
@@ -168,11 +168,10 @@ async def update_therapist(
 class EmbeddingGenerateRequest(BaseModel):
     therapist_ids: list[str] | None = Field(
         default=None,
-        description="Specific therapist IDs to regenerate. If None, generates for all without embeddings."
+        description="Specific therapist IDs to regenerate. If None, generates for all without embeddings.",
     )
     force: bool = Field(
-        default=False,
-        description="Force regeneration even if embeddings already exist"
+        default=False, description="Force regeneration even if embeddings already exist"
     )
 
 
@@ -217,7 +216,7 @@ async def generate_photo_embeddings(
     # Process embeddings
     results = await service.compute_embeddings_batch(
         therapist_ids=therapist_ids,
-        limit=100  # Process max 100 at a time
+        limit=100,  # Process max 100 at a time
     )
 
     # Count results
@@ -226,10 +225,7 @@ async def generate_photo_embeddings(
     failed = processed - success
 
     return EmbeddingGenerateResponse(
-        processed=processed,
-        success=success,
-        failed=failed,
-        results=results
+        processed=processed, success=success, failed=failed, results=results
     )
 
 
@@ -239,36 +235,34 @@ async def get_therapist_embedding_status(
     db: AsyncSession = Depends(get_session),
 ):
     """Get embedding status for a specific therapist."""
-    result = await db.execute(
-        select(Therapist).where(Therapist.id == therapist_id)
-    )
+    result = await db.execute(select(Therapist).where(Therapist.id == therapist_id))
     therapist = result.scalar_one_or_none()
 
     if not therapist:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Therapist not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Therapist not found"
         )
 
     return {
         "therapist_id": str(therapist.id),
         "has_embedding": therapist.photo_embedding is not None,
         "embedding_computed_at": therapist.photo_embedding_computed_at.isoformat()
-            if therapist.photo_embedding_computed_at else None,
+        if therapist.photo_embedding_computed_at
+        else None,
         "main_photo_index": therapist.main_photo_index,
         "photo_urls": therapist.photo_urls or [],
-        "embedding_dimensions": len(therapist.photo_embedding) if therapist.photo_embedding else 0
+        "embedding_dimensions": len(therapist.photo_embedding)
+        if therapist.photo_embedding
+        else 0,
     }
 
 
 class BatchEmbeddingRequest(BaseModel):
     batch_size: int = Field(
-        default=50,
-        description="Number of therapists to process in each batch"
+        default=50, description="Number of therapists to process in each batch"
     )
     max_total: int | None = Field(
-        default=None,
-        description="Maximum total number to process"
+        default=None, description="Maximum total number to process"
     )
 
 
@@ -300,8 +294,7 @@ async def start_batch_embedding_computation(
             logger.info(f"Starting batch embedding task {task_id}")
             task = PhotoEmbeddingTask()
             stats = await task.compute_all_missing_embeddings(
-                batch_size=payload.batch_size,
-                max_total=payload.max_total
+                batch_size=payload.batch_size, max_total=payload.max_total
             )
             logger.info(f"Batch embedding task {task_id} completed: {stats}")
         except Exception as e:
@@ -313,6 +306,5 @@ async def start_batch_embedding_computation(
     return BatchEmbeddingResponse(
         status="started",
         message=f"Batch embedding computation started with task_id: {task_id}",
-        task_id=task_id
+        task_id=task_id,
     )
-
