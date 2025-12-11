@@ -89,8 +89,17 @@ def _build_staff_preview(
             continue
         alias = _normalize_text(entry.get("alias"))
         headline = _normalize_text(entry.get("headline"))
+        # photo_urls (複数形) のサポートを追加
+        photo_urls_list = entry.get("photo_urls")
         avatar_url = _normalize_text(
-            entry.get("avatar_url") or entry.get("photo_url") or entry.get("image")
+            entry.get("avatar_url")
+            or entry.get("photo_url")
+            or (
+                photo_urls_list[0]
+                if isinstance(photo_urls_list, list) and photo_urls_list
+                else None
+            )
+            or entry.get("image")
         )
         rating = _safe_float(entry.get("rating"))
         review_count = _safe_int(entry.get("review_count"))
