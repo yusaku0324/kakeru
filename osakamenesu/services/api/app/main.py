@@ -96,8 +96,18 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=list(_cors_origins),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # セキュリティ: 必要なHTTPメソッドとヘッダーのみ許可
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Admin-Key",
+        "X-CSRF-Token",
+        "X-Requested-With",
+        "Cookie",
+    ],
 )
 
 media_backend = getattr(settings, "media_storage_backend", "memory")

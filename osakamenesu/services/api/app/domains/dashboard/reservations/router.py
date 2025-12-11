@@ -10,6 +10,8 @@ import base64
 import json
 import hmac
 import hashlib
+import logging
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, or_, select
@@ -150,6 +152,9 @@ def _parse_date_param(value: str, *, field: str, is_end: bool = False) -> dateti
     return parsed_datetime
 
 
+_cursor_logger = logging.getLogger(__name__)
+
+
 def _encode_cursor(value: datetime, reservation_id: UUID) -> str:
     payload = {
         "value": value.isoformat(),
@@ -160,6 +165,12 @@ def _encode_cursor(value: datetime, reservation_id: UUID) -> str:
     )
     encoded_payload = base64.urlsafe_b64encode(payload_bytes).decode("utf-8")
     secret = getattr(settings, "cursor_signature_secret", None)
+    # セキュリティ警告: 本番環境ではcursor_signature_secretの設定を推奨
+    if not secret and os.environ.get("FLY_APP_NAME"):
+        _cursor_logger.warning(
+            "CURSOR_SIGNATURE_SECRET is not set in production. "
+            "Pagination cursors can be forged without signature verification."
+        )
     if secret:
         digest = hmac.new(
             secret.encode("utf-8"), payload_bytes, hashlib.sha256

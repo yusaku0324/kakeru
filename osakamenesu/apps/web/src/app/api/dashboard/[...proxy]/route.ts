@@ -22,10 +22,13 @@ async function forward(request: NextRequest, context: RouteContext) {
     headers.set('cookie', cookieHeader)
     // Avoid zstd encoding
     headers.set('accept-encoding', 'gzip, deflate, br')
-    console.log('[Dashboard API proxy] forwarding', request.method, targetUrl, {
-      hasCookie: Boolean(cookieHeader),
-      base,
-    })
+    // 本番環境ではデバッグログを出力しない（情報漏洩防止）
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Dashboard API proxy] forwarding', request.method, targetUrl, {
+        hasCookie: Boolean(cookieHeader),
+        base,
+      })
+    }
     headers.set('x-forwarded-host', request.headers.get('host') ?? '')
     headers.set(
       'x-forwarded-proto',
@@ -41,7 +44,9 @@ async function forward(request: NextRequest, context: RouteContext) {
       body,
       redirect: 'manual',
     })
-    console.log('[Dashboard API proxy] response', response.status, targetUrl)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Dashboard API proxy] response', response.status, targetUrl)
+    }
 
     const responseHeaders = new Headers()
     response.headers.forEach((value, key) => {
@@ -56,7 +61,9 @@ async function forward(request: NextRequest, context: RouteContext) {
 
     // Always read as text first, then convert if needed
     const text = await response.text()
-    console.log('[Dashboard API proxy] body length:', text.length, 'chars')
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Dashboard API proxy] body length:', text.length, 'chars')
+    }
 
     // Set content-length explicitly
     responseHeaders.set('content-length', String(Buffer.byteLength(text, 'utf-8')))
