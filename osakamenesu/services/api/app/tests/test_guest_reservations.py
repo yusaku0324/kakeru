@@ -45,8 +45,7 @@ class StubSession:
         self.last_stmt = None
 
     async def execute(self, stmt):
-        # overlap 判定用: therapist_id/start/end を stmt の _where_criteria から読み取るのは難しいので
-        # テストで monkeypatch した check_shift_and_overlap を使う前提で、ここでは空を返す。
+        # テストでは is_available を monkeypatch するため、ここでは空を返す
         self.last_stmt = stmt
         return StubResult()
 

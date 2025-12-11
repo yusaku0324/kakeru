@@ -21,7 +21,7 @@ from ...models import (
 )
 from ...db import get_session
 from ...deps import get_optional_site_user
-from .therapist_availability import is_available, has_overlapping_reservation
+from .therapist_availability import is_available
 from ...rate_limiters import rate_limit_reservation
 
 # 本番環境ではdebug情報を隠す
@@ -117,43 +117,6 @@ def check_deadline(
     if delta < cutoff_minutes:
         return ["deadline_over"]
     return []
-
-
-async def check_shift_and_overlap(
-    db: AsyncSession,
-    shop_id: Any,
-    therapist_id: Any,
-    start_at: datetime,
-    end_at: datetime,
-) -> list[str]:
-    """
-    シフト/営業時間の厳密判定は未実装。まずは重複予約のみチェック。
-
-    共通ヘルパー has_overlapping_reservation を使用。
-    """
-    reasons: list[str] = []
-    if not therapist_id:
-        return reasons  # フリー/おまかせの場合はここでは判定しない
-
-    if not db or not hasattr(db, "execute"):
-        return reasons
-
-    # 共通ヘルパーを使用して重複チェック
-    try:
-        therapist_uuid = (
-            therapist_id if isinstance(therapist_id, UUID) else UUID(str(therapist_id))
-        )
-        has_overlap = await has_overlapping_reservation(
-            db, therapist_uuid, start_at, end_at
-        )
-        if has_overlap:
-            reasons.append("overlap_existing_reservation")
-    except (ValueError, TypeError):
-        # therapist_id が UUID に変換できない場合はスキップ
-        pass
-
-    # シフト整合は将来拡張。現時点では未検証。
-    return reasons
 
 
 async def assign_for_free(
