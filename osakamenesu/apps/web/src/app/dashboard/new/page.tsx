@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 
 import { Card } from '@/components/ui/Card'
 import { ShopCreateForm } from './ShopCreateForm'
@@ -11,7 +12,12 @@ export const revalidate = 0
 export default async function DashboardNewShopPage() {
   const store = await cookies()
   const sessionCookie = store.get(DASHBOARD_SESSION_COOKIE_NAME)
-  const isAuthenticated = Boolean(sessionCookie?.value)
+
+  if (!sessionCookie?.value) {
+    redirect('/dashboard/login')
+  }
+
+  const isAuthenticated = true
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">

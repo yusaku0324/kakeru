@@ -51,6 +51,7 @@ export default function TherapistAvailabilityPage() {
 
   const [summary, setSummary] = useState<SummaryResponse | null>(null)
   const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [loadingSummary, setLoadingSummary] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [slots, setSlots] = useState<SlotsResponse | null>(null)
   const [slotsError, setSlotsError] = useState<string | null>(null)
@@ -58,6 +59,7 @@ export default function TherapistAvailabilityPage() {
 
   useEffect(() => {
     async function loadSummary() {
+      setLoadingSummary(true)
       setSummaryError(null)
       try {
         const dateFrom = days[0]
@@ -76,6 +78,8 @@ export default function TherapistAvailabilityPage() {
       } catch (err) {
         console.error('availability summary failed', err)
         setSummaryError('空き状況の取得に失敗しました。時間をおいて再度お試しください。')
+      } finally {
+        setLoadingSummary(false)
       }
     }
     loadSummary()
@@ -123,6 +127,11 @@ export default function TherapistAvailabilityPage() {
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold text-neutral-text">日付を選択</h2>
+        {loadingSummary ? (
+          <div className="rounded border border-neutral-borderLight bg-white px-3 py-2 text-neutral-textMuted">
+            空き状況を読み込み中...
+          </div>
+        ) : (
         <div className="flex flex-wrap gap-2">
           {days.map((d) => {
             const status = summary?.items.find((item) => item.date === d)
@@ -144,6 +153,7 @@ export default function TherapistAvailabilityPage() {
             )
           })}
         </div>
+        )}
       </section>
 
       <section className="space-y-3">

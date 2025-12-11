@@ -96,14 +96,16 @@ async function fetchWeekAvailability(therapistId: string): Promise<{ days: DaySl
   const todayStr = formatDate(today)
   const days: DaySlots[] = []
 
-  // Fetch 7 days in parallel
+  // Fetch 7 days in parallel with error handling
   const datePromises: Promise<{ dateStr: string; slots: AvailabilitySlot[] }>[] = []
   for (let i = 0; i < 7; i++) {
     const d = new Date(today)
     d.setDate(today.getDate() + i)
     const dateStr = formatDate(d)
     datePromises.push(
-      fetchDaySlots(therapistId, dateStr).then((slots) => ({ dateStr, slots })),
+      fetchDaySlots(therapistId, dateStr)
+        .then((slots) => ({ dateStr, slots }))
+        .catch(() => ({ dateStr, slots: [] })),
     )
   }
 

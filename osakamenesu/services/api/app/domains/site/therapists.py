@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Sequence
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from ...utils.datetime import now_jst
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -389,7 +391,7 @@ async def _build_availability_slots(
 ) -> list[AvailabilitySlotInfo]:
     """Build availability slots for the specified number of days."""
     slots: list[AvailabilitySlotInfo] = []
-    today = date.today()
+    today = now_jst().date()
 
     for day_offset in range(days):
         target_date = today + timedelta(days=day_offset)
@@ -708,8 +710,8 @@ async def _fetch_similar_pool(
 
 async def _check_today_availability(db: AsyncSession, therapist_id: UUID) -> bool:
     """Check if therapist has availability today."""
-    today = date.today()
-    now = datetime.now(timezone.utc)
+    now = now_jst()
+    today = now.date()
 
     stmt = select(TherapistShift).where(
         TherapistShift.therapist_id == therapist_id,
