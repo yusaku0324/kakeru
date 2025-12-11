@@ -488,8 +488,9 @@ export function ShiftList({ profileId }: Props) {
     setSaving(true)
     setError(null)
 
-    const startAt = `${formData.date}T${formData.startTime}:00`
-    const endAt = `${formData.date}T${formData.endTime}:00`
+    // 日本時間として明示的に指定（+09:00）
+    const startAt = `${formData.date}T${formData.startTime}:00+09:00`
+    const endAt = `${formData.date}T${formData.endTime}:00+09:00`
 
     if (editingShift) {
       const payload: DashboardShiftUpdatePayload = {
