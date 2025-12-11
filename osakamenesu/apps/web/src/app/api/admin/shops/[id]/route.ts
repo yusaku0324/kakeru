@@ -1,11 +1,8 @@
-import { randomUUID } from 'crypto'
-import { appendFile } from 'node:fs/promises'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { ADMIN_KEY, adminBases, buildAdminHeaders } from '@/app/api/admin/client'
 
 async function proxy(method: 'GET' | 'PATCH', request: NextRequest, params: { id: string }) {
-  const requestLabel = `[admin-shops-bff:${method}:${params.id}:${randomUUID()}]`
   if (!ADMIN_KEY) {
     return NextResponse.json({ detail: 'admin key not configured' }, { status: 500 })
   }
@@ -23,16 +20,8 @@ async function proxy(method: 'GET' | 'PATCH', request: NextRequest, params: { id
   let lastError: any = null
   const targetPath =
     method === 'PATCH' ? `/api/admin/shops/${params.id}/content` : `/api/admin/shops/${params.id}`
-  const requestStart = Date.now()
-  const forwardPayload = {
-    targetPath,
-    body: method === 'PATCH' ? safelyLogBody(body) : undefined,
-  }
-  console.log(`${requestLabel} forwarding`, forwardPayload)
-  // temporary instrumentation removed
 
   for (const base of adminBases()) {
-    const hopStart = Date.now()
     try {
       const resp = await fetch(`${base}${targetPath}`, {
         method,
@@ -49,27 +38,14 @@ async function proxy(method: 'GET' | 'PATCH', request: NextRequest, params: { id
           json = { detail: text }
         }
       }
-      const hopDuration = Date.now() - hopStart
-      const responseInfo = {
-        base,
-        status: resp.status,
-        durationMs: hopDuration,
-      }
-      console.log(`${requestLabel} response`, responseInfo)
       if (resp.ok) {
-        const totalDuration = Date.now() - requestStart
-        const successInfo = { durationMs: totalDuration }
-        console.log(`${requestLabel} success`, successInfo)
         return NextResponse.json(json)
       }
       lastError = { status: resp.status, body: json }
     } catch (err) {
-      console.error(`${requestLabel} fetch failed`, { base, error: String(err) })
       lastError = err
     }
   }
-  const totalDuration = Date.now() - requestStart
-  console.error(`${requestLabel} exhausted`, { durationMs: totalDuration, lastError })
   if (lastError?.status && lastError.body) {
     return NextResponse.json(lastError.body, { status: lastError.status })
   }
@@ -94,14 +70,4 @@ export async function GET(request: NextRequest, context: RouteContext) {
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const params = await resolveParams(context)
   return proxy('PATCH', request, params)
-}
-
-function safelyLogBody(body?: string) {
-  if (!body) return undefined
-  try {
-    const parsed = JSON.parse(body)
-    return { ...parsed }
-  } catch {
-    return body
-  }
 }
