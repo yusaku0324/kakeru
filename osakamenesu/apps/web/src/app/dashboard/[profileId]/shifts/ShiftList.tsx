@@ -466,11 +466,26 @@ export function ShiftList({ profileId }: Props) {
     setEditingShift(shift)
     const startDate = new Date(shift.start_at)
     const endDate = new Date(shift.end_at)
+
+    // 日本時間として正しく表示するため、ローカル時刻で時間を取得
+    const startTimeStr = startDate.toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Tokyo'
+    })
+    const endTimeStr = endDate.toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Tokyo'
+    })
+
     setFormData({
       therapistId: shift.therapist_id,
       date: shift.date,
-      startTime: startDate.toTimeString().slice(0, 5),
-      endTime: endDate.toTimeString().slice(0, 5),
+      startTime: startTimeStr,
+      endTime: endTimeStr,
       availabilityStatus: shift.availability_status,
       notes: shift.notes || '',
     })
