@@ -74,33 +74,29 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Type check
-        working-directory: apps/web
-        run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm exec tsc --noEmit
+        run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- \
+          pnpm --dir apps/web exec tsc --noEmit
 
       - name: Unit tests
-        working-directory: apps/web
-        run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm test:unit
+        run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- \
+          pnpm --dir apps/web test:unit
 
       - name: E2E smoke - reservations MVP
-        working-directory: apps/web
         run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- \
-          pnpm exec playwright test e2e/reservations-mvp.spec.ts --reporter=html
+          pnpm --dir apps/web exec playwright test e2e/reservations-mvp.spec.ts --reporter=html
 
       - name: E2E smoke - admin dashboard save
-        working-directory: apps/web
         run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- \
-          pnpm exec playwright test e2e/admin-dashboard.spec.ts --grep "店舗情報を更新して元に戻せる" --reporter=html
+          pnpm --dir apps/web exec playwright test e2e/admin-dashboard.spec.ts --grep "店舗情報を更新して元に戻せる" --reporter=html
 
       - name: E2E smoke - shift to availability sync
-        working-directory: apps/web
         run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- \
-          pnpm exec playwright test e2e/shift-to-availability-sync.spec.ts --reporter=html
+          pnpm --dir apps/web exec playwright test e2e/shift-to-availability-sync.spec.ts --reporter=html
         continue-on-error: ${{ github.ref != 'refs/heads/main' }}
 
       - name: E2E contract - shift availability API
-        working-directory: apps/web
         run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- \
-          pnpm exec playwright test e2e/shift-availability-contract.spec.ts --reporter=html
+          pnpm --dir apps/web exec playwright test e2e/shift-availability-contract.spec.ts --reporter=html
         continue-on-error: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Upload Playwright artifacts
@@ -162,11 +158,10 @@ jobs:
         run: pnpm install
 
       - name: Build Storybook
-        working-directory: apps/web
-        run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm build-storybook
+        run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- \
+          pnpm --dir apps/web build-storybook
 
       - name: Upload to Chromatic (if token configured)
-        working-directory: apps/web
         env:
           CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN || '' }}
         run: |
@@ -175,4 +170,4 @@ jobs:
             exit 0
           fi
           doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- \
-            pnpm exec chromatic --storybook-dist-dir=storybook-static --only-changed --exit-zero-on-changes --exit-once-uploaded
+            pnpm --dir apps/web exec chromatic --storybook-dist-dir=storybook-static --only-changed --exit-zero-on-changes --exit-once-uploaded
