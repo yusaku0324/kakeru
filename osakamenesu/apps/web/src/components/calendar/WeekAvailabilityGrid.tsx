@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { Fragment, useMemo } from 'react'
 
 import { getJaFormatter } from '@/utils/date'
+import { normalizeTimeToMinutes } from '@/lib/time-normalize'
 import {
   AVAILABILITY_STATUS_META,
   type AvailabilityDay,
@@ -25,6 +26,9 @@ export type SelectedSlot = {
   status: Exclude<AvailabilityStatus, 'blocked'>
 }
 
+// 空き状況のソースタイプ（useReservationOverlayState と一致）
+export type AvailabilitySourceType = 'api' | 'fallback' | 'none'
+
 type WeekAvailabilityGridProps = {
   days: AvailabilityDay[]
   timeline: CalendarTime[]
@@ -34,6 +38,53 @@ type WeekAvailabilityGridProps = {
   maxSelection?: number
   variant?: 'desktop' | 'mobile'
   slotDurationMinutes?: number
+  availabilitySourceType?: AvailabilitySourceType
+  onRequestReservation?: () => void
+}
+
+type AvailabilityEmptyStateProps = {
+  onRequestReservation?: () => void
+}
+
+function AvailabilityEmptyState({ onRequestReservation }: AvailabilityEmptyStateProps) {
+  return (
+    <div className="rounded-[28px] border border-dashed border-white/65 bg-white/80 px-5 py-8 text-center">
+      <div className="mb-3 text-base font-semibold text-neutral-text">
+        空き状況未登録
+      </div>
+      <p className="mb-4 text-sm text-neutral-textMuted">
+        現在、出勤情報が未登録です。
+        <br />
+        予約リクエストで調整できます。
+      </p>
+      {onRequestReservation && (
+        <button
+          type="button"
+          onClick={onRequestReservation}
+          className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl active:scale-[0.98]"
+        >
+          予約リクエストを送る
+        </button>
+      )}
+    </div>
+  )
+}
+
+type DemoBadgeProps = {
+  className?: string
+}
+
+function DemoBadge({ className }: DemoBadgeProps) {
+  return (
+    <span
+      className={clsx(
+        'inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800',
+        className
+      )}
+    >
+      デモ表示
+    </span>
+  )
 }
 
 const WEEKDAY_FORMATTER = getJaFormatter('weekday')
@@ -84,6 +135,8 @@ export function WeekAvailabilityGrid({
   maxSelection = 3,
   variant = 'desktop',
   slotDurationMinutes = 60,
+  availabilitySourceType = 'api',
+  onRequestReservation,
 }: WeekAvailabilityGridProps) {
   const days = useMemo<AvailabilityDay[]>(
     () => (Array.isArray(daysInput) ? daysInput : []),
@@ -110,13 +163,17 @@ export function WeekAvailabilityGrid({
     return map
   }, [days])
 
-  if (!timeline.length || !days.length) {
-    return (
-      <div className="rounded-[28px] border border-dashed border-white/65 bg-white/80 px-5 py-8 text-center text-sm text-neutral-textMuted">
-        公開されている空き枠がありません。
-      </div>
-    )
+  // 空き状況未登録の場合は Empty State を表示
+  if (availabilitySourceType === 'none' || (!timeline.length && !days.length)) {
+    return <AvailabilityEmptyState onRequestReservation={onRequestReservation} />
   }
+
+  // 日付はあるがスロットが空の場合も Empty State を表示
+  if (!timeline.length || !days.length) {
+    return <AvailabilityEmptyState onRequestReservation={onRequestReservation} />
+  }
+
+  const isFallback = availabilitySourceType === 'fallback'
 
   const columnTemplate = `minmax(84px,auto) repeat(${days.length}, minmax(0,1fr))`
   const containerClass = variant === 'desktop' ? 'grid' : 'grid min-w-[640px] sm:min-w-[720px]'
@@ -153,7 +210,12 @@ export function WeekAvailabilityGrid({
     )
 
   return (
-    <div className="overflow-hidden rounded-[32px] border border-white/65 bg-white/92 shadow-[0_35px_110px_rgba(21,93,252,0.18)]">
+    <div data-testid="availability-grid" className="relative overflow-hidden rounded-[32px] border border-white/65 bg-white/92 shadow-[0_35px_110px_rgba(21,93,252,0.18)]">
+      {isFallback && (
+        <div className="absolute right-3 top-3 z-10">
+          <DemoBadge />
+        </div>
+      )}
       <div className={clsx(containerClass)} style={{ gridTemplateColumns: columnTemplate }}>
         <div className="flex items-center justify-center border-b border-white/65 bg-white/90 text-xs font-semibold uppercase tracking-wide text-neutral-textMuted">
           時間
@@ -217,9 +279,14 @@ export function WeekAvailabilityGrid({
               }
 
               if (cellState === CellState.UNAVAILABLE) {
+                const blockedStartMinutes = slot ? normalizeTimeToMinutes(slot.start_at) : -1
                 return (
                   <div
                     key={`${day.date}-${time.key}`}
+                    data-testid="slot-blocked"
+                    data-date={day.date}
+                    data-start-minutes={blockedStartMinutes}
+                    data-start-at={slot?.start_at}
                     className="flex h-14 items-center justify-center border-b border-white/65 bg-white/70"
                   >
                     <span className={buildUnavailableClass(selectedNow)} aria-hidden>
@@ -234,10 +301,16 @@ export function WeekAvailabilityGrid({
               const disabled = !selectedNow && selected.length >= maxSelection
               const iconClass = buildIconClass(slot!.status, selectedNow)
 
+              const slotTestId = slot!.status === 'open' ? 'slot-available' : 'slot-pending'
+              const startMinutes = normalizeTimeToMinutes(slot!.start_at)
               return (
                 <button
                   key={`${day.date}-${time.key}`}
                   type="button"
+                  data-testid={slotTestId}
+                  data-date={day.date}
+                  data-start-minutes={startMinutes}
+                  data-start-at={slot!.start_at}
                   onClick={() => {
                     if (disabled) return
                     onToggle(day, slot!)

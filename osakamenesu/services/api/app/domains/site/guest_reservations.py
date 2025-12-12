@@ -185,7 +185,10 @@ async def assign_for_free(
     for cand in candidates:
         therapist_id = cand.get("therapist_id")
         try:
-            ok, avail_debug = await is_available(db, therapist_id, start_at, end_at)
+            # lock=True でレースコンディションを防ぐ（フリー予約時も同様）
+            ok, avail_debug = await is_available(
+                db, therapist_id, start_at, end_at, lock=True
+            )
         except Exception:  # pragma: no cover - defensive
             ok = False
             avail_debug = {"rejected_reasons": ["internal_error"]}

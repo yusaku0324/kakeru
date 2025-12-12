@@ -1,7 +1,7 @@
 'use client'
 
 import type { AvailabilityDay, AvailabilitySlot, CalendarTime } from './types'
-import { WeekAvailabilityGrid, type SelectedSlot } from './WeekAvailabilityGrid'
+import { WeekAvailabilityGrid, type SelectedSlot, type AvailabilitySourceType } from './WeekAvailabilityGrid'
 
 export type AvailabilityPickerMobileProps = {
   days: AvailabilityDay[]
@@ -11,6 +11,8 @@ export type AvailabilityPickerMobileProps = {
   timeFormatter: Intl.DateTimeFormat
   maxSelection?: number
   slotDurationMinutes?: number
+  availabilitySourceType?: AvailabilitySourceType
+  onRequestReservation?: () => void
 }
 
 export function AvailabilityPickerMobile({
@@ -21,6 +23,8 @@ export function AvailabilityPickerMobile({
   timeFormatter,
   maxSelection,
   slotDurationMinutes,
+  availabilitySourceType,
+  onRequestReservation,
 }: AvailabilityPickerMobileProps) {
   if (!Array.isArray(timeline)) {
     return null
@@ -36,6 +40,8 @@ export function AvailabilityPickerMobile({
         maxSelection={maxSelection}
         variant="mobile"
         slotDurationMinutes={slotDurationMinutes}
+        availabilitySourceType={availabilitySourceType}
+        onRequestReservation={onRequestReservation}
       />
     </div>
   )

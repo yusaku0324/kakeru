@@ -1,4 +1,4 @@
-import { pad } from '@/utils/date'
+import { formatLocalDate, pad } from '@/utils/date'
 
 import type { NormalizedDay, TimelineEntry, ReservationContactItem } from '@/components/reservation'
 
@@ -87,7 +87,7 @@ export function calculateSchedulePages({
     const page: NormalizedDay[] = Array.from({ length: chunkSize }).map((_, offset) => {
       const date = new Date(base)
       date.setDate(base.getDate() + offset)
-      const iso = date.toISOString().slice(0, 10)
+      const iso = formatLocalDate(date)
       return {
         date: iso,
         label: dayFormatter.format(date),
@@ -112,7 +112,7 @@ export function calculateSchedulePages({
       const offset = pageIndex * chunkSize + dayIndex
       const date = new Date(base)
       date.setDate(base.getDate() + offset)
-      const iso = date.toISOString().slice(0, 10)
+      const iso = formatLocalDate(date)
       const existing = dayMap.get(iso)
       page.push(
         existing ?? {

@@ -143,6 +143,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
   const ariaPressed = favorite ? 'true' : 'false'
   const nextSlotPayload = hit.nextAvailableSlot ?? null
   const availabilityLabel = formatNextSlotLabel(nextSlotPayload, hit.todayAvailable ?? null)
+  const todayLabelTestId = availabilityLabel?.includes('本日') ? 'today-label' : undefined
 
   // API から取得した availabilitySlots を availabilityDays 形式に変換（統一ユーティリティ使用）
   const availabilityDays = useMemo(
@@ -269,7 +270,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
               isTodayAvailable
                 ? 'bg-emerald-500/90 text-white'
                 : 'bg-amber-500/90 text-white'
-            }`}>
+            }`} data-testid={todayLabelTestId}>
               <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
               {availabilityLabel}
             </div>
@@ -300,7 +301,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
                 isTodayAvailable
                   ? 'bg-emerald-500/90 text-white'
                   : 'bg-amber-500/90 text-white'
-              }`}>
+              }`} data-testid={todayLabelTestId}>
                 <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
                 {availabilityLabel}
               </div>

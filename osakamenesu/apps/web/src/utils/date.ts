@@ -1,11 +1,28 @@
 export const pad = (value: number) => value.toString().padStart(2, '0')
 
+const jstDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Tokyo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
 export function formatLocalDate(date: Date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  // Always use JST timezone for consistent date formatting
+  return jstDateFormatter.format(date)
 }
 
+const jstTimeFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Tokyo',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+
 export function toIsoWithOffset(date: Date) {
-  return `${formatLocalDate(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}:00+09:00`
+  // Always use JST timezone for consistent time formatting
+  const time = jstTimeFormatter.format(date)
+  return `${formatLocalDate(date)}T${time}:00+09:00`
 }
 
 const formatterOptions = {

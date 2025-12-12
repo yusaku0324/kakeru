@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import {
   AvailabilityPickerDesktop,
   type SelectedSlot,
+  type AvailabilitySourceType,
 } from '@/components/calendar/AvailabilityPickerDesktop'
 import { AvailabilityPickerMobile } from '@/components/calendar/AvailabilityPickerMobile'
 
@@ -25,6 +26,8 @@ type ReservationAvailabilitySectionProps = {
   legendItems: readonly LegendItem[]
   showLegend?: boolean
   slotDurationMinutes?: number
+  availabilitySourceType?: AvailabilitySourceType
+  onRequestReservation?: () => void
 }
 
 export function ReservationAvailabilitySection({
@@ -37,7 +40,12 @@ export function ReservationAvailabilitySection({
   legendItems,
   showLegend = true,
   slotDurationMinutes,
+  availabilitySourceType,
+  onRequestReservation,
 }: ReservationAvailabilitySectionProps) {
+  // 空き状況未登録の場合はレジェンドを非表示
+  const shouldShowLegend = showLegend && availabilitySourceType !== 'none'
+
   return (
     <div className={clsx('space-y-6', className)}>
       <div className="hidden lg:block">
@@ -48,6 +56,8 @@ export function ReservationAvailabilitySection({
           onToggle={onToggle}
           timeFormatter={timeFormatter}
           slotDurationMinutes={slotDurationMinutes}
+          availabilitySourceType={availabilitySourceType}
+          onRequestReservation={onRequestReservation}
         />
       </div>
       <div className="lg:hidden">
@@ -58,9 +68,11 @@ export function ReservationAvailabilitySection({
           onToggle={onToggle}
           timeFormatter={timeFormatter}
           slotDurationMinutes={slotDurationMinutes}
+          availabilitySourceType={availabilitySourceType}
+          onRequestReservation={onRequestReservation}
         />
       </div>
-      {showLegend ? (
+      {shouldShowLegend ? (
         <div className="flex flex-wrap items-center gap-3 rounded-[24px] border border-white/60 bg-white/80 px-4 py-2 text-[11px] text-neutral-text">
           {legendItems.map((item) => (
             <span key={item.key} className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white px-3 py-1">

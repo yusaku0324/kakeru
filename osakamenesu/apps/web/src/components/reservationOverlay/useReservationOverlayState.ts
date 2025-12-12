@@ -33,6 +33,12 @@ type AvailabilityTemplate = Array<{
 export type OverlayFormTab = 'schedule' | 'info'
 export type SlotStatus = Exclude<AvailabilityStatus, 'blocked'>
 
+// 空き状況のソースを示す型
+export type AvailabilitySourceType = 'api' | 'fallback' | 'none'
+
+// フォールバック表示が有効かどうか（環境変数で制御）
+const ENABLE_AVAILABILITY_FALLBACK = process.env.NEXT_PUBLIC_ENABLE_AVAILABILITY_FALLBACK === 'true'
+
 type UseReservationOverlayStateParams = {
   availabilityDays?: ReservationOverlayProps['availabilityDays']
   fallbackAvailability?: AvailabilityTemplate
@@ -55,6 +61,7 @@ export type ReservationOverlayState = {
   removeSlot: (startAt: string) => void
   ensureSelection: () => SelectedSlot[]
   hasAvailability: boolean
+  availabilitySourceType: AvailabilitySourceType
   formOpen: boolean
   formTab: OverlayFormTab
   setFormTab: Dispatch<SetStateAction<OverlayFormTab>>
@@ -80,12 +87,25 @@ export function useReservationOverlayState({
   // Use local date format to ensure consistent timezone handling (JST)
   const todayIso = useMemo(() => formatLocalDate(new Date()), [])
 
-  const availabilitySource = useMemo(() => {
-    if (Array.isArray(availabilityDays) && availabilityDays.length) return availabilityDays
-    if (!Array.isArray(fallbackAvailability) || fallbackAvailability.length === 0) return []
+  // 空き状況のソースと種別を計算
+  const { availabilitySource, availabilitySourceType } = useMemo(() => {
+    // APIからのデータを使用するのは、実際にスロットがある場合のみ
+    if (Array.isArray(availabilityDays) && availabilityDays.length) {
+      const hasAnySlots = availabilityDays.some((day) => Array.isArray(day.slots) && day.slots.length > 0)
+      if (hasAnySlots) {
+        return { availabilitySource: availabilityDays, availabilitySourceType: 'api' as const }
+      }
+    }
+
+    // フォールバックが無効または未定義の場合は空状態
+    if (!ENABLE_AVAILABILITY_FALLBACK || !Array.isArray(fallbackAvailability) || fallbackAvailability.length === 0) {
+      return { availabilitySource: [], availabilitySourceType: 'none' as const }
+    }
+
+    // フォールバック（デモ）データを生成
     const base = new Date()
     base.setHours(0, 0, 0, 0)
-    return fallbackAvailability.map((template) => {
+    const fallbackData = fallbackAvailability.map((template) => {
       const date = new Date(base)
       date.setDate(base.getDate() + template.dayOffset)
       const iso = formatLocalDate(date)
@@ -105,6 +125,7 @@ export function useReservationOverlayState({
         }),
       }
     })
+    return { availabilitySource: fallbackData, availabilitySourceType: 'fallback' as const }
   }, [availabilityDays, fallbackAvailability])
 
   const normalizedAvailability = useMemo<NormalizedDay[]>(() => {
@@ -307,6 +328,7 @@ export function useReservationOverlayState({
     removeSlot,
     ensureSelection,
     hasAvailability,
+    availabilitySourceType,
     formOpen,
     formTab,
     setFormTab,

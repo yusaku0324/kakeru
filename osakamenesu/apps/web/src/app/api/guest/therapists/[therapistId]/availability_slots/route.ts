@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { resolveInternalApiBase } from '@/lib/server-config'
+import {
+  formatDateJST,
+  generateWeekDateRangeWithToday,
+} from '@/lib/availability-date-range'
 
 const API_BASE = resolveInternalApiBase().replace(/\/+$/, '')
 
@@ -13,13 +17,6 @@ type DaySlots = {
   date: string
   is_today: boolean
   slots: Array<{ start_at: string; end_at: string; status: 'open' | 'tentative' | 'blocked' }>
-}
-
-function formatDate(d: Date): string {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
 }
 
 function generateTimeSlots(
@@ -92,27 +89,20 @@ async function fetchDaySlots(therapistId: string, dateStr: string): Promise<Avai
 }
 
 async function fetchWeekAvailability(therapistId: string): Promise<{ days: DaySlots[] }> {
-  const today = new Date()
-  const todayStr = formatDate(today)
+  // Use tested pure function for date range generation
+  const weekDates = generateWeekDateRangeWithToday()
   const days: DaySlots[] = []
 
-  // Fetch 7 days in parallel with error handling
-  const datePromises: Promise<{ dateStr: string; slots: AvailabilitySlot[] }>[] = []
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(today)
-    d.setDate(today.getDate() + i)
-    const dateStr = formatDate(d)
-    datePromises.push(
-      fetchDaySlots(therapistId, dateStr)
-        .then((slots) => ({ dateStr, slots }))
-        .catch(() => ({ dateStr, slots: [] })),
-    )
-  }
+  // Fetch all dates in parallel with error handling
+  const datePromises = weekDates.map(({ date, is_today }) =>
+    fetchDaySlots(therapistId, date)
+      .then((slots) => ({ dateStr: date, slots, isToday: is_today }))
+      .catch(() => ({ dateStr: date, slots: [] as AvailabilitySlot[], isToday: is_today }))
+  )
 
   const results = await Promise.all(datePromises)
 
-  for (const { dateStr, slots: availableSlots } of results) {
-    const isToday = dateStr === todayStr
+  for (const { dateStr, slots: availableSlots, isToday } of results) {
     const timeSlots = generateTimeSlots(dateStr, availableSlots, isToday)
     days.push({
       date: dateStr,

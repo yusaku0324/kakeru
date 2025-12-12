@@ -50,6 +50,21 @@ class ShiftCreatePayload(BaseModel):
             raise ValueError("end_at must be after start_at")
         return v
 
+    @field_validator("break_slots")
+    @classmethod
+    def validate_breaks_within_shift(cls, v: list[BreakSlot], info) -> list[BreakSlot]:
+        """仕様: 休憩時間はシフトの範囲内に完全に収まる必要がある"""
+        start_at = info.data.get("start_at")
+        end_at = info.data.get("end_at")
+        if not start_at or not end_at:
+            return v
+        for br in v:
+            if br.start_at < start_at or br.end_at > end_at:
+                raise ValueError(
+                    f"break slot ({br.start_at} - {br.end_at}) must be within shift range ({start_at} - {end_at})"
+                )
+        return v
+
 
 class ShiftUpdatePayload(BaseModel):
     start_at: datetime | None = None
@@ -288,6 +303,13 @@ async def update_shift(
     if payload.end_at is not None:
         shift.end_at = payload.end_at
     if payload.break_slots is not None:
+        # 仕様: 休憩時間はシフトの範囲内に完全に収まる必要がある
+        for br in payload.break_slots:
+            if br.start_at < new_start or br.end_at > new_end:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"break slot ({br.start_at} - {br.end_at}) must be within shift range ({new_start} - {new_end})",
+                )
         shift.break_slots = [bs.model_dump() for bs in payload.break_slots]
     if payload.availability_status is not None:
         shift.availability_status = payload.availability_status

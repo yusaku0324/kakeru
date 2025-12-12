@@ -254,7 +254,13 @@ export async function GET(request: Request) {
   }
 
   if (openNow) {
-    hits = hits.filter((hit) => hit.today_available || Boolean(hit.next_available_slot?.start_at))
+    hits = hits.filter((hit) => {
+      // today_available は確定スロットがある場合のみ true
+      if (!hit.today_available) return false
+      // next_available_slot が存在し、status が 'ok' (確定) であることを確認
+      const slot = hit.next_available_slot
+      return Boolean(slot?.start_at) && slot?.status === 'ok'
+    })
   }
 
   if (promotionsOnly) {

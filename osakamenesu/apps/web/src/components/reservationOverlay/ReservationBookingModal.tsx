@@ -54,6 +54,7 @@ export function ReservationBookingModal({
     toggleSlot,
     dayFormatter,
     timeFormatter,
+    availabilitySourceType,
   } = state
 
   if (!formOpen) return null
@@ -217,6 +218,7 @@ export function ReservationBookingModal({
                       timeFormatter={timeFormatter}
                       legendItems={RESERVATION_LEGEND_ITEMS}
                       showLegend={false}
+                      availabilitySourceType={availabilitySourceType}
                     />
                   </div>
                 </div>

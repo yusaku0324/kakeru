@@ -71,6 +71,18 @@ jobs:
         run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- \
           pnpm exec playwright test e2e/admin-dashboard.spec.ts --grep "店舗情報を更新して元に戻せる" --reporter=html
 
+      - name: E2E smoke - shift to availability sync
+        working-directory: apps/web
+        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- \
+          pnpm exec playwright test e2e/shift-to-availability-sync.spec.ts --reporter=html
+        continue-on-error: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: E2E contract - shift availability API
+        working-directory: apps/web
+        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- \
+          pnpm exec playwright test e2e/shift-availability-contract.spec.ts --reporter=html
+        continue-on-error: ${{ github.ref != 'refs/heads/main' }}
+
       - name: Upload Playwright artifacts
         if: always()
         uses: actions/upload-artifact@v4

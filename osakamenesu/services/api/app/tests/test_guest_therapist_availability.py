@@ -223,6 +223,50 @@ def test_shift_with_different_time_returns_correct_slots(
     assert slots[0]["end_at"].startswith("2025-01-05T18:00")
 
 
+def test_multiple_shifts_same_day(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Test that when a therapist has multiple shifts on the same day,
+    availability is correctly calculated for each shift.
+    """
+    day = date(2025, 1, 6)
+    # Morning shift: 9:00-12:00
+    morning_shift = _shift(day, 9, 12)
+    # Afternoon shift: 14:00-18:00
+    afternoon_shift = _shift(day, 14, 18)
+
+    async def fake_fetch_shifts(db, therapist_id, date_from, date_to):
+        return [morning_shift, afternoon_shift]
+
+    async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
+        return []
+
+    async def fake_fetch_availability_slots_batch(
+        db, profile_id, therapist_id, date_from, date_to
+    ):
+        return {}
+
+    monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
+    monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
+    monkeypatch.setattr(
+        domain, "_fetch_availability_slots_batch", fake_fetch_availability_slots_batch
+    )
+
+    res = client.get(
+        f"/api/guest/therapists/{THERAPIST_ID}/availability_slots",
+        params={"date": str(day)},
+    )
+    assert res.status_code == 200
+    slots = res.json()["slots"]
+    # Should have 2 available slots (morning and afternoon)
+    assert len(slots) == 2
+    # Morning slot
+    assert slots[0]["start_at"].startswith("2025-01-06T09:00")
+    assert slots[0]["end_at"].startswith("2025-01-06T12:00")
+    # Afternoon slot
+    assert slots[1]["start_at"].startswith("2025-01-06T14:00")
+    assert slots[1]["end_at"].startswith("2025-01-06T18:00")
+
+
 def test_availability_fallback_to_availability_table(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

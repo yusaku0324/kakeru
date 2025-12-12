@@ -122,6 +122,7 @@ async def is_available(
 
         # 1) シフト存在チェック（バッファなしで予約時間がシフト内に収まっているか）
         # シフト開始/終了時刻ぴったりの予約は許可する
+        # 同日に複数シフトがある場合に対応するため、全シフトを取得してチェック
         shift_stmt = select(TherapistShift).where(
             TherapistShift.therapist_id == therapist_id,
             TherapistShift.availability_status == "available",
@@ -129,7 +130,11 @@ async def is_available(
             TherapistShift.end_at >= end_at,  # バッファなし
         )
         shift_res = await db.execute(shift_stmt)
-        shift = shift_res.scalar_one_or_none()
+        shifts = shift_res.scalars().all()
+        # いずれかのシフトに予約時間が完全に含まれているかチェック
+        shift = next(
+            (s for s in shifts if s.start_at <= start_at and s.end_at >= end_at), None
+        )
         if not shift:
             return False, {"rejected_reasons": ["no_shift"]}
 

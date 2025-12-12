@@ -365,6 +365,123 @@ def test_shop_not_found():
     )  # Changed from 404 to 403 since verify_shop_manager fails first
 
 
+def test_create_shift_break_slots_outside_range_rejected():
+    """Reject shift creation with break slots outside shift range."""
+    user = DummyUser()
+    profile = DummyProfile()
+    therapist = DummyTherapist(profile_id=profile.id)
+    shop_manager = DummyShopManager(user_id=user.id, shop_id=profile.id)
+    session = DummySession(
+        profile=profile, therapists=[therapist], shifts=[], shop_managers=[shop_manager]
+    )
+
+    app.dependency_overrides[require_dashboard_user] = lambda: user
+    app.dependency_overrides[get_session] = lambda: session
+
+    today = date.today()
+    start = datetime.combine(today, datetime.min.time()) + timedelta(hours=10)
+    end = datetime.combine(today, datetime.min.time()) + timedelta(hours=18)
+    # Break that starts BEFORE shift start (invalid)
+    break_start = datetime.combine(today, datetime.min.time()) + timedelta(hours=9)
+    break_end = datetime.combine(today, datetime.min.time()) + timedelta(hours=11)
+
+    payload = {
+        "therapist_id": str(therapist.id),
+        "date": today.isoformat(),
+        "start_at": start.isoformat(),
+        "end_at": end.isoformat(),
+        "break_slots": [
+            {"start_at": break_start.isoformat(), "end_at": break_end.isoformat()}
+        ],
+    }
+
+    res = client.post(f"/api/dashboard/shops/{profile.id}/shifts", json=payload)
+    # Should be rejected due to break outside shift range
+    assert res.status_code == 422
+
+
+def test_create_shift_break_slots_within_range_accepted():
+    """Accept shift creation with break slots within shift range."""
+    user = DummyUser()
+    profile = DummyProfile()
+    therapist = DummyTherapist(profile_id=profile.id)
+    shop_manager = DummyShopManager(user_id=user.id, shop_id=profile.id)
+    session = DummySession(
+        profile=profile, therapists=[therapist], shifts=[], shop_managers=[shop_manager]
+    )
+
+    app.dependency_overrides[require_dashboard_user] = lambda: user
+    app.dependency_overrides[get_session] = lambda: session
+
+    today = date.today()
+    start = datetime.combine(today, datetime.min.time()) + timedelta(hours=10)
+    end = datetime.combine(today, datetime.min.time()) + timedelta(hours=18)
+    # Break that is within shift range (valid)
+    break_start = datetime.combine(today, datetime.min.time()) + timedelta(hours=12)
+    break_end = datetime.combine(today, datetime.min.time()) + timedelta(hours=13)
+
+    payload = {
+        "therapist_id": str(therapist.id),
+        "date": today.isoformat(),
+        "start_at": start.isoformat(),
+        "end_at": end.isoformat(),
+        "break_slots": [
+            {"start_at": break_start.isoformat(), "end_at": break_end.isoformat()}
+        ],
+    }
+
+    res = client.post(f"/api/dashboard/shops/{profile.id}/shifts", json=payload)
+    assert res.status_code == 201
+    body = res.json()
+    assert len(body["break_slots"]) == 1
+
+
+def test_update_shift_break_slots_outside_range_rejected():
+    """Reject shift update with break slots outside shift range."""
+    user = DummyUser()
+    profile = DummyProfile()
+    therapist = DummyTherapist(profile_id=profile.id)
+    shop_manager = DummyShopManager(user_id=user.id, shop_id=profile.id)
+
+    today = date.today()
+    start = datetime.combine(today, datetime.min.time()) + timedelta(hours=10)
+    end = datetime.combine(today, datetime.min.time()) + timedelta(hours=18)
+
+    shift = DummyShift(
+        therapist_id=therapist.id,
+        shop_id=profile.id,
+        shift_date=today,
+        start_at=start,
+        end_at=end,
+    )
+    session = DummySession(
+        profile=profile,
+        therapists=[therapist],
+        shifts=[shift],
+        shop_managers=[shop_manager],
+    )
+
+    app.dependency_overrides[require_dashboard_user] = lambda: user
+    app.dependency_overrides[get_session] = lambda: session
+
+    # Break that ends AFTER shift end (invalid)
+    break_start = datetime.combine(today, datetime.min.time()) + timedelta(hours=17)
+    break_end = datetime.combine(today, datetime.min.time()) + timedelta(hours=19)
+
+    payload = {
+        "break_slots": [
+            {"start_at": break_start.isoformat(), "end_at": break_end.isoformat()}
+        ],
+    }
+
+    res = client.patch(
+        f"/api/dashboard/shops/{profile.id}/shifts/{shift.id}", json=payload
+    )
+    # Should be rejected due to break outside shift range
+    assert res.status_code == 400
+    assert "break slot" in res.json()["detail"].lower()
+
+
 def test_list_shifts_with_date_filter():
     """Filter shifts by date range."""
     user = DummyUser()

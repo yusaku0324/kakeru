@@ -63,6 +63,7 @@ export default function ReservationOverlayBooking({
     toggleSlot,
     removeSlot,
     hasAvailability,
+    availabilitySourceType,
   } = state
 
   const canGoPrev = schedulePage === 0
@@ -97,6 +98,8 @@ export default function ReservationOverlayBooking({
             onToggle={toggleSlot}
             timeFormatter={timeFormatter}
             legendItems={RESERVATION_LEGEND_ITEMS}
+            availabilitySourceType={availabilitySourceType}
+            onRequestReservation={onOpenForm}
           />
         </div>
 
