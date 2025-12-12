@@ -33,9 +33,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'pnpm'
-          pnpm-version: 8
-          cache-dependency-path: osakamenesu/pnpm-lock.yaml
 
       - name: Enable corepack
         run: corepack enable
