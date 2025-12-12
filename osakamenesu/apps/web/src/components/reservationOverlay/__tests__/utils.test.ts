@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { calculateSchedulePages, buildTimelineTimes } from '../utils'
 import type { NormalizedDay } from '@/components/reservation'
-import { getJaFormatter } from '@/utils/date'
+import { formatLocalDate, getJaFormatter } from '@/utils/date'
 
 const formatter = getJaFormatter('day')
 
@@ -81,7 +81,5 @@ describe('calculateSchedulePages', () => {
 })
 
 function localizedIso(dateIso: string) {
-  const base = new Date(dateIso)
-  base.setHours(0, 0, 0, 0)
-  return base.toISOString().slice(0, 10)
+  return formatLocalDate(new Date(dateIso))
 }

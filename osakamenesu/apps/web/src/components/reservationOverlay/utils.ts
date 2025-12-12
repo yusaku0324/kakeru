@@ -54,12 +54,15 @@ export function buildTimelineTimes(
 
   // スロット開始時間をソート
   const sortedMinutes = Array.from(slotStartMinutes).sort((a, b) => a - b)
-  const minMinutes = Math.max(0, sortedMinutes[0] - slotDurationMinutes)
-  const maxMinutes = Math.min(24 * 60, sortedMinutes[sortedMinutes.length - 1] + slotDurationMinutes)
+  const paddingMinutes = intervalMinutes || slotDurationMinutes
+  const slotLength = slotDurationMinutes || intervalMinutes
+  const minMinutes = Math.max(0, sortedMinutes[0] - paddingMinutes)
+  const maxMinutes = Math.min(24 * 60, sortedMinutes[sortedMinutes.length - 1] + slotLength + paddingMinutes)
+  const stepMinutes = intervalMinutes || slotLength
 
   // slotDurationMinutes 刻みで時間軸を生成
   const times: TimelineEntry[] = []
-  for (let minutes = minMinutes; minutes <= maxMinutes; minutes += slotDurationMinutes) {
+  for (let minutes = minMinutes; minutes <= maxMinutes; minutes += stepMinutes) {
     const hour = Math.floor(minutes / 60)
     const minute = minutes % 60
     const key = `${pad(hour)}:${pad(minute)}`
@@ -174,8 +177,8 @@ function buildFallbackTimes({
   slotDurationMinutes,
 }: Required<BuildTimelineOptions>): TimelineEntry[] {
   const entries: TimelineEntry[] = []
-  // slotDurationMinutes を使用して時間軸を生成（店舗設定に合わせる）
-  const step = slotDurationMinutes || intervalMinutes
+  // intervalMinutes を使用して時間軸を生成（店舗設定に合わせる）
+  const step = intervalMinutes || slotDurationMinutes
   for (let minutes = fallbackStartHour * 60; minutes <= fallbackEndHour * 60; minutes += step) {
     const hour = Math.floor(minutes / 60)
     const minute = minutes % 60
