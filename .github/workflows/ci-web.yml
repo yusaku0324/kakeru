@@ -80,7 +80,7 @@ jobs:
         run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web test:unit
 
       - name: E2E smoke - reservations MVP
-        run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web exec playwright test e2e/reservations-mvp.spec.ts --reporter=html
+        run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web exec playwright test e2e/dashboard-reservations.spec.ts --reporter=html
 
       - name: E2E smoke - admin dashboard save
         run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web exec playwright test e2e/admin-dashboard.spec.ts --grep "店舗情報を更新して元に戻せる" --reporter=html
