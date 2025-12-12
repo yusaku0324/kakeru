@@ -17,6 +17,9 @@ on:
 jobs:
   web-ci:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: osakamenesu
     env:
       DOPPLER_PROJECT: osakamenesu
       DOPPLER_CONFIG: stg_web
@@ -96,6 +99,9 @@ jobs:
   web-storybook:
     runs-on: ubuntu-latest
     needs: web-ci
+    defaults:
+      run:
+        working-directory: osakamenesu
     env:
       DOPPLER_PROJECT: osakamenesu
       DOPPLER_CONFIG: stg_web
