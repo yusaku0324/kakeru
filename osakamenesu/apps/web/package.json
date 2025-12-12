@@ -20,7 +20,7 @@
     "test:unit": "vitest run",
     "screenshot:notifications": "node scripts/capture-notifications-screenshot.mjs",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "cross-env NODE_OPTIONS=--localstorage-file=.storybook/localstorage.json storybook build",
+    "build-storybook": "cross-env STORYBOOK_DISABLE_TELEMETRY=1 storybook build",
     "chromatic": "pnpm build-storybook && pnpm exec chromatic --storybook-dist-dir=storybook-static"
   },
   "dependencies": {

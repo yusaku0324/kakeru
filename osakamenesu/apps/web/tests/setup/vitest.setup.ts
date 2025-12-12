@@ -1,3 +1,6 @@
+// Force JST for deterministic date/time formatting in tests
+process.env.TZ = 'Asia/Tokyo'
+
 import '@testing-library/jest-dom/vitest'
 import React from 'react'
 import { vi } from 'vitest'

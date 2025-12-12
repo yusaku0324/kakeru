@@ -21,8 +21,8 @@ type Therapist = {
 const FAVORITE_SHOP_ID = process.env.NEXT_PUBLIC_QA_FAVORITE_SHOP_ID || ""
 const FAVORITE_THERAPIST_ID = process.env.NEXT_PUBLIC_QA_FAVORITE_THERAPIST_ID || ""
 
-// 開発環境でのみアクセス可能
-const isDevelopment = process.env.NODE_ENV === "development"
+// 開発・テスト環境でのみアクセス可能（本番では 404）
+const isQaMenuEnabled = process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test"
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -35,7 +35,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function QAMenuPage() {
   // 本番環境では404を返す
-  if (!isDevelopment) {
+  if (!isQaMenuEnabled) {
     notFound()
   }
 

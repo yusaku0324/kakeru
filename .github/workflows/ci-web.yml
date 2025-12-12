@@ -1,6 +1,7 @@
 name: Web CI
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'apps/web/**'
@@ -23,7 +24,9 @@ jobs:
     env:
       DOPPLER_PROJECT: osakamenesu
       DOPPLER_CONFIG: stg_web
+      DOPPLER_FALLBACK_CONFIG: stg
       DOPPLER_TOKEN: ${{ secrets.DOPPLER_STG_TOKEN }}
+      PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
     strategy:
       matrix:
         node-version: [20.x]
@@ -43,6 +46,23 @@ jobs:
       - name: Install Doppler CLI
         uses: dopplerhq/cli-action@v1
 
+      - name: Resolve Doppler config (fallback to stg)
+        run: |
+          set -euo pipefail
+          default_config="${DOPPLER_CONFIG:-stg_web}"
+          fallback_config="${DOPPLER_FALLBACK_CONFIG:-stg}"
+          if doppler configs get "$default_config" --project "$DOPPLER_PROJECT" >/dev/null 2>&1; then
+            echo "DOPPLER_ACTIVE_CONFIG=$default_config" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          if doppler configs get "$fallback_config" --project "$DOPPLER_PROJECT" >/dev/null 2>&1; then
+            echo "::warning::Using fallback Doppler config '$fallback_config' instead of '$default_config'"
+            echo "DOPPLER_ACTIVE_CONFIG=$fallback_config" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "::error::Neither '$default_config' nor '$fallback_config' are accessible with provided token"
+          exit 1
+
       - name: Install dependencies
         run: pnpm install
 
@@ -52,37 +72,28 @@ jobs:
           python-version: '3.12'
 
       - name: Install Playwright browsers
-        working-directory: apps/web
-        run: npx playwright install --with-deps chromium
+        run: |
+          rm -rf ~/.cache/ms-playwright apps/web/node_modules/.cache/ms-playwright
+          PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" pnpm --dir apps/web exec playwright install --with-deps chromium
 
       - name: Type check
-        working-directory: apps/web
-        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- pnpm exec tsc --noEmit
+        run: PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web exec tsc --noEmit
 
       - name: Unit tests
-        working-directory: apps/web
-        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- pnpm test:unit
+        run: PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web test:unit
 
       - name: E2E smoke - reservations MVP
-        working-directory: apps/web
-        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- \
-          pnpm exec playwright test e2e/reservations-mvp.spec.ts --reporter=html
+        run: PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web exec playwright test e2e/dashboard-reservations.spec.ts --reporter=html
 
       - name: E2E smoke - admin dashboard save
-        working-directory: apps/web
-        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- \
-          pnpm exec playwright test e2e/admin-dashboard.spec.ts --grep "店舗情報を更新して元に戻せる" --reporter=html
+        run: PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web exec playwright test e2e/admin-dashboard.spec.ts --grep "店舗情報を更新して元に戻せる" --reporter=html
 
       - name: E2E smoke - shift to availability sync
-        working-directory: apps/web
-        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- \
-          pnpm exec playwright test e2e/shift-to-availability-sync.spec.ts --reporter=html
+        run: PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web exec playwright test e2e/shift-to-availability-sync.spec.ts --reporter=html
         continue-on-error: ${{ github.ref != 'refs/heads/main' }}
 
       - name: E2E contract - shift availability API
-        working-directory: apps/web
-        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- \
-          pnpm exec playwright test e2e/shift-availability-contract.spec.ts --reporter=html
+        run: PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web exec playwright test e2e/shift-availability-contract.spec.ts --reporter=html
         continue-on-error: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Upload Playwright artifacts
@@ -105,7 +116,9 @@ jobs:
     env:
       DOPPLER_PROJECT: osakamenesu
       DOPPLER_CONFIG: stg_web
+      DOPPLER_FALLBACK_CONFIG: stg
       DOPPLER_TOKEN: ${{ secrets.DOPPLER_STG_TOKEN }}
+      PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -114,7 +127,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
-          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+
+      - name: Enable corepack
+        run: corepack enable
 
       - name: Enable corepack
         run: corepack enable
@@ -122,15 +142,30 @@ jobs:
       - name: Install Doppler CLI
         uses: dopplerhq/cli-action@v1
 
+      - name: Resolve Doppler config (fallback to stg)
+        run: |
+          set -euo pipefail
+          default_config="${DOPPLER_CONFIG:-stg_web}"
+          fallback_config="${DOPPLER_FALLBACK_CONFIG:-stg}"
+          if doppler configs get "$default_config" --project "$DOPPLER_PROJECT" >/dev/null 2>&1; then
+            echo "DOPPLER_ACTIVE_CONFIG=$default_config" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          if doppler configs get "$fallback_config" --project "$DOPPLER_PROJECT" >/dev/null 2>&1; then
+            echo "::warning::Using fallback Doppler config '$fallback_config' instead of '$default_config'"
+            echo "DOPPLER_ACTIVE_CONFIG=$fallback_config" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "::error::Neither '$default_config' nor '$fallback_config' are accessible with provided token"
+          exit 1
+
       - name: Install dependencies
         run: pnpm install
 
       - name: Build Storybook
-        working-directory: apps/web
-        run: doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- pnpm build-storybook
+        run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web build-storybook
 
       - name: Upload to Chromatic (if token configured)
-        working-directory: apps/web
         env:
           CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN || '' }}
         run: |
@@ -138,5 +173,5 @@ jobs:
             echo "Chromatic token is not configured. Skipping upload."
             exit 0
           fi
-          doppler run --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" -- \
-            pnpm exec chromatic --storybook-dist-dir=storybook-static --only-changed --exit-zero-on-changes --exit-once-uploaded
+          doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- \
+            pnpm --dir apps/web exec chromatic --storybook-dist-dir=storybook-static --only-changed --exit-zero-on-changes --exit-once-uploaded
