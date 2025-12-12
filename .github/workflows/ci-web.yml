@@ -70,7 +70,9 @@ jobs:
           python-version: '3.12'
 
       - name: Install Playwright browsers
-        run: pnpm --dir apps/web exec playwright install --with-deps chromium
+        run: |
+          rm -rf ~/.cache/ms-playwright
+          pnpm --dir apps/web exec playwright install --with-deps chromium
 
       - name: Type check
         run: doppler run --project "$DOPPLER_PROJECT" --config "${DOPPLER_ACTIVE_CONFIG:-$DOPPLER_CONFIG}" -- pnpm --dir apps/web exec tsc --noEmit
