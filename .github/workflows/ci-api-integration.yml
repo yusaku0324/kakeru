@@ -6,21 +6,21 @@ on:
     branches:
       - main
     paths:
-      - 'services/api/**'
-      - 'docker/api.Dockerfile'
-      - 'docker-compose.test.yml'
-      - 'requirements-test.txt'
+      - 'osakamenesu/services/api/**'
+      - 'osakamenesu/docker/api.Dockerfile'
+      - 'osakamenesu/docker-compose.test.yml'
+      - 'osakamenesu/requirements-test.txt'
       - '.github/workflows/ci-api-integration.yml'
   pull_request:
     paths:
-      - 'services/api/**'
-      - 'docker/api.Dockerfile'
-      - 'docker-compose.test.yml'
-      - 'requirements-test.txt'
+      - 'osakamenesu/services/api/**'
+      - 'osakamenesu/docker/api.Dockerfile'
+      - 'osakamenesu/docker-compose.test.yml'
+      - 'osakamenesu/requirements-test.txt'
       - '.github/workflows/ci-api-integration.yml'
 
 env:
-  API_DIR: services/api
+  API_DIR: osakamenesu/services/api
 
 jobs:
   integration-tests:
@@ -58,10 +58,10 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           sparse-checkout: |
-            services/api
-            docker
-            docker-compose.test.yml
-            requirements-test.txt
+            ${API_DIR}
+            osakamenesu/docker
+            osakamenesu/docker-compose.test.yml
+            osakamenesu/requirements-test.txt
           sparse-checkout-cone-mode: true
 
       - name: Set up Python
@@ -69,6 +69,17 @@ jobs:
         with:
           python-version: '3.12'
           cache: 'pip'
+
+      - name: Verify API_DIR
+        run: |
+          if [ -f "$API_DIR/app/enums.py" ]; then
+            echo "API_DIR OK: $API_DIR"
+          else
+            echo "❌ API_DIR invalid: $API_DIR"
+            echo "Searching for app/enums.py under repo..."
+            find . -maxdepth 5 -path '*/app/enums.py' -print
+            exit 1
+          fi
 
       - name: Workspace diag
         run: |
@@ -138,14 +149,25 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           sparse-checkout: |
-            services/api
-            requirements-test.txt
+            ${API_DIR}
+            osakamenesu/requirements-test.txt
           sparse-checkout-cone-mode: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Verify API_DIR
+        run: |
+          if [ -f "$API_DIR/app/enums.py" ]; then
+            echo "API_DIR OK: $API_DIR"
+          else
+            echo "❌ API_DIR invalid: $API_DIR"
+            echo "Searching for app/enums.py under repo..."
+            find . -maxdepth 5 -path '*/app/enums.py' -print
+            exit 1
+          fi
 
       - name: Check for missing dependencies
         working-directory: ${{ env.API_DIR }}
@@ -186,13 +208,24 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           sparse-checkout: |
-            services/api
+            ${API_DIR}
           sparse-checkout-cone-mode: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Verify API_DIR
+        run: |
+          if [ -f "$API_DIR/app/enums.py" ]; then
+            echo "API_DIR OK: $API_DIR"
+          else
+            echo "❌ API_DIR invalid: $API_DIR"
+            echo "Searching for app/enums.py under repo..."
+            find . -maxdepth 5 -path '*/app/enums.py' -print
+            exit 1
+          fi
 
       - name: Check enum consistency
         working-directory: ${{ env.API_DIR }}
