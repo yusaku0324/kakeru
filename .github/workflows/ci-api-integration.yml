@@ -13,14 +13,14 @@ on:
       - '.github/workflows/ci-api-integration.yml'
   pull_request:
     paths:
-      - 'services/api/**'
-      - 'docker/api.Dockerfile'
-      - 'docker-compose.test.yml'
-      - 'requirements-test.txt'
+      - 'osakamenesu/services/api/**'
+      - 'osakamenesu/docker/api.Dockerfile'
+      - 'osakamenesu/docker-compose.test.yml'
+      - 'osakamenesu/requirements-test.txt'
       - '.github/workflows/ci-api-integration.yml'
 
 env:
-  API_DIR: services/api
+  API_DIR: osakamenesu/services/api
 
 jobs:
   integration-tests:
@@ -58,10 +58,10 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           sparse-checkout: |
-            services/api
-            docker
-            docker-compose.test.yml
-            requirements-test.txt
+            osakamenesu/services/api
+            osakamenesu/docker
+            osakamenesu/docker-compose.test.yml
+            osakamenesu/requirements-test.txt
           sparse-checkout-cone-mode: true
 
       - name: Set up Python
@@ -138,8 +138,8 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           sparse-checkout: |
-            services/api
-            requirements-test.txt
+            osakamenesu/services/api
+            osakamenesu/requirements-test.txt
           sparse-checkout-cone-mode: true
 
       - name: Set up Python
@@ -186,7 +186,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           sparse-checkout: |
-            services/api
+            osakamenesu/services/api
           sparse-checkout-cone-mode: true
 
       - name: Set up Python
