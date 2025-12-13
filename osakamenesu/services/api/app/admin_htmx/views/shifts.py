@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 import uuid
@@ -79,18 +80,23 @@ def _error_response(request: Request, message: str, status_code: int) -> HTMLRes
     )
 
 
-async def _with_advisory_lock(session: AsyncSession, key1: int, key2: int) -> bool:
+def _lock_key(therapist_uuid: UUID, target_date: date) -> int:
+    data = therapist_uuid.bytes + target_date.toordinal().to_bytes(
+        4, "big", signed=False
+    )
+    digest = hashlib.blake2b(data, digest_size=8).digest()
+    # pg_try_advisory_xact_lock は signed bigint を受け取るため、必ず [-2^63, 2^63-1] に収める
+    u64 = int.from_bytes(digest, "big", signed=False)
+    return u64 if u64 < 2**63 else u64 - 2**64
+
+
+async def _with_advisory_lock(session: AsyncSession, key: int) -> bool:
+    # トランザクションスコープで自動解放されるロックを使用する
     res = await session.execute(
-        text("SELECT pg_try_advisory_lock(:k1, :k2)").bindparams(k1=key1, k2=key2)
+        text("SELECT pg_try_advisory_xact_lock(:key)").bindparams(key=key)
     )
     value = res.scalar()
     return bool(value)
-
-
-async def _release_advisory_lock(session: AsyncSession, key1: int, key2: int) -> None:
-    await session.execute(
-        text("SELECT pg_advisory_unlock(:k1, :k2)").bindparams(k1=key1, k2=key2)
-    )
 
 
 @router.get("", response_class=HTMLResponse)
@@ -130,11 +136,10 @@ async def shifts_rebuild(
             request, "該当するセラピストが見つかりません。", status_code=404
         )
 
-    lock_key1 = therapist_uuid.int & 0x7FFFFFFF
-    lock_key2 = parsed_date.toordinal() & 0x7FFFFFFF
+    key = _lock_key(therapist_uuid, parsed_date)
     locked = False
     try:
-        locked = await _with_advisory_lock(session, lock_key1, lock_key2)
+        locked = await _with_advisory_lock(session, key)
         if not locked:
             return _error_response(
                 request, "同一の対象を処理中です。少し待って再実行してください。", 409
@@ -144,7 +149,6 @@ async def shifts_rebuild(
             await sync_availability_for_date(
                 db=session, shop_id=therapist.profile_id, target_date=parsed_date
             )
-            await session.commit()
         except Exception:  # pragma: no cover - defensive logging
             logger.exception(
                 "htmx.rebuild.failed correlation_id=%s therapist_id=%s date=%s",
@@ -159,6 +163,7 @@ async def shifts_rebuild(
         slots = await _get_slots_for_profile_date(
             session, profile_id=therapist.profile_id, target_date=parsed_date
         )
+        await session.commit()
         elapsed_ms = int((time.monotonic() - started_at) * 1000)
         logger.info(
             "htmx.rebuild.ok correlation_id=%s therapist_id=%s date=%s slots=%s elapsed_ms=%s",
@@ -184,5 +189,7 @@ async def shifts_rebuild(
             )
         return response
     finally:
+        # pg_try_advisory_xact_lock はトランザクション終了で自動解放されるため明示的な unlock は不要
         if locked:
-            await _release_advisory_lock(session, lock_key1, lock_key2)
+            # flush to ensure statements are completed before ending request context
+            await session.flush()

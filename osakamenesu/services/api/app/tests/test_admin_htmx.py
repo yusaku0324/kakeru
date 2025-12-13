@@ -46,7 +46,6 @@ def test_shifts_rebuild_success_partial(client, monkeypatch):
         return None
 
     monkeypatch.setattr(shifts_view, "_with_advisory_lock", _fake_lock)
-    monkeypatch.setattr(shifts_view, "_release_advisory_lock", _fake_release)
 
     async def _fake_sync(*args, **kwargs):
         return None
@@ -100,3 +99,57 @@ def test_shifts_rebuild_not_found_therapist(client, monkeypatch):
     )
     assert resp.status_code == 404
     assert "セラピストが見つかりません" in resp.text
+
+
+def test_shifts_rebuild_lock_conflict(client, monkeypatch):
+    therapist_id = uuid.uuid4()
+
+    async def _fake_get_therapist(session, _):
+        class DummyTherapist:
+            def __init__(self, profile_id):
+                self.profile_id = profile_id
+
+        return DummyTherapist(uuid.uuid4())
+
+    async def _fake_lock(*args, **kwargs):
+        return False
+
+    monkeypatch.setattr(shifts_view, "_get_therapist", _fake_get_therapist)
+    monkeypatch.setattr(shifts_view, "_with_advisory_lock", _fake_lock)
+
+    resp = client.post(
+        "/admin/htmx/shifts/rebuild",
+        data={"target_date": "2024-01-01", "therapist_id": str(therapist_id)},
+        headers={"HX-Request": "true"},
+    )
+    assert resp.status_code == 409
+    assert "処理中" in resp.text
+
+
+def test_shifts_rebuild_sync_exception(client, monkeypatch):
+    therapist_id = uuid.uuid4()
+
+    async def _fake_get_therapist(session, _):
+        class DummyTherapist:
+            def __init__(self, profile_id):
+                self.profile_id = profile_id
+
+        return DummyTherapist(uuid.uuid4())
+
+    async def _fake_lock(*args, **kwargs):
+        return True
+
+    async def _fake_sync(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(shifts_view, "_get_therapist", _fake_get_therapist)
+    monkeypatch.setattr(shifts_view, "_with_advisory_lock", _fake_lock)
+    monkeypatch.setattr(shifts_view, "sync_availability_for_date", _fake_sync)
+
+    resp = client.post(
+        "/admin/htmx/shifts/rebuild",
+        data={"target_date": "2024-01-01", "therapist_id": str(therapist_id)},
+        headers={"HX-Request": "true"},
+    )
+    assert resp.status_code == 500
+    assert "再生成に失敗" in resp.text
