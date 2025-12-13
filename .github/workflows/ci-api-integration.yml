@@ -7,20 +7,25 @@ on:
       - main
     paths:
       - 'services/api/**'
+      - 'osakamenesu/services/api/**'
       - 'docker/api.Dockerfile'
+      - 'osakamenesu/docker/api.Dockerfile'
       - 'docker-compose.test.yml'
+      - 'osakamenesu/docker-compose.test.yml'
       - 'requirements-test.txt'
+      - 'osakamenesu/requirements-test.txt'
       - '.github/workflows/ci-api-integration.yml'
   pull_request:
     paths:
       - 'services/api/**'
+      - 'osakamenesu/services/api/**'
       - 'docker/api.Dockerfile'
+      - 'osakamenesu/docker/api.Dockerfile'
       - 'docker-compose.test.yml'
+      - 'osakamenesu/docker-compose.test.yml'
       - 'requirements-test.txt'
+      - 'osakamenesu/requirements-test.txt'
       - '.github/workflows/ci-api-integration.yml'
-
-env:
-  API_DIR: services/api
 
 jobs:
   integration-tests:
@@ -57,12 +62,6 @@ jobs:
           submodules: false
           fetch-depth: 0
           fetch-tags: true
-          sparse-checkout: |
-            services/api
-            docker
-            docker-compose.test.yml
-            requirements-test.txt
-          sparse-checkout-cone-mode: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -70,11 +69,20 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Workspace diag
+      - name: Resolve API_DIR
         run: |
-          echo "pwd -> $(pwd)"
-          ls -la
-          find . -maxdepth 3 -type d -name api -o -name services
+          set -e
+          candidates=$(find . -maxdepth 5 -type f -path '*/app/enums.py' | sed 's#/app/enums.py##')
+          echo "Found candidates:"
+          echo "$candidates"
+          API_DIR=$(echo "$candidates" | head -n1)
+          if [ -z "$API_DIR" ]; then
+            echo "❌ app/enums.py not found under repo"
+            exit 1
+          fi
+          echo "API_DIR=$API_DIR" >> "$GITHUB_ENV"
+          echo "Resolved API_DIR=$API_DIR"
+          ls -la "$API_DIR"
 
       - name: Install dependencies
         working-directory: ${{ env.API_DIR }}
@@ -137,15 +145,26 @@ jobs:
           submodules: false
           fetch-depth: 0
           fetch-tags: true
-          sparse-checkout: |
-            services/api
-            requirements-test.txt
-          sparse-checkout-cone-mode: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Resolve API_DIR
+        run: |
+          set -e
+          candidates=$(find . -maxdepth 5 -type f -path '*/app/enums.py' | sed 's#/app/enums.py##')
+          echo "Found candidates:"
+          echo "$candidates"
+          API_DIR=$(echo "$candidates" | head -n1)
+          if [ -z "$API_DIR" ]; then
+            echo "❌ app/enums.py not found under repo"
+            exit 1
+          fi
+          echo "API_DIR=$API_DIR" >> "$GITHUB_ENV"
+          echo "Resolved API_DIR=$API_DIR"
+          ls -la "$API_DIR"
 
       - name: Check for missing dependencies
         working-directory: ${{ env.API_DIR }}
@@ -154,7 +173,7 @@ jobs:
           pip install -r requirements.txt
 
           # Import check - verify all modules can be imported
-          python -c "
+          python - <<'PY'
           import sys
           sys.path.insert(0, '.')
 
@@ -173,7 +192,7 @@ jobs:
           except ImportError as e:
               print(f'❌ Import error in guest_matching: {e}')
               sys.exit(1)
-          "
+          PY
 
   enum-consistency-check:
     name: "api: enum consistency"
@@ -185,26 +204,37 @@ jobs:
           submodules: false
           fetch-depth: 0
           fetch-tags: true
-          sparse-checkout: |
-            services/api
-          sparse-checkout-cone-mode: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
+      - name: Resolve API_DIR
+        run: |
+          set -e
+          candidates=$(find . -maxdepth 5 -type f -path '*/app/enums.py' | sed 's#/app/enums.py##')
+          echo "Found candidates:"
+          echo "$candidates"
+          API_DIR=$(echo "$candidates" | head -n1)
+          if [ -z "$API_DIR" ]; then
+            echo "❌ app/enums.py not found under repo"
+            exit 1
+          fi
+          echo "API_DIR=$API_DIR" >> "$GITHUB_ENV"
+          echo "Resolved API_DIR=$API_DIR"
+          ls -la "$API_DIR"
+
       - name: Check enum consistency
         working-directory: ${{ env.API_DIR }}
         run: |
-          python -c "
+          python - <<'PY'
           import re
           import sys
           from pathlib import Path
 
           errors = []
 
-          # Check enums.py exists and is the single source of truth
           enums_path = Path('app/enums.py')
           if not enums_path.exists():
               print('❌ app/enums.py not found - enum definitions should be centralized')
@@ -212,43 +242,35 @@ jobs:
 
           enums_content = enums_path.read_text()
 
-          # Extract VALUES tuples from enums.py
           values_pattern = r'(\w+_VALUES):\s*Tuple\[str,\s*\.\.\.\]\s*=\s*\(([^)]+)\)'
           enum_values = {}
           for match in re.finditer(values_pattern, enums_content):
               name = match.group(1)
               values_str = match.group(2)
-              values = [v.strip().strip('\"').strip(\"'\") for v in values_str.split(',') if v.strip()]
+              values = [v.strip().strip('"').strip("'") for v in values_str.split(',') if v.strip()]
               enum_values[name] = set(values)
               print(f'Found {name}: {values}')
 
-          # Check models.py imports from enums.py
           models_path = Path('app/models.py')
           models_content = models_path.read_text()
-
           if 'from .enums import' not in models_content and 'from app.enums import' not in models_content:
               errors.append('models.py should import enum values from enums.py')
 
-          # Check schemas.py imports from enums.py
           schemas_path = Path('app/schemas.py')
           schemas_content = schemas_path.read_text()
-
           if 'from .enums import' not in schemas_content and 'from app.enums import' not in schemas_content:
               errors.append('schemas.py should import enum Literals from enums.py')
 
-          # Check for hardcoded 'active' status (common mistake)
           api_dir = Path('app')
           for py_file in api_dir.rglob('*.py'):
               if 'test' in str(py_file) or 'alembic' in str(py_file) or 'enums.py' in str(py_file):
                   continue
               content = py_file.read_text()
-
-              # Check for hardcoded 'active' which is not a valid therapist status
-              if re.search(r'therapist.*status.*[\"\\']active[\"\\']', content, re.IGNORECASE):
+              if re.search(r'therapist.*status.*["\']active["\']', content, re.IGNORECASE):
                   for i, line in enumerate(content.split('\n'), 1):
-                      if \"'active'\" in line or '\"active\"' in line:
+                      if "'active'" in line or '"active"' in line:
                           if 'therapist' in line.lower() and 'status' in line.lower():
-                              errors.append(f'{py_file}:{i}: Found hardcoded \"active\" status (use enums.py values)')
+                              errors.append(f'{py_file}:{i}: Found hardcoded "active" status (use enums.py values)')
 
           if errors:
               print('\n❌ Enum consistency errors found:')
@@ -257,4 +279,4 @@ jobs:
               sys.exit(1)
           else:
               print('\n✅ All enum checks passed')
-          "
+          PY
