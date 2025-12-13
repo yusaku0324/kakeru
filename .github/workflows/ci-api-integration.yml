@@ -6,17 +6,17 @@ on:
     branches:
       - main
     paths:
-      - 'services/api/**'
-      - 'docker/api.Dockerfile'
-      - 'docker-compose.test.yml'
-      - 'requirements-test.txt'
+      - 'osakamenesu/services/api/**'
+      - 'osakamenesu/docker/api.Dockerfile'
+      - 'osakamenesu/docker-compose.test.yml'
+      - 'osakamenesu/requirements-test.txt'
       - '.github/workflows/ci-api-integration.yml'
   pull_request:
     paths:
-      - 'services/api/**'
-      - 'docker/api.Dockerfile'
-      - 'docker-compose.test.yml'
-      - 'requirements-test.txt'
+      - 'osakamenesu/services/api/**'
+      - 'osakamenesu/docker/api.Dockerfile'
+      - 'osakamenesu/docker-compose.test.yml'
+      - 'osakamenesu/requirements-test.txt'
       - '.github/workflows/ci-api-integration.yml'
 
 jobs:
@@ -55,10 +55,10 @@ jobs:
           submodules: false
           fetch-depth: 1
           sparse-checkout: |
-            services/api
-            docker
-            docker-compose.test.yml
-            requirements-test.txt
+            osakamenesu/services/api
+            osakamenesu/docker
+            osakamenesu/docker-compose.test.yml
+            osakamenesu/requirements-test.txt
           sparse-checkout-cone-mode: true
 
       - name: Set up Python
@@ -68,7 +68,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        working-directory: services/api
+        working-directory: osakamenesu/services/api
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -86,7 +86,7 @@ jobs:
           done
 
       - name: Run Alembic migrations
-        working-directory: services/api
+        working-directory: osakamenesu/services/api
         env:
           DATABASE_URL: postgresql+asyncpg://app:app@localhost:5432/osaka_menesu
           MEILI_HOST: http://localhost:7700
@@ -95,7 +95,7 @@ jobs:
           alembic upgrade head
 
       - name: Run unit tests
-        working-directory: services/api
+        working-directory: osakamenesu/services/api
         env:
           DATABASE_URL: postgresql+asyncpg://app:app@localhost:5432/osaka_menesu
           MEILI_HOST: http://localhost:7700
@@ -107,7 +107,7 @@ jobs:
           pytest app/tests -m "not integration" -q --tb=short
 
       - name: Run integration tests
-        working-directory: services/api
+        working-directory: osakamenesu/services/api
         env:
           DATABASE_URL: postgresql+asyncpg://app:app@localhost:5432/osaka_menesu
           MEILI_HOST: http://localhost:7700
@@ -128,8 +128,8 @@ jobs:
           submodules: false
           fetch-depth: 1
           sparse-checkout: |
-            services/api
-            requirements-test.txt
+            osakamenesu/services/api
+            osakamenesu/requirements-test.txt
           sparse-checkout-cone-mode: true
 
       - name: Set up Python
@@ -138,7 +138,7 @@ jobs:
           python-version: '3.12'
 
       - name: Check for missing dependencies
-        working-directory: services/api
+        working-directory: osakamenesu/services/api
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -175,7 +175,7 @@ jobs:
           submodules: false
           fetch-depth: 1
           sparse-checkout: |
-            services/api
+            osakamenesu/services/api
           sparse-checkout-cone-mode: true
 
       - name: Set up Python
