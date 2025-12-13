@@ -196,6 +196,7 @@ class FacetValue(BaseModel):
 
 class NextAvailableSlot(BaseModel):
     start_at: datetime
+    end_at: Optional[datetime] = None
     status: Literal["ok", "maybe"]
 
 
