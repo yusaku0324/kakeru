@@ -10,6 +10,7 @@ on:
       - 'docker-compose.test.yml'
       - 'requirements-test.txt'
       - '.github/workflows/ci-api-integration.yml'
+  workflow_dispatch:
   pull_request:
     paths:
       - 'services/api/**'
