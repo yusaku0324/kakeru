@@ -5,10 +5,14 @@
 {% block content %}
   <section class="panel">
     <h2>シフト空き枠管理 (デモ)</h2>
+    <div id="error_box"></div>
     <form class="search-form"
           hx-post="/admin/htmx/shifts/rebuild"
           hx-target="#slots-table"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          hx-indicator="#rebuild-indicator"
+          hx-on::htmx:beforeRequest="this.querySelector('[data-role=submit]').disabled=true"
+          hx-on::htmx:afterRequest="this.querySelector('[data-role=submit]').disabled=false">
       <label>
         日付:
         <input type="date" name="target_date" value="{{ today }}" required>
@@ -17,7 +21,8 @@
         セラピストID:
         <input type="text" name="therapist_id" placeholder="UUIDなど" required>
       </label>
-      <button type="submit">再生成</button>
+      <button type="submit" data-role="submit">再生成</button>
+      <span id="rebuild-indicator" class="indicator" aria-live="polite">処理中...</span>
     </form>
 
     <div id="slots-table">
