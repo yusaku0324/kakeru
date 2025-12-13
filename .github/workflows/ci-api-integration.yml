@@ -58,7 +58,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           sparse-checkout: |
-            osakamenesu/services/api
+            ${API_DIR}
             osakamenesu/docker
             osakamenesu/docker-compose.test.yml
             osakamenesu/requirements-test.txt
@@ -70,11 +70,16 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Workspace diag
+      - name: Verify API_DIR
         run: |
-          echo "pwd -> $(pwd)"
-          ls -la
-          find . -maxdepth 3 -type d -name api -o -name services
+          if [ -f "$API_DIR/app/enums.py" ]; then
+            echo "API_DIR OK: $API_DIR"
+          else
+            echo "❌ API_DIR invalid: $API_DIR"
+            echo "Searching for app/enums.py under repo..."
+            find . -maxdepth 5 -path '*/app/enums.py' -print
+            exit 1
+          fi
 
       - name: Install dependencies
         working-directory: ${{ env.API_DIR }}
@@ -138,7 +143,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           sparse-checkout: |
-            osakamenesu/services/api
+            ${API_DIR}
             osakamenesu/requirements-test.txt
           sparse-checkout-cone-mode: true
 
@@ -146,6 +151,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Verify API_DIR
+        run: |
+          if [ -f "$API_DIR/app/enums.py" ]; then
+            echo "API_DIR OK: $API_DIR"
+          else
+            echo "❌ API_DIR invalid: $API_DIR"
+            echo "Searching for app/enums.py under repo..."
+            find . -maxdepth 5 -path '*/app/enums.py' -print
+            exit 1
+          fi
 
       - name: Check for missing dependencies
         working-directory: ${{ env.API_DIR }}
@@ -186,7 +202,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           sparse-checkout: |
-            osakamenesu/services/api
+            ${API_DIR}
           sparse-checkout-cone-mode: true
 
       - name: Set up Python
@@ -258,3 +274,13 @@ jobs:
           else:
               print('\n✅ All enum checks passed')
           "
+      - name: Verify API_DIR
+        run: |
+          if [ -f "$API_DIR/app/enums.py" ]; then
+            echo "API_DIR OK: $API_DIR"
+          else
+            echo "❌ API_DIR invalid: $API_DIR"
+            echo "Searching for app/enums.py under repo..."
+            find . -maxdepth 5 -path '*/app/enums.py' -print
+            exit 1
+          fi
