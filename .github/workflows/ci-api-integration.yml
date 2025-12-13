@@ -49,11 +49,11 @@ jobs:
 
     steps:
       - name: Checkout
-        # Submodules are not needed for API tests; disable them to avoid gitlink warnings.
         uses: actions/checkout@v4
         with:
           submodules: false
-          fetch-depth: 1
+          fetch-depth: 0
+          fetch-tags: true
           sparse-checkout: |
             osakamenesu/services/api
             osakamenesu/docker
@@ -66,6 +66,12 @@ jobs:
         with:
           python-version: '3.12'
           cache: 'pip'
+
+      - name: Workspace diag
+        run: |
+          echo "pwd -> $(pwd)"
+          ls -la
+          find . -maxdepth 3 -type d -name api -o -name services
 
       - name: Install dependencies
         working-directory: osakamenesu/services/api
@@ -126,7 +132,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: false
-          fetch-depth: 1
+          fetch-depth: 0
+          fetch-tags: true
           sparse-checkout: |
             osakamenesu/services/api
             osakamenesu/requirements-test.txt
@@ -173,7 +180,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: false
-          fetch-depth: 1
+          fetch-depth: 0
+          fetch-tags: true
           sparse-checkout: |
             osakamenesu/services/api
           sparse-checkout-cone-mode: true
