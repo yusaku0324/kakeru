@@ -1,0 +1,49 @@
+name: E2E (Playwright)
+
+on:
+  push:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/ci-e2e.yml'
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/ci-e2e.yml'
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    environment: Preview
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail fast if E2E_SEED_TOKEN is missing
+        env:
+          E2E_SEED_TOKEN: ${{ secrets.E2E_SEED_TOKEN }}
+        run: |
+          if [ -z "$E2E_SEED_TOKEN" ]; then
+            echo "E2E_SEED_TOKEN is not set. Set the GitHub secret to keep E2E always-on."
+            exit 1
+          fi
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install root deps
+        run: pnpm install --frozen-lockfile
+      - name: Install web deps
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps
+      - name: Run Playwright (shift sync + no-results)
+        working-directory: apps/web
+        env:
+          E2E_BASE_URL: https://osakamenesu.com
+          E2E_API_BASE: https://api.osakamenesu.com
+          E2E_SEED_TOKEN: ${{ secrets.E2E_SEED_TOKEN }}
+        run: pnpm exec playwright test e2e/shift-to-availability-sync.spec.ts e2e/search-no-results.spec.ts e2e/search-card-availability-consistency.spec.ts e2e/shift-to-public-ui-consistency.spec.ts --reporter=line --timeout=120000
