@@ -1,0 +1,24 @@
+{% if slots and slots|length > 0 %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>開始</th>
+        <th>終了</th>
+        <th>セラピスト</th>
+        <th>ステータス</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in slots %}
+      <tr>
+        <td>{{ row.start_at }}</td>
+        <td>{{ row.end_at }}</td>
+        <td>{{ row.therapist_id }}</td>
+        <td>{{ row.status }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>空き枠がありません。</p>
+{% endif %}

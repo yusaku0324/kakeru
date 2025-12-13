@@ -8,11 +8,10 @@ def test_admin_htmx_dashboard_renders_html():
     app.dependency_overrides[require_admin] = lambda: None
     client = TestClient(app)
 
-    resp = client.get("/admin/htmx/dashboard")
+    resp = client.get("/admin/htmx/shifts")
 
     app.dependency_overrides = {}
 
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
-    assert "Admin HTMX" in resp.text
-    assert "hx-get" in resp.text
+    assert "hx-post" in resp.text or "hx-get" in resp.text

@@ -1,0 +1,18 @@
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>名前</th>
+      <th>ステータス</th>
+      <th>次の予定</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td>{{ row.status }}</td>
+        <td>{{ row.next }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}シフト空き枠管理{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <h2>シフト空き枠管理 (デモ)</h2>
+    <form class="search-form"
+          hx-post="/admin/htmx/shifts/rebuild"
+          hx-target="#slots-table"
+          hx-swap="innerHTML">
+      <label>
+        日付:
+        <input type="date" name="target_date" value="{{ today }}" required>
+      </label>
+      <label>
+        セラピストID:
+        <input type="text" name="therapist_id" placeholder="UUIDなど" required>
+      </label>
+      <button type="submit">再生成</button>
+    </form>
+
+    <div id="slots-table">
+      {% include "shifts/_slots_table.html" %}
+    </div>
+  </section>
+{% endblock %}

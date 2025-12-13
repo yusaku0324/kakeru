@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}HTMX Dashboard{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <h2>ダッシュボード (デモ)</h2>
+    <form class="search-form"
+          hx-get="/admin/htmx/dashboard/table"
+          hx-target="#results"
+          hx-swap="innerHTML">
+      <label>
+        キーワード:
+        <input type="text" name="q" value="{{ query }}" placeholder="名前 or ステータスでフィルタ">
+      </label>
+      <button type="submit">検索</button>
+    </form>
+    <div id="results">
+      {% include "dashboard_table.html" %}
+    </div>
+  </section>
+{% endblock %}

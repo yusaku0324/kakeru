@@ -7,8 +7,10 @@ from fastapi.templating import Jinja2Templates
 
 from ..deps import require_admin
 
+
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
 static_dir = Path(__file__).resolve().parent / "static"
+
 
 router = APIRouter(
     prefix="/admin/htmx",
@@ -65,3 +67,9 @@ async def admin_htmx_static(path: str):
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="static file not found")
     return FileResponse(file_path)
+
+
+# Shifts
+from .views import shifts as shifts_views  # noqa: E402
+
+router.include_router(shifts_views.router)

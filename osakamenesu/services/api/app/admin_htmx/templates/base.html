@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Admin HTMX{% endblock %}</title>
+  <link rel="stylesheet" href="/admin/htmx/static/admin.css">
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+  <header class="header">
+    <h1>Admin HTMX</h1>
+    <p class="subtitle">Server-driven UI (FastAPI + htmx + Jinja2)</p>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
