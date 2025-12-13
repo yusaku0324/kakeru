@@ -63,8 +63,9 @@ async def _get_slots_for_profile_date(
 async def shifts_index(request: Request):
     today = date.today()
     return templates.TemplateResponse(
+        request,
         "shifts/index.html",
-        {"request": request, "today": today, "slots": [], "query": {}},
+        {"today": today, "slots": [], "query": {}},
     )
 
 
@@ -97,9 +98,9 @@ async def shifts_rebuild(
     )
 
     return templates.TemplateResponse(
+        request,
         "shifts/_slots_table.html",
         {
-            "request": request,
             "slots": _as_slot_rows(slots, therapist_id),
         },
     )

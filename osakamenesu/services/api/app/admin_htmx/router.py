@@ -39,9 +39,9 @@ def _filter_rows(q: str | None) -> List[dict]:
 async def dashboard(request: Request, q: str | None = None):
     rows = _filter_rows(q)
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
-            "request": request,
             "rows": rows,
             "query": q or "",
         },
@@ -52,9 +52,9 @@ async def dashboard(request: Request, q: str | None = None):
 async def dashboard_table(request: Request, q: str | None = None):
     rows = _filter_rows(q)
     return templates.TemplateResponse(
+        request,
         "dashboard_table.html",
         {
-            "request": request,
             "rows": rows,
             "query": q or "",
         },
