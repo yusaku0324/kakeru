@@ -21,7 +21,7 @@ on:
 
 jobs:
   integration-tests:
-    name: api: integration tests
+    name: "api: integration tests"
     runs-on: ubuntu-latest
 
     services:
@@ -59,7 +59,7 @@ jobs:
             docker
             docker-compose.test.yml
             requirements-test.txt
-          sparse-checkout-cone: true
+          sparse-checkout-cone-mode: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -119,7 +119,7 @@ jobs:
           pytest app/tests_integration -m integration -q --tb=short || echo "No integration tests found, skipping"
 
   dependency-check:
-    name: api: dependency check
+    name: "api: dependency check"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -130,7 +130,7 @@ jobs:
           sparse-checkout: |
             services/api
             requirements-test.txt
-          sparse-checkout-cone: true
+          sparse-checkout-cone-mode: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -166,7 +166,7 @@ jobs:
           "
 
   enum-consistency-check:
-    name: api: enum consistency
+    name: "api: enum consistency"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -176,7 +176,7 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             services/api
-          sparse-checkout-cone: true
+          sparse-checkout-cone-mode: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
