@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends, HTTPException, Request
+import logging
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from .settings import settings
-import logging
+
+from .admin_htmx.router import router as admin_htmx_router
 from .meili import ensure_indexes
+from .settings import settings
 from .domains.admin import (
     admin_router,
     admin_profiles_router,
@@ -164,6 +166,7 @@ async def out_redirect(
 
 app.include_router(admin_profiles_router)
 app.include_router(admin_router)
+app.include_router(admin_htmx_router)
 app.include_router(shops_router)
 app.include_router(guest_matching_router)
 app.include_router(guest_reservations_router)
