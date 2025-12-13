@@ -40,6 +40,21 @@
 .search-form button:hover {
   background: #1d4ed8;
 }
+.indicator {
+  display: none;
+  color: #475569;
+}
+.indicator.htmx-request {
+  display: inline-block;
+}
+.error {
+  background: #fef2f2;
+  border: 1px solid #fecdd3;
+  color: #b91c1c;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
 .data-table {
   width: 100%;
   border-collapse: collapse;
