@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
@@ -12,8 +12,10 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.db import get_session
+from app.domains.site import therapist_availability as therapist_availability_domain
 from app.domains.site.services.shop import search_service
 from app.schemas import NextAvailableSlot
+from app.utils.datetime import JST
 
 
 SHOP_ID_1 = str(uuid4())
@@ -280,6 +282,116 @@ def test_search_shops_staff_preview_derives_next_available_at_from_sot(
     assert staff["next_available_slot"]["end_at"].startswith("2025-01-02T12:00:00")
     # next_available_at must correspond to next_available_slot.start_at
     assert staff["next_available_at"] == staff["next_available_slot"]["start_at"]
+
+
+def test_search_shops_next_available_at_matches_guest_availability_sot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invariant: next_available_at must imply has_available and match earliest slot start."""
+    therapist_id = uuid4()
+    target_day = date(2025, 1, 10)
+    shift_start = datetime.combine(
+        target_day, datetime.min.time(), tzinfo=JST
+    ) + timedelta(hours=10)
+    shift_end = shift_start + timedelta(hours=2)
+    shift = SimpleNamespace(
+        therapist_id=therapist_id,
+        date=target_day,
+        start_at=shift_start,
+        end_at=shift_end,
+        break_slots=[],
+        availability_status="available",
+    )
+
+    async def fake_fetch_therapist_with_buffer(db, therapist_id_arg):
+        assert therapist_id_arg == therapist_id
+        return None, 0, None
+
+    async def fake_fetch_shifts(db, therapist_id_arg, date_from, date_to):
+        assert therapist_id_arg == therapist_id
+        assert date_from == target_day
+        assert date_to == target_day
+        return [shift]
+
+    async def fake_fetch_reservations(db, therapist_id_arg, start_at, end_at):
+        assert therapist_id_arg == therapist_id
+        return []
+
+    monkeypatch.setattr(
+        therapist_availability_domain,
+        "_fetch_therapist_with_buffer",
+        fake_fetch_therapist_with_buffer,
+    )
+    monkeypatch.setattr(
+        therapist_availability_domain, "_fetch_shifts", fake_fetch_shifts
+    )
+    monkeypatch.setattr(
+        therapist_availability_domain, "_fetch_reservations", fake_fetch_reservations
+    )
+
+    intervals = therapist_availability_domain._calculate_available_slots([shift], [], 0)
+    filtered = therapist_availability_domain._filter_slots_by_date(
+        intervals, target_day
+    )
+    assert filtered
+    expected_start, expected_end = filtered[0]
+
+    shop_doc = _create_mock_shop_doc(
+        shop_id=SHOP_ID_1,
+        today=False,
+        staff_preview=[
+            {
+                "id": str(therapist_id),
+                "name": "ももな",
+                "today_available": False,
+                "next_available_at": "2025-01-01T00:00:00+00:00",  # stale / must be overwritten
+            }
+        ],
+    )
+    _setup_mocks(
+        monkeypatch,
+        _create_mock_meili_response([shop_doc], total=1),
+        mock_staff_next={
+            therapist_id: (
+                False,
+                NextAvailableSlot(
+                    start_at=expected_start,
+                    end_at=expected_end,
+                    status="ok",
+                ),
+            )
+        },
+    )
+
+    # 1) shop search provides next_available_at
+    res = client.get("/api/v1/shops?q=momona")
+    assert res.status_code == 200
+    staff = res.json()["results"][0]["staff_preview"][0]
+    next_available_at_raw = staff["next_available_at"]
+    assert next_available_at_raw is not None
+
+    next_dt = datetime.fromisoformat(next_available_at_raw.replace("Z", "+00:00"))
+    date_jst = next_dt.astimezone(JST).date()
+
+    # 2) guest availability_summary must have has_available=true on that date
+    summary = client.get(
+        f"/api/guest/therapists/{therapist_id}/availability_summary",
+        params={"date_from": str(date_jst), "date_to": str(date_jst)},
+    )
+    assert summary.status_code == 200
+    assert summary.json()["items"][0]["has_available"] is True
+
+    # 3) guest availability_slots earliest start must equal next_available_at
+    slots = client.get(
+        f"/api/guest/therapists/{therapist_id}/availability_slots",
+        params={"date": str(date_jst)},
+    )
+    assert slots.status_code == 200
+    earliest_start_raw = slots.json()["slots"][0]["start_at"]
+    earliest_start_dt = datetime.fromisoformat(
+        earliest_start_raw.replace("Z", "+00:00")
+    )
+    assert earliest_start_dt == next_dt
 
 
 def test_search_shops_with_query(monkeypatch: pytest.MonkeyPatch) -> None:

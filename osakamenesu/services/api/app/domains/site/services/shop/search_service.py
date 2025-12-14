@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+import time as time_module
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from typing import Any, Dict, Iterable, List, Set
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -733,6 +734,7 @@ async def _search_shops_impl(
         results = await _filter_results_by_availability(db, results, available_date)
 
     if results:
+        correlation_id = uuid4().hex
         staff_ids: list[UUID] = []
         for shop in results:
             for member in shop.staff_preview:
@@ -742,9 +744,11 @@ async def _search_shops_impl(
 
         # Single Source of Truth: guest availability (shifts + breaks + reservations + buffer).
         # Never leak stale cached `next_available_at` from the search index.
+        derive_started = time_module.monotonic()
         staff_next_map = await _derive_next_availability_from_slots_sot(
             db, staff_ids, lookahead_days=14
         )
+        derive_elapsed_ms = int((time_module.monotonic() - derive_started) * 1000)
 
         for shop in results:
             shop_today_available = False
@@ -753,6 +757,7 @@ async def _search_shops_impl(
 
             for member in shop.staff_preview:
                 staff_uuid = normalize_staff_uuid(member.id)
+                prev_next_available_at = member.next_available_at
                 if not staff_uuid:
                     member.today_available = False
                     member.next_available_slot = None
@@ -763,9 +768,53 @@ async def _search_shops_impl(
                 today_available, next_slot = staff_next_map.get(
                     staff_uuid, (False, None)
                 )
+                if today_available and next_slot is None:
+                    logger.warning(
+                        "shop_search_staff_next_available_sot_inconsistent "
+                        "correlation_id=%s profile_id=%s therapist_id=%s "
+                        "today_available=true next_slot_missing=true elapsed_ms=%s",
+                        correlation_id,
+                        shop.id,
+                        staff_uuid,
+                        derive_elapsed_ms,
+                    )
+                    today_available = False
                 member.today_available = today_available
                 member.next_available_slot = next_slot
                 member.next_available_at = next_slot.start_at if next_slot else None
+
+                if (
+                    prev_next_available_at is not None
+                    or member.next_available_at is not None
+                ):
+                    derived_iso = (
+                        member.next_available_at.isoformat()
+                        if member.next_available_at is not None
+                        else None
+                    )
+                    derived_date = (
+                        member.next_available_at.astimezone(JST).date().isoformat()
+                        if member.next_available_at is not None
+                        else None
+                    )
+                    logger.info(
+                        "shop_search_staff_next_available_sot "
+                        "correlation_id=%s profile_id=%s therapist_id=%s "
+                        "date=%s has_available=%s "
+                        "next_available_at=%s earliest_slot_start_at=%s "
+                        "prev_next_available_at=%s elapsed_ms=%s",
+                        correlation_id,
+                        shop.id,
+                        staff_uuid,
+                        derived_date,
+                        bool(next_slot),
+                        derived_iso,
+                        derived_iso,
+                        prev_next_available_at.isoformat()
+                        if prev_next_available_at is not None
+                        else None,
+                        derive_elapsed_ms,
+                    )
 
                 shop_today_available = shop_today_available or today_available
                 if next_slot and (
