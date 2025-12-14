@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.db import get_session
 from app.domains.site.services import shop_services
-from app.utils.datetime import now_jst
+from app.utils.datetime import JST, now_jst
 
 
 SHOP_ID = uuid4()
@@ -427,6 +427,69 @@ def test_get_shop_detail_with_availability(monkeypatch: pytest.MonkeyPatch) -> N
     body = res.json()
     assert body["today_available"] is True
     assert body["next_available_at"] is not None
+
+
+def test_today_available_is_jst_based(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure `today_available` is computed against JST date (not UTC)."""
+    from app.schemas import (
+        AvailabilityCalendar,
+        AvailabilityDay,
+        AvailabilitySlot,
+        NextAvailableSlot,
+    )
+
+    # Pick a fixed instant where UTC date != JST date.
+    fixed_utc = datetime(2025, 12, 14, 17, 14, tzinfo=timezone.utc)
+    fixed_jst = fixed_utc.astimezone(JST)
+    assert fixed_utc.date() != fixed_jst.date()
+    assert fixed_jst.date() == fixed_utc.date() + timedelta(days=1)
+
+    profile = _create_mock_profile()
+
+    slot_date = fixed_jst.date()
+    slot_start = datetime(2025, 12, 15, 0, 0, tzinfo=JST)
+    slot_end = slot_start + timedelta(hours=1)
+
+    mock_calendar = AvailabilityCalendar(
+        shop_id=SHOP_ID,
+        generated_at=fixed_jst,
+        days=[
+            AvailabilityDay(
+                date=slot_date,
+                is_today=True,
+                slots=[
+                    AvailabilitySlot(
+                        start_at=slot_start,
+                        end_at=slot_end,
+                        status="open",
+                    )
+                ],
+            )
+        ],
+    )
+
+    mock_next_slot = NextAvailableSlot(
+        start_at=slot_start,
+        status="ok",
+    )
+
+    _setup_mocks(
+        monkeypatch,
+        profile,
+        mock_availability=mock_calendar,
+        mock_next_slot=mock_next_slot,
+    )
+
+    # Force the server-side "today" to be JST-based at the boundary instant.
+    monkeypatch.setattr(shop_services, "now_jst", lambda: fixed_jst)
+
+    res = client.get(f"/api/v1/shops/{SHOP_ID}")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["today_available"] is True
+    assert body["availability_calendar"]["days"][0]["date"] == slot_date.isoformat()
+    assert body["availability_calendar"]["days"][0]["is_today"] is True
 
 
 def test_get_shop_detail_with_sns_contacts(monkeypatch: pytest.MonkeyPatch) -> None:

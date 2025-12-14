@@ -375,7 +375,9 @@ def test_recommended_score_with_availability_boost(
     therapist_with_avail.display_order = 1
     therapist_no_avail.display_order = 1
 
-    today = date.today()
+    # Align with production behavior (JST-based "today") to avoid CI flakiness when
+    # the runner timezone is UTC.
+    today = datetime.now(JST).date()
     shift = _create_mock_shift(THERAPIST_ID_1, today)
 
     _setup_mocks(
