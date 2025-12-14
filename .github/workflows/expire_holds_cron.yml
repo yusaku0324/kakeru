@@ -7,34 +7,41 @@ on:
 
 jobs:
   expire-holds-prod:
-    name: ops: expire_holds (prod)
+    name: "ops: expire_holds (prod)"
     runs-on: ubuntu-latest
-    if: ${{ secrets.OPS_TOKEN_PROD != '' }}
+    env:
+      API_BASE: https://api.osakamenesu.com
+      OPS_TOKEN: ${{ secrets.OPS_TOKEN_PROD }}
     concurrency:
       group: expire_holds-prod
       cancel-in-progress: true
     steps:
+      - name: Skip (OPS_TOKEN_PROD missing)
+        if: ${{ env.OPS_TOKEN == '' }}
+        run: echo "OPS_TOKEN_PROD is not set; skipping."
+
       - name: Call expire_holds (prod)
-        env:
-          API_BASE: https://api.osakamenesu.com
-          OPS_TOKEN: ${{ secrets.OPS_TOKEN_PROD }}
+        if: ${{ env.OPS_TOKEN != '' }}
         run: |
           curl -fsS -X POST "$API_BASE/api/ops/reservations/expire_holds" \
             -H "Authorization: Bearer $OPS_TOKEN"
 
   expire-holds-stg:
-    name: ops: expire_holds (stg)
+    name: "ops: expire_holds (stg)"
     runs-on: ubuntu-latest
-    if: ${{ secrets.OPS_TOKEN_STG != '' }}
+    env:
+      API_BASE: https://osakamenesu-api-stg.fly.dev
+      OPS_TOKEN: ${{ secrets.OPS_TOKEN_STG }}
     concurrency:
       group: expire_holds-stg
       cancel-in-progress: true
     steps:
+      - name: Skip (OPS_TOKEN_STG missing)
+        if: ${{ env.OPS_TOKEN == '' }}
+        run: echo "OPS_TOKEN_STG is not set; skipping."
+
       - name: Call expire_holds (stg)
-        env:
-          API_BASE: https://osakamenesu-api-stg.fly.dev
-          OPS_TOKEN: ${{ secrets.OPS_TOKEN_STG }}
+        if: ${{ env.OPS_TOKEN != '' }}
         run: |
           curl -fsS -X POST "$API_BASE/api/ops/reservations/expire_holds" \
             -H "Authorization: Bearer $OPS_TOKEN"
-
