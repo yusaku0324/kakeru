@@ -9,6 +9,33 @@
 - STGは「2店舗 + 2セラ + 未来シフト」のみで再現/検証する
 - APIはアイドル時 0台（コスト最小化）
 
+## Time zone invariants（JST基準）
+
+- `today_available` と `availability_calendar.days[].is_today` は **JSTの「今日」**（`now_jst().date()`）で判定される
+- UTC日付とJST日付がズレる時間帯でも、JST側の「今日」が正になる
+
+再現（STG / GET 1回）:
+
+```bash
+curl -sS \
+  https://osakamenesu-api-stg.fly.dev/api/v1/shops/ca40f333-cc6f-492a-8d0c-d137448fad67
+```
+
+証跡（UTC=2025-12-14 / JST=2025-12-15 の境界で、JST日付が `is_today=true` になる例）:
+
+```json
+{
+  "shop_id": "ca40f333-cc6f-492a-8d0c-d137448fad67",
+  "today_available": true,
+  "next_available_at": "2025-12-15T03:00:00+09:00",
+  "availability_calendar_first_day": {
+    "date": "2025-12-15",
+    "is_today": true,
+    "first_slot_start_at": "2025-12-15T00:00:00+09:00"
+  }
+}
+```
+
 ## 対象リソース
 
 - Fly app: `osakamenesu-api-stg`
