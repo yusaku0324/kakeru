@@ -19,6 +19,7 @@ contexts:
           start_at: { type: string, format: date-time }
           end_at: { type: string, format: date-time }
       menu_id: { type: string, required: false }
+      planned_extension_minutes: { type: integer, required: false, description: "Optional planned extension minutes (step-based). Server validates using booking_rules." }
       price: { type: number, required: false }
       payment_method: { type: string, required: false, description: "e.g. cash, card (v1 as free text)" }
       contact_info: { type: object, required: false, description: "email/phone/line_id etc." }
@@ -61,6 +62,8 @@ endpoints:
     notes:
       - v1 status may be set to confirmed immediately if no manual approval flow exists; pending is also acceptable but must be reflected consistently in tests.
       - Duplicate detection: same therapist_id AND identical slot (start/end) should return 400/409.
+      - P0: end_at is derived server-side from (duration + planned_extension_minutes + after-buffer minutes). Client-provided end_at may be ignored for consistency.
+      - P0: if profile.contact_json.booking_hours is configured, requests outside business hours should be rejected with reason outside_business_hours.
   - id: reservations.cancel
     method: POST
     path: /api/guest/reservations/{id}/cancel
@@ -89,7 +92,7 @@ flow:
     Overlap is defined as start_at < other.end_at AND other.start_at < end_at (half-open interval).
     Pending/confirmed reservations block the slot; cancelled does not.
     Reservations must be fully inside an available therapist shift; otherwise reject with no_shift/on_break.
-    Buffer minutes between reservations/shifts are out of scope for v1 (TODO).
+    P0: after-buffer minutes may be applied to the occupied end_at based on booking_rules.base_buffer_minutes (TODO: pre-buffer and shift buffer rules).
   scope_notes: |
     Payments, notifications, and approval workflows are out-of-scope for v1 and can be added later.
     If a shift is missing or marked unavailable, treat the slot as closed.
