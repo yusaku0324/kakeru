@@ -283,7 +283,8 @@ async def _derive_next_availability_from_slots_sot(
     if not unique_ids:
         return {}
 
-    today = now_jst().date()
+    now = now_jst()
+    today = now.date()
     end_date = today + timedelta(days=lookahead_days)
 
     # 1) buffer_minutes per therapist (Profile.buffer_minutes). Missing => 0.
@@ -325,6 +326,7 @@ async def _derive_next_availability_from_slots_sot(
         models.GuestReservation.end_at > range_start,
     )
     reservations = list((await db.execute(reservations_stmt)).scalars().all())
+    reservations = sot._filter_active_reservations(reservations, now)
     reservations_by_therapist: dict[UUID, list[models.GuestReservation]] = defaultdict(
         list
     )

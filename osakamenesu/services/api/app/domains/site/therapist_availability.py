@@ -19,6 +19,33 @@ from ...utils.datetime import ensure_jst_datetime, JST
 
 logger = logging.getLogger(__name__)
 
+ACTIVE_RESERVATION_STATUSES = ("pending", "confirmed", "reserved")
+
+
+def _reservation_status_value(reservation: GuestReservation) -> str:
+    value = reservation.status
+    if hasattr(value, "value"):
+        value = value.value
+    return str(value)
+
+
+def _is_active_reservation(reservation: GuestReservation, now: datetime) -> bool:
+    status_value = _reservation_status_value(reservation)
+    if status_value in {"pending", "confirmed"}:
+        return True
+    if status_value != "reserved":
+        return False
+    reserved_until = getattr(reservation, "reserved_until", None)
+    if reserved_until is None:
+        return True
+    return reserved_until > now
+
+
+def _filter_active_reservations(
+    reservations: Iterable[GuestReservation], now: datetime
+) -> list[GuestReservation]:
+    return [r for r in reservations if _is_active_reservation(r, now)]
+
 
 def _overlaps(
     a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime
@@ -72,22 +99,25 @@ async def has_overlapping_reservation(
     """
     stmt = select(GuestReservation).where(
         GuestReservation.therapist_id == therapist_id,
-        GuestReservation.status.in_(("pending", "confirmed")),
+        GuestReservation.status.in_(ACTIVE_RESERVATION_STATUSES),
         and_(
             GuestReservation.start_at < end_at,
             GuestReservation.end_at > start_at,
         ),
     )
+    now = datetime.now(timezone.utc)
     if lock:
         # SQLite等ではFOR UPDATEがサポートされないため、例外時はロックなしで再実行
         try:
             result = await db.execute(stmt.with_for_update())
-            return result.scalar_one_or_none() is not None
+            reservations = list(result.scalars().all())
+            return bool(_filter_active_reservations(reservations, now))
         except Exception:
             # FOR UPDATEが失敗した場合はロックなしで実行
             pass
     result = await db.execute(stmt)
-    return result.scalar_one_or_none() is not None
+    reservations = list(result.scalars().all())
+    return bool(_filter_active_reservations(reservations, now))
 
 
 async def is_available(
@@ -167,8 +197,6 @@ router = APIRouter(
     prefix="/api/guest/therapists",
     tags=["guest-therapist-availability"],
 )
-
-ACTIVE_RESERVATION_STATUSES = ("pending", "confirmed")
 
 
 class AvailabilitySummaryItem(BaseModel):
@@ -296,13 +324,15 @@ async def _fetch_reservations(
     start_at: datetime,
     end_at: datetime,
 ) -> list[GuestReservation]:
+    now = datetime.now(timezone.utc)
     stmt = select(GuestReservation).where(
         GuestReservation.therapist_id == therapist_id,
         GuestReservation.status.in_(ACTIVE_RESERVATION_STATUSES),
         and_(GuestReservation.start_at < end_at, GuestReservation.end_at > start_at),
     )
     res = await db.execute(stmt)
-    return list(res.scalars().all())
+    reservations = list(res.scalars().all())
+    return _filter_active_reservations(reservations, now)
 
 
 def _day_window(target_date: date) -> tuple[datetime, datetime]:
