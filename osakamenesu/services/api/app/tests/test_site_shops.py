@@ -313,6 +313,7 @@ async def test_get_shop_availability_impl_no_slots(monkeypatch):
 @pytest.mark.asyncio
 async def test_search_and_detail_share_next_slot(monkeypatch):
     profile = _example_profile()
+    staff_id = uuid.uuid4()
     slot = NextAvailableSlot(
         start_at=now_jst() + timedelta(hours=4),
         status="ok",
@@ -332,8 +333,11 @@ async def test_search_and_detail_share_next_slot(monkeypatch):
         assert shop_id == profile.id
         return slot
 
-    async def fake_get_slots(db, shop_ids, lookahead_days=14):
-        return ({sid: slot for sid in shop_ids}, {})
+    async def fake_derive_next_availability_from_slots_sot(
+        db, therapist_ids, lookahead_days=14
+    ):
+        assert set(therapist_ids) == {staff_id}
+        return {staff_id: (True, slot)}
 
     def fake_meili_search(
         q: str | None,
@@ -353,6 +357,7 @@ async def test_search_and_detail_share_next_slot(monkeypatch):
                     "price_max": profile.price_max,
                     "ranking_badges": [],
                     "photos": [],
+                    "staff_preview": [{"id": str(staff_id), "name": "ももな"}],
                 }
             ],
             "estimatedTotalHits": 1,
@@ -362,17 +367,12 @@ async def test_search_and_detail_share_next_slot(monkeypatch):
     monkeypatch.setattr(shop_services, "_load_profile", fake_load)
     monkeypatch.setattr(shop_services, "_fetch_availability", fake_fetch_availability)
     monkeypatch.setattr(shop_services, "_get_next_available_slot", fake_get_slot)
-    monkeypatch.setattr(search_module, "get_next_available_slots", fake_get_slots)
-    monkeypatch.setattr(search_module, "meili_search", fake_meili_search)
-
-    async def fake_therapist_slots(*args, **kwargs):
-        return {}
-
     monkeypatch.setattr(
         search_module,
-        "get_therapist_next_available_slots_by_shop",
-        fake_therapist_slots,
+        "_derive_next_availability_from_slots_sot",
+        fake_derive_next_availability_from_slots_sot,
     )
+    monkeypatch.setattr(search_module, "meili_search", fake_meili_search)
 
     detail = await shop_services._get_shop_detail_impl(SimpleNamespace(), profile.id)
     search_response = await search_module._search_shops_impl(

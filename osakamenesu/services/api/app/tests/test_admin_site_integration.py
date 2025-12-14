@@ -285,9 +285,23 @@ def _build_app(
         assert shop_id == profile.id
         return next_slot
 
-    async def fake_get_slots(db, shop_ids, lookahead_days=14):
-        mapping = {sid: next_slot for sid in shop_ids if sid == profile.id}
-        return mapping, {}
+    async def fake_derive_next_availability_from_slots_sot(
+        db, therapist_ids, *, lookahead_days: int = 14
+    ):
+        # Search cards derive next slot from staff availability SoT. For tests, return the
+        # same next_slot for any staff_id passed from staff_preview.
+        mapping: dict[uuid.UUID, tuple[bool, NextAvailableSlot]] = {}
+        for therapist_id in therapist_ids:
+            try:
+                normalized = (
+                    therapist_id
+                    if isinstance(therapist_id, uuid.UUID)
+                    else uuid.UUID(str(therapist_id))
+                )
+            except Exception:
+                continue
+            mapping[normalized] = (True, next_slot)
+        return mapping
 
     def fake_meili_search(
         q: str | None,
@@ -306,17 +320,13 @@ def _build_app(
     monkeypatch.setattr(shop_services, "_load_profile", fake_load)
     monkeypatch.setattr(shop_services, "_fetch_availability", fake_fetch_availability)
     monkeypatch.setattr(shop_services, "_get_next_available_slot", fake_next_slot)
-    monkeypatch.setattr(search_module, "get_next_available_slots", fake_get_slots)
-    monkeypatch.setattr(search_module, "meili_search", fake_meili_search)
-
-    async def fake_therapist_slots(*args, **kwargs):
-        return {}
-
     monkeypatch.setattr(
         search_module,
-        "get_therapist_next_available_slots_by_shop",
-        fake_therapist_slots,
+        "_derive_next_availability_from_slots_sot",
+        fake_derive_next_availability_from_slots_sot,
     )
+    monkeypatch.setattr(search_module, "meili_search", fake_meili_search)
+
     return app
 
 
@@ -327,7 +337,9 @@ def _extract_slot_from_calendar(calendar_payload: Dict[str, Any]) -> Dict[str, A
     return first_day["slots"][0]
 
 
-def _build_search_hits(profile: models.Profile) -> Dict[str, Any]:
+def _build_search_hits(
+    profile: models.Profile, *, staff_id: uuid.UUID
+) -> Dict[str, Any]:
     return {
         "hits": [
             {
@@ -355,6 +367,14 @@ def _build_search_hits(profile: models.Profile) -> Dict[str, Any]:
                 "has_promotions": True,
                 "has_discounts": True,
                 "today": True,
+                "staff_preview": [
+                    {
+                        "id": str(staff_id),
+                        "name": profile.therapists[0].name
+                        if profile.therapists
+                        else "staff",
+                    }
+                ],
                 "updated_at": now_jst().timestamp(),
             }
         ],
@@ -422,8 +442,8 @@ def test_availability_endpoint_matches_detail_calendar(monkeypatch):
 
 def test_search_list_and_detail_share_next_slot(monkeypatch):
     profile = _build_profile_fixture()
-    calendar, next_slot, _slot = _build_availability(profile.id)
-    hits = _build_search_hits(profile)
+    calendar, next_slot, raw_slot = _build_availability(profile.id)
+    hits = _build_search_hits(profile, staff_id=raw_slot.staff_id)
     app = _build_app(
         monkeypatch,
         profile=profile,
