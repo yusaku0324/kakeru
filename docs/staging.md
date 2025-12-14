@@ -326,6 +326,16 @@ curl -i -sS -X POST \"$BASE/api/guest/reservations\" \\
   -d '{\"shop_id\":\"'\"$SHOP_B\"'\",\"therapist_id\":\"'\"$THER_B\"'\",\"start_at\":\"'\"$DATE\"'T03:00:00+09:00\",\"duration_minutes\":30,\"planned_extension_minutes\":0}'
 ```
 
+## Hold idempotency proof（STG）
+
+- shop_id（A shop）: `a7cc4b9d-81a8-4181-a47e-afa7db2281ef`
+- therapist_id: `53605bf2-0a8e-4171-a239-62f6843d10ed`
+- shift: `2025-12-16 10:00-12:00 JST`
+- Idempotency-Key: `78128670-2eee-4224-9c68-8db894dd27d9`
+- reservation_id: `f8434e86-0b09-400f-bbf1-28ab33d5d56a`
+- 結果: POST#1 で `status=reserved` 作成、POST#2（同key+同payload）で同じ `reservation_id` が返り idempotent
+- 証跡: https://github.com/yusaku0324/kakeru/pull/212#issuecomment-3652117628
+
 ## 破棄手順（記載のみ・今は実行しない）
 
 ```bash
