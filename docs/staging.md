@@ -368,6 +368,35 @@ curl -fsS -X POST 'https://api.osakamenesu.com/api/ops/reservations/expire_holds
 - Header: `Authorization: Bearer <token>`
 - 失敗時: `401 ops_token_required` / `401 ops_token_invalid`
 
+### expire_holds cron（GitHub Actions）
+
+- Workflow: `.github/workflows/expire_holds_cron.yml`
+- 30分おきに STG/PROD の `POST /api/ops/reservations/expire_holds` を実行する（default branch=main のみ）
+- 実行ログには `http_code` と `expired=<count>` が出る（tokenはマスクされる）
+
+手動実行（workflow_dispatch）:
+
+```bash
+gh workflow run expire_holds_cron.yml -R yusaku0324/kakeru --ref main
+gh run list -R yusaku0324/kakeru --workflow expire_holds_cron.yml --limit 5
+```
+
+失敗時の確認順:
+
+1. Actions run のログで `http_code` と `Response body` を確認
+2. API疎通:
+   - `https://api.osakamenesu.com/healthz`
+   - `https://osakamenesu-api-stg.fly.dev/healthz`
+3. Fly logs（必要なら）:
+   - `flyctl logs -a osakamenesu-api -n | tail -n 200`
+   - `flyctl logs -a osakamenesu-api-stg -n | tail -n 200`
+
+tokenローテ手順:
+
+1. Fly（PROD/STG）で `OPS_API_TOKEN` を更新
+2. GitHub Actions secrets（repository-level）で `OPS_TOKEN_PROD` / `OPS_TOKEN_STG` を更新
+3. 手動実行で成功確認してから運用に戻す
+
 ## 破棄手順（記載のみ・今は実行しない）
 
 ```bash
