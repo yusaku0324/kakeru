@@ -7,7 +7,12 @@ from fastapi.testclient import TestClient
 
 ops_router_module = importlib.import_module("app.domains.ops.router")
 from app.domains.ops.router import router as ops_router, require_ops_token
-from app.schemas import OpsOutboxChannelSummary, OpsOutboxSummary, OpsQueueStats, OpsSlotsSummary
+from app.schemas import (
+    OpsOutboxChannelSummary,
+    OpsOutboxSummary,
+    OpsQueueStats,
+    OpsSlotsSummary,
+)
 from app.db import get_session
 
 
@@ -81,3 +86,15 @@ def test_get_ops_slots_returns_window(monkeypatch, client):
     response = client.get("/api/ops/slots")
     assert response.status_code == 200
     assert response.json() == expected.model_dump(mode="json")
+
+
+def test_post_expire_holds_returns_count(monkeypatch, client):
+    async def _fake_expire(db, now=None, ttl_minutes=15, limit=1000):  # noqa: ARG001
+        return 0
+
+    monkeypatch.setattr(ops_router_module, "expire_reserved_holds", _fake_expire)
+    response = client.post("/api/ops/reservations/expire_holds")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["expired"] == 0
+    assert "now" in body
