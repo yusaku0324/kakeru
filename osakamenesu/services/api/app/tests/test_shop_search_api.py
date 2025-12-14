@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.db import get_session
 from app.domains.site.services.shop import search_service
+from app.schemas import NextAvailableSlot
 
 
 SHOP_ID_1 = str(uuid4())
@@ -106,7 +107,7 @@ def _create_mock_shop_doc(
 def _setup_mocks(
     monkeypatch: pytest.MonkeyPatch,
     meili_response: dict[str, Any] | Exception,
-    mock_availability_slots: dict | None = None,
+    mock_staff_next: dict[UUID, tuple[bool, NextAvailableSlot | None]] | None = None,
 ) -> None:
     """Set up common mocks for shop search tests."""
 
@@ -121,22 +122,16 @@ def _setup_mocks(
         # The actual meili_search returns Exception objects instead of raising
         return meili_response
 
-    async def _mock_get_next_available_slots(db, shop_ids):
-        if mock_availability_slots:
-            return mock_availability_slots, {}
-        return {}, {}
-
-    async def _mock_get_therapist_next_available_slots_by_shop(db, shop_ids, **kwargs):
-        return {}
+    async def _mock_derive_next_availability_from_slots_sot(
+        db, therapist_ids, *, lookahead_days: int = 14
+    ):
+        return mock_staff_next or {}
 
     monkeypatch.setattr(search_service, "meili_search", _mock_meili_search)
     monkeypatch.setattr(
-        search_service, "get_next_available_slots", _mock_get_next_available_slots
-    )
-    monkeypatch.setattr(
         search_service,
-        "get_therapist_next_available_slots_by_shop",
-        _mock_get_therapist_next_available_slots_by_shop,
+        "_derive_next_availability_from_slots_sot",
+        _mock_derive_next_availability_from_slots_sot,
     )
 
 
@@ -200,6 +195,91 @@ def test_search_shops_with_results(monkeypatch: pytest.MonkeyPatch) -> None:
     assert shop["lead_image_url"] == "https://example.com/photo1.jpg"
     assert "massage" in shop["service_tags"]
     assert "top_rated" in shop["badges"]
+
+
+def test_search_shops_staff_preview_clears_stale_next_available_at(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    therapist_id = uuid4()
+    shop_doc = _create_mock_shop_doc(
+        shop_id=SHOP_ID_1,
+        today=True,
+        staff_preview=[
+            {
+                "id": str(therapist_id),
+                "name": "ももな",
+                "today_available": True,
+                "next_available_at": "2025-12-13T05:50:21.440867+00:00",
+            }
+        ],
+    )
+    _setup_mocks(
+        monkeypatch,
+        _create_mock_meili_response([shop_doc], total=1),
+        mock_staff_next={therapist_id: (False, None)},
+    )
+
+    res = client.get("/api/v1/shops?q=momona")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total"] == 1
+    shop = body["results"][0]
+    staff = shop["staff_preview"][0]
+
+    assert staff["today_available"] is False
+    assert staff["next_available_at"] is None
+    assert staff["next_available_slot"] is None
+    # Shop-level availability is derived from staff preview when present.
+    assert shop["today_available"] is False
+    assert shop["next_available_at"] is None
+
+
+def test_search_shops_staff_preview_derives_next_available_at_from_sot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    therapist_id = uuid4()
+    next_start = datetime(2025, 1, 2, 10, 0, tzinfo=timezone.utc)
+    next_end = datetime(2025, 1, 2, 12, 0, tzinfo=timezone.utc)
+    shop_doc = _create_mock_shop_doc(
+        shop_id=SHOP_ID_1,
+        today=False,
+        staff_preview=[
+            {
+                "id": str(therapist_id),
+                "name": "ももな",
+                "today_available": False,
+                "next_available_at": "2025-01-01T00:00:00+00:00",  # stale / must be overwritten
+            }
+        ],
+    )
+    _setup_mocks(
+        monkeypatch,
+        _create_mock_meili_response([shop_doc], total=1),
+        mock_staff_next={
+            therapist_id: (
+                True,
+                NextAvailableSlot(
+                    start_at=next_start,
+                    end_at=next_end,
+                    status="ok",
+                ),
+            )
+        },
+    )
+
+    res = client.get("/api/v1/shops?q=momona")
+
+    assert res.status_code == 200
+    shop = res.json()["results"][0]
+    staff = shop["staff_preview"][0]
+
+    assert staff["today_available"] is True
+    assert staff["next_available_at"].startswith("2025-01-02T10:00:00")
+    assert staff["next_available_slot"]["start_at"].startswith("2025-01-02T10:00:00")
+    assert staff["next_available_slot"]["end_at"].startswith("2025-01-02T12:00:00")
+    # next_available_at must correspond to next_available_slot.start_at
+    assert staff["next_available_at"] == staff["next_available_slot"]["start_at"]
 
 
 def test_search_shops_with_query(monkeypatch: pytest.MonkeyPatch) -> None:

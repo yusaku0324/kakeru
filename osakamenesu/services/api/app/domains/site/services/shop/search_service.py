@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from typing import Any, Dict, Iterable, List, Set
 from uuid import UUID
 
@@ -11,13 +11,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models
 from app.meili import build_filter, search as meili_search
-from app.schemas import FacetValue, ShopSearchResponse, ShopStaffPreview, ShopSummary
-from app.utils.profiles import PRICE_BANDS
-from .availability import (
-    get_next_available_slots,
-    slots_have_open,
-    get_therapist_next_available_slots_by_shop,
+from app.schemas import (
+    FacetValue,
+    NextAvailableSlot,
+    ShopSearchResponse,
+    ShopStaffPreview,
+    ShopSummary,
 )
+from app.utils.datetime import JST, now_jst
+from app.utils.profiles import PRICE_BANDS
+from .availability import slots_have_open
 from .shared import normalize_promotions, normalize_staff_uuid, safe_float, safe_int
 
 logger = logging.getLogger(__name__)
@@ -257,6 +260,124 @@ def _compute_price_band(price_min: int | None) -> str | None:
         return "premium"
     else:
         return "luxury"
+
+
+async def _derive_next_availability_from_slots_sot(
+    db: AsyncSession,
+    therapist_ids: Iterable[UUID],
+    *,
+    lookahead_days: int = 14,
+) -> dict[UUID, tuple[bool, NextAvailableSlot | None]]:
+    """Derive today_available / next_available_slot from the guest availability SoT.
+
+    Contract:
+    - If next_available_slot is not None, it must correspond to the earliest slot returned by
+      `/api/guest/therapists/{id}/availability_slots` within the lookahead range.
+    - If there is no availability in the lookahead range, next_available_slot must be None and
+      next_available_at must be null in responses (no stale cache leakage).
+    """
+    # Import locally to keep module deps minimal and make it easy to monkeypatch in unit tests.
+    from app.domains.site import therapist_availability as sot
+
+    unique_ids = list(dict.fromkeys([tid for tid in therapist_ids if tid is not None]))
+    if not unique_ids:
+        return {}
+
+    today = now_jst().date()
+    end_date = today + timedelta(days=lookahead_days)
+
+    # 1) buffer_minutes per therapist (Profile.buffer_minutes). Missing => 0.
+    buffer_stmt = (
+        select(models.Therapist.id, models.Profile.buffer_minutes)
+        .join(models.Profile, models.Profile.id == models.Therapist.profile_id)
+        .where(models.Therapist.id.in_(unique_ids))
+    )
+    buffer_rows = (await db.execute(buffer_stmt)).all()
+    buffer_by_therapist: dict[UUID, int] = {
+        therapist_id: int(buffer_minutes or 0)
+        for therapist_id, buffer_minutes in buffer_rows
+    }
+
+    # 2) shifts (by therapist/date)
+    shifts_stmt = (
+        select(models.TherapistShift)
+        .where(models.TherapistShift.therapist_id.in_(unique_ids))
+        .where(models.TherapistShift.availability_status == "available")
+        .where(models.TherapistShift.date >= today)
+        .where(models.TherapistShift.date <= end_date)
+    )
+    shifts = list((await db.execute(shifts_stmt)).scalars().all())
+    shifts_by_therapist: dict[UUID, dict[date, list[models.TherapistShift]]] = (
+        defaultdict(lambda: defaultdict(list))
+    )
+    for shift in shifts:
+        shifts_by_therapist[shift.therapist_id][shift.date].append(shift)
+
+    # 3) reservations (by therapist)
+    range_start = datetime.combine(today, time.min).replace(tzinfo=JST)
+    range_end = datetime.combine(end_date, time.min).replace(tzinfo=JST) + timedelta(
+        days=1
+    )
+    reservations_stmt = select(models.GuestReservation).where(
+        models.GuestReservation.therapist_id.in_(unique_ids),
+        models.GuestReservation.status.in_(sot.ACTIVE_RESERVATION_STATUSES),
+        models.GuestReservation.start_at < range_end,
+        models.GuestReservation.end_at > range_start,
+    )
+    reservations = list((await db.execute(reservations_stmt)).scalars().all())
+    reservations_by_therapist: dict[UUID, list[models.GuestReservation]] = defaultdict(
+        list
+    )
+    for reservation in reservations:
+        reservations_by_therapist[reservation.therapist_id].append(reservation)
+
+    def reservations_for_date(
+        therapist_id: UUID,
+        target_date: date,
+    ) -> list[models.GuestReservation]:
+        day_start, day_end = sot._day_window(target_date)
+        return [
+            r
+            for r in reservations_by_therapist.get(therapist_id, [])
+            if r.start_at < day_end and r.end_at > day_start
+        ]
+
+    results: dict[UUID, tuple[bool, NextAvailableSlot | None]] = {}
+    for therapist_id in unique_ids:
+        today_available = False
+        next_slot: NextAvailableSlot | None = None
+        buffer_minutes = buffer_by_therapist.get(therapist_id, 0)
+
+        current = today
+        while current <= end_date:
+            day_shifts = shifts_by_therapist.get(therapist_id, {}).get(current, [])
+            day_reservations = reservations_for_date(therapist_id, current)
+
+            open_intervals = sot._calculate_available_slots(
+                day_shifts, day_reservations, buffer_minutes
+            )
+            day_intervals = (
+                sot._filter_slots_by_date(open_intervals, current)
+                if open_intervals
+                else []
+            )
+
+            if current == today:
+                today_available = bool(day_intervals)
+
+            if next_slot is None and day_intervals:
+                start_at, end_at = day_intervals[0]
+                next_slot = NextAvailableSlot(
+                    start_at=start_at,
+                    end_at=end_at,
+                    status="ok",
+                )
+
+            current += timedelta(days=1)
+
+        results[therapist_id] = (today_available, next_slot)
+
+    return results
 
 
 def _profile_to_shop_summary(profile: models.Profile) -> ShopSummary:
@@ -612,57 +733,53 @@ async def _search_shops_impl(
         results = await _filter_results_by_availability(db, results, available_date)
 
     if results:
-        shop_ids = [shop.id for shop in results]
-        # Availabilityテーブルからのデータ（レガシー、フォールバック用）
-        shop_slots, staff_slots = await get_next_available_slots(db, shop_ids)
-        # TherapistShiftからセラピストの次回空き時間を取得（優先ソース）
-        therapist_slots_by_shop = await get_therapist_next_available_slots_by_shop(
-            db, shop_ids
+        staff_ids: list[UUID] = []
+        for shop in results:
+            for member in shop.staff_preview:
+                staff_uuid = normalize_staff_uuid(member.id)
+                if staff_uuid:
+                    staff_ids.append(staff_uuid)
+
+        # Single Source of Truth: guest availability (shifts + breaks + reservations + buffer).
+        # Never leak stale cached `next_available_at` from the search index.
+        staff_next_map = await _derive_next_availability_from_slots_sot(
+            db, staff_ids, lookahead_days=14
         )
-        if shop_slots or staff_slots or therapist_slots_by_shop:
-            for shop in results:
-                # TherapistShiftから店舗の最も早いスロットを計算
-                therapist_name_slots = therapist_slots_by_shop.get(shop.id, {})
-                earliest_therapist_slot = None
-                if therapist_name_slots:
-                    for slot in therapist_name_slots.values():
-                        if (
-                            earliest_therapist_slot is None
-                            or slot.start_at < earliest_therapist_slot.start_at
-                        ):
-                            earliest_therapist_slot = slot
 
-                # 優先順位: TherapistShift > Availability
-                if earliest_therapist_slot:
-                    shop.next_available_slot = earliest_therapist_slot
-                    if shop.next_available_at is None:
-                        shop.next_available_at = earliest_therapist_slot.start_at
-                else:
-                    # TherapistShiftがない場合はAvailabilityにフォールバック
-                    availability_slot = shop_slots.get(shop.id)
-                    if availability_slot:
-                        shop.next_available_slot = availability_slot
-                        if shop.next_available_at is None:
-                            shop.next_available_at = availability_slot.start_at
+        for shop in results:
+            shop_today_available = False
+            shop_next_slot: NextAvailableSlot | None = None
+            has_any_staff = False
 
-                if shop.staff_preview:
-                    for member in shop.staff_preview:
-                        # 優先順位: TherapistShift（名前マッチ） > Availability（スタッフID）
-                        # 1. まず名前でTherapistShiftのスロットを取得（優先）
-                        if member.name and member.name in therapist_name_slots:
-                            therapist_slot = therapist_name_slots[member.name]
-                            member.next_available_slot = therapist_slot
-                            if member.next_available_at is None:
-                                member.next_available_at = therapist_slot.start_at
-                            continue
-                        # 2. TherapistShiftがない場合、スタッフIDでAvailabilityから取得
-                        staff_uuid = normalize_staff_uuid(member.id)
-                        if staff_uuid:
-                            staff_slot = staff_slots.get(staff_uuid)
-                            if staff_slot:
-                                member.next_available_slot = staff_slot
-                                if member.next_available_at is None:
-                                    member.next_available_at = staff_slot.start_at
+            for member in shop.staff_preview:
+                staff_uuid = normalize_staff_uuid(member.id)
+                if not staff_uuid:
+                    member.today_available = False
+                    member.next_available_slot = None
+                    member.next_available_at = None
+                    continue
+
+                has_any_staff = True
+                today_available, next_slot = staff_next_map.get(
+                    staff_uuid, (False, None)
+                )
+                member.today_available = today_available
+                member.next_available_slot = next_slot
+                member.next_available_at = next_slot.start_at if next_slot else None
+
+                shop_today_available = shop_today_available or today_available
+                if next_slot and (
+                    shop_next_slot is None
+                    or next_slot.start_at < shop_next_slot.start_at
+                ):
+                    shop_next_slot = next_slot
+
+            if has_any_staff:
+                shop.today_available = shop_today_available
+                shop.next_available_slot = shop_next_slot
+                shop.next_available_at = (
+                    shop_next_slot.start_at if shop_next_slot else None
+                )
 
     selected_facets: Dict[str, Set[str]] = {}
     if area:
