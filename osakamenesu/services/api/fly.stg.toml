@@ -1,0 +1,30 @@
+# fly.stg.toml - STG専用のFly設定（prodとは完全分離）
+#
+# 重要:
+# - app 名以外は原則 fly.toml と揃える（差分最小）
+# - STGは「アイドル時に0台」を許可してコスト最小化する
+#
+# デプロイ例:
+#   cd osakamenesu/services/api
+#   flyctl deploy -a osakamenesu-api-stg --remote-only -c fly.stg.toml
+#
+
+app = 'osakamenesu-api-stg'
+primary_region = 'nrt'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'suspend'
+  auto_start_machines = true
+  # STGはアイドル時 0台（リクエストで自動起動）
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
