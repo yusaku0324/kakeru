@@ -1,0 +1,72 @@
+info:
+  id: reservations.holds
+  title: Holds (TTL) / reserved-expired semantics (P1 plan)
+  summary: >
+    予約作成の「仮押さえ(hold)」を導入するための最小仕様（計画）。
+    P0（営業時間 + server-computed end_at）の上に、安全に積める形にする。
+  status: planning-only
+
+links:
+  - spec: specs/reservations/core.yaml
+  - spec: specs/availability/core.yaml
+
+entities:
+  GuestReservation:
+    current_statuses: [draft, pending, confirmed, cancelled, no_show]
+    p1_statuses_add: [reserved, expired]
+    p1_fields_add:
+      reserved_until: { type: string, format: date-time, nullable: true }
+      idempotency_key: { type: string, nullable: true }
+
+rules:
+  ttl_hold:
+    status: reserved
+    ttl_minutes: 15
+    starts_at: created_at
+    ends_at_field: reserved_until
+    expiry:
+      - now >= reserved_until の場合、reserved は expired として扱う
+      - expiry は read 時に deterministic に効かせる（見え方がブレない）
+      - cleanup（非同期）は best-effort（負荷/遅延で多少遅れても read が正）
+
+  idempotency:
+    header: Idempotency-Key
+    expectations:
+      - 同一 key + 同一 payload + TTL 内は同一 hold を返す
+      - 同一 key + payload 不一致は client error
+
+  availability_blocking:
+    current_blocks: [pending, confirmed]
+    current_non_blocks: [draft, cancelled, no_show]
+    p1_blocks_add: [reserved]
+    p1_non_blocks_add: [expired]
+
+api_contract_draft:
+  note: >
+    計画のみ。実装では既存 /api/guest/reservations 互換を維持しつつ導入する。
+  candidates:
+    - id: reservations.hold
+      method: POST
+      path: /api/guest/reservations/hold
+      headers:
+        - Idempotency-Key
+      body:
+        shop_id: uuid
+        therapist_id: uuid
+        start_at: string (date-time)
+        duration_minutes: int
+        planned_extension_minutes: int
+      response:
+        status: reserved
+        reserved_until: string (date-time)
+    - id: reservations.confirm
+      method: POST
+      path: /api/guest/reservations/{id}/confirm
+      response:
+        status: confirmed
+
+out_of_scope:
+  - payments flow
+  - room_id assignment
+  - EXCLUDE USING gist constraints
+  - final concurrency strategy

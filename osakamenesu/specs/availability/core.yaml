@@ -61,3 +61,27 @@ implementation_notes:
     constraints:
       - slots_json の slot は start/end がシフト内に完全に収まるものだけを生成する
       - slots_json の slot には staff_id(=therapist_id) を含め、セラピスト単位の表示を壊さない
+
+p1:
+  holds:
+    description: >
+      予約作成の TTL hold を導入する際の availability 影響（計画）。
+    GuestReservation:
+      blocking_statuses_add: [reserved]
+      non_blocking_statuses_add: [expired]
+  room_count:
+    description: >
+      店舗ごとの “同時刻帯の予約数上限” を room_count で制御する（計画）。
+    db_plan:
+      Profile:
+        room_count:
+          type: int
+          not_null: true
+          default: 1
+    rule: >
+      shop_id 単位で、同一時間帯の “blocking statuses” の予約数が room_count を超えない。
+    overlap_definition: >
+      半開区間: start_at < other.end_at AND other.start_at < end_at
+    indexes_plan:
+      - guest_reservations(shop_id, status, start_at)
+      - guest_reservations(shop_id, status, end_at)
