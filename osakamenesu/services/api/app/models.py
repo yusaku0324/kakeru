@@ -932,6 +932,10 @@ class GuestReservation(Base):
     buffer_minutes: Mapped[int] = mapped_column(
         Integer, default=0, nullable=False, server_default="0"
     )
+    reserved_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     course_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True, index=True
     )

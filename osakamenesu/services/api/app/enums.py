@@ -113,9 +113,11 @@ GUEST_RESERVATION_STATUS_VALUES: Tuple[str, ...] = (
     "confirmed",
     "cancelled",
     "no_show",
+    "reserved",
+    "expired",
 )
 GuestReservationStatusLiteral = Literal[
-    "draft", "pending", "confirmed", "cancelled", "no_show"
+    "draft", "pending", "confirmed", "cancelled", "no_show", "reserved", "expired"
 ]
 
 

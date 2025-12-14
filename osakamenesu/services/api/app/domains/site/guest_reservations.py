@@ -6,10 +6,11 @@ from uuid import UUID, uuid4
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, model_validator
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from ...models import (
     GuestReservation,
@@ -41,6 +42,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/guest/reservations", tags=["guest-reservations"])
 
 GuestReservationStatus = _GuestReservationStatus  # backward-compat for existing imports
+HOLD_TTL_MINUTES = 15
 
 
 def _attach_reason(reservation: GuestReservation, reason: str | None) -> None:
@@ -483,6 +485,177 @@ async def create_guest_reservation(
     return None, {"rejected_reasons": ["internal_error"]}
 
 
+def _payload_matches_idempotency(
+    reservation: GuestReservation,
+    *,
+    shop_id: UUID,
+    therapist_id: UUID,
+    start_at: datetime,
+    duration_minutes: int,
+    planned_extension_minutes: int,
+) -> bool:
+    return (
+        str(reservation.shop_id) == str(shop_id)
+        and str(reservation.therapist_id) == str(therapist_id)
+        and reservation.start_at == start_at
+        and int(reservation.duration_minutes or 0) == int(duration_minutes)
+        and int(reservation.planned_extension_minutes or 0)
+        == int(planned_extension_minutes)
+    )
+
+
+async def create_guest_reservation_hold(
+    db: AsyncSession,
+    payload: dict[str, Any],
+    *,
+    idempotency_key: str,
+    now: datetime | None = None,
+) -> tuple[Optional[GuestReservation], dict[str, Any], str | None]:
+    """
+    Create a TTL-based reservation hold (status=reserved).
+
+    - Requires Idempotency-Key
+    - reserved_until is computed server-side (now + HOLD_TTL_MINUTES)
+    - reserved is treated as blocking only while reserved_until > now (lazy expiry)
+    """
+    now = now or now_utc()
+    rejected: list[str] = []
+
+    normalized, reasons = validate_request(payload)
+    rejected.extend(reasons)
+
+    start_at = normalized.get("start_at")
+    shop_id = normalized.get("shop_id")
+    therapist_id = normalized.get("therapist_id")
+    course_id = normalized.get("course_id")
+
+    if not start_at:
+        return None, {"rejected_reasons": rejected}, None
+    if not therapist_id:
+        rejected.append("therapist_id_required")
+        return None, {"rejected_reasons": rejected}, None
+
+    start_at = ensure_jst_datetime(start_at)
+
+    existing = None
+    try:
+        existing_res = await db.execute(
+            select(GuestReservation).where(
+                GuestReservation.idempotency_key == idempotency_key
+            )
+        )
+        existing = existing_res.scalar_one_or_none()
+    except Exception:  # pragma: no cover - defensive
+        existing = None
+
+    profile: Profile | None = None
+    if shop_id:
+        profile = await _try_fetch_profile(db, shop_id)
+
+    (
+        service_duration_minutes,
+        planned_extension_minutes,
+        buffer_minutes,
+        _service_end_at,
+        occupied_end_at,
+        time_error,
+    ) = compute_booking_times(
+        profile=profile,
+        start_at=start_at,
+        course_id=course_id,
+        base_duration_minutes=normalized.get("duration_minutes"),
+        planned_extension_minutes=payload.get("planned_extension_minutes")
+        if isinstance(payload, dict)
+        else None,
+    )
+    if time_error:
+        rejected.append(time_error)
+        return None, {"rejected_reasons": rejected}, None
+
+    if existing is not None:
+        if not _payload_matches_idempotency(
+            existing,
+            shop_id=shop_id,
+            therapist_id=therapist_id,
+            start_at=start_at,
+            duration_minutes=service_duration_minutes,
+            planned_extension_minutes=planned_extension_minutes,
+        ):
+            return (
+                None,
+                {"rejected_reasons": ["idempotency_key_conflict"]},
+                "idempotency_key_conflict",
+            )
+        return existing, {}, None
+
+    rejected.extend(check_deadline(start_at, now, shop_settings=None))
+
+    cfg = load_business_hours_from_profile(profile)
+    if cfg is not None:
+        if not is_within_business_hours(cfg, start_at, occupied_end_at):
+            rejected.append("outside_business_hours")
+
+    try:
+        available, availability_debug = await is_available(
+            db,
+            therapist_id,
+            start_at,
+            occupied_end_at,
+            lock=True,
+        )
+    except Exception:  # pragma: no cover - defensive fail-soft
+        available = False
+        availability_debug = {"rejected_reasons": ["internal_error"]}
+    if not available:
+        reasons = availability_debug.get("rejected_reasons") or []
+        rejected.extend(reasons)
+
+    if rejected:
+        return None, {"rejected_reasons": rejected}, None
+
+    reserved_until = now + timedelta(minutes=HOLD_TTL_MINUTES)
+    try:
+        reservation = GuestReservation(
+            shop_id=shop_id,
+            therapist_id=therapist_id,
+            start_at=start_at,
+            end_at=occupied_end_at,
+            duration_minutes=service_duration_minutes,
+            planned_extension_minutes=planned_extension_minutes,
+            buffer_minutes=buffer_minutes,
+            reserved_until=reserved_until,
+            idempotency_key=idempotency_key,
+            course_id=normalized.get("course_id"),
+            price=normalized.get("price"),
+            payment_method=normalized.get("payment_method"),
+            contact_info=normalized.get("contact_info"),
+            guest_token=normalized.get("guest_token"),
+            user_id=normalized.get("user_id"),
+            notes=normalized.get("notes"),
+            status="reserved",
+            base_staff_id=normalized.get("base_staff_id"),
+        )
+        if not getattr(reservation, "id", None):
+            reservation.id = uuid4()
+        db.add(reservation)
+        await db.commit()
+        await db.refresh(reservation)
+        return reservation, {}, None
+    except IntegrityError:
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        return None, {"rejected_reasons": ["overlap_existing_reservation"]}, None
+    except Exception:  # pragma: no cover - fail-soft
+        logger.warning("guest_reservation_hold_failed", exc_info=True)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        return None, {"rejected_reasons": ["internal_error"]}, None
+
+
 # ---- API 層 ----
 
 
@@ -513,6 +686,33 @@ class GuestReservationPayload(BaseModel):
         return self
 
 
+class GuestReservationHoldPayload(BaseModel):
+    shop_id: UUID
+    therapist_id: UUID
+    start_at: datetime
+    end_at: datetime | None = None
+    duration_minutes: int | None = None
+    planned_extension_minutes: int | None = 0
+    course_id: UUID | None = None
+    price: float | None = None
+    payment_method: str | None = None
+    contact_info: dict[str, Any] | None = None
+    guest_token: str | None = None
+    user_id: UUID | None = None
+    notes: str | None = None
+    base_staff_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def _validate_timing_sources(self) -> "GuestReservationHoldPayload":
+        if (
+            self.end_at is None
+            and self.duration_minutes is None
+            and self.course_id is None
+        ):
+            raise ValueError("one of end_at, duration_minutes, course_id is required")
+        return self
+
+
 class GuestReservationResponse(BaseModel):
     id: UUID
     status: str
@@ -521,6 +721,7 @@ class GuestReservationResponse(BaseModel):
     start_at: datetime
     end_at: datetime
     duration_minutes: int | None = None
+    reserved_until: datetime | None = None
     course_id: UUID | None = None
     price: float | None = None
     payment_method: str | None = None
@@ -548,6 +749,7 @@ def _serialize(
         start_at=reservation.start_at,
         end_at=reservation.end_at,
         duration_minutes=reservation.duration_minutes,
+        reserved_until=getattr(reservation, "reserved_until", None),
         course_id=reservation.course_id,
         price=reservation.price,
         payment_method=reservation.payment_method,
@@ -666,6 +868,68 @@ async def create_guest_reservation_api(
         end_at=payload.end_at
         or (payload.start_at + timedelta(minutes=payload.duration_minutes or 0)),
         duration_minutes=payload.duration_minutes,
+        course_id=payload.course_id,
+        price=payload.price,
+        payment_method=payload.payment_method,
+        contact_info=payload.contact_info,
+        guest_token=payload.guest_token,
+        user_id=user.id if user else None,
+        notes=payload.notes,
+        base_staff_id=payload.base_staff_id,
+        created_at=now_utc(),
+        updated_at=now_utc(),
+        debug=safe_debug,
+    )
+
+
+@router.post(
+    "/hold",
+    response_model=GuestReservationResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def hold_guest_reservation_api(
+    payload: GuestReservationHoldPayload,
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    db: AsyncSession = Depends(get_session),
+    user: Optional[User] = Depends(get_optional_site_user),
+    _: None = Depends(rate_limit_reservation),
+):
+    data = payload.model_dump()
+    if user:
+        data["user_id"] = user.id
+    else:
+        data["user_id"] = None
+
+    reservation, debug, error_code = await create_guest_reservation_hold(
+        db,
+        data,
+        idempotency_key=idempotency_key,
+        now=None,
+    )
+    if error_code == "idempotency_key_conflict":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="idempotency_key_conflict",
+        )
+    if reservation:
+        return _serialize(reservation, debug=None)
+
+    safe_debug: dict[str, Any] | None = None
+    if not _IS_PRODUCTION:
+        safe_debug = debug
+    elif debug:
+        safe_debug = {"rejected_reasons": debug.get("rejected_reasons", [])}
+
+    return GuestReservationResponse(
+        id=UUID(int=0),
+        status="rejected",
+        shop_id=payload.shop_id,
+        therapist_id=payload.therapist_id,
+        start_at=payload.start_at,
+        end_at=payload.end_at
+        or (payload.start_at + timedelta(minutes=payload.duration_minutes or 0)),
+        duration_minutes=payload.duration_minutes,
+        reserved_until=None,
         course_id=payload.course_id,
         price=payload.price,
         payment_method=payload.payment_method,
