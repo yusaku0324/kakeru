@@ -140,21 +140,21 @@ async def sync_availability_for_date(
             )
 
             # 指定された時間刻みでスロットを生成
-            # 修正: slot_start が shift.end_at より前であれば予約可能
-            # （slot_end が shift.end_at を超えても、slot_start が範囲内なら OK）
             current = shift_start_jst
-            while current < shift_end_jst:
+            # 予約可否判定(is_available)は「start_at/end_atがシフト内に完全に収まる」前提のため、
+            # slot_end が shift_end を超えるスロットは生成しない（UIに“予約できそう”な時刻を出さない）。
+            while current + slot_delta <= shift_end_jst:
                 slot_end = current + slot_delta
 
-                # スロット開始時間がシフト終了時間より前なら予約可能
-                # slot_end > shift_end_jst でも、current < shift_end_jst なら許可
                 slots.append(
                     {
                         "start_at": _format_slot_time_jst(current),
                         "end_at": _format_slot_time_jst(slot_end),
                         "status": "open",
                         "staff_name": staff_name,
-                        "therapist_id": str(shift.therapist_id),
+                        # slots_json の staff_id は、site/services/shop/availability.convert_slots が解釈するキー。
+                        # staff_id が無いと “全員対象” 扱いになり、セラピスト単位の表示が壊れる。
+                        "staff_id": str(shift.therapist_id),
                     }
                 )
                 current = current + slot_delta

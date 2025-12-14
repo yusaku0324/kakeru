@@ -1,0 +1,18 @@
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Status</th>
+      <th>Next</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td>{{ row.status }}</td>
+        <td>{{ row.next }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>

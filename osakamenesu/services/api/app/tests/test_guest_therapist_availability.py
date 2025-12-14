@@ -271,8 +271,10 @@ def test_availability_fallback_to_availability_table(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """
-    Test that when TherapistShift has no data, the API falls back to Availability table.
-    This tests the profile_id fallback path (when therapist_id is actually a profile_id).
+    Test that when TherapistShift has no data, the API does NOT fall back to Availability table.
+
+    Availability(slots_json) はキャッシュであり、シフトが無い場合に “予約できそうな時刻” を返すと
+    予約作成側(is_available)と不整合になるため、ゲスト向けは TherapistShift を SoT として扱う。
     """
     day = date(2025, 1, 4)
     profile_id = THERAPIST_ID  # In this case, therapist_id IS the profile_id
@@ -309,8 +311,4 @@ def test_availability_fallback_to_availability_table(
         params={"date": str(day)},
     )
     assert res.status_code == 200
-    slots = res.json()["slots"]
-    assert len(slots) == 1
-    # Verify the fallback time (13:00) is returned, not the default (10:00)
-    assert slots[0]["start_at"].startswith("2025-01-04T13:00")
-    assert slots[0]["end_at"].startswith("2025-01-04T17:00")
+    assert res.json()["slots"] == []
