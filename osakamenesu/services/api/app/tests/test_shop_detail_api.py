@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.db import get_session
 from app.domains.site.services import shop_services
+from app.utils.datetime import now_jst
 
 
 SHOP_ID = uuid4()
@@ -373,7 +374,9 @@ def test_get_shop_detail_with_availability(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
     profile = _create_mock_profile()
-    today = date.today()
+    # Align with production behavior (JST-based "today") to avoid CI flakiness when
+    # the runner timezone is UTC.
+    today = now_jst().date()
     now = datetime.now()
 
     mock_calendar = AvailabilityCalendar(

@@ -228,7 +228,9 @@ def _build_profile_fixture() -> models.Profile:
 def _build_availability(
     profile_id: uuid.UUID,
 ) -> tuple[AvailabilityCalendar, NextAvailableSlot, AvailabilitySlot]:
-    slot_date = date.today()
+    # Align with production behavior (JST-based "today") to avoid CI flakiness when
+    # the runner timezone is UTC.
+    slot_date = now_jst().date()
     slot_start = datetime.combine(slot_date, time(hour=6, minute=0, tzinfo=JST))
     slot_end = slot_start + timedelta(hours=1)
     staff_id = uuid.uuid4()
