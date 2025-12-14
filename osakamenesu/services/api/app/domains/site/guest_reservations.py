@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, model_validator
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -200,13 +200,15 @@ def validate_request(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]
     start_raw = payload.get("start_at")
     end_raw = payload.get("end_at")
     start_at = _parse_datetime(start_raw)
-    end_at = _parse_datetime(end_raw)
+    end_at = _parse_datetime(end_raw) if end_raw is not None else None
 
     if not shop_id:
         reasons.append("shop_id_required")
-    if not start_at or not end_at:
+    if not start_at:
         reasons.append("invalid_start_or_end")
-    elif start_at >= end_at:
+    elif end_raw is not None and not end_at:
+        reasons.append("invalid_start_or_end")
+    elif end_at and start_at >= end_at:
         reasons.append("end_before_start")
 
     normalized["shop_id"] = shop_id
@@ -227,7 +229,7 @@ def validate_request(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]
         duration = int((end_at - start_at).total_seconds() // 60)
     normalized["duration_minutes"] = duration
 
-    if not duration:
+    if duration is None and not normalized.get("course_id"):
         reasons.append("duration_missing")
 
     return normalized, reasons
@@ -366,17 +368,15 @@ async def create_guest_reservation(
     rejected.extend(reasons)
 
     start_at = normalized.get("start_at")
-    end_at = normalized.get("end_at")
     shop_id = normalized.get("shop_id")
     therapist_id = normalized.get("therapist_id")
     course_id = normalized.get("course_id")
 
-    if not start_at or not end_at:
+    if not start_at:
         return None, {"rejected_reasons": rejected}
 
     # Normalize to JST for consistent server-side computations.
     start_at = ensure_jst_datetime(start_at)
-    end_at = ensure_jst_datetime(end_at)
 
     profile: Profile | None = None
     if shop_id:
@@ -490,7 +490,7 @@ class GuestReservationPayload(BaseModel):
     shop_id: UUID
     therapist_id: UUID | None = None
     start_at: datetime
-    end_at: datetime
+    end_at: datetime | None = None
     duration_minutes: int | None = None
     planned_extension_minutes: int | None = 0
     course_id: UUID | None = None
@@ -501,6 +501,16 @@ class GuestReservationPayload(BaseModel):
     user_id: UUID | None = None
     notes: str | None = None
     base_staff_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def _validate_timing_sources(self) -> "GuestReservationPayload":
+        if (
+            self.end_at is None
+            and self.duration_minutes is None
+            and self.course_id is None
+        ):
+            raise ValueError("one of end_at, duration_minutes, course_id is required")
+        return self
 
 
 class GuestReservationResponse(BaseModel):
@@ -653,7 +663,8 @@ async def create_guest_reservation_api(
         shop_id=payload.shop_id,
         therapist_id=payload.therapist_id,
         start_at=payload.start_at,
-        end_at=payload.end_at,
+        end_at=payload.end_at
+        or (payload.start_at + timedelta(minutes=payload.duration_minutes or 0)),
         duration_minutes=payload.duration_minutes,
         course_id=payload.course_id,
         price=payload.price,
