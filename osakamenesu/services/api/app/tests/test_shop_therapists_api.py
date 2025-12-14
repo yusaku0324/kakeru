@@ -172,7 +172,9 @@ def test_list_shop_therapists_with_availability(
     """Test therapist listing with availability slots."""
     profile = _create_mock_profile()
     therapist = _create_mock_therapist(THERAPIST_ID_1, "Therapist 1")
-    today = date.today()
+    # Align with production behavior (JST-based "today") to avoid CI flakiness when
+    # the runner timezone is UTC.
+    today = datetime.now(JST).date()
     shift = _create_mock_shift(THERAPIST_ID_1, today)
 
     _setup_mocks(monkeypatch, profile=profile, therapists=[therapist], shifts=[shift])
