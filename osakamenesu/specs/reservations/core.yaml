@@ -17,7 +17,7 @@ contexts:
         required: true
         properties:
           start_at: { type: string, format: date-time }
-          end_at: { type: string, format: date-time }
+          end_at: { type: string, format: date-time, required: false, description: "Optional; server computes end_at as truth in P0." }
       menu_id: { type: string, required: false }
       planned_extension_minutes: { type: integer, required: false, description: "Optional planned extension minutes (step-based). Server validates using booking_rules." }
       price: { type: number, required: false }
@@ -63,6 +63,7 @@ endpoints:
       - v1 status may be set to confirmed immediately if no manual approval flow exists; pending is also acceptable but must be reflected consistently in tests.
       - Duplicate detection: same therapist_id AND identical slot (start/end) should return 400/409.
       - P0: end_at is derived server-side from (duration + planned_extension_minutes + after-buffer minutes). Client-provided end_at may be ignored for consistency.
+      - P0: end_at is optional in request; provide one of (end_at, duration_minutes, course_id) to derive the timing.
       - P0: if profile.contact_json.booking_hours is configured, requests outside business hours should be rejected with reason outside_business_hours.
   - id: reservations.cancel
     method: POST

@@ -108,6 +108,37 @@ def test_create_reservation_rejected(monkeypatch: pytest.MonkeyPatch):
     assert body["debug"]["rejected_reasons"] == ["deadline_over"]
 
 
+def test_create_reservation_end_at_optional_when_duration_present(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    async def fake_create(db, payload, now=None):
+        return StubReservation(status="confirmed"), {}
+
+    monkeypatch.setattr(domain, "create_guest_reservation", fake_create)
+
+    payload = {
+        "shop_id": str(uuid4()),
+        "therapist_id": str(uuid4()),
+        "start_at": datetime.now(timezone.utc).isoformat(),
+        "duration_minutes": 60,
+    }
+    res = client.post("/api/guest/reservations", json=payload)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "confirmed"
+    assert UUID(body["id"])
+
+
+def test_create_reservation_requires_timing_source() -> None:
+    payload = {
+        "shop_id": str(uuid4()),
+        "therapist_id": str(uuid4()),
+        "start_at": datetime.now(timezone.utc).isoformat(),
+    }
+    res = client.post("/api/guest/reservations", json=payload)
+    assert res.status_code == 422
+
+
 def test_cancel_reservation(monkeypatch: pytest.MonkeyPatch):
     cancelled = StubReservation(status="cancelled")
 
