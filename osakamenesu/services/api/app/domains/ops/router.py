@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ... import models, schemas
 from ...db import get_session
 from ...settings import settings
+from ...services.reservation_holds import expire_reserved_holds
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,9 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def require_ops_token(authorization: str | None = Header(None, alias="Authorization")) -> None:
+def require_ops_token(
+    authorization: str | None = Header(None, alias="Authorization"),
+) -> None:
     """Enforce optional bearer token for Ops endpoints."""
     token = getattr(settings, "ops_api_token", None)
     if not token:
@@ -40,18 +43,17 @@ def require_ops_token(authorization: str | None = Header(None, alias="Authorizat
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="ops_token_invalid")
 
 
-router = APIRouter(prefix="/api/ops", tags=["ops"], dependencies=[Depends(require_ops_token)])
+router = APIRouter(
+    prefix="/api/ops", tags=["ops"], dependencies=[Depends(require_ops_token)]
+)
 
 
 async def _get_queue_stats(db: AsyncSession) -> schemas.OpsQueueStats:
-    stmt = (
-        select(
-            func.count(models.ReservationNotificationDelivery.id),
-            func.min(models.ReservationNotificationDelivery.created_at),
-            func.min(models.ReservationNotificationDelivery.next_attempt_at),
-        )
-        .where(models.ReservationNotificationDelivery.status == "pending")
-    )
+    stmt = select(
+        func.count(models.ReservationNotificationDelivery.id),
+        func.min(models.ReservationNotificationDelivery.created_at),
+        func.min(models.ReservationNotificationDelivery.next_attempt_at),
+    ).where(models.ReservationNotificationDelivery.status == "pending")
     result = await db.execute(stmt)
     pending, oldest_created_at, next_attempt_at = result.one()
 
@@ -101,7 +103,9 @@ async def _get_slots_summary(db: AsyncSession) -> schemas.OpsSlotsSummary:
     now = _utcnow()
     window_end = now + timedelta(hours=24)
 
-    pending_total_stmt = select(func.count(models.Reservation.id)).where(models.Reservation.status == "pending")
+    pending_total_stmt = select(func.count(models.Reservation.id)).where(
+        models.Reservation.status == "pending"
+    )
     pending_stale_stmt = (
         select(func.count(models.Reservation.id))
         .where(models.Reservation.status == "pending")
@@ -157,6 +161,22 @@ class MigrateResponse(BaseModel):
 
 class StampRequest(BaseModel):
     revision: str = "head"
+
+
+class ExpireHoldsResponse(BaseModel):
+    expired: int
+    now: datetime
+
+
+@router.post("/reservations/expire_holds", response_model=ExpireHoldsResponse)
+async def expire_holds(
+    db: AsyncSession = Depends(get_session),
+) -> ExpireHoldsResponse:
+    now = _utcnow()
+    expired = await expire_reserved_holds(db, now=now)
+    if expired:
+        await db.commit()
+    return ExpireHoldsResponse(expired=expired, now=now)
 
 
 @router.post("/stamp", response_model=MigrateResponse)
