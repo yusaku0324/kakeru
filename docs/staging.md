@@ -336,6 +336,38 @@ curl -i -sS -X POST \"$BASE/api/guest/reservations\" \\
 - 結果: POST#1 で `status=reserved` 作成、POST#2（同key+同payload）で同じ `reservation_id` が返り idempotent
 - 証跡: https://github.com/yusaku0324/kakeru/pull/212#issuecomment-3652117628
 
+## expire_holds（STG/PROD）
+
+目的: `reserved_until` を過ぎた hold（`status=reserved`）を `expired` に確定させ、DB上の状態を運用可能にする。
+
+### STG smoke evidence
+
+- reservation_id: `0f2418fb-f2ee-447d-82a7-54c509bf9e35`
+- hold後: `availability_summary.has_available=false`
+- `POST /api/ops/reservations/expire_holds` 後:
+  - `status=expired`
+  - `availability_summary.has_available=true`
+
+### 実行例（STG）
+
+```bash
+curl -fsS -X POST 'https://osakamenesu-api-stg.fly.dev/api/ops/reservations/expire_holds' \
+  -H "Authorization: Bearer $OPS_TOKEN_STG"
+```
+
+### 実行例（PROD）
+
+```bash
+curl -fsS -X POST 'https://api.osakamenesu.com/api/ops/reservations/expire_holds' \
+  -H "Authorization: Bearer $OPS_TOKEN_PROD"
+```
+
+### Ops token
+
+- 環境変数: `OPS_API_TOKEN`（未設定の場合は ops endpoint が開放される）
+- Header: `Authorization: Bearer <token>`
+- 失敗時: `401 ops_token_required` / `401 ops_token_invalid`
+
 ## 破棄手順（記載のみ・今は実行しない）
 
 ```bash
