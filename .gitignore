@@ -74,6 +74,7 @@ videos/
 *.log
 *.html
 !apps/web/tests/fixtures/*.html
+!osakamenesu/services/api/app/admin_htmx/templates/**/*.html
 node_modules/
 **/.next/
 **/.turbo/

@@ -418,42 +418,11 @@ async def list_daily_slots(
     reservations = await _fetch_reservations(db, therapist_id, day_start, day_end)
 
     # 共通ヘルパーで buffer_minutes と profile_id を取得
-    _, buffer_minutes, profile_id = await _fetch_therapist_with_buffer(db, therapist_id)
+    _, buffer_minutes, _profile_id = await _fetch_therapist_with_buffer(
+        db, therapist_id
+    )
 
     slots = _calculate_available_slots(shifts, reservations, buffer_minutes)
-
-    # TherapistShift にデータがない場合は Availability テーブルにフォールバック
-    if not slots:
-        # profile_id が取得できている場合
-        if profile_id:
-            logger.debug(
-                "No TherapistShift data for therapist %s on %s, falling back to Availability",
-                therapist_id,
-                target_date,
-            )
-            fallback_slots = await _fetch_availability_slots(
-                db, profile_id, therapist_id, target_date
-            )
-            if fallback_slots:
-                # タイムゾーンを JST に統一（naive datetime は JST とみなす）
-                slots = [
-                    (_ensure_aware(s), _ensure_aware(e)) for s, e in fallback_slots
-                ]
-        else:
-            # Therapist レコードが見つからない場合、therapist_id が実際には profile_id の可能性がある
-            # （検索APIがshop_id/profile_idをtherapist_idとして返すケースに対応）
-            logger.debug(
-                "Therapist %s not found, trying therapist_id as profile_id",
-                therapist_id,
-            )
-            fallback_slots = await _fetch_availability_slots(
-                db, therapist_id, therapist_id, target_date
-            )
-            if fallback_slots:
-                # タイムゾーンを JST に統一（naive datetime は JST とみなす）
-                slots = [
-                    (_ensure_aware(s), _ensure_aware(e)) for s, e in fallback_slots
-                ]
 
     return [
         (
@@ -493,7 +462,9 @@ async def list_availability_summary(
     - メモリ上で日ごとに処理
     """
     # 1. Therapist 情報を1回のみ取得
-    _, buffer_minutes, profile_id = await _fetch_therapist_with_buffer(db, therapist_id)
+    _, buffer_minutes, _profile_id = await _fetch_therapist_with_buffer(
+        db, therapist_id
+    )
 
     # 2. 日付範囲全体でシフトと予約をバッチ取得
     shifts = await _fetch_shifts(db, therapist_id, date_from, date_to)
@@ -510,20 +481,14 @@ async def list_availability_summary(
     for shift in shifts:
         shifts_by_date[shift.date].append(shift)
 
-    # 4. Availability フォールバック用データをバッチ取得（N+1 解消）
-    fallback_profile_id = profile_id if profile_id else therapist_id
-    availability_slots_by_date = await _fetch_availability_slots_batch(
-        db, fallback_profile_id, therapist_id, date_from, date_to
-    )
-
-    # 5. 予約を日付ごとにフィルタリングするヘルパー
+    # 4. 予約を日付ごとにフィルタリングするヘルパー
     def get_reservations_for_date(target_date: date) -> list[GuestReservation]:
         day_start, day_end = _day_window(target_date)
         return [
             r for r in reservations if r.start_at < day_end and r.end_at > day_start
         ]
 
-    # 6. 日ごとにスロットを計算
+    # 5. 日ごとにスロットを計算
     items: list[AvailabilitySummaryItem] = []
     current = date_from
     while current <= date_to:
@@ -531,12 +496,6 @@ async def list_availability_summary(
         day_reservations = get_reservations_for_date(current)
 
         slots = _calculate_available_slots(day_shifts, day_reservations, buffer_minutes)
-
-        # TherapistShift にデータがない場合は Availability テーブルにフォールバック（バッチ取得済み）
-        if not slots:
-            fallback_slots = availability_slots_by_date.get(current, [])
-            if fallback_slots:
-                slots = fallback_slots
 
         # 日付範囲でフィルタリング
         filtered_slots = _filter_slots_by_date(slots, current) if slots else []

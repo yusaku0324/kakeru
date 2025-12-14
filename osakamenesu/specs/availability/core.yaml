@@ -1,0 +1,63 @@
+info:
+  id: availability.core
+  title: Availability domain core contract
+  summary: >
+    Shift(勤怠)から予約可能スロットを導出し、検索/プロフィール/予約UIで
+    “予約できそうに見えるが予約できない”不整合を起こさないための最小規約。
+
+rules:
+  timezone: Asia/Tokyo
+  date_semantics: >
+    date(YYYY-MM-DD) は JST の日付として解釈する。
+    例: 2025-12-13 は JST 2025-12-13 00:00:00〜23:59:59 を対象。
+  overlap_definition: >
+    予約重複(overlap)は半開区間で判定する:
+    start_at < other.end_at AND other.start_at < end_at
+
+source_of_truth:
+  description: >
+    “予約可能/時刻表示”の真実は TherapistShift + 予約(GuestReservation) から導出される
+    予約可能スロットのみ。
+  entities:
+    TherapistShift:
+      required:
+        - therapist_id
+        - start_at
+        - end_at
+        - availability_status=available
+      notes:
+        - 予約スロット(start/end)はシフト内に完全に収まる必要がある。
+        - break_slots がある場合、予約スロットは休憩と重ならない。
+    GuestReservation:
+      blocking_statuses: [pending, confirmed]
+      non_blocking_statuses: [cancelled]
+
+derived_fields:
+  today_available:
+    definition: >
+      “JSTの今日”に予約可能スロットが1件以上ある場合のみ true。
+      推測や店舗フォールバックで true にしてはいけない。
+  next_available_slot:
+    definition: >
+      未来を含む最小の予約可能スロット開始時刻。
+      存在しない場合は null。
+
+ui_constraints:
+  time_badge:
+    rule: >
+      「本日 HH:MM〜」「最短の空き枠」など“確定枠っぽい時刻”の表示は、
+      予約可能スロットが実在する場合のみ許可する。
+  request_only:
+    rule: >
+      実在スロットが無い/未登録の場合は “要問い合わせ/予約リクエスト” 等の導線に統一し、
+      時刻を表示しない。
+
+implementation_notes:
+  availability_cache:
+    description: >
+      Availability(slots_json) はキャッシュであり、SoTではない。
+      SoT(shift/reservation)と矛盾する slots_json をゲスト表示に使うと不整合が再発する。
+  sync_availability_for_date:
+    constraints:
+      - slots_json の slot は start/end がシフト内に完全に収まるものだけを生成する
+      - slots_json の slot には staff_id(=therapist_id) を含め、セラピスト単位の表示を壊さない
