@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pathlib import Path
 from typing import List
 
@@ -7,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from ..deps import require_admin
 
-templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
+templates_dir = Path(__file__).resolve().parent / "templates"
 static_dir = Path(__file__).resolve().parent / "static"
 
 router = APIRouter(
@@ -15,6 +16,13 @@ router = APIRouter(
     tags=["admin_htmx"],
     dependencies=[Depends(require_admin)],
 )
+
+
+@lru_cache(maxsize=1)
+def get_templates() -> Jinja2Templates:
+    # Avoid instantiating Jinja2Templates at import time.
+    # This prevents tests/CI from failing during module import when jinja2 isn't installed yet.
+    return Jinja2Templates(directory=templates_dir)
 
 
 def _filter_rows(q: str | None) -> List[dict]:
@@ -36,7 +44,7 @@ def _filter_rows(q: str | None) -> List[dict]:
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, q: str | None = None):
     rows = _filter_rows(q)
-    return templates.TemplateResponse(
+    return get_templates().TemplateResponse(
         "dashboard.html",
         {
             "request": request,
@@ -49,7 +57,7 @@ async def dashboard(request: Request, q: str | None = None):
 @router.get("/dashboard/table", response_class=HTMLResponse)
 async def dashboard_table(request: Request, q: str | None = None):
     rows = _filter_rows(q)
-    return templates.TemplateResponse(
+    return get_templates().TemplateResponse(
         "dashboard_table.html",
         {
             "request": request,
