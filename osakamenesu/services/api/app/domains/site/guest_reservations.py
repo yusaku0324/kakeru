@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from uuid import UUID, uuid4
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -23,6 +23,13 @@ from ...db import get_session
 from ...deps import get_optional_site_user
 from .therapist_availability import is_available
 from ...rate_limiters import rate_limit_reservation
+from ...services.business_hours import (
+    load_booking_rules_from_profile,
+    load_business_hours_from_profile,
+    is_within_business_hours,
+)
+from ...utils.datetime import ensure_jst_datetime
+from .utils import normalize_shop_menus
 
 # 本番環境ではdebug情報を隠す
 _IS_PRODUCTION = (
@@ -53,6 +60,132 @@ def _parse_datetime(value: Any) -> Optional[datetime]:
         except ValueError:
             return None
     return None
+
+
+def _coerce_uuid(value: Any) -> UUID | None:
+    if isinstance(value, UUID):
+        return value
+    if isinstance(value, str):
+        try:
+            return UUID(value)
+        except ValueError:
+            return None
+    return None
+
+
+async def _try_fetch_profile(db: AsyncSession, shop_id: Any) -> Profile | None:
+    shop_uuid = _coerce_uuid(shop_id)
+    if not shop_uuid:
+        return None
+    try:
+        res = await db.execute(select(Profile).where(Profile.id == shop_uuid))
+    except Exception:  # pragma: no cover - fail-open
+        return None
+    if res is None:  # test stubs may return None
+        return None
+    if hasattr(res, "scalar_one_or_none"):
+        return res.scalar_one_or_none()
+    if hasattr(res, "scalar"):
+        return res.scalar()
+    return None
+
+
+def resolve_course_duration_minutes(
+    profile: Profile | None,
+    course_id: Any,
+) -> int | None:
+    if profile is None:
+        return None
+    course_uuid = _coerce_uuid(course_id)
+    if course_uuid is None:
+        return None
+    menus = normalize_shop_menus((profile.contact_json or {}).get("menus"), profile.id)
+    for menu in menus:
+        if menu.id == course_uuid and isinstance(menu.duration_minutes, int):
+            if menu.duration_minutes > 0:
+                return menu.duration_minutes
+    return None
+
+
+def normalize_extension_minutes(
+    ext: Any,
+    *,
+    step: int,
+    max_: int,
+) -> tuple[int, str | None]:
+    if ext is None:
+        return 0, None
+    try:
+        ext_minutes = int(ext)
+    except Exception:
+        return 0, "invalid_extension"
+    if ext_minutes < 0:
+        return 0, "invalid_extension"
+    if max_ <= 0 and ext_minutes != 0:
+        return 0, "invalid_extension"
+    if step <= 0:
+        return 0, "invalid_extension"
+    if ext_minutes % step != 0:
+        return 0, "invalid_extension"
+    if ext_minutes > max_:
+        return 0, "invalid_extension"
+    return ext_minutes, None
+
+
+def compute_booking_times(
+    *,
+    profile: Profile | None,
+    start_at: datetime,
+    course_id: Any,
+    base_duration_minutes: Any,
+    planned_extension_minutes: Any,
+) -> tuple[int, int, int, datetime, datetime, str | None]:
+    """
+    Compute reservation time fields.
+
+    - service_end_at: start_at + (course/base duration + extension)
+    - occupied_end_at: service_end_at + base_buffer_minutes (after buffer)
+    """
+    rules = load_booking_rules_from_profile(profile)
+    ext_minutes, ext_err = normalize_extension_minutes(
+        planned_extension_minutes,
+        step=rules.extension_step_minutes,
+        max_=rules.max_extension_minutes,
+    )
+    if ext_err:
+        return 0, 0, 0, start_at, start_at, ext_err
+
+    resolved_course_duration = resolve_course_duration_minutes(profile, course_id)
+    duration_minutes = resolved_course_duration
+    if duration_minutes is None:
+        try:
+            if base_duration_minutes is not None:
+                duration_minutes = int(base_duration_minutes)
+        except Exception:
+            duration_minutes = None
+
+    if duration_minutes is None or duration_minutes <= 0:
+        return 0, 0, 0, start_at, start_at, "invalid_timing"
+
+    service_duration_minutes = duration_minutes + ext_minutes
+    if service_duration_minutes <= 0:
+        return 0, 0, 0, start_at, start_at, "invalid_timing"
+
+    buffer_minutes = rules.base_buffer_minutes
+    if buffer_minutes < 0:
+        buffer_minutes = 0
+
+    start_jst = ensure_jst_datetime(start_at)
+    service_end_at = start_jst + timedelta(minutes=service_duration_minutes)
+    occupied_end_at = service_end_at + timedelta(minutes=buffer_minutes)
+    return (
+        service_duration_minutes,
+        ext_minutes,
+        buffer_minutes,
+        service_end_at,
+        occupied_end_at,
+        None,
+    )
 
 
 def validate_request(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
@@ -236,16 +369,59 @@ async def create_guest_reservation(
     end_at = normalized.get("end_at")
     shop_id = normalized.get("shop_id")
     therapist_id = normalized.get("therapist_id")
+    course_id = normalized.get("course_id")
 
-    if start_at and end_at:
-        rejected.extend(check_deadline(start_at, now, shop_settings=None))
+    if not start_at or not end_at:
+        return None, {"rejected_reasons": rejected}
+
+    # Normalize to JST for consistent server-side computations.
+    start_at = ensure_jst_datetime(start_at)
+    end_at = ensure_jst_datetime(end_at)
+
+    profile: Profile | None = None
+    if shop_id:
+        profile = await _try_fetch_profile(db, shop_id)
+
+    # Compute server-side times (end_at is derived, client end_at is not authoritative).
+    # base_duration_minutes may come from payload.duration_minutes or (end_at-start_at) fallback.
+    (
+        service_duration_minutes,
+        planned_extension_minutes,
+        buffer_minutes,
+        _service_end_at,
+        occupied_end_at,
+        time_error,
+    ) = compute_booking_times(
+        profile=profile,
+        start_at=start_at,
+        course_id=course_id,
+        base_duration_minutes=normalized.get("duration_minutes"),
+        planned_extension_minutes=payload.get("planned_extension_minutes")
+        if isinstance(payload, dict)
+        else None,
+    )
+    if time_error:
+        rejected.append(time_error)
+        return None, {"rejected_reasons": rejected}
+
+    rejected.extend(check_deadline(start_at, now, shop_settings=None))
+
+    # Business hours check (optional). Missing/invalid config means "no restriction".
+    cfg = load_business_hours_from_profile(profile)
+    if cfg is not None:
+        if not is_within_business_hours(cfg, start_at, occupied_end_at):
+            rejected.append("outside_business_hours")
 
     # 指名予約の場合のみ is_available をチェック（フリーは v1 ではスキップ。将来は assign_for_free 内で可否判定を入れる TODO）
     # lock=True でレースコンディションを防ぐ（SELECT FOR UPDATE）
-    if therapist_id and start_at and end_at:
+    if therapist_id:
         try:
             available, availability_debug = await is_available(
-                db, therapist_id, start_at, end_at, lock=True
+                db,
+                therapist_id,
+                start_at,
+                occupied_end_at,
+                lock=True,
             )
         except Exception:  # pragma: no cover - defensive fail-soft
             available = False
@@ -255,9 +431,13 @@ async def create_guest_reservation(
             rejected.extend(reasons)
 
     # フリー/おまかせの場合は割当
-    if not therapist_id and start_at and end_at:
+    if not therapist_id:
         assigned, assign_debug = await assign_for_free(
-            db, shop_id, start_at, end_at, normalized.get("base_staff_id")
+            db,
+            shop_id,
+            start_at,
+            occupied_end_at,
+            normalized.get("base_staff_id"),
         )
         if assigned:
             therapist_id = assigned
@@ -273,9 +453,11 @@ async def create_guest_reservation(
         reservation = GuestReservation(
             shop_id=shop_id,
             therapist_id=therapist_id,
-            start_at=start_at,
-            end_at=end_at,
-            duration_minutes=normalized.get("duration_minutes"),
+            start_at=ensure_jst_datetime(start_at) if start_at else start_at,
+            end_at=occupied_end_at,
+            duration_minutes=service_duration_minutes,
+            planned_extension_minutes=planned_extension_minutes,
+            buffer_minutes=buffer_minutes,
             course_id=normalized.get("course_id"),
             price=normalized.get("price"),
             payment_method=normalized.get("payment_method"),
@@ -310,6 +492,7 @@ class GuestReservationPayload(BaseModel):
     start_at: datetime
     end_at: datetime
     duration_minutes: int | None = None
+    planned_extension_minutes: int | None = 0
     course_id: UUID | None = None
     price: float | None = None
     payment_method: str | None = None
