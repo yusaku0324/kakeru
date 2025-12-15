@@ -227,44 +227,56 @@ test.describe('STG: admin shift -> search UI -> reservation', () => {
       floorToStep(maxOffsetMinutes, 15),
     ].filter((v, i, arr) => arr.indexOf(v) === i)
 
-    let created: { id?: string; status?: string; debug?: any } | null = null
-    let lastRejected: any = null
+    // Start from a rotating offset so repeated runs don't always attempt the same start_at first.
+    const rotation = offsets.length > 0 ? Math.abs(new Date().getUTCMinutes()) % offsets.length : 0
+    const orderedOffsets = offsets.slice(rotation).concat(offsets.slice(0, rotation))
 
-    for (const offsetMinutes of offsets) {
-      const startAt = new Date(baseMs + offsetMinutes * 60000).toISOString()
-      const res = await fetchJson(`${API_BASE}/api/guest/reservations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({
-          shop_id: SHOP_ID,
-          therapist_id: THERAPIST_ID,
-          start_at: startAt,
-          duration_minutes: durationMinutes,
-          planned_extension_minutes: 0,
-        }),
-      })
+    let reservationId: string | undefined
+    try {
+      let created: { id?: string; status?: string; debug?: any } | null = null
+      let lastRejected: any = null
 
-      expect(res.res.ok, `reservation create failed: ${res.res.status}`).toBeTruthy()
-      const statusVal: string | undefined = res.json?.status
-      if (['confirmed', 'pending', 'reserved'].includes(statusVal || '')) {
-        created = res.json
-        break
+      for (const offsetMinutes of orderedOffsets) {
+        const startAt = new Date(baseMs + offsetMinutes * 60000).toISOString()
+        const res = await fetchJson(`${API_BASE}/api/guest/reservations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            shop_id: SHOP_ID,
+            therapist_id: THERAPIST_ID,
+            start_at: startAt,
+            duration_minutes: durationMinutes,
+            planned_extension_minutes: 0,
+          }),
+        })
+
+        expect(res.res.ok, `reservation create failed: ${res.res.status}`).toBeTruthy()
+        const statusVal: string | undefined = res.json?.status
+        if (['confirmed', 'pending', 'reserved'].includes(statusVal || '')) {
+          created = res.json
+          break
+        }
+        lastRejected = { status: statusVal, reasons: res.json?.debug?.rejected_reasons }
       }
-      lastRejected = { status: statusVal, reasons: res.json?.debug?.rejected_reasons }
+
+      expect(created, `reservation create rejected: ${JSON.stringify(lastRejected)}`).toBeTruthy()
+      reservationId = created?.id
+      expect(reservationId, 'reservation id should be returned').toBeTruthy()
+    } finally {
+      if (reservationId) {
+        // Cleanup (STG only): cancel the reservation so the test doesn't poison availability for future runs.
+        const cancelRes = await fetchJson(
+          `${API_BASE}/api/guest/reservations/${reservationId}/cancel`,
+          {
+            method: 'POST',
+            headers: { Accept: 'application/json' },
+          },
+        )
+        expect(cancelRes.res.ok, `reservation cancel failed: ${cancelRes.res.status}`).toBeTruthy()
+      }
     }
-
-    expect(created, `reservation create rejected: ${JSON.stringify(lastRejected)}`).toBeTruthy()
-    const reservationId: string | undefined = created?.id
-    expect(reservationId, 'reservation id should be returned').toBeTruthy()
-
-    // Cleanup (STG only): cancel the reservation so the test doesn't poison availability for future runs.
-    const cancelRes = await fetchJson(`${API_BASE}/api/guest/reservations/${reservationId}/cancel`, {
-      method: 'POST',
-      headers: { Accept: 'application/json' },
-    })
-    expect(cancelRes.res.ok, `reservation cancel failed: ${cancelRes.res.status}`).toBeTruthy()
   })
 })

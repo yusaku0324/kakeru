@@ -1,0 +1,92 @@
+name: E2E (STG) shift -> search -> reservation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-shift-reservation-flow
+  cancel-in-progress: false
+
+jobs:
+  e2e-shift-reservation-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Use Preview env secrets synced from Doppler (if configured).
+    environment: Preview
+    if: ${{ secrets.E2E_ADMIN_KEY != '' }}
+    defaults:
+      run:
+        working-directory: osakamenesu
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+      NEXT_PUBLIC_OSAKAMENESU_API_BASE: https://osakamenesu-api-stg.fly.dev
+      OSAKAMENESU_API_INTERNAL_BASE: https://osakamenesu-api-stg.fly.dev
+      E2E_WEB_BASE: http://127.0.0.1:3000
+      E2E_API_BASE: https://osakamenesu-api-stg.fly.dev
+      E2E_ADMIN_BASE: https://osakamenesu-api-stg.fly.dev
+      E2E_ADMIN_KEY: ${{ secrets.E2E_ADMIN_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Playwright browsers (Chromium)
+        run: |
+          rm -rf ~/.cache/ms-playwright apps/web/node_modules/.cache/ms-playwright
+          PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" pnpm --dir apps/web exec playwright install --with-deps chromium
+
+      - name: Start web (dev server)
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/web dev > /tmp/web.log 2>&1 &
+          echo $! > /tmp/web.pid
+          for i in {1..60}; do
+            if curl -sSf "http://127.0.0.1:3000/" >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Web dev server failed to start"
+          tail -n 200 /tmp/web.log || true
+          exit 1
+
+      - name: Run Playwright (single spec)
+        run: |
+          pnpm --dir apps/web exec playwright test e2e/shift_reservation_flow.spec.ts --reporter=line --timeout=120000
+
+      - name: Stop web (dev server)
+        if: always()
+        run: |
+          if [ -f /tmp/web.pid ]; then
+            kill "$(cat /tmp/web.pid)" || true
+          fi
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-shift-reservation-flow
+          path: |
+            osakamenesu/apps/web/playwright-report/
+            osakamenesu/apps/web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
