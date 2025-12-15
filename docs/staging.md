@@ -41,6 +41,22 @@ curl -sS \
 - Fly app: `osakamenesu-api-stg`
 - Fly Postgres: `osakamenesu-db-stg`
 
+## 手動E2E（GitHub Actions / STGのみ）
+
+STGに対して「管理シフト再生成→検索→予約」を1本だけ通すための手動E2E。
+
+- Workflow: `.github/workflows/e2e_shift_reservation_flow.yml`（`workflow_dispatch` のみ）
+- 必要Secrets: GitHub Environment `Preview` に `E2E_ADMIN_KEY`（値はログ出力しない）
+- Artifacts: `playwright-shift-reservation-flow`（`apps/web/playwright-report/` / `apps/web/test-results/`）
+- STG以外はテスト側で `skip`（prodにはPOSTしない）
+
+起動（CLI例）:
+
+```bash
+gh workflow run e2e_shift_reservation_flow.yml --ref main
+gh run list --workflow e2e_shift_reservation_flow.yml --limit 5
+```
+
 ## 現状確認（インベントリ）
 
 ```bash
