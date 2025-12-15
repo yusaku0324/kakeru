@@ -213,6 +213,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
     <div
       className={`group relative overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-[0_8px_32px_rgba(37,99,235,0.12)] backdrop-blur-sm transition-all duration-300 hover:shadow-[0_16px_48px_rgba(37,99,235,0.22)] hover:border-brand-primary/30 ${isClickableCard ? 'cursor-pointer' : ''}`}
       data-testid="therapist-card"
+      data-therapist-id={dataTherapistId ?? undefined}
       onClick={isClickableCard ? handleCardClick : undefined}
       role={isClickableCard ? 'button' : undefined}
       tabIndex={isClickableCard ? 0 : undefined}
@@ -270,9 +271,9 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
               isTodayAvailable
                 ? 'bg-emerald-500/90 text-white'
                 : 'bg-amber-500/90 text-white'
-            }`} data-testid={todayLabelTestId}>
+            }`} data-testid="therapist-availability-badge">
               <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
-              {availabilityLabel}
+              <span data-testid={todayLabelTestId}>{availabilityLabel}</span>
             </div>
           )}
         </div>
@@ -301,9 +302,9 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
                 isTodayAvailable
                   ? 'bg-emerald-500/90 text-white'
                   : 'bg-amber-500/90 text-white'
-              }`} data-testid={todayLabelTestId}>
+              }`} data-testid="therapist-availability-badge">
                 <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
-                {availabilityLabel}
+                <span data-testid={todayLabelTestId}>{availabilityLabel}</span>
               </div>
             )}
           </div>
@@ -343,6 +344,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
         {isClickableCard ? (
           <div
             className={`w-full rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary py-2.5 text-xs font-bold text-white text-center shadow-[0_4px_16px_rgba(37,99,235,0.3)] transition-all duration-200 hover:shadow-[0_6px_20px_rgba(37,99,235,0.4)] active:scale-[0.98] ${isLoadingAvailability ? 'opacity-70' : ''}`}
+            data-testid="therapist-cta"
           >
             {isLoadingAvailability ? '読み込み中...' : '予約する'}
           </div>
@@ -350,6 +352,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
           <Link
             href={staffHref}
             className="block w-full rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary py-2.5 text-center text-xs font-bold text-white shadow-[0_4px_16px_rgba(37,99,235,0.3)] transition-all duration-200 hover:shadow-[0_6px_20px_rgba(37,99,235,0.4)] active:scale-[0.98]"
+            data-testid="therapist-cta"
           >
             詳細を見る
           </Link>

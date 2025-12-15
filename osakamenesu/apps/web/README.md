@@ -26,6 +26,21 @@ This app powers the public reservation/search experience used throughout the pro
     pnpm --dir apps/web run test:e2e
   ```
   Doppler から注入される API ベース URL / Sentry DSN を利用するため、追加の `.env.local` は不要です。
+- **STG 向けE2E（admin shift → search → reservation）**
+  ```bash
+  # NOTE: repo root の `.env` で `API_INTERNAL_BASE=http://osakamenesu-api:8000` が設定されているため、
+  # ローカルで STG API を参照する場合は internal/public の両方を明示的に上書きしてください。
+  OSAKAMENESU_API_INTERNAL_BASE=https://osakamenesu-api-stg.fly.dev \
+  NEXT_PUBLIC_OSAKAMENESU_API_BASE=https://osakamenesu-api-stg.fly.dev \
+  E2E_WEB_BASE=http://localhost:3000 \
+  E2E_API_BASE=https://osakamenesu-api-stg.fly.dev \
+  E2E_ADMIN_BASE=https://osakamenesu-api-stg.fly.dev \
+  E2E_ADMIN_KEY=dev_admin_key \
+  E2E_SHOP_ID=... \
+  E2E_THERAPIST_ID=... \
+  pnpm --dir apps/web exec playwright test e2e/shift_reservation_flow.spec.ts
+  ```
+  `E2E_API_BASE` が STG 以外の場合はテスト側で skip されます（prod write 防止）。
 - **管理画面データのシード**
   ```bash
   doppler run --project osakamenesu --config dev_web -- \
