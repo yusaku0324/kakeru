@@ -36,6 +36,11 @@ curl -sS \
 }
 ```
 
+## Room capacity（room_count）
+
+- `profiles.room_count`（default `1`）が、同一shop内の「同時間帯に重なるアクティブ予約数」の上限になる（セラピストをまたいでカウント）
+- create/hold は上限超過時に `debug.rejected_reasons: ["room_full"]` を返す
+
 ## 対象リソース
 
 - Fly app: `osakamenesu-api-stg`
