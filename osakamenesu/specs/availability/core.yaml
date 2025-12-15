@@ -80,6 +80,7 @@ p1:
           default: 1
     rule: >
       shop_id 単位で、同一時間帯の “blocking statuses” の予約数が room_count を超えない。
+      超過する場合は rejected_reasons に room_full を含める。
     overlap_definition: >
       半開区間: start_at < other.end_at AND other.start_at < end_at
     indexes_plan:

@@ -263,6 +263,60 @@ def check_deadline(
     return []
 
 
+def _reservation_status_value(reservation: GuestReservation) -> str:
+    value = reservation.status
+    if hasattr(value, "value"):
+        value = value.value
+    return str(value)
+
+
+def _is_active_shop_reservation(reservation: GuestReservation, now: datetime) -> bool:
+    status_value = _reservation_status_value(reservation)
+    if status_value in {"pending", "confirmed"}:
+        return True
+    if status_value != "reserved":
+        return False
+    reserved_until = getattr(reservation, "reserved_until", None)
+    if reserved_until is None:
+        # Defensive: NULL reserved_until holds can otherwise block forever.
+        return True
+    return reserved_until > now
+
+
+async def _count_overlapping_active_shop_reservations(
+    db: AsyncSession,
+    *,
+    shop_id: UUID,
+    start_at: datetime,
+    end_at: datetime,
+    now: datetime,
+) -> int:
+    stmt = select(GuestReservation).where(
+        GuestReservation.shop_id == shop_id,
+        GuestReservation.status.in_(("pending", "confirmed", "reserved")),
+        GuestReservation.start_at < end_at,
+        GuestReservation.end_at > start_at,
+    )
+    res = await db.execute(stmt)
+    if res is None:  # test stubs may return None
+        return 0
+
+    reservations: list[GuestReservation] = []
+    # SQLAlchemy Result
+    if hasattr(res, "scalars"):
+        scalars = res.scalars()
+        if hasattr(scalars, "all"):
+            reservations = list(scalars.all())
+    # Test stubs may return a lightweight result object.
+    elif hasattr(res, "rows"):
+        rows = getattr(res, "rows", None)
+        if isinstance(rows, list) and rows and isinstance(rows[0], GuestReservation):
+            reservations = list(rows)
+
+    active = [r for r in reservations if _is_active_shop_reservation(r, now)]
+    return len(active)
+
+
 async def assign_for_free(
     db: AsyncSession,
     shop_id: Any,
@@ -376,6 +430,7 @@ async def create_guest_reservation(
     """
     now = now or now_utc()
     rejected: list[str] = []
+    extra_debug: dict[str, Any] = {}
 
     normalized, reasons = validate_request(payload)
     rejected.extend(reasons)
@@ -425,6 +480,37 @@ async def create_guest_reservation(
         if not is_within_business_hours(cfg, start_at, occupied_end_at):
             rejected.append("outside_business_hours")
 
+    shop_uuid = _coerce_uuid(shop_id)
+    if shop_uuid:
+        room_count = 1
+        if profile is not None:
+            try:
+                room_count = int(getattr(profile, "room_count", 1) or 1)
+            except Exception:
+                room_count = 1
+        room_count = max(1, room_count)
+        try:
+            active_count = await _count_overlapping_active_shop_reservations(
+                db,
+                shop_id=shop_uuid,
+                start_at=start_at,
+                end_at=occupied_end_at,
+                now=now,
+            )
+        except Exception:  # pragma: no cover - defensive fail-soft
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            rejected.append("internal_error")
+        else:
+            if active_count >= room_count:
+                rejected.append("room_full")
+                extra_debug["room_capacity"] = {
+                    "room_count": room_count,
+                    "active_count": active_count,
+                }
+
     # 指名予約の場合のみ is_available をチェック（フリーは v1 ではスキップ。将来は assign_for_free 内で可否判定を入れる TODO）
     # lock=True でレースコンディションを防ぐ（SELECT FOR UPDATE）
     if therapist_id:
@@ -460,7 +546,7 @@ async def create_guest_reservation(
             rejected.extend(reasons)
 
     if rejected:
-        return None, {"rejected_reasons": rejected}
+        return None, {"rejected_reasons": rejected, **extra_debug}
 
     try:
         reservation = GuestReservation(
@@ -531,6 +617,7 @@ async def create_guest_reservation_hold(
     """
     now = now or now_utc()
     rejected: list[str] = []
+    extra_debug: dict[str, Any] = {}
 
     normalized, reasons = validate_request(payload)
     rejected.extend(reasons)
@@ -610,6 +697,37 @@ async def create_guest_reservation_hold(
         if not is_within_business_hours(cfg, start_at, occupied_end_at):
             rejected.append("outside_business_hours")
 
+    shop_uuid = _coerce_uuid(shop_id)
+    if shop_uuid:
+        room_count = 1
+        if profile is not None:
+            try:
+                room_count = int(getattr(profile, "room_count", 1) or 1)
+            except Exception:
+                room_count = 1
+        room_count = max(1, room_count)
+        try:
+            active_count = await _count_overlapping_active_shop_reservations(
+                db,
+                shop_id=shop_uuid,
+                start_at=start_at,
+                end_at=occupied_end_at,
+                now=now,
+            )
+        except Exception:  # pragma: no cover - defensive fail-soft
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            rejected.append("internal_error")
+        else:
+            if active_count >= room_count:
+                rejected.append("room_full")
+                extra_debug["room_capacity"] = {
+                    "room_count": room_count,
+                    "active_count": active_count,
+                }
+
     try:
         available, availability_debug = await is_available(
             db,
@@ -626,7 +744,7 @@ async def create_guest_reservation_hold(
         rejected.extend(reasons)
 
     if rejected:
-        return None, {"rejected_reasons": rejected}, None
+        return None, {"rejected_reasons": rejected, **extra_debug}, None
 
     reserved_until = now + timedelta(minutes=HOLD_TTL_MINUTES)
     try:
