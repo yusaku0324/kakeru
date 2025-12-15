@@ -82,6 +82,13 @@ async def _try_fetch_profile(db: AsyncSession, shop_id: Any) -> Profile | None:
     try:
         res = await db.execute(select(Profile).where(Profile.id == shop_uuid))
     except Exception:  # pragma: no cover - fail-open
+        # NOTE: If the session is in a "pending rollback" state (e.g. after a
+        # transient DB error), we must rollback before continuing. Otherwise
+        # later availability checks can fail with internal_error.
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         return None
     if res is None:  # test stubs may return None
         return None
@@ -310,6 +317,10 @@ async def assign_for_free(
         ]
     except Exception:  # pragma: no cover - defensive
         logger.warning("assign_for_free_candidates_failed", exc_info=True)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         debug["rejected_reasons"].append("internal_error")
         return None, debug
 
@@ -546,6 +557,10 @@ async def create_guest_reservation_hold(
         )
         existing = existing_res.scalar_one_or_none()
     except Exception:  # pragma: no cover - defensive
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         existing = None
 
     profile: Profile | None = None

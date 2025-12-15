@@ -50,6 +50,11 @@ function minutesBetween(startIso: string, endIso: string): number {
   return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000))
 }
 
+function floorToStep(value: number, step: number): number {
+  if (step <= 0) return value
+  return Math.floor(value / step) * step
+}
+
 test.describe('STG: admin shift -> search UI -> reservation', () => {
   test.skip(!isStgBase(API_BASE), 'STG only: set E2E_API_BASE to stg (no prod writes)')
 
@@ -211,25 +216,48 @@ test.describe('STG: admin shift -> search UI -> reservation', () => {
     const durationMinutes = Math.min(60, intervalMinutes)
     expect(durationMinutes, 'slot duration must be > 0').toBeGreaterThan(0)
 
-    const createRes = await fetchJson(`${API_BASE}/api/guest/reservations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        shop_id: SHOP_ID,
-        therapist_id: THERAPIST_ID,
-        start_at: chosen.start_at,
-        duration_minutes: durationMinutes,
-        planned_extension_minutes: 0,
-      }),
-    })
-    expect(createRes.res.ok, `reservation create failed: ${createRes.res.status}`).toBeTruthy()
-    const statusVal: string | undefined = createRes.json?.status
-    expect(['confirmed', 'pending', 'reserved'].includes(statusVal || ''), `unexpected status: ${statusVal}`).toBeTruthy()
+    // NOTE: STG is long-lived and may already have a cancelled/confirmed reservation at the
+    // earliest slot start, causing a unique constraint failure. Try a few offsets inside the
+    // returned interval to find a free start_at without spamming POSTs.
+    const baseMs = new Date(chosen.start_at).getTime()
+    const maxOffsetMinutes = Math.max(0, intervalMinutes - durationMinutes)
+    const offsets = [
+      0,
+      floorToStep(Math.floor(maxOffsetMinutes / 2), 15),
+      floorToStep(maxOffsetMinutes, 15),
+    ].filter((v, i, arr) => arr.indexOf(v) === i)
 
-    const reservationId: string | undefined = createRes.json?.id
+    let created: { id?: string; status?: string; debug?: any } | null = null
+    let lastRejected: any = null
+
+    for (const offsetMinutes of offsets) {
+      const startAt = new Date(baseMs + offsetMinutes * 60000).toISOString()
+      const res = await fetchJson(`${API_BASE}/api/guest/reservations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          shop_id: SHOP_ID,
+          therapist_id: THERAPIST_ID,
+          start_at: startAt,
+          duration_minutes: durationMinutes,
+          planned_extension_minutes: 0,
+        }),
+      })
+
+      expect(res.res.ok, `reservation create failed: ${res.res.status}`).toBeTruthy()
+      const statusVal: string | undefined = res.json?.status
+      if (['confirmed', 'pending', 'reserved'].includes(statusVal || '')) {
+        created = res.json
+        break
+      }
+      lastRejected = { status: statusVal, reasons: res.json?.debug?.rejected_reasons }
+    }
+
+    expect(created, `reservation create rejected: ${JSON.stringify(lastRejected)}`).toBeTruthy()
+    const reservationId: string | undefined = created?.id
     expect(reservationId, 'reservation id should be returned').toBeTruthy()
 
     // Cleanup (STG only): cancel the reservation so the test doesn't poison availability for future runs.
