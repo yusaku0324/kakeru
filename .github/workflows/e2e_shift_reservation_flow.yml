@@ -16,7 +16,6 @@ jobs:
     timeout-minutes: 20
     # Use Preview env secrets synced from Doppler (if configured).
     environment: Preview
-    if: ${{ secrets.E2E_ADMIN_KEY != '' }}
     defaults:
       run:
         working-directory: osakamenesu
@@ -33,28 +32,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Guard required secrets
+        id: guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${E2E_ADMIN_KEY:-}" ]; then
+            echo "::warning::E2E_ADMIN_KEY is not configured for environment 'Preview'; skipping E2E."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
       - name: Setup Node.js 20.x
         uses: actions/setup-node@v4
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         with:
           node-version: '20.x'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         with:
           version: 10.20.0
 
       - name: Enable corepack
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         run: corepack enable
 
       - name: Install dependencies
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         run: pnpm install
 
       - name: Install Playwright browsers (Chromium)
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         run: |
           rm -rf ~/.cache/ms-playwright apps/web/node_modules/.cache/ms-playwright
           PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" pnpm --dir apps/web exec playwright install --with-deps chromium
 
       - name: Start web (dev server)
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         run: |
           set -euo pipefail
           pnpm --dir apps/web dev > /tmp/web.log 2>&1 &
@@ -70,6 +87,7 @@ jobs:
           exit 1
 
       - name: Run Playwright (single spec)
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         run: |
           pnpm --dir apps/web exec playwright test e2e/shift_reservation_flow.spec.ts --reporter=line --timeout=120000
 
@@ -81,7 +99,7 @@ jobs:
           fi
 
       - name: Upload Playwright artifacts
-        if: always()
+        if: ${{ always() && steps.guard.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-shift-reservation-flow
