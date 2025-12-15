@@ -109,6 +109,13 @@ class Profile(Base):
     buffer_minutes: Mapped[int] = mapped_column(
         Integer, default=0, nullable=False, server_default="0"
     )
+    room_count: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+        nullable=False,
+        server_default="1",
+        comment="Max number of overlapping active guest reservations allowed per shop",
+    )
     default_slot_duration_minutes: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,

@@ -65,6 +65,7 @@ endpoints:
       - P0: end_at is derived server-side from (duration + planned_extension_minutes + after-buffer minutes). Client-provided end_at may be ignored for consistency.
       - P0: end_at is optional in request; provide one of (end_at, duration_minutes, course_id) to derive the timing.
       - P0: if profile.contact_json.booking_hours is configured, requests outside business hours should be rejected with reason outside_business_hours.
+      - P1: if shop capacity is exceeded (profile.room_count), requests should be rejected with reason room_full.
   - id: reservations.cancel
     method: POST
     path: /api/guest/reservations/{id}/cancel
