@@ -1,0 +1,26 @@
+<div id="slots-table" data-testid="admin-htmx-shifts-slots">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Start</th>
+        <th>End</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if slots %}
+        {% for slot in slots %}
+          <tr>
+            <td>{{ slot.start_at }}</td>
+            <td>{{ slot.end_at }}</td>
+            <td>{{ slot.status }}</td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="3">No slots</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>

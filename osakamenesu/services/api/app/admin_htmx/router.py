@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from ..deps import require_admin
+from .views.shifts import router as shifts_router
 
 templates_dir = Path(__file__).resolve().parent / "templates"
 static_dir = Path(__file__).resolve().parent / "static"
@@ -73,3 +74,6 @@ async def admin_htmx_static(path: str):
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="static file not found")
     return FileResponse(file_path)
+
+
+router.include_router(shifts_router)

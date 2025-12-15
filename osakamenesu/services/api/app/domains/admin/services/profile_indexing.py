@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from .... import models
 from ....meili import index_profile
@@ -25,6 +26,20 @@ async def reindex_profile_contact(*, db: AsyncSession, profile: models.Profile) 
 async def build_profile_document(
     *, db: AsyncSession, profile: models.Profile
 ) -> dict[str, Any]:
+    # Ensure therapists relationship is loaded so staff_preview can be derived from Therapist rows.
+    # (Fallback to contact_json['staff'] still works when present.)
+    try:
+        profile_res = await db.execute(
+            select(models.Profile)
+            .options(selectinload(models.Profile.therapists))
+            .where(models.Profile.id == profile.id)
+        )
+        loaded_profile = profile_res.scalar_one_or_none()
+        if loaded_profile is not None:
+            profile = loaded_profile
+    except Exception:  # pragma: no cover - defensive
+        pass
+
     today = now_jst().date()
     res_today = await db.execute(
         select(func.count())
