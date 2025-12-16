@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { resolveInternalApiBase } from '@/lib/server-config'
 import {
-  formatDateJST,
   generateWeekDateRangeWithToday,
 } from '@/lib/availability-date-range'
 
@@ -33,13 +32,20 @@ function generateTimeSlots(
   const slotDuration = 30 // 30 minutes per slot
 
   // Determine time range from available slots (with 1-hour buffer)
+  //
+  // IMPORTANT: This route runs on server runtimes where TZ can be UTC (e.g. Vercel).
+  // We must compute the time window in JST explicitly; otherwise dayEnd < dayStart
+  // and the calendar renders as "空き状況未登録" even when slots exist.
+  const dayBaseJst = new Date(`${dateStr}T00:00:00+09:00`)
   let minHour = 24
   let maxHour = 0
   for (const avail of availableSlots) {
     const start = new Date(avail.start_at)
     const end = new Date(avail.end_at)
-    minHour = Math.min(minHour, start.getHours())
-    maxHour = Math.max(maxHour, end.getHours() + (end.getMinutes() > 0 ? 1 : 0))
+    const startMinutes = Math.floor((start.getTime() - dayBaseJst.getTime()) / (60 * 1000))
+    const endMinutes = Math.ceil((end.getTime() - dayBaseJst.getTime()) / (60 * 1000))
+    minHour = Math.min(minHour, Math.floor(startMinutes / 60))
+    maxHour = Math.max(maxHour, Math.ceil(endMinutes / 60))
   }
 
   // Add 1-hour buffer before and after, capped at reasonable hours
