@@ -1,43 +1,53 @@
+/**
+ * 日付フォーマットユーティリティ
+ *
+ * 内部実装は lib/jst.ts に委譲。
+ * このファイルは後方互換性のために維持。
+ */
+
+import { formatDateISO, extractDate, formatTimeHM, isSameDate } from '@/lib/jst'
+
+/**
+ * Date または ISO 文字列を YYYY-MM-DD 形式（JST）で返す
+ *
+ * @deprecated lib/jst.ts の formatDateISO() を直接使用してください
+ */
 export function toLocalDateISO(input: Date | string): string {
-  const date = typeof input === 'string' ? new Date(input) : new Date(input.getTime())
+  const date = typeof input === 'string' ? new Date(input) : input
   if (Number.isNaN(date.getTime())) {
     return typeof input === 'string' ? input : ''
   }
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return formatDateISO(date)
 }
 
-function formatParts(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hour = String(date.getHours()).padStart(2, '0')
-  const minute = String(date.getMinutes()).padStart(2, '0')
-  return { year, month, day, hour, minute }
-}
-
+/**
+ * 予約時間帯を「YYYY/MM/DD HH:mm〜HH:mm」形式で表示
+ *
+ * @example
+ * formatReservationRange('2024-12-17T18:00:00+09:00', '2024-12-17T19:30:00+09:00')
+ * // '2024/12/17 18:00〜19:30'
+ */
 export function formatReservationRange(start: string, end: string): string {
   const startDate = new Date(start)
   const endDate = new Date(end)
+
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
     return `${start}〜${end}`
   }
 
-  const startParts = formatParts(startDate)
-  const endParts = formatParts(endDate)
-  const startDateLabel = `${startParts.year}/${startParts.month}/${startParts.day}`
-  const startTimeLabel = `${startParts.hour}:${startParts.minute}`
-  const endTimeLabel = `${endParts.hour}:${endParts.minute}`
-  const sameDay =
-    startParts.year === endParts.year &&
-    startParts.month === endParts.month &&
-    startParts.day === endParts.day
+  // JST 基準でフォーマット
+  const startDateStr = extractDate(formatDateISO(startDate))
+  const endDateStr = extractDate(formatDateISO(endDate))
+  const startTimeStr = formatTimeHM(startDate)
+  const endTimeStr = formatTimeHM(endDate)
 
-  if (sameDay) {
-    return `${startDateLabel} ${startTimeLabel}〜${endTimeLabel}`
+  // YYYY-MM-DD → YYYY/MM/DD に変換
+  const startDateLabel = startDateStr.replace(/-/g, '/')
+  const endDateLabel = endDateStr.replace(/-/g, '/')
+
+  if (isSameDate(startDateStr, endDateStr)) {
+    return `${startDateLabel} ${startTimeStr}〜${endTimeStr}`
   }
-  const endDateLabel = `${endParts.year}/${endParts.month}/${endParts.day}`
-  return `${startDateLabel} ${startTimeLabel}〜${endDateLabel} ${endTimeLabel}`
+
+  return `${startDateLabel} ${startTimeStr}〜${endDateLabel} ${endTimeStr}`
 }

@@ -1,27 +1,38 @@
-// Helper function to generate ISO timestamps relative to now
+import { today, addDays, formatDateTimeISO, now as jstNow } from '@/lib/jst'
+
+// Helper function to generate ISO timestamps relative to now (JST)
 // This must match the logic in shared.ts to ensure consistency
 function isoHoursFromNow(hours: number): string {
-  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
+  const date = new Date(jstNow().getTime() + hours * 60 * 60 * 1000)
+  return formatDateTimeISO(date)
 }
 
-// Helper to get today's date in YYYY-MM-DD format (local timezone)
+// Helper to get next 30-minute aligned slot time (for canonicalization)
+// e.g., 09:28 → 09:30, 09:00 → 09:00, 09:31 → 10:00
+function nextSlotAlignedTime(hours: number): string {
+  const date = new Date(jstNow().getTime() + hours * 60 * 60 * 1000)
+  const minutes = date.getMinutes()
+  // Round up to next 30-minute boundary
+  const alignedMinutes = minutes === 0 ? 0 : minutes <= 30 ? 30 : 60
+  date.setMinutes(alignedMinutes === 60 ? 0 : alignedMinutes, 0, 0)
+  if (alignedMinutes === 60) {
+    date.setHours(date.getHours() + 1)
+  }
+  return formatDateTimeISO(date)
+}
+
+// Helper to get today's date in YYYY-MM-DD format (JST)
 function getLocalDateISO(offset = 0): string {
-  const date = new Date()
-  date.setDate(date.getDate() + offset)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  if (offset === 0) return today()
+  return addDays(today(), offset)
 }
 
-// Helper to build a slot time for a given day offset and hour (uses Date arithmetic to handle overflow)
+// Helper to build a slot time for a given day offset and hour (JST)
 function buildSlotTime(dayOffset: number, hour: number, minute = 0): string {
-  // Use milliseconds-based calculation to properly handle day/hour overflow
-  const now = new Date()
-  const baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  baseDate.setDate(baseDate.getDate() + dayOffset)
-  baseDate.setHours(hour, minute, 0, 0)
-  return baseDate.toISOString()
+  const dateStr = getLocalDateISO(dayOffset)
+  const hourStr = String(hour).padStart(2, '0')
+  const minuteStr = String(minute).padStart(2, '0')
+  return `${dateStr}T${hourStr}:${minuteStr}:00+09:00`
 }
 
 export type SampleStaff = {
@@ -191,8 +202,13 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         review_count: 87,
         avatar_url: '/images/demo-therapist-1.svg',
         specialties: ['リンパ', 'ホットストーン', '指名多数'],
-        // Must match shared.ts: isoHoursFromNow(2)
-        next_available_at: isoHoursFromNow(2),
+        // Canonicalized: next_available_slot.start_at aligns with 30-min grid
+        next_available_at: nextSlotAlignedTime(2),
+        today_available: true,
+        next_available_slot: {
+          start_at: nextSlotAlignedTime(2),
+          status: 'ok' as const,
+        },
       },
       {
         id: '22222222-2222-2222-8888-222222222222',
@@ -251,12 +267,17 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         review_count: 78,
         avatar_url: '/images/demo-therapist-6.svg',
         specialties: ['指圧', 'ストレッチ'],
-        // Must match shared.ts: isoHoursFromNow(1)
-        next_available_at: isoHoursFromNow(1),
+        // Canonicalized: next_available_slot.start_at aligns with 30-min grid
+        next_available_at: nextSlotAlignedTime(1),
+        today_available: true,
+        next_available_slot: {
+          start_at: nextSlotAlignedTime(1),
+          status: 'ok' as const,
+        },
       },
     ],
-    // Dynamic availability calendar - uses isoHoursFromNow to match shared.ts exactly
-    // Each staff member's first available slot matches their next_available_at
+    // Dynamic availability calendar - uses nextSlotAlignedTime for 30-min grid alignment
+    // Each staff member's first available slot matches their next_available_slot.start_at
     availability_calendar: {
       shop_id: 'sample-namba-resort',
       generated_at: new Date().toISOString(),
@@ -266,44 +287,44 @@ export const SAMPLE_SHOPS: SampleShop[] = [
           is_today: true,
           slots: [
             {
-              // 楓's slot - matches isoHoursFromNow(1) - first available
-              start_at: isoHoursFromNow(1),
-              end_at: isoHoursFromNow(2.5),
+              // 楓's slot - canonicalized to 30-min grid
+              start_at: nextSlotAlignedTime(1),
+              end_at: nextSlotAlignedTime(2.5),
               status: 'open',
               staff_id: '22222222-2222-2222-8888-222222222226',
             },
             {
-              // 葵's first open slot - matches isoHoursFromNow(2) in shared.ts
-              start_at: isoHoursFromNow(2),
-              end_at: isoHoursFromNow(3.5),
+              // 葵's first open slot - canonicalized to 30-min grid
+              start_at: nextSlotAlignedTime(2),
+              end_at: nextSlotAlignedTime(3.5),
               status: 'open',
               staff_id: '11111111-1111-1111-8888-111111111111',
             },
             {
-              // 真央's slot - matches isoHoursFromNow(3)
-              start_at: isoHoursFromNow(3),
-              end_at: isoHoursFromNow(4.5),
+              // 真央's slot - canonicalized to 30-min grid
+              start_at: nextSlotAlignedTime(3),
+              end_at: nextSlotAlignedTime(4.5),
               status: 'open',
               staff_id: '22222222-2222-2222-8888-222222222223',
             },
             {
-              // 美月's slot - matches isoHoursFromNow(4)
-              start_at: isoHoursFromNow(4),
-              end_at: isoHoursFromNow(5.5),
+              // 美月's slot - canonicalized to 30-min grid
+              start_at: nextSlotAlignedTime(4),
+              end_at: nextSlotAlignedTime(5.5),
               status: 'open',
               staff_id: '22222222-2222-2222-8888-222222222224',
             },
             {
-              // 凛's slot - matches isoHoursFromNow(5)
-              start_at: isoHoursFromNow(5),
-              end_at: isoHoursFromNow(7),
+              // 凛's slot - canonicalized to 30-min grid
+              start_at: nextSlotAlignedTime(5),
+              end_at: nextSlotAlignedTime(7),
               status: 'tentative',
               staff_id: '22222222-2222-2222-8888-222222222222',
             },
             {
-              // 結衣's slot - matches isoHoursFromNow(6)
-              start_at: isoHoursFromNow(6),
-              end_at: isoHoursFromNow(7.5),
+              // 結衣's slot - canonicalized to 30-min grid
+              start_at: nextSlotAlignedTime(6),
+              end_at: nextSlotAlignedTime(7.5),
               status: 'open',
               staff_id: '22222222-2222-2222-8888-222222222225',
             },
@@ -481,7 +502,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         review_count: 65,
         avatar_url: '/images/demo-therapist-3.svg',
         specialties: ['アロマ', 'リフレクソロジー'],
-        next_available_at: isoHoursFromNow(3),
+        next_available_at: nextSlotAlignedTime(3),
       },
     ],
     availability_calendar: {
@@ -493,8 +514,8 @@ export const SAMPLE_SHOPS: SampleShop[] = [
           is_today: true,
           slots: [
             {
-              start_at: isoHoursFromNow(3),
-              end_at: isoHoursFromNow(4.5),
+              start_at: nextSlotAlignedTime(3),
+              end_at: nextSlotAlignedTime(4.5),
               status: 'open',
               staff_id: '33333333-3333-3333-8888-333333333333',
             },
@@ -547,7 +568,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         review_count: 48,
         avatar_url: '/images/demo-therapist-4.svg',
         specialties: ['ボディケア', 'ストレッチ'],
-        next_available_at: isoHoursFromNow(2),
+        next_available_at: nextSlotAlignedTime(2),
       },
       {
         id: '55555555-5555-5555-8888-555555555555',
@@ -558,7 +579,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         review_count: 72,
         avatar_url: '/images/demo-therapist-5.svg',
         specialties: ['リンパ', 'オイル'],
-        next_available_at: isoHoursFromNow(4),
+        next_available_at: nextSlotAlignedTime(4),
       },
     ],
     availability_calendar: {
@@ -570,14 +591,14 @@ export const SAMPLE_SHOPS: SampleShop[] = [
           is_today: true,
           slots: [
             {
-              start_at: isoHoursFromNow(2),
-              end_at: isoHoursFromNow(3),
+              start_at: nextSlotAlignedTime(2),
+              end_at: nextSlotAlignedTime(3),
               status: 'open',
               staff_id: '44444444-4444-4444-8888-444444444444',
             },
             {
-              start_at: isoHoursFromNow(4),
-              end_at: isoHoursFromNow(5.5),
+              start_at: nextSlotAlignedTime(4),
+              end_at: nextSlotAlignedTime(5.5),
               status: 'open',
               staff_id: '55555555-5555-5555-8888-555555555555',
             },
@@ -630,7 +651,7 @@ export const SAMPLE_SHOPS: SampleShop[] = [
         review_count: 89,
         avatar_url: '/images/demo-therapist-6.svg',
         specialties: ['アロマ', 'リンパ'],
-        next_available_at: isoHoursFromNow(1),
+        next_available_at: nextSlotAlignedTime(1),
       },
     ],
     availability_calendar: {
@@ -642,8 +663,8 @@ export const SAMPLE_SHOPS: SampleShop[] = [
           is_today: true,
           slots: [
             {
-              start_at: isoHoursFromNow(1),
-              end_at: isoHoursFromNow(2.5),
+              start_at: nextSlotAlignedTime(1),
+              end_at: nextSlotAlignedTime(2.5),
               status: 'open',
               staff_id: '66666666-6666-6666-8888-666666666666',
             },

@@ -5,6 +5,40 @@
  * 変換ロジックを統一するためのモジュール
  */
 
+import {
+  today as jstToday,
+  extractDate,
+  extractTime,
+  isToday as jstIsToday,
+  isSameDate,
+  formatDateISO,
+} from '@/lib/jst'
+
+// =============================================================================
+// Deprecated re-exports for backward compatibility (used by tests)
+// Use lib/jst.ts directly in new code
+// =============================================================================
+
+/** @deprecated Use today() from lib/jst.ts */
+export const getTodayIsoString = jstToday
+
+/** @deprecated Use extractDate() from lib/jst.ts */
+export const extractDateFromIso = extractDate
+
+/** @deprecated Use isSameDate() from lib/jst.ts */
+export const isSameDayIso = isSameDate
+
+/** @deprecated Use isToday() from lib/jst.ts */
+export const isTodayIso = jstIsToday
+
+/** @deprecated Use isSameDate(formatDateISO(d1), formatDateISO(d2)) from lib/jst.ts */
+export function isSameDay(date1: Date, date2: Date): boolean {
+  return isSameDate(formatDateISO(date1), formatDateISO(date2))
+}
+
+/** @deprecated Use extractTime() from lib/jst.ts */
+export const extractTimeKey = extractTime
+
 // =============================================================================
 // 型定義
 // =============================================================================
@@ -31,65 +65,26 @@ export type NormalizedSlot = {
   start_at: string
   end_at: string
   status: AvailabilityStatus
+  /** HH:mm形式の時刻キー（例: "18:00"）- カレンダーグリッド表示用 */
+  timeKey?: string
 }
 
 export type NormalizedAvailabilityDay = {
   date: string // "YYYY-MM-DD"
   is_today: boolean
+  /** 表示用ラベル（例: "12月9日"）- UI表示用 */
+  label?: string
   slots: NormalizedSlot[]
 }
 
-// =============================================================================
-// 日付ユーティリティ (JSTベース)
-// =============================================================================
-
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000
-
 /**
- * 現在の日付をJST基準でYYYY-MM-DD形式で取得
+ * UI表示用の拡張された日付型
+ * label と isToday を必須にした NormalizedAvailabilityDay
  */
-export function getTodayIsoString(): string {
-  const now = new Date()
-  // JSTのローカル日付を取得
-  const jst = new Date(now.getTime() + JST_OFFSET_MS)
-  const year = jst.getUTCFullYear()
-  const month = String(jst.getUTCMonth() + 1).padStart(2, '0')
-  const date = String(jst.getUTCDate()).padStart(2, '0')
-  return `${year}-${month}-${date}`
-}
-
-/**
- * ISO文字列から日付部分(YYYY-MM-DD)を抽出
- */
-export function extractDateFromIso(isoString: string): string {
-  return isoString.split('T')[0]
-}
-
-/**
- * 2つの日付文字列が同じ日かどうかを判定
- */
-export function isSameDayIso(dateStr1: string, dateStr2: string): boolean {
-  return extractDateFromIso(dateStr1) === extractDateFromIso(dateStr2)
-}
-
-/**
- * ISO文字列の日付が本日かどうかを判定
- */
-export function isTodayIso(isoString: string): boolean {
-  return extractDateFromIso(isoString) === getTodayIsoString()
-}
-
-/**
- * 2つのDateオブジェクトがJST基準で同じ日かどうかを判定
- */
-export function isSameDay(date1: Date, date2: Date): boolean {
-  const d1 = new Date(date1.getTime() + JST_OFFSET_MS)
-  const d2 = new Date(date2.getTime() + JST_OFFSET_MS)
-  return (
-    d1.getUTCFullYear() === d2.getUTCFullYear() &&
-    d1.getUTCMonth() === d2.getUTCMonth() &&
-    d1.getUTCDate() === d2.getUTCDate()
-  )
+export type DisplayAvailabilityDay = Omit<NormalizedAvailabilityDay, 'is_today' | 'label'> & {
+  isToday: boolean
+  label: string
+  slots: Array<NormalizedSlot & { timeKey: string }>
 }
 
 // =============================================================================
@@ -124,13 +119,13 @@ export function normalizeAvailabilityDays(
 ): NormalizedAvailabilityDay[] | null {
   if (!slots?.length) return null
 
-  const today = todayIso || getTodayIsoString()
+  const today = todayIso || jstToday()
   const grouped = new Map<string, NormalizedAvailabilityDay>()
 
   for (const slot of slots) {
     if (!slot.start_at) continue
 
-    const dateStr = extractDateFromIso(slot.start_at)
+    const dateStr = extractDate(slot.start_at)
 
     if (!grouped.has(dateStr)) {
       grouped.set(dateStr, {
@@ -172,7 +167,7 @@ export function hasTodayAvailability(
 ): boolean {
   if (!availabilityDays?.length) return false
 
-  const today = getTodayIsoString()
+  const today = jstToday()
   const todayData = availabilityDays.find((day) => day.date === today)
 
   if (!todayData?.slots?.length) return false
@@ -307,4 +302,99 @@ export function findDefaultSelectableSlot(
   }
   // 見つからなければ最初の選択可能なスロットを返す
   return getFirstSelectableSlot(availabilityDays)
+}
+
+// =============================================================================
+// DisplayAvailabilityDay 用ヘルパー（UI表示用）
+// =============================================================================
+
+export type DisplaySlot = NormalizedSlot & { timeKey: string }
+
+export type DisplaySelectableSlotWithDay = {
+  day: DisplayAvailabilityDay
+  slot: DisplaySlot & { status: SelectableStatus }
+}
+
+/**
+ * NormalizedAvailabilityDay[] を DisplayAvailabilityDay[] に変換
+ *
+ * @param days - 正規化された日付配列
+ * @param formatLabel - 日付からラベルを生成する関数
+ * @param todayIso - 本日の日付文字列（省略時は現在日付）
+ */
+export function toDisplayAvailabilityDays(
+  days: NormalizedAvailabilityDay[] | null | undefined,
+  formatLabel: (date: Date) => string,
+  todayIso?: string,
+): DisplayAvailabilityDay[] {
+  if (!days?.length) return []
+
+  const today = todayIso || jstToday()
+
+  return days.map((day) => ({
+    date: day.date,
+    isToday: day.is_today || day.date === today,
+    label: day.label || formatLabel(new Date(`${day.date}T00:00:00`)),
+    slots: day.slots.map((slot) => ({
+      ...slot,
+      timeKey: slot.timeKey || extractTime(slot.start_at),
+    })),
+  }))
+}
+
+/**
+ * DisplayAvailabilityDay[] から選択可能なスロットを検索
+ */
+export function findDisplaySelectableSlot(
+  days: DisplayAvailabilityDay[] | null | undefined,
+  startAt: string | null | undefined,
+): DisplaySelectableSlotWithDay | null {
+  if (!days?.length || !startAt) return null
+
+  const targetTs = new Date(startAt).getTime()
+  if (Number.isNaN(targetTs)) return null
+
+  for (const day of days) {
+    for (const slot of day.slots) {
+      if (slot.status === 'blocked') continue
+      const slotTs = new Date(slot.start_at).getTime()
+      if (!Number.isNaN(slotTs) && slotTs === targetTs) {
+        return { day, slot: slot as DisplaySlot & { status: SelectableStatus } }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * DisplayAvailabilityDay[] から最初の選択可能なスロットを取得
+ */
+export function getFirstDisplaySelectableSlot(
+  days: DisplayAvailabilityDay[] | null | undefined,
+): DisplaySelectableSlotWithDay | null {
+  if (!days?.length) return null
+
+  for (const day of days) {
+    for (const slot of day.slots) {
+      if (slot.status !== 'blocked') {
+        return { day, slot: slot as DisplaySlot & { status: SelectableStatus } }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * DisplayAvailabilityDay[] から defaultStart に一致するスロット、
+ * または最初の選択可能なスロットを取得
+ */
+export function findDefaultDisplaySelectableSlot(
+  days: DisplayAvailabilityDay[] | null | undefined,
+  defaultStart: string | null | undefined,
+): DisplaySelectableSlotWithDay | null {
+  if (defaultStart) {
+    const match = findDisplaySelectableSlot(days, defaultStart)
+    if (match) return match
+  }
+  return getFirstDisplaySelectableSlot(days)
 }

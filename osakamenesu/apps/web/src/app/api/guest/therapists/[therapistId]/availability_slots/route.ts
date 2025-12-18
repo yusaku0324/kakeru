@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { resolveInternalApiBase } from '@/lib/server-config'
 import {
-  formatDateJST,
   generateWeekDateRangeWithToday,
 } from '@/lib/availability-date-range'
+import { SAMPLE_SHOPS } from '@/lib/sampleShops'
+import { today, extractDate, formatDateTimeISO } from '@/lib/jst'
 
 const API_BASE = resolveInternalApiBase().replace(/\/+$/, '')
 
@@ -33,13 +34,20 @@ function generateTimeSlots(
   const slotDuration = 30 // 30 minutes per slot
 
   // Determine time range from available slots (with 1-hour buffer)
+  //
+  // IMPORTANT: This route runs on server runtimes where TZ can be UTC (e.g. Vercel).
+  // We must compute the time window in JST explicitly; otherwise dayEnd < dayStart
+  // and the calendar renders as "空き状況未登録" even when slots exist.
+  const dayBaseJst = new Date(`${dateStr}T00:00:00+09:00`)
   let minHour = 24
   let maxHour = 0
   for (const avail of availableSlots) {
     const start = new Date(avail.start_at)
     const end = new Date(avail.end_at)
-    minHour = Math.min(minHour, start.getHours())
-    maxHour = Math.max(maxHour, end.getHours() + (end.getMinutes() > 0 ? 1 : 0))
+    const startMinutes = Math.floor((start.getTime() - dayBaseJst.getTime()) / (60 * 1000))
+    const endMinutes = Math.ceil((end.getTime() - dayBaseJst.getTime()) / (60 * 1000))
+    minHour = Math.min(minHour, Math.floor(startMinutes / 60))
+    maxHour = Math.max(maxHour, Math.ceil(endMinutes / 60))
   }
 
   // Add 1-hour buffer before and after, capped at reasonable hours
@@ -64,8 +72,8 @@ function generateTimeSlots(
       }
 
       slots.push({
-        start_at: slotStart.toISOString(),
-        end_at: slotEnd.toISOString(),
+        start_at: formatDateTimeISO(slotStart),
+        end_at: formatDateTimeISO(slotEnd),
         status,
       })
     }
@@ -74,17 +82,58 @@ function generateTimeSlots(
   return slots
 }
 
+/**
+ * サンプルデータからセラピストの空きスロットを取得
+ * APIからデータが取得できない場合のフォールバック用
+ */
+function getSampleSlotsForTherapist(therapistId: string, dateStr: string): AvailabilitySlot[] {
+  // サンプル店舗からセラピストを検索
+  for (const shop of SAMPLE_SHOPS) {
+    const calendar = shop.availability_calendar
+    if (!calendar?.days) continue
+
+    // このセラピストのスロットを探す
+    for (const day of calendar.days) {
+      // 日付の比較はJSTベースで行う
+      const dayDateStr = extractDate(day.date)
+      if (dayDateStr !== dateStr) continue
+
+      // staff_id が一致するスロットをフィルタ
+      const therapistSlots = day.slots.filter(
+        (slot) => slot.staff_id === therapistId
+      )
+
+      if (therapistSlots.length > 0) {
+        return therapistSlots.map((slot) => ({
+          start_at: slot.start_at,
+          end_at: slot.end_at,
+        }))
+      }
+    }
+  }
+  return []
+}
+
 async function fetchDaySlots(therapistId: string, dateStr: string): Promise<AvailabilitySlot[]> {
   try {
     const resp = await fetch(
       `${API_BASE}/api/guest/therapists/${therapistId}/availability_slots?date=${dateStr}`,
       { method: 'GET', cache: 'no-store' },
     )
-    if (!resp.ok) return []
+    if (!resp.ok) {
+      // バックエンドAPIが失敗した場合、サンプルデータにフォールバック
+      return getSampleSlotsForTherapist(therapistId, dateStr)
+    }
     const data = await resp.json()
-    return Array.isArray(data?.slots) ? data.slots : []
+    const slots = Array.isArray(data?.slots) ? data.slots : []
+    // APIから空の結果が返った場合もサンプルデータを試す
+    if (slots.length === 0) {
+      return getSampleSlotsForTherapist(therapistId, dateStr)
+    }
+    return slots
   } catch {
-    return []
+    // エラー時はサンプルデータにフォールバック
+    return getSampleSlotsForTherapist(therapistId, dateStr)
   }
 }
 
