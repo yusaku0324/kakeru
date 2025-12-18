@@ -15,10 +15,15 @@ import type { AvailabilityStatus } from '@/components/calendar/types'
 
 import { formatLocalDate, getJaFormatter, toIsoWithOffset } from '@/utils/date'
 import type { ReservationOverlayProps } from '../ReservationOverlay'
-import type { NormalizedDay, NormalizedSlot } from '@/components/reservation'
+import {
+  type DisplayAvailabilityDay,
+  type DisplaySlot,
+  type SelectableStatus,
+  toDisplayAvailabilityDays,
+  findDefaultDisplaySelectableSlot,
+  getFirstDisplaySelectableSlot,
+} from '@/lib/availability'
 import { buildTimelineTimes, calculateSchedulePages } from './utils'
-// lib/availability.ts のユーティリティは NormalizedAvailabilityDay 型を使用するため
-// ここでは NormalizedDay 型との互換性のためローカルヘルパーを使用
 
 type AvailabilityTemplate = Array<{
   dayOffset: number
@@ -31,7 +36,11 @@ type AvailabilityTemplate = Array<{
 }>
 
 export type OverlayFormTab = 'schedule' | 'info'
-export type SlotStatus = Exclude<AvailabilityStatus, 'blocked'>
+export type SlotStatus = SelectableStatus
+
+// lib/availability.ts の型を再エクスポート（後方互換性）
+export type NormalizedDay = DisplayAvailabilityDay
+export type NormalizedSlot = DisplaySlot
 
 // 空き状況のソースを示す型
 export type AvailabilitySourceType = 'api' | 'fallback' | 'none'
@@ -130,19 +139,20 @@ export function useReservationOverlayState({
 
   const normalizedAvailability = useMemo<NormalizedDay[]>(() => {
     const days = Array.isArray(availabilitySource) ? availabilitySource : []
-    return days
-      .map<NormalizedDay>((day) => ({
+    // lib/availability.ts の統一関数を使用して正規化
+    return toDisplayAvailabilityDays(
+      days.map((day) => ({
         date: day.date,
-        label: dayFormatter.format(new Date(day.date)),
-        isToday: Boolean(day.is_today) || day.date === todayIso,
+        is_today: Boolean(day.is_today) || day.date === todayIso,
         slots: (Array.isArray(day.slots) ? day.slots : []).map((slot) => ({
           start_at: slot.start_at,
           end_at: slot.end_at,
           status: slot.status,
-          timeKey: slot.start_at.slice(11, 16),
         })),
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date))
+      })),
+      (date) => dayFormatter.format(date),
+      todayIso,
+    )
   }, [availabilitySource, dayFormatter, todayIso])
 
   const timelineTimes = useMemo(
@@ -192,46 +202,12 @@ export function useReservationOverlayState({
     }
   }, [schedulePage, schedulePages.length])
 
-  // NormalizedDay[] から選択可能なスロットを検索するローカルヘルパー
-  const findSelectableSlot = useCallback(
-    (startAt: string | null | undefined): { day: NormalizedDay; slot: NormalizedSlot & { status: SlotStatus } } | null => {
-      if (!startAt) return null
-      const targetTs = new Date(startAt).getTime()
-      if (Number.isNaN(targetTs)) return null
-
-      for (const day of normalizedAvailability) {
-        for (const slot of day.slots) {
-          if (slot.status === 'blocked') continue
-          const slotTs = new Date(slot.start_at).getTime()
-          if (!Number.isNaN(slotTs) && slotTs === targetTs) {
-            return { day, slot: slot as NormalizedSlot & { status: SlotStatus } }
-          }
-        }
-      }
-      return null
-    },
-    [normalizedAvailability],
-  )
-
-  const getFirstSelectableSlotLocal = useCallback(
-    (): { day: NormalizedDay; slot: NormalizedSlot & { status: SlotStatus } } | null => {
-      for (const day of normalizedAvailability) {
-        for (const slot of day.slots) {
-          if (slot.status !== 'blocked') {
-            return { day, slot: slot as NormalizedSlot & { status: SlotStatus } }
-          }
-        }
-      }
-      return null
-    },
-    [normalizedAvailability],
-  )
-
+  // lib/availability.ts の統一ヘルパー関数を使用
   useEffect(() => {
     if (selectedSlots.length) return
 
     // defaultStart に一致するスロット、または最初の選択可能なスロットを取得
-    const match = findSelectableSlot(defaultStart) ?? getFirstSelectableSlotLocal()
+    const match = findDefaultDisplaySelectableSlot(normalizedAvailability, defaultStart)
     if (match) {
       setSelectedSlots([
         {
@@ -242,7 +218,7 @@ export function useReservationOverlayState({
         },
       ])
     }
-  }, [defaultStart, findSelectableSlot, getFirstSelectableSlotLocal, selectedSlots.length])
+  }, [defaultStart, normalizedAvailability, selectedSlots.length])
 
   const toggleSlot = useCallback((day: NormalizedDay, slot: NormalizedSlot) => {
     if (slot.status === 'blocked') return
@@ -263,7 +239,7 @@ export function useReservationOverlayState({
 
   const ensureSelection = useCallback(() => {
     if (selectedSlots.length) return selectedSlots
-    const match = getFirstSelectableSlotLocal()
+    const match = getFirstDisplaySelectableSlot(normalizedAvailability)
     if (match) {
       const initial: SelectedSlot = {
         startAt: match.slot.start_at,
@@ -275,7 +251,7 @@ export function useReservationOverlayState({
       return [initial]
     }
     return []
-  }, [getFirstSelectableSlotLocal, selectedSlots])
+  }, [normalizedAvailability, selectedSlots])
 
   const removeSlot = useCallback((startAt: string) => {
     setSelectedSlots((prev) => prev.filter((item) => item.startAt !== startAt))

@@ -5,6 +5,7 @@ import { Fragment, useMemo } from 'react'
 
 import { getJaFormatter } from '@/utils/date'
 import { normalizeTimeToMinutes } from '@/lib/time-normalize'
+import { extractTime } from '@/lib/jst'
 import {
   AVAILABILITY_STATUS_META,
   type AvailabilityDay,
@@ -90,20 +91,8 @@ function DemoBadge({ className }: DemoBadgeProps) {
 const WEEKDAY_FORMATTER = getJaFormatter('weekday')
 const MONTH_FORMATTER = getJaFormatter('monthShort')
 
-/**
- * ISO 文字列から時刻部分（HH:MM）を抽出
- * タイムゾーンオフセット付きの場合も対応
- */
-function extractTimeKey(isoString: string): string {
-  const timeMatch = isoString.match(/T(\d{2}):(\d{2})/)
-  if (timeMatch) {
-    return `${timeMatch[1]}:${timeMatch[2]}`
-  }
-  return isoString.slice(11, 16)
-}
-
 function buildSlotKey(day: AvailabilityDay, slot: AvailabilitySlot) {
-  const key = slot.timeKey ?? extractTimeKey(slot.start_at)
+  const key = slot.timeKey ?? extractTime(slot.start_at)
   return `${day.date}-${key}`
 }
 

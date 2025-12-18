@@ -7,7 +7,8 @@ import Link from 'next/link'
 import { rerankMatchingCandidates } from '@/features/matching/recommendedRanking'
 import { TherapistCard, type TherapistHit } from '@/components/staff/TherapistCard'
 import { TherapistFavoritesProvider } from '@/components/staff/TherapistFavoritesProvider'
-import { isTodayIso, normalizeSlotStatus } from '@/lib/availability'
+import { isToday as jstIsToday } from '@/lib/jst'
+import { normalizeSlotStatus } from '@/lib/availability'
 
 type MatchingCandidate = {
   therapist_id: string
@@ -37,7 +38,7 @@ function toTherapistHit(m: MatchingCandidate): TherapistHit {
     : null
 
   // todayAvailable: 実際にスロットが本日かどうかを判定（統一ユーティリティ使用）
-  const isToday = firstSlot ? isTodayIso(firstSlot.start_at) : false
+  const isToday = firstSlot ? jstIsToday(firstSlot.start_at) : false
 
   return {
     id: m.therapist_id,

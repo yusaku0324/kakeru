@@ -18,6 +18,26 @@ import { SearchAvailableToday, type SpotlightItem } from './_components/SearchHe
 import { SearchTabs, type SearchTabValue } from './_components/SearchTabs'
 import { SearchPageClientWrapper } from './_components/SearchPageClientWrapper'
 
+// Helper to get next 30-minute aligned slot time (for canonicalization)
+// e.g., 09:28 → 09:30, 09:00 → 09:00, 09:31 → 10:00
+function nextSlotAlignedTime(hours: number): string {
+  const date = new Date(Date.now() + hours * 60 * 60 * 1000)
+  const minutes = date.getMinutes()
+  // Round up to next 30-minute boundary
+  const alignedMinutes = minutes === 0 ? 0 : minutes <= 30 ? 30 : 60
+  date.setMinutes(alignedMinutes === 60 ? 0 : alignedMinutes, 0, 0)
+  if (alignedMinutes === 60) {
+    date.setHours(date.getHours() + 1)
+  }
+  // Format as ISO string with JST timezone offset
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const min = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hour}:${min}:00+09:00`
+}
+
 const SAMPLE_RESULTS: ShopHit[] = [
   {
     id: 'sample-namba-resort',
@@ -36,7 +56,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     lead_image_url: '/images/demo-shop-1.svg',
     badges: ['人気店', '駅チカ'],
     today_available: true,
-    next_available_at: new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString(),
+    next_available_at: nextSlotAlignedTime(1),
     online_reservation: true,
     has_promotions: true,
     promotions: [{ label: 'プレミアム体験 ¥2,000OFF', expires_at: '2025-12-31' }],
@@ -57,7 +77,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['リンパ', 'ホットストーン'],
         avatar_url: '/images/demo-therapist-1.svg',
         today_available: true,
-        next_available_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+        next_available_at: nextSlotAlignedTime(2),
       },
       {
         id: '22222222-2222-2222-8888-222222222222',
@@ -69,7 +89,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['ストレッチ', '指圧'],
         avatar_url: '/images/demo-therapist-2.svg',
         today_available: true,
-        next_available_at: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+        next_available_at: nextSlotAlignedTime(3),
       },
     ],
   },
@@ -147,7 +167,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['ドライヘッドスパ', 'ストレッチ'],
         avatar_url: '/images/demo-therapist-1.svg',
         today_available: true,
-        next_available_at: new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString(),
+        next_available_at: nextSlotAlignedTime(1),
       },
       {
         id: '55555555-5555-5555-8888-555555555555',

@@ -4,6 +4,8 @@ import { resolveInternalApiBase } from '@/lib/server-config'
 import {
   generateWeekDateRangeWithToday,
 } from '@/lib/availability-date-range'
+import { SAMPLE_SHOPS } from '@/lib/sampleShops'
+import { today, extractDate, formatDateTimeISO } from '@/lib/jst'
 
 const API_BASE = resolveInternalApiBase().replace(/\/+$/, '')
 
@@ -70,8 +72,8 @@ function generateTimeSlots(
       }
 
       slots.push({
-        start_at: slotStart.toISOString(),
-        end_at: slotEnd.toISOString(),
+        start_at: formatDateTimeISO(slotStart),
+        end_at: formatDateTimeISO(slotEnd),
         status,
       })
     }
@@ -80,17 +82,58 @@ function generateTimeSlots(
   return slots
 }
 
+/**
+ * サンプルデータからセラピストの空きスロットを取得
+ * APIからデータが取得できない場合のフォールバック用
+ */
+function getSampleSlotsForTherapist(therapistId: string, dateStr: string): AvailabilitySlot[] {
+  // サンプル店舗からセラピストを検索
+  for (const shop of SAMPLE_SHOPS) {
+    const calendar = shop.availability_calendar
+    if (!calendar?.days) continue
+
+    // このセラピストのスロットを探す
+    for (const day of calendar.days) {
+      // 日付の比較はJSTベースで行う
+      const dayDateStr = extractDate(day.date)
+      if (dayDateStr !== dateStr) continue
+
+      // staff_id が一致するスロットをフィルタ
+      const therapistSlots = day.slots.filter(
+        (slot) => slot.staff_id === therapistId
+      )
+
+      if (therapistSlots.length > 0) {
+        return therapistSlots.map((slot) => ({
+          start_at: slot.start_at,
+          end_at: slot.end_at,
+        }))
+      }
+    }
+  }
+  return []
+}
+
 async function fetchDaySlots(therapistId: string, dateStr: string): Promise<AvailabilitySlot[]> {
   try {
     const resp = await fetch(
       `${API_BASE}/api/guest/therapists/${therapistId}/availability_slots?date=${dateStr}`,
       { method: 'GET', cache: 'no-store' },
     )
-    if (!resp.ok) return []
+    if (!resp.ok) {
+      // バックエンドAPIが失敗した場合、サンプルデータにフォールバック
+      return getSampleSlotsForTherapist(therapistId, dateStr)
+    }
     const data = await resp.json()
-    return Array.isArray(data?.slots) ? data.slots : []
+    const slots = Array.isArray(data?.slots) ? data.slots : []
+    // APIから空の結果が返った場合もサンプルデータを試す
+    if (slots.length === 0) {
+      return getSampleSlotsForTherapist(therapistId, dateStr)
+    }
+    return slots
   } catch {
-    return []
+    // エラー時はサンプルデータにフォールバック
+    return getSampleSlotsForTherapist(therapistId, dateStr)
   }
 }
 

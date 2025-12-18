@@ -1,19 +1,10 @@
 import type { SelectedSlot } from '@/components/calendar/AvailabilityPickerDesktop'
-import type { AvailabilityStatus } from '@/components/calendar/types'
 
-export type NormalizedSlot = {
-  start_at: string
-  end_at: string
-  status: AvailabilityStatus
-  timeKey: string
-}
-
-export type NormalizedDay = {
-  date: string
-  label: string
-  isToday: boolean
-  slots: NormalizedSlot[]
-}
+// lib/availability.ts の統一型を再エクスポート
+export type {
+  DisplayAvailabilityDay as NormalizedDay,
+  DisplaySlot as NormalizedSlot,
+} from '@/lib/availability'
 
 export type TimelineEntry = { key: string; label: string }
 

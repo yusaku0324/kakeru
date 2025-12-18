@@ -34,7 +34,29 @@ function isoHoursFromNow(hours: number): string {
   return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
 }
 
-export const SAMPLE_RESULTS: ShopHit[] = [
+// Helper to get next 30-minute aligned slot time (for canonicalization)
+// e.g., 09:28 → 09:30, 09:00 → 09:00, 09:31 → 10:00
+function nextSlotAlignedTime(hours: number): string {
+  const date = new Date(Date.now() + hours * 60 * 60 * 1000)
+  const minutes = date.getMinutes()
+  // Round up to next 30-minute boundary
+  const alignedMinutes = minutes === 0 ? 0 : minutes <= 30 ? 30 : 60
+  date.setMinutes(alignedMinutes === 60 ? 0 : alignedMinutes, 0, 0)
+  if (alignedMinutes === 60) {
+    date.setHours(date.getHours() + 1)
+  }
+  // Format as ISO string with JST timezone offset
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const min = String(date.getMinutes()).padStart(2, '0')
+  const result = `${year}-${month}-${day}T${hour}:${min}:00+09:00`
+  return result
+}
+
+// SAMPLE_RESULTS_BASE contains the static structure; times are refreshed by getSampleResults()
+const SAMPLE_RESULTS_BASE: ShopHit[] = [
   {
     id: 'sample-namba-resort',
     slug: 'sample-namba-resort',
@@ -53,8 +75,8 @@ export const SAMPLE_RESULTS: ShopHit[] = [
       'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
     badges: ['人気店', '駅チカ'],
     today_available: true,
-    // Use earliest staff availability (楓 at 1 hour)
-    next_available_at: isoHoursFromNow(1),
+    // Use earliest staff availability (楓 at 1 hour) - canonicalized to 30-min grid
+    next_available_at: nextSlotAlignedTime(1),
     online_reservation: true,
     has_promotions: true,
     promotions: [{ label: 'プレミアム体験 ¥2,000OFF', expires_at: '2025-12-31' }],
@@ -75,7 +97,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['リンパ', 'ホットストーン'],
         avatar_url:
           'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=640&q=80',
-        next_available_at: isoHoursFromNow(2),
+        next_available_at: nextSlotAlignedTime(2),
         mood_tag: 'calm',
         style_tag: 'relax',
         look_type: 'beauty',
@@ -93,7 +115,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['ストレッチ', '指圧'],
         avatar_url:
           'https://images.unsplash.com/photo-1487412912498-0447578fcca8?auto=format&fit=crop&w=400&q=80',
-        next_available_at: isoHoursFromNow(5),
+        next_available_at: nextSlotAlignedTime(5),
         mood_tag: 'energetic',
         style_tag: 'strong',
         look_type: 'cool',
@@ -111,7 +133,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['オイル', 'ヘッドスパ'],
         avatar_url:
           'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=640&q=80',
-        next_available_at: isoHoursFromNow(3),
+        next_available_at: nextSlotAlignedTime(3),
         mood_tag: 'friendly',
         style_tag: 'relax',
         look_type: 'cute',
@@ -129,7 +151,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['リンパドレナージュ', 'アロマ'],
         avatar_url:
           'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=640&q=80',
-        next_available_at: isoHoursFromNow(4),
+        next_available_at: nextSlotAlignedTime(4),
         mood_tag: 'mature',
         style_tag: 'relax',
         look_type: 'oneesan',
@@ -147,7 +169,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['ホットストーン', 'アロマ'],
         avatar_url:
           'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=640&q=80',
-        next_available_at: isoHoursFromNow(6),
+        next_available_at: nextSlotAlignedTime(6),
         mood_tag: 'calm',
         style_tag: 'exciting',
         look_type: 'natural',
@@ -165,7 +187,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['指圧', 'ストレッチ'],
         avatar_url:
           'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=640&q=80',
-        next_available_at: isoHoursFromNow(1),
+        next_available_at: nextSlotAlignedTime(1),
         mood_tag: 'energetic',
         style_tag: 'strong',
         look_type: 'beauty',
@@ -193,7 +215,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
       'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=900&q=80',
     badges: ['上質空間'],
     today_available: false,
-    next_available_at: isoHoursFromNow(28),
+    next_available_at: nextSlotAlignedTime(28),
     has_promotions: false,
     has_discounts: true,
     promotion_count: 1,
@@ -211,7 +233,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['ホットストーン', 'ディープリンパ'],
         avatar_url:
           'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=640&q=80',
-        next_available_at: isoHoursFromNow(28),
+        next_available_at: nextSlotAlignedTime(28),
         mood_tag: 'mature',
         style_tag: 'relax',
         look_type: 'oneesan',
@@ -238,7 +260,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
     lead_image_url:
       'https://images.unsplash.com/photo-1507537417841-1ae12265b9c9?auto=format&fit=crop&w=900&q=80',
     today_available: true,
-    next_available_at: isoHoursFromNow(4),
+    next_available_at: nextSlotAlignedTime(4),
     online_reservation: true,
     has_promotions: true,
     promotions: [{ label: '平日昼割 ¥2,000OFF', expires_at: '2025-10-31' }],
@@ -258,7 +280,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['ドライヘッドスパ', 'ストレッチ'],
         avatar_url:
           'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=640&q=80',
-        next_available_at: isoHoursFromNow(3),
+        next_available_at: nextSlotAlignedTime(3),
         mood_tag: 'friendly',
         style_tag: 'relax',
         look_type: 'cute',
@@ -275,7 +297,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['肩こりケア', 'アロマトリートメント'],
         avatar_url:
           'https://images.unsplash.com/photo-1554384645-13eab165c24b?auto=format&fit=crop&w=640&q=80',
-        next_available_at: isoHoursFromNow(6),
+        next_available_at: nextSlotAlignedTime(6),
         mood_tag: 'mature',
         style_tag: 'strong',
         look_type: 'beauty',
@@ -303,7 +325,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
       'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=900&q=80',
     badges: ['本日空きあり'],
     today_available: true,
-    next_available_at: isoHoursFromNow(2.5),
+    next_available_at: nextSlotAlignedTime(2.5),
     online_reservation: true,
     has_promotions: true,
     promotions: [{ label: '平日フリー指名 ¥1,000OFF', expires_at: '2025-11-30' }],
@@ -324,7 +346,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         avatar_url:
           'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=640&q=80',
         today_available: true,
-        next_available_at: isoHoursFromNow(2.5),
+        next_available_at: nextSlotAlignedTime(2.5),
         mood_tag: 'friendly',
         style_tag: 'strong',
         look_type: 'natural',
@@ -352,7 +374,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
       'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=900&q=80',
     badges: ['駅チカ'],
     today_available: false,
-    next_available_at: isoHoursFromNow(40),
+    next_available_at: nextSlotAlignedTime(40),
     has_promotions: false,
     has_discounts: true,
     promotion_count: 1,
@@ -370,7 +392,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         specialties: ['リンパドレナージュ', 'ドライヘッドスパ'],
         avatar_url:
           'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=640&q=80',
-        next_available_at: isoHoursFromNow(40),
+        next_available_at: nextSlotAlignedTime(40),
         mood_tag: 'calm',
         style_tag: 'relax',
         look_type: 'cool',
@@ -398,7 +420,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
       'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80',
     badges: ['上質空間', '口コミ高評価'],
     today_available: true,
-    next_available_at: isoHoursFromNow(6),
+    next_available_at: nextSlotAlignedTime(6),
     online_reservation: true,
     has_promotions: true,
     promotions: [
@@ -422,7 +444,7 @@ export const SAMPLE_RESULTS: ShopHit[] = [
         avatar_url:
           'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=640&q=80',
         today_available: true,
-        next_available_at: isoHoursFromNow(6),
+        next_available_at: nextSlotAlignedTime(6),
         mood_tag: 'mature',
         style_tag: 'exciting',
         look_type: 'beauty',
@@ -434,18 +456,55 @@ export const SAMPLE_RESULTS: ShopHit[] = [
   },
 ]
 
-SAMPLE_RESULTS.forEach((hit) => {
-  if (!hit.next_available_slot && hit.next_available_at) {
-    hit.next_available_slot = toNextAvailableSlotPayload(hit.next_available_at)
-  }
-  if (Array.isArray(hit.staff_preview)) {
-    hit.staff_preview.forEach((staff) => {
-      if (!staff.next_available_slot && staff.next_available_at) {
-        staff.next_available_slot = toNextAvailableSlotPayload(staff.next_available_at)
+// Lazily compute SAMPLE_RESULTS with fresh times on each call
+// This ensures Date.now() is called at request time, not at build/module-load time
+function getSampleResults(): ShopHit[] {
+  // Deep clone to avoid mutating the base array
+  const results: ShopHit[] = JSON.parse(JSON.stringify(SAMPLE_RESULTS_BASE))
+
+  // Refresh next_available_at times with current aligned times
+  const timeOffsets = [1, 2, 3, 4, 5, 6, 28, 40] // hours offset for various shops/staff
+  let offsetIndex = 0
+
+  for (const hit of results) {
+    // Refresh shop-level next_available_at
+    if (hit.next_available_at) {
+      hit.next_available_at = nextSlotAlignedTime(timeOffsets[offsetIndex % timeOffsets.length])
+      offsetIndex++
+    }
+
+    // Refresh staff-level next_available_at
+    if (Array.isArray(hit.staff_preview)) {
+      for (const staff of hit.staff_preview) {
+        if (staff.next_available_at) {
+          staff.next_available_at = nextSlotAlignedTime(timeOffsets[offsetIndex % timeOffsets.length])
+          offsetIndex++
+        }
       }
-    })
+    }
+
+    // Convert next_available_at to next_available_slot
+    if (!hit.next_available_slot && hit.next_available_at) {
+      hit.next_available_slot = toNextAvailableSlotPayload(hit.next_available_at)
+    }
+    if (Array.isArray(hit.staff_preview)) {
+      for (const staff of hit.staff_preview) {
+        if (!staff.next_available_slot && staff.next_available_at) {
+          staff.next_available_slot = toNextAvailableSlotPayload(staff.next_available_at)
+        }
+      }
+    }
   }
-})
+
+  return results
+}
+
+// Export the getter function for use in other modules
+// IMPORTANT: Call getSampleResults() each time you need sample data to get fresh timestamps
+export { getSampleResults }
+
+// For backward compatibility, also export a constant (but this is evaluated at module load time)
+export const SAMPLE_RESULTS = getSampleResults()
 
 export type Params = {
   q?: string
@@ -593,7 +652,9 @@ export function buildSampleFacets(hits: ShopHit[]): Record<string, FacetValue[]>
 }
 
 export function buildSampleResponse(params: Params = {}): SearchResponse {
-  const filtered = applyClientFilters(params, SAMPLE_RESULTS)
+  // Call getSampleResults() fresh to get current timestamps (not build-time cached values)
+  const freshResults = getSampleResults()
+  const filtered = applyClientFilters(params, freshResults)
   return {
     page: 1,
     page_size: filtered.length,
