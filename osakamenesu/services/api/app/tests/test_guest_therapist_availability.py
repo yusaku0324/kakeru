@@ -271,3 +271,130 @@ def test_no_shifts_returns_empty_slots(
     )
     assert res.status_code == 200
     assert res.json()["slots"] == []
+
+
+def test_availability_slots_includes_status_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Test that AvailabilitySlotsResponse includes status field for each slot.
+
+    Phase 1 requirement: API response must include status field.
+    """
+    day = date(2025, 1, 10)
+    shift = _shift(day, 10, 14)
+
+    async def fake_fetch_shifts(db, therapist_id, date_from, date_to):
+        return [shift]
+
+    async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
+        return []
+
+    monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
+    monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
+
+    res = client.get(
+        f"/api/guest/therapists/{THERAPIST_ID}/availability_slots",
+        params={"date": str(day)},
+    )
+    assert res.status_code == 200
+    slots = res.json()["slots"]
+    assert len(slots) == 1
+
+    # Verify status field exists and has valid value
+    assert "status" in slots[0]
+    assert slots[0]["status"] in ("open", "tentative", "blocked")
+
+
+def test_determine_slot_status_past_returns_blocked() -> None:
+    """
+    Test that determine_slot_status returns 'blocked' for past slots.
+    """
+    from app.domains.site.therapist_availability import determine_slot_status
+
+    # Create a slot that ended in the past
+    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=JST)
+    slot_start = datetime(2025, 1, 15, 9, 0, 0, tzinfo=JST)
+    slot_end = datetime(
+        2025, 1, 15, 11, 0, 0, tzinfo=JST
+    )  # Ended at 11:00, now is 12:00
+
+    status = determine_slot_status(slot_start, slot_end, now)
+    assert status == "blocked"
+
+
+def test_determine_slot_status_future_returns_open() -> None:
+    """
+    Test that determine_slot_status returns 'open' for future slots.
+    """
+    from app.domains.site.therapist_availability import determine_slot_status
+
+    # Create a slot in the future
+    now = datetime(2025, 1, 15, 10, 0, 0, tzinfo=JST)
+    slot_start = datetime(2025, 1, 15, 14, 0, 0, tzinfo=JST)
+    slot_end = datetime(2025, 1, 15, 16, 0, 0, tzinfo=JST)
+
+    status = determine_slot_status(slot_start, slot_end, now)
+    assert status == "open"
+
+
+def test_verify_slot_returns_available(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Test that verify_slot API returns 200 for available slot.
+    """
+    # Use a future date to ensure slot is not blocked
+    day = date(2030, 1, 20)
+    shift = _shift(day, 10, 14)
+
+    async def fake_fetch_shifts(db, therapist_id, date_from, date_to):
+        return [shift]
+
+    async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
+        return []
+
+    monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
+    monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
+
+    # Query for slot at 10:00 JST
+    start_at = datetime(2030, 1, 20, 10, 0, 0, tzinfo=JST)
+    res = client.get(
+        f"/api/guest/therapists/{THERAPIST_ID}/verify_slot",
+        params={"start_at": start_at.isoformat()},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["is_available"] is True
+    assert body["status"] == "open"
+    assert "verified_at" in body
+
+
+def test_verify_slot_returns_409_when_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Test that verify_slot API returns 409 when slot is no longer available.
+    """
+    day = date(2025, 1, 21)
+    shift = _shift(day, 10, 14)
+    resv = _reservation(day, 10, 12, status="confirmed")
+
+    async def fake_fetch_shifts(db, therapist_id, date_from, date_to):
+        return [shift]
+
+    async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
+        return [resv]  # Slot is blocked by reservation
+
+    monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
+    monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
+
+    # Query for slot at 10:00 JST (which is now reserved)
+    start_at = datetime(2025, 1, 21, 10, 0, 0, tzinfo=JST)
+    res = client.get(
+        f"/api/guest/therapists/{THERAPIST_ID}/verify_slot",
+        params={"start_at": start_at.isoformat()},
+    )
+    assert res.status_code == 409
+    body = res.json()["detail"]
+    assert body["detail"] == "slot_unavailable"
+    assert body["status"] == "blocked"
+    assert "conflicted_at" in body
