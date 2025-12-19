@@ -284,6 +284,24 @@ async def update_shop_content(
             )
         profile.slug = normalized or None
 
+    # Status & settings
+    if payload.status is not None:
+        if payload.status not in ("draft", "published"):
+            raise ProfileServiceError(
+                HTTPStatus.BAD_REQUEST,
+                detail="status must be one of: draft, published",
+            )
+        profile.status = payload.status
+
+    if payload.room_count is not None:
+        profile.room_count = payload.room_count
+
+    if payload.buffer_minutes is not None:
+        profile.buffer_minutes = payload.buffer_minutes
+
+    if payload.default_slot_duration_minutes is not None:
+        profile.default_slot_duration_minutes = payload.default_slot_duration_minutes
+
     profile.contact_json = contact_json
 
     await db.commit()

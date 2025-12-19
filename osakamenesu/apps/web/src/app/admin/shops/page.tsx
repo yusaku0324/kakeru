@@ -285,27 +285,21 @@ export default function AdminShopsPage() {
                     <td className="flex gap-2 px-2 py-1">
                       <a
                         className="text-brand-primary underline"
-                        href={`/admin/shops/${shop.id}/settings`}
+                        href={`/admin/shops/${shop.id}/edit`}
                       >
-                        設定
+                        編集
                       </a>
                       <a
                         className="text-brand-primary underline"
                         href={`/admin/shops/${shop.id}/therapists`}
                       >
-                        セラ一覧
-                      </a>
-                      <a
-                        className="text-brand-primary underline"
-                        href={`/admin/shops/${shop.id}/dashboard`}
-                      >
-                        ダッシュボード
+                        セラピスト
                       </a>
                       <a
                         className="text-brand-primary underline"
                         href={`/admin/shops/${shop.id}/reservations`}
                       >
-                        予約一覧
+                        予約
                       </a>
                     </td>
                   </tr>
