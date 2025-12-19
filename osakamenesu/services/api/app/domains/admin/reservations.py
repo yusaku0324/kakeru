@@ -19,6 +19,7 @@ from ...schemas import (
 )
 from ...deps import require_admin, audit_admin, get_optional_user
 from ...services import reservation_notifications as reservation_notifications_service
+from ...services.customer_notifications import send_customer_reservation_email
 
 
 router = APIRouter(prefix="/api/v1/reservations", tags=["reservations"])
@@ -190,6 +191,9 @@ async def create_reservation(
     await db.commit()
     await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
 
+    # Send customer confirmation email (async, non-blocking on failure)
+    await send_customer_reservation_email(reservation, shop, event="created")
+
     return _reservation_to_schema(reservation).model_dump()
 
 
@@ -224,6 +228,7 @@ async def update_reservation(
 
     status_changed = False
     note: Optional[str] = None
+    shop: Optional[models.Profile] = None
 
     if payload.staff_id is not None:
         reservation.staff_id = payload.staff_id
@@ -271,5 +276,11 @@ async def update_reservation(
     await db.commit()
     await db.refresh(reservation)
     await db.refresh(reservation, attribute_names=["status_events", "preferred_slots"])
+
+    # Send customer notification for status changes (async, non-blocking on failure)
+    if status_changed and payload.status in ("confirmed", "declined", "cancelled"):
+        if shop is None:
+            shop = await _ensure_shop(db, reservation.shop_id)
+        await send_customer_reservation_email(reservation, shop, event=payload.status)
 
     return _reservation_to_schema(reservation).model_dump()
