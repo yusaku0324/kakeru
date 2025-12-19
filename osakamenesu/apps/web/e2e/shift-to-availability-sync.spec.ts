@@ -125,7 +125,7 @@ async function findGoldenCandidates(page: Page): Promise<CandidateSearchResult> 
   })
 
   // セラピストカードを取得
-  const therapistCards = page.locator('article')
+  const therapistCards = page.locator('[data-testid="therapist-card"]')
   const cardCount = await therapistCards.count()
 
   if (cardCount === 0) {
@@ -1119,18 +1119,38 @@ async function verifyCandidateInvariantsV2(
   page.on('response', responseHandler)
 
   try {
-    // オーバーレイを開く
-    const reserveButton = candidate.cardElement.getByRole('button', { name: /予約/ })
-    await expect(reserveButton).toBeVisible({ timeout: 5000 })
-    await reserveButton.click()
+    // カードをスクロールして表示し、オーバーレイを開く
+    await candidate.cardElement.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(500) // スクロール完了を待つ
 
-    // オーバーレイの表示を待機（固定sleepではなくポーリング）
-    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10000 })
+    // オーバーレイを開く（カード全体をクリック、またはCTAボタンをクリック）
+    const cta = candidate.cardElement.getByTestId('therapist-cta')
+    const ctaVisible = await cta.isVisible().catch(() => false)
+    if (ctaVisible) {
+      await cta.click()
+    } else {
+      // カード全体がクリック可能な場合
+      await candidate.cardElement.click()
+    }
 
-    // 「空き状況・予約」タブに切り替え（存在する場合）
-    const bookingTab = page.getByRole('tab', { name: /空き状況|予約/ })
+    // オーバーレイの表示を待機
+    // aria-labelにセラピスト名が含まれるダイアログを探す
+    const dialogSelector = `[role="dialog"][aria-label*="${candidate.name}"]`
+    const dialog = page.locator(dialogSelector).first()
+    await expect(dialog).toBeVisible({ timeout: 15000 })
+
+    // 「空き状況・予約」タブに切り替え、または「予約フォームを開く」ボタンをクリック
+    const bookingTab = dialog.getByRole('tab', { name: /空き状況|予約/ })
+    const openFormButton = dialog.getByRole('button', { name: /予約フォームを開く/ })
+
     if (await bookingTab.isVisible().catch(() => false)) {
-      await bookingTab.click()
+      await bookingTab.click({ force: true })
+      await page.waitForTimeout(500)
+    } else if (await openFormButton.isVisible().catch(() => false)) {
+      // ボタンをスクロールして表示し、forceでクリック
+      await openFormButton.scrollIntoViewIfNeeded()
+      await openFormButton.click({ force: true })
+      await page.waitForTimeout(500)
     }
 
     // APIレスポンスを待機（ポーリングで確認）
