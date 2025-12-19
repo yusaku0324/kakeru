@@ -12,9 +12,8 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from ...models import GuestReservation, TherapistShift, Therapist, Profile, Availability
+from ...models import GuestReservation, TherapistShift, Therapist, Profile
 from ...db import get_session
-from .services.shop.availability import convert_slots
 from ...utils.datetime import ensure_jst_datetime, JST
 
 logger = logging.getLogger(__name__)
@@ -373,69 +372,6 @@ def _calculate_available_slots(
     ]
     open_intervals = _subtract_intervals(intervals, subtracts)
     return _normalize_intervals(open_intervals)
-
-
-async def _fetch_availability_slots(
-    db: AsyncSession,
-    profile_id: UUID,
-    therapist_id: UUID,
-    target_date: date,
-) -> list[tuple[datetime, datetime]]:
-    """Availability テーブルからスロットを取得（フォールバック用）。"""
-    stmt = select(Availability).where(
-        Availability.profile_id == profile_id,
-        Availability.date == target_date,
-    )
-    res = await db.execute(stmt)
-    availability = res.scalar_one_or_none()
-    if not availability or not availability.slots_json:
-        return []
-
-    return _extract_slots_from_availability(availability, therapist_id)
-
-
-def _extract_slots_from_availability(
-    availability: Availability,
-    therapist_id: UUID,
-) -> list[tuple[datetime, datetime]]:
-    """Availability レコードからスロットを抽出（共通処理）。"""
-    if not availability.slots_json:
-        return []
-
-    slots = convert_slots(availability.slots_json)
-    result: list[tuple[datetime, datetime]] = []
-    for slot in slots:
-        # staff_id が一致するか、staff_id が None（全員対象）のスロットのみ
-        if slot.staff_id is not None and slot.staff_id != therapist_id:
-            continue
-        if slot.status not in ("open", "tentative", None):
-            continue
-        result.append((slot.start_at, slot.end_at))
-    return result
-
-
-async def _fetch_availability_slots_batch(
-    db: AsyncSession,
-    profile_id: UUID,
-    therapist_id: UUID,
-    date_from: date,
-    date_to: date,
-) -> dict[date, list[tuple[datetime, datetime]]]:
-    """Availability テーブルから日付範囲のスロットをバッチ取得。"""
-    stmt = select(Availability).where(
-        Availability.profile_id == profile_id,
-        Availability.date >= date_from,
-        Availability.date <= date_to,
-    )
-    res = await db.execute(stmt)
-    availabilities = res.scalars().all()
-
-    result: dict[date, list[tuple[datetime, datetime]]] = {}
-    for avail in availabilities:
-        slots = _extract_slots_from_availability(avail, therapist_id)
-        if slots:
-            result[avail.date] = slots
-    return result
 
 
 async def list_daily_slots(
