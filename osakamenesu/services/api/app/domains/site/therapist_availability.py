@@ -29,6 +29,16 @@ def _reservation_status_value(reservation: GuestReservation) -> str:
 
 
 def _is_active_reservation(reservation: GuestReservation, now: datetime) -> bool:
+    """Check if reservation is active based on status and reserved_until.
+
+    Final Decision (reserved_until Validity):
+    - status in {"pending", "confirmed"} → active (reserved_until ignored)
+    - status == "reserved" → check reserved_until:
+        - None → active (defensive: treat as valid to avoid data loss)
+        - > now → active
+        - <= now → expired (inactive)
+    - other statuses → inactive
+    """
     status_value = _reservation_status_value(reservation)
     if status_value in {"pending", "confirmed"}:
         return True
@@ -36,6 +46,12 @@ def _is_active_reservation(reservation: GuestReservation, now: datetime) -> bool
         return False
     reserved_until = getattr(reservation, "reserved_until", None)
     if reserved_until is None:
+        # Final Decision: None = valid (defensive)
+        # This can happen if reserved_until was cleared but status wasn't updated
+        logger.debug(
+            "reserved_until is None for status=reserved reservation_id=%s",
+            getattr(reservation, "id", "unknown"),
+        )
         return True
     return reserved_until > now
 
@@ -95,6 +111,11 @@ async def has_overlapping_reservation(
         end_at: 終了時刻
         lock: Trueの場合、SELECT FOR UPDATEでロックを取得（レースコンディション対策）
               SQLiteなどFOR UPDATEをサポートしないDBでは自動的にスキップ
+
+    Race Condition Handling:
+        - PostgreSQL: FOR UPDATE でロック取得
+        - SQLite: FOR UPDATE 非サポートのため、OperationalError 時はロックなしで続行
+        - 他のDBエラー: ログ出力後、ロックなしで続行（安全側に倒す）
     """
     stmt = select(GuestReservation).where(
         GuestReservation.therapist_id == therapist_id,
@@ -104,16 +125,26 @@ async def has_overlapping_reservation(
             GuestReservation.end_at > start_at,
         ),
     )
-    now = datetime.now(timezone.utc)
+    # Use JST for consistency with reservation timestamps
+    now = datetime.now(JST)
     if lock:
-        # SQLite等ではFOR UPDATEがサポートされないため、例外時はロックなしで再実行
         try:
             result = await db.execute(stmt.with_for_update())
             reservations = list(result.scalars().all())
             return bool(_filter_active_reservations(reservations, now))
-        except Exception:
-            # FOR UPDATEが失敗した場合はロックなしで実行
-            pass
+        except Exception as exc:
+            # SQLite等ではFOR UPDATEがサポートされない
+            # OperationalError 以外は予期しないエラーなのでログ出力
+            exc_name = type(exc).__name__
+            if "OperationalError" not in exc_name:
+                logger.warning(
+                    "FOR UPDATE failed with unexpected error: %s(%s), "
+                    "falling back to non-locking query",
+                    exc_name,
+                    exc,
+                )
+            # ロックなしで再実行（race condition のリスクはあるが、
+            # データ損失よりは二重チェックで安全側に倒す）
     result = await db.execute(stmt)
     reservations = list(result.scalars().all())
     return bool(_filter_active_reservations(reservations, now))
@@ -391,7 +422,8 @@ async def _fetch_reservations(
     start_at: datetime,
     end_at: datetime,
 ) -> list[GuestReservation]:
-    now = datetime.now(timezone.utc)
+    # Use JST for consistency with reservation timestamps
+    now = datetime.now(JST)
     stmt = select(GuestReservation).where(
         GuestReservation.therapist_id == therapist_id,
         GuestReservation.status.in_(ACTIVE_RESERVATION_STATUSES),
