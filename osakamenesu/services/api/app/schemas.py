@@ -650,19 +650,38 @@ class ShopContactUpdate(BaseModel):
 
 
 class ShopContentUpdate(BaseModel):
+    # Basic info
     name: Optional[str] = None
     slug: Optional[str] = None
     area: Optional[str] = None
+    description: Optional[str] = None
+    catch_copy: Optional[str] = None
+    address: Optional[str] = None
+
+    # Status & settings
+    status: Optional[str] = Field(
+        default=None, description="公開状態: draft(下書き), published(公開中)"
+    )
+    room_count: Optional[int] = Field(default=None, ge=1, description="同時予約可能数")
+    buffer_minutes: Optional[int] = Field(
+        default=None, ge=0, le=120, description="予約間バッファ時間（分）"
+    )
+    default_slot_duration_minutes: Optional[int] = Field(
+        default=None, ge=30, description="デフォルト施術時間（分）"
+    )
+
+    # Price
     price_min: Optional[int] = None
     price_max: Optional[int] = None
+
+    # Service
     service_type: Optional[str] = None
     service_tags: Optional[List[str]] = None
     menus: Optional[List[MenuInput]] = None
     staff: Optional[List[StaffInput]] = None
+
+    # Contact & photos
     contact: Optional[ShopContactUpdate] = None
-    description: Optional[str] = None
-    catch_copy: Optional[str] = None
-    address: Optional[str] = None
     photos: Optional[List[str]] = None
 
 
