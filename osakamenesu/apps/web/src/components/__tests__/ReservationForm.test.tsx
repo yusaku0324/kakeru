@@ -9,9 +9,21 @@ const fetchMock = vi.fn()
 describe('ReservationForm payload', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock)
-    fetchMock.mockResolvedValue({
-      ok: true,
-      text: async () => JSON.stringify({ id: 'reservation-1' }),
+    // Mock both verify_slot and reservation API calls
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/verify_slot')) {
+        // verify_slot returns available
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ is_available: true, status: 'open', verified_at: new Date().toISOString() }),
+        })
+      }
+      // Default: reservation API
+      return Promise.resolve({
+        ok: true,
+        text: async () => JSON.stringify({ id: 'reservation-1' }),
+      })
     })
   })
 
@@ -54,9 +66,14 @@ describe('ReservationForm payload', () => {
     const submitButton = screen.getByRole('button', { name: '予約リクエストを送信' })
     fireEvent.click(submitButton)
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    // Wait for both verify_slot and reservation API calls
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
 
-    const [, requestOptions] = fetchMock.mock.calls[0]!
+    // The second call is the reservation API (first is verify_slot)
+    const reservationCall = fetchMock.mock.calls.find(
+      (call) => !String(call[0]).includes('/verify_slot')
+    )
+    const [, requestOptions] = reservationCall!
     const payload = JSON.parse((requestOptions?.body as string) ?? '{}')
 
     expect(payload.shop_id).toBe(uuidShopId)
