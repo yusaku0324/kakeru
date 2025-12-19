@@ -323,12 +323,18 @@ export default function AdminShopTherapistsPage() {
                       {t.status || 'draft'}
                     </span>
                   </td>
-                  <td className="px-2 py-1">
+                  <td className="px-2 py-1 space-x-2">
+                    <a
+                      className="text-brand-primary underline"
+                      href={`/admin/therapists/${t.id}/edit`}
+                    >
+                      編集
+                    </a>
                     <a
                       className="text-brand-primary underline"
                       href={`/admin/therapists/${t.id}/shifts`}
                     >
-                      シフト管理
+                      シフト
                     </a>
                   </td>
                 </tr>
