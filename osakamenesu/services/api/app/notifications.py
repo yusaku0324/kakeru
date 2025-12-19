@@ -112,8 +112,9 @@ def _channel_configs(
             ("email", {"recipients": recipients, "use_resend": RESEND_CONFIGURED})
         )
 
+    # LINE Notify: direct API call (no endpoint needed)
     line_token = payload.line_notify_token
-    if LINE_ENDPOINT and line_token:
+    if line_token:
         configs.append(("line", {"token": line_token}))
 
     if not configs:
@@ -306,25 +307,73 @@ async def _send_via_email(
     return await _post_json(EMAIL_ENDPOINT, email_payload)
 
 
+LINE_NOTIFY_API_URL = "https://notify-api.line.me/api/notify"
+
+
 async def _send_via_line(
     payload: ReservationNotification,
     message: str,
     config: Dict[str, Any],
 ) -> Optional[httpx.Response]:
-    if not LINE_ENDPOINT:
-        raise RuntimeError("line notification endpoint is not configured")
-
     token = config.get("token")
     if not token:
         raise ValueError("line notify token is required")
 
-    line_payload = {
-        "message": message,
-        "reservation_id": payload.reservation_id,
-        "shop_id": payload.shop_id,
-        "token": token,
+    # Use direct LINE Notify API call
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/x-www-form-urlencoded",
     }
-    return await _post_json(LINE_ENDPOINT, line_payload)
+
+    # Build LINE-formatted message
+    line_message = _build_line_message(payload, message)
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.post(
+            LINE_NOTIFY_API_URL,
+            headers=headers,
+            data={"message": line_message},
+        )
+        response.raise_for_status()
+
+    logger.info(
+        "line_notify_sent",
+        extra={
+            "reservation_id": payload.reservation_id,
+            "shop_id": payload.shop_id,
+            "status_code": response.status_code,
+        },
+    )
+    return response
+
+
+def _build_line_message(payload: ReservationNotification, message: str) -> str:
+    """Build a formatted message for LINE Notify."""
+    status_label = {
+        "pending": "受付中",
+        "confirmed": "確定",
+        "declined": "お断り",
+        "cancelled": "キャンセル",
+        "expired": "期限切れ",
+    }.get(payload.status, payload.status)
+
+    status_emoji = {
+        "pending": "🔔",
+        "confirmed": "✅",
+        "declined": "❌",
+        "cancelled": "🚫",
+        "expired": "⏰",
+    }.get(payload.status, "📋")
+
+    return f"""
+{status_emoji} 予約通知: {status_label}
+
+📍 {payload.shop_name}
+👤 {payload.customer_name}
+📞 {payload.customer_phone}
+🕐 {payload.desired_start} 〜 {payload.desired_end}
+{f"📝 {payload.notes}" if payload.notes else ""}
+""".strip()
 
 
 async def _send_via_log(
