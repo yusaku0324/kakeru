@@ -42,11 +42,19 @@ def _serialize(th: Therapist) -> dict[str, Any]:
         "id": str(th.id),
         "name": th.name,
         "profile_id": str(th.profile_id),
+        # Basic info
         "headline": th.headline,
+        "biography": th.biography,
+        "age": th.age,
+        # Status & display
         "status": th.status,
+        "is_booking_enabled": th.is_booking_enabled,
+        "display_order": th.display_order,
+        # Photos
         "photo_urls": th.photo_urls or [],
-        "tags": th.specialties or [],
+        "main_photo_index": th.main_photo_index,
         # Matching tags
+        "tags": th.specialties or [],
         "mood_tag": th.mood_tag,
         "style_tag": th.style_tag,
         "look_type": th.look_type,
@@ -54,9 +62,10 @@ def _serialize(th: Therapist) -> dict[str, Any]:
         "talk_level": th.talk_level,
         "hobby_tags": th.hobby_tags or [],
         "price_rank": th.price_rank,
-        "age": th.age,
+        # Timestamps
         "created_at": th.created_at.isoformat() if th.created_at else None,
         "updated_at": th.updated_at.isoformat() if th.updated_at else None,
+        # Embedding info
         "has_embedding": th.photo_embedding is not None,
         "embedding_computed_at": th.photo_embedding_computed_at.isoformat()
         if th.photo_embedding_computed_at
@@ -109,9 +118,15 @@ async def create_therapist(
 
 
 class TherapistUpdatePayload(BaseModel):
-    """Payload for updating therapist matching tags."""
+    """Payload for updating therapist fields."""
 
+    # Basic info
     name: str | None = None
+    headline: str | None = Field(default=None, description="見出し・キャッチコピー")
+    biography: str | None = Field(default=None, description="略歴・自己紹介")
+    age: int | None = None
+
+    # Matching tags
     mood_tag: str | None = None
     style_tag: str | None = None
     look_type: str | None = None
@@ -119,8 +134,23 @@ class TherapistUpdatePayload(BaseModel):
     talk_level: str | None = None
     hobby_tags: list[str] | None = None
     price_rank: int | None = Field(default=None, ge=1, le=5)
-    age: int | None = None
-    tags: list[str] | None = None
+    tags: list[str] | None = Field(default=None, description="specialties")
+
+    # Status & display
+    status: str | None = Field(
+        default=None,
+        description="公開状態: draft(下書き), active(公開中), inactive(非公開)",
+    )
+    is_booking_enabled: bool | None = Field(
+        default=None, description="予約受付を有効にするか"
+    )
+    display_order: int | None = Field(default=None, description="表示順序（小さい順）")
+
+    # Photos
+    photo_urls: list[str] | None = Field(default=None, description="写真URL配列")
+    main_photo_index: int | None = Field(
+        default=None, ge=0, description="メイン写真のインデックス"
+    )
 
 
 @router.patch("/api/admin/therapists/{therapist_id}")
@@ -129,7 +159,7 @@ async def update_therapist(
     payload: TherapistUpdatePayload,
     db: AsyncSession = Depends(get_session),
 ):
-    """Update therapist matching tags."""
+    """Update therapist fields."""
     result = await db.execute(select(Therapist).where(Therapist.id == therapist_id))
     therapist = result.scalar_one_or_none()
 
@@ -138,9 +168,17 @@ async def update_therapist(
             status_code=status.HTTP_404_NOT_FOUND, detail="Therapist not found"
         )
 
-    # Update fields if provided
+    # Basic info
     if payload.name is not None:
         therapist.name = payload.name.strip()
+    if payload.headline is not None:
+        therapist.headline = payload.headline.strip() if payload.headline else None
+    if payload.biography is not None:
+        therapist.biography = payload.biography.strip() if payload.biography else None
+    if payload.age is not None:
+        therapist.age = payload.age
+
+    # Matching tags
     if payload.mood_tag is not None:
         therapist.mood_tag = payload.mood_tag
     if payload.style_tag is not None:
@@ -155,10 +193,30 @@ async def update_therapist(
         therapist.hobby_tags = payload.hobby_tags
     if payload.price_rank is not None:
         therapist.price_rank = payload.price_rank
-    if payload.age is not None:
-        therapist.age = payload.age
     if payload.tags is not None:
         therapist.specialties = payload.tags
+
+    # Status & display
+    if payload.status is not None:
+        if payload.status not in ("draft", "active", "inactive"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="status must be one of: draft, active, inactive",
+            )
+        therapist.status = payload.status
+    if payload.is_booking_enabled is not None:
+        therapist.is_booking_enabled = payload.is_booking_enabled
+    if payload.display_order is not None:
+        therapist.display_order = payload.display_order
+
+    # Photos
+    if payload.photo_urls is not None:
+        therapist.photo_urls = payload.photo_urls
+    if payload.main_photo_index is not None:
+        # Validate index is within bounds
+        photo_count = len(therapist.photo_urls or [])
+        if photo_count > 0 and payload.main_photo_index < photo_count:
+            therapist.main_photo_index = payload.main_photo_index
 
     await db.commit()
     await db.refresh(therapist)
