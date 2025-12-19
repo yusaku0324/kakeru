@@ -276,7 +276,10 @@ export function WeekAvailabilityGrid({
                     data-date={day.date}
                     data-start-minutes={blockedStartMinutes}
                     data-start-at={slot?.start_at}
-                    className="flex h-14 items-center justify-center border-b border-white/65 bg-white/70"
+                    className="flex h-14 cursor-not-allowed items-center justify-center border-b border-white/65 bg-white/70 opacity-60 pointer-events-none"
+                    role="gridcell"
+                    aria-disabled="true"
+                    tabIndex={-1}
                   >
                     <span className={buildUnavailableClass(selectedNow)} aria-hidden>
                       ×
@@ -314,7 +317,7 @@ export function WeekAvailabilityGrid({
                   aria-label={`${day.label} ${timeFormatter.format(new Date(slot!.start_at))} ${statusMeta.icon} ${statusMeta.label}`}
                 >
                   <span className={iconClass} aria-hidden>
-                    {slot!.status === 'open' ? '●' : statusMeta.icon}
+                    {statusMeta.icon}
                   </span>
                 </button>
               )
