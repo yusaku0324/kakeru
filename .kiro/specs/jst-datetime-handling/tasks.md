@@ -14,7 +14,7 @@ This implementation assumes the following preconditions are met:
 
 ### 1.1 Import統一・非推奨関数削除
 
-- [ ] 1. Clean up availability.ts deprecated functions
+- [x] 1. Clean up availability.ts deprecated functions (PR #234 merged)
   - Remove deprecated wrapper functions that delegate to lib/jst.ts
   - Update all import statements to use lib/jst.ts directly
   - Ensure zero behavioral changes - only import path modifications
@@ -37,7 +37,7 @@ const todayValue = today()
 // 同値性: getTodayIsoString() === today() (完全に同じ値を返す)
 ```
 
-- [ ] 2. Update import statements across codebase
+- [x] 2. Update import statements across codebase (PR #234 merged)
   - Replace availability.ts deprecated function imports with lib/jst.ts direct imports
   - Maintain exact same function call semantics
   - Verify no behavioral changes through existing test suite
@@ -49,7 +49,7 @@ const todayValue = today()
 3. **副作用なし**: 削除対象関数は全てピュア関数
 4. **型定義は保持**: 既存コンポーネントの型安全性を維持
 
-- [ ] 3. Validate refactor with existing test suite
+- [x] 3. Validate refactor with existing test suite (PR #234 merged - all tests passed)
   - Run all existing E2E tests to ensure zero behavioral changes
   - Verify API responses remain identical
   - Confirm UI rendering stays exactly the same
@@ -149,7 +149,7 @@ const todayValue = today()
 
 ## Checkpoints
 
-- [ ] 12. Phase 1 Checkpoint - Validate safe refactor completion
+- [x] 12. Phase 1 Checkpoint - Validate safe refactor completion (DONE)
   - Ensure all existing tests pass without modification
   - Verify API responses are byte-for-byte identical
   - Confirm UI behavior is completely unchanged
