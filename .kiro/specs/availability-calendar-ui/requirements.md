@@ -308,3 +308,53 @@ interface AvailabilityCalendarResponse {
 - tentative状態はセッション内のみ有効
 - 同時に複数のtentativeセルは選択不可
 - 過去の時間枠は常にblocked扱い
+
+## Final Decisions (Overrides)
+
+本セクションは曖昧性解決の最終決定事項を記載する。既存記述と矛盾する場合、本セクションが優先される。
+
+### 1. break_slots 形式（Final）
+
+**Final**: break_slots は ISO 8601 datetime（timezone必須 +09:00）で表現する
+- 区間: [start_at, end_at)
+- 例: `[{"start_at":"2025-01-15T12:00:00+09:00","end_at":"2025-01-15T12:30:00+09:00"}]`
+
+**Legacy/Deprecated**: 旧形式 `"start_time":"HH:MM"` は入力互換のため残るが、新規生成（管理UI/ドキュメント）はISOのみ
+
+### 2. tentative ステータス（Final）
+
+**Final**: tentative はフロントエンド専用の一時状態（セッション内のみ）
+- APIレスポンスの status enum には含めない
+- バックエンド・DBでは管理しない
+
+**Legacy/Deprecated**: 過去文書/型に tentative が存在しても、バックエンド契約値ではない
+
+### 3. reserved_until 設計（Final）
+
+**Final**: reserved は仮予約。reserved_until は reserved 専用の期限
+- 作成時: now + 15min
+- confirmed時: None
+- 判定: reserved_until is None → 防御的に有効 / reserved_until <= now → 無効
+
+### 4. availability_status 用語（Final）
+
+**Final**: 語彙レイヤー分離とマッピング
+- DB/SoT内の状態名: `"available"`
+- API/UI上の表示語彙: `"open"`
+
+### API レスポンス仕様（Final Override）
+
+```typescript
+// Final: APIレスポンスでは tentative を除外
+type AvailabilityStatus = "open" | "blocked";  // tentative は UI state only
+
+interface AvailabilitySlot {
+  start_at: string;        // ISO 8601 format with JST timezone (+09:00)
+  end_at: string;          // ISO 8601 format with JST timezone (+09:00)
+  status: AvailabilityStatus;  // "open" | "blocked" のみ
+  staff_id?: string;
+  menu_id?: string;
+}
+```
+
+**重要**: tentative は UI state only であり、APIレスポンスには含まれない。

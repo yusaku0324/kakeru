@@ -339,7 +339,8 @@ class StaffSummary(BaseModel):
 class AvailabilitySlot(BaseModel):
     start_at: datetime
     end_at: datetime
-    status: Literal["open", "tentative", "blocked"] = "open"
+    # Final Decision: tentative is UI-only state, not in API response
+    status: Literal["open", "blocked"] = "open"
     staff_id: Optional[UUID] = None
     menu_id: Optional[UUID] = None
 
@@ -601,7 +602,8 @@ class ReservationAdminUpdate(BaseModel):
 class AvailabilitySlotIn(BaseModel):
     start_at: datetime
     end_at: datetime
-    status: Literal["open", "tentative", "blocked"] = "open"
+    # Final Decision: tentative is UI-only state, not in API response
+    status: Literal["open", "blocked"] = "open"
     staff_id: Optional[UUID] = None
     menu_id: Optional[UUID] = None
 

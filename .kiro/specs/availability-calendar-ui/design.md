@@ -585,3 +585,38 @@ async def get_availability_data_batch(
 ### レート制限
 - API呼び出し頻度制限
 - 同一IPからの大量リクエスト制限
+## Terminology & Mapping (Final)
+
+### DB語彙とAPI/UI語彙のマッピング
+
+| DB/SoT内部名称 | API/UI表示語彙 | 意味 |
+|---------------|---------------|------|
+| `available` | `open` | 予約受付可能なシフト |
+| `busy` | `blocked` | 予約受付不可のシフト |
+| `off` | 表示しない | 休み・シフト未登録 |
+
+### ステータス管理レイヤー分離
+
+- **DB/SoTレイヤー**: `availability_status = "available"` で管理
+- **APIレスポンス**: `status = "open"` で返却
+- **フロントエンド**: `tentative` を追加（ローカル状態のみ、APIには含めない）
+
+## reserved_until Validity (Final)
+
+### 判定フロー
+
+1. **GuestReservation.status を確認**
+   - `"pending"` / `"confirmed"` → 有効予約
+   - `"cancelled"` / `"expired"` → 無効予約
+   - `"reserved"` → reserved_until を確認（次ステップへ）
+
+2. **reserved_until 判定（status="reserved"の場合）**
+   - `reserved_until is None` → 有効予約（防御的）
+   - `reserved_until > now` → 有効予約
+   - `reserved_until <= now` → 無効予約
+
+### 設定ルール
+
+- **仮予約作成時**: `reserved_until = now + 15分`
+- **予約確定時**: `reserved_until = None`
+- **キャンセル時**: `reserved_until = None`

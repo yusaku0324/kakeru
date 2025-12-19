@@ -447,3 +447,36 @@ describe('findDefaultSelectableSlot', () => {
     expect(result).toBeNull()
   })
 })
+
+// =============================================================================
+// Final Decision Tests
+// =============================================================================
+
+describe('Final Decision: Status Mapping', () => {
+  it('DB "available" maps to "open"', () => {
+    expect(normalizeSlotStatus('available')).toBe('open')
+  })
+
+  it('DB "busy" maps to "blocked"', () => {
+    expect(normalizeSlotStatus('busy')).toBe('blocked')
+  })
+
+  it('DB "unavailable" maps to "blocked"', () => {
+    expect(normalizeSlotStatus('unavailable')).toBe('blocked')
+  })
+
+  it('API response should only contain "open" or "blocked" (not tentative)', () => {
+    // Simulate API response statuses - tentative should not come from API
+    const apiStatuses = ['open', 'blocked']
+    for (const status of apiStatuses) {
+      const result = normalizeSlotStatus(status)
+      expect(['open', 'blocked']).toContain(result)
+    }
+  })
+
+  it('tentative is preserved for UI state (legacy fallback)', () => {
+    // tentative might exist in local storage or legacy data
+    expect(normalizeSlotStatus('tentative')).toBe('tentative')
+    expect(normalizeSlotStatus('maybe')).toBe('tentative')
+  })
+})

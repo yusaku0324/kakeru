@@ -57,11 +57,21 @@ def convert_slots(slots_json: Any) -> List[AvailabilitySlot]:
                 staff_uuid = UUID(str(staff_raw))
             except Exception:
                 staff_uuid = None
+        # Final Decision: Map DB status to API status
+        # available -> open, busy/blocked -> blocked
+        # tentative is UI-only, never in API response
+        normalized_status: str
+        if status in {"open", "available", "ok"}:
+            normalized_status = "open"
+        elif status in {"blocked", "busy", "unavailable"}:
+            normalized_status = "blocked"
+        else:
+            normalized_status = "open"  # Default to open
         slots.append(
             AvailabilitySlot(
                 start_at=start_dt,
                 end_at=end_dt,
-                status=status if status in {"open", "tentative", "blocked"} else "open",
+                status=normalized_status,  # type: ignore[arg-type]
                 staff_id=staff_uuid,
                 menu_id=item.get("menu_id"),
             )
@@ -122,8 +132,10 @@ def _build_next_slot_candidate(
     *,
     now_jst_value: datetime,
 ) -> Tuple[datetime, NextAvailableSlot] | None:
+    # Final Decision: Only "open" slots are available
+    # tentative is UI-only state, blocked is unavailable
     status = slot.status or "open"
-    if status not in {"open", "tentative"}:
+    if status != "open":
         return None
     start = slot.start_at
     if not isinstance(start, datetime):
@@ -133,7 +145,7 @@ def _build_next_slot_candidate(
         return None
     payload = NextAvailableSlot(
         start_at=comparable,
-        status="ok" if status == "open" else "maybe",
+        status="ok",
     )
     return comparable, payload
 
