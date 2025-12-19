@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  getTodayIsoString,
-  extractDateFromIso,
-  isSameDayIso,
-  isTodayIso,
-  isSameDay,
+  today,
+  extractDate,
+  isSameDate,
+  isToday,
+  formatDateISO,
+} from './jst'
+import {
   normalizeSlotStatus,
   normalizeAvailabilityDays,
   hasTodayAvailability,
@@ -19,10 +21,10 @@ import {
 } from './availability'
 
 // =============================================================================
-// 日付ユーティリティのテスト
+// 日付ユーティリティのテスト (lib/jst.ts)
 // =============================================================================
 
-describe('getTodayIsoString', () => {
+describe('today (from lib/jst.ts)', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
@@ -34,44 +36,44 @@ describe('getTodayIsoString', () => {
   it('JST 基準で本日の日付を YYYY-MM-DD 形式で返す', () => {
     // 2024-12-15 10:00:00 UTC = 2024-12-15 19:00:00 JST
     vi.setSystemTime(new Date('2024-12-15T10:00:00Z'))
-    expect(getTodayIsoString()).toBe('2024-12-15')
+    expect(today()).toBe('2024-12-15')
   })
 
   it('UTC で日付が変わる境界でも JST で正しい日付を返す', () => {
     // 2024-12-15 23:30:00 UTC = 2024-12-16 08:30:00 JST
     vi.setSystemTime(new Date('2024-12-15T23:30:00Z'))
-    expect(getTodayIsoString()).toBe('2024-12-16')
+    expect(today()).toBe('2024-12-16')
   })
 
   it('JST の深夜（UTC では前日）でも正しい日付を返す', () => {
     // 2024-12-14 15:30:00 UTC = 2024-12-15 00:30:00 JST
     vi.setSystemTime(new Date('2024-12-14T15:30:00Z'))
-    expect(getTodayIsoString()).toBe('2024-12-15')
+    expect(today()).toBe('2024-12-15')
   })
 })
 
-describe('extractDateFromIso', () => {
+describe('extractDate (from lib/jst.ts)', () => {
   it('ISO 文字列から日付部分を抽出する', () => {
-    expect(extractDateFromIso('2024-12-15T10:30:00+09:00')).toBe('2024-12-15')
-    expect(extractDateFromIso('2024-01-01T00:00:00Z')).toBe('2024-01-01')
+    expect(extractDate('2024-12-15T10:30:00+09:00')).toBe('2024-12-15')
+    expect(extractDate('2024-01-01T00:00:00Z')).toBe('2024-01-01')
   })
 
   it('日付のみの文字列でも動作する', () => {
-    expect(extractDateFromIso('2024-12-15')).toBe('2024-12-15')
+    expect(extractDate('2024-12-15')).toBe('2024-12-15')
   })
 })
 
-describe('isSameDayIso', () => {
+describe('isSameDate (from lib/jst.ts)', () => {
   it('同じ日付の ISO 文字列を比較して true を返す', () => {
-    expect(isSameDayIso('2024-12-15T10:00:00+09:00', '2024-12-15T23:59:59+09:00')).toBe(true)
+    expect(isSameDate('2024-12-15T10:00:00+09:00', '2024-12-15T23:59:59+09:00')).toBe(true)
   })
 
   it('異なる日付の ISO 文字列を比較して false を返す', () => {
-    expect(isSameDayIso('2024-12-15T10:00:00+09:00', '2024-12-16T10:00:00+09:00')).toBe(false)
+    expect(isSameDate('2024-12-15T10:00:00+09:00', '2024-12-16T10:00:00+09:00')).toBe(false)
   })
 })
 
-describe('isTodayIso', () => {
+describe('isToday (from lib/jst.ts)', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2024-12-15T10:00:00Z'))
@@ -82,26 +84,26 @@ describe('isTodayIso', () => {
   })
 
   it('本日の日付なら true を返す', () => {
-    expect(isTodayIso('2024-12-15T10:00:00+09:00')).toBe(true)
+    expect(isToday('2024-12-15T10:00:00+09:00')).toBe(true)
   })
 
   it('本日以外の日付なら false を返す', () => {
-    expect(isTodayIso('2024-12-14T10:00:00+09:00')).toBe(false)
-    expect(isTodayIso('2024-12-16T10:00:00+09:00')).toBe(false)
+    expect(isToday('2024-12-14T10:00:00+09:00')).toBe(false)
+    expect(isToday('2024-12-16T10:00:00+09:00')).toBe(false)
   })
 })
 
-describe('isSameDay', () => {
+describe('isSameDate with Date objects (using formatDateISO)', () => {
   it('同じ日の Date オブジェクトを比較して true を返す', () => {
     const date1 = new Date('2024-12-15T00:00:00+09:00')
     const date2 = new Date('2024-12-15T23:59:59+09:00')
-    expect(isSameDay(date1, date2)).toBe(true)
+    expect(isSameDate(formatDateISO(date1), formatDateISO(date2))).toBe(true)
   })
 
   it('異なる日の Date オブジェクトを比較して false を返す', () => {
     const date1 = new Date('2024-12-15T00:00:00+09:00')
     const date2 = new Date('2024-12-16T00:00:00+09:00')
-    expect(isSameDay(date1, date2)).toBe(false)
+    expect(isSameDate(formatDateISO(date1), formatDateISO(date2))).toBe(false)
   })
 })
 

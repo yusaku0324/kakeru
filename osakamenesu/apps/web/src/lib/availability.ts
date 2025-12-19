@@ -3,41 +3,12 @@
  *
  * 複数のコンポーネントで使用される availabilitySlots/availabilityDays の
  * 変換ロジックを統一するためのモジュール
+ *
+ * Note: JST date/time utilities are in lib/jst.ts
+ * Use today(), extractDate(), extractTime(), isToday(), isSameDate() from there.
  */
 
-import {
-  today as jstToday,
-  extractDate,
-  extractTime,
-  isToday as jstIsToday,
-  isSameDate,
-  formatDateISO,
-} from '@/lib/jst'
-
-// =============================================================================
-// Deprecated re-exports for backward compatibility (used by tests)
-// Use lib/jst.ts directly in new code
-// =============================================================================
-
-/** @deprecated Use today() from lib/jst.ts */
-export const getTodayIsoString = jstToday
-
-/** @deprecated Use extractDate() from lib/jst.ts */
-export const extractDateFromIso = extractDate
-
-/** @deprecated Use isSameDate() from lib/jst.ts */
-export const isSameDayIso = isSameDate
-
-/** @deprecated Use isToday() from lib/jst.ts */
-export const isTodayIso = jstIsToday
-
-/** @deprecated Use isSameDate(formatDateISO(d1), formatDateISO(d2)) from lib/jst.ts */
-export function isSameDay(date1: Date, date2: Date): boolean {
-  return isSameDate(formatDateISO(date1), formatDateISO(date2))
-}
-
-/** @deprecated Use extractTime() from lib/jst.ts */
-export const extractTimeKey = extractTime
+import { today as jstToday, extractDate, extractTime, isToday, isSameDate } from '@/lib/jst'
 
 // =============================================================================
 // 型定義
