@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 
 import { formatDatetimeLocal, toZonedDayjs } from '@/lib/timezone'
+import { verifySlot, createConflictErrorMessage } from '@/lib/verify-slot'
+import type { ConflictError } from './ConflictErrorBanner'
 
 import { useToast } from '../useToast'
 
@@ -60,6 +62,10 @@ export type UseReservationFormProps = {
   allowDemoSubmission?: boolean
   selectedSlots?: ReservationSelectedSlot[]
   courseOptions?: ReservationCourseOption[]
+  /** Callback to refresh the calendar when a slot conflict is detected */
+  onRefreshCalendar?: () => void
+  /** Callback to clear selected slots when a conflict is detected */
+  onClearSelectedSlots?: () => void
 }
 
 const PROFILE_STORAGE_KEY = 'reservation.profile.v1'
@@ -118,6 +124,8 @@ export function useReservationForm({
   allowDemoSubmission = false,
   selectedSlots,
   courseOptions = [],
+  onRefreshCalendar,
+  onClearSelectedSlots,
 }: UseReservationFormProps) {
   const initialStart = defaultStart || nextHourIsoLocal(180)
   const initialDuration =
@@ -141,6 +149,8 @@ export function useReservationForm({
   const [lastReservationId, setLastReservationId] = useState<string | null>(null)
   const [lastPayload, setLastPayload] = useState<ReservationSummaryPayload | null>(null)
   const [errors, setErrors] = useState<ReservationFormErrors>({})
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [conflictError, setConflictError] = useState<ConflictError | null>(null)
 
   const [isPending, startTransition] = useTransition()
   const { toasts, push, remove } = useToast()
@@ -385,6 +395,33 @@ export function useReservationForm({
 
     setErrors({})
 
+    // Verify slot availability before submitting (if staffId is available)
+    if (staffUuid && primaryStartIso) {
+      setIsVerifying(true)
+      try {
+        const verification = await verifySlot(staffUuid, primaryStartIso)
+        if (!verification.isAvailable) {
+          // Slot is no longer available - show conflict error
+          const reason = 'reason' in verification ? verification.reason : undefined
+          setConflictError({
+            message: createConflictErrorMessage(reason),
+            slotStart: primaryStartIso,
+            showUntil: Date.now() + 3000, // 3 seconds
+          })
+          // Refresh calendar and clear selection
+          onRefreshCalendar?.()
+          onClearSelectedSlots?.()
+          setIsVerifying(false)
+          return
+        }
+      } catch {
+        // If verification fails, continue with reservation attempt
+        // The backend will catch any conflicts
+      } finally {
+        setIsVerifying(false)
+      }
+    }
+
     startTransition(async () => {
       try {
         const preferredSlots = Array.isArray(selectedSlots)
@@ -515,7 +552,11 @@ export function useReservationForm({
     }
   }
 
-  const disabled = isPending || !canSubmit
+  const disabled = isPending || isVerifying || !canSubmit
+
+  const dismissConflictError = useCallback(() => {
+    setConflictError(null)
+  }, [])
 
   return {
     form,
@@ -528,6 +569,7 @@ export function useReservationForm({
     lastPayload,
     summaryText,
     isPending,
+    isVerifying,
     canSubmit,
     disabled,
     minutesOptions,
@@ -535,6 +577,8 @@ export function useReservationForm({
     hasContactChannels,
     toasts,
     removeToast: remove,
+    conflictError,
+    dismissConflictError,
     actions: {
       handleChange,
       toggleRemember,
