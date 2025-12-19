@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 type Therapist = {
   id: string
@@ -69,6 +70,14 @@ export default function AdminTherapistEditPage() {
   const [hobbyTags, setHobbyTags] = useState('')
   const [priceRank, setPriceRank] = useState('')
 
+  // Confirmation dialog state
+  const [showStatusConfirm, setShowStatusConfirm] = useState(false)
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null)
+  const initialStatus = useRef<string>('draft')
+
+  // Validation errors
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -87,7 +96,9 @@ export default function AdminTherapistEditPage() {
       setHeadline(found.headline || '')
       setBiography(found.biography || '')
       setAge(found.age?.toString() || '')
-      setStatus(found.status || 'draft')
+      const foundStatus = found.status || 'draft'
+      setStatus(foundStatus)
+      initialStatus.current = foundStatus
       setIsBookingEnabled(found.is_booking_enabled ?? true)
       setDisplayOrder(found.display_order?.toString() || '')
       setPhotoUrls((found.photo_urls || []).join('\n'))
@@ -124,17 +135,79 @@ export default function AdminTherapistEditPage() {
     return photoUrls.split('\n').map((u) => u.trim()).filter(Boolean)
   }, [photoUrls])
 
+  // Handle status change with confirmation
+  const handleStatusChange = useCallback((newStatus: string) => {
+    // Show confirmation when changing to/from 'active'
+    if (newStatus === 'active' && initialStatus.current !== 'active') {
+      setPendingStatus(newStatus)
+      setShowStatusConfirm(true)
+    } else if (newStatus !== 'active' && initialStatus.current === 'active') {
+      setPendingStatus(newStatus)
+      setShowStatusConfirm(true)
+    } else {
+      setStatus(newStatus)
+    }
+  }, [])
+
+  const confirmStatusChange = useCallback(() => {
+    if (pendingStatus) {
+      setStatus(pendingStatus)
+    }
+    setShowStatusConfirm(false)
+    setPendingStatus(null)
+  }, [pendingStatus])
+
+  const cancelStatusChange = useCallback(() => {
+    setShowStatusConfirm(false)
+    setPendingStatus(null)
+  }, [])
+
+  // Validation
+  const validateForm = useCallback(() => {
+    const errors: Record<string, string> = {}
+
+    if (!name.trim()) {
+      errors.name = 'セラピスト名は必須です'
+    } else if (name.trim().length > 50) {
+      errors.name = 'セラピスト名は50文字以内で入力してください'
+    }
+
+    if (age && (Number(age) < 18 || Number(age) > 99)) {
+      errors.age = '年齢は18〜99の範囲で入力してください'
+    }
+
+    if (headline && headline.length > 100) {
+      errors.headline = 'キャッチコピーは100文字以内で入力してください'
+    }
+
+    if (biography && biography.length > 1000) {
+      errors.biography = '自己紹介は1000文字以内で入力してください'
+    }
+
+    // Validate photo URLs
+    for (const url of photoUrlList) {
+      try {
+        new URL(url)
+      } catch {
+        errors.photos = '無効なURLが含まれています'
+        break
+      }
+    }
+
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }, [name, age, headline, biography, photoUrlList])
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
     setSuccess(null)
-    setSaving(true)
 
-    if (!name.trim()) {
-      setError('セラピスト名を入力してください')
-      setSaving(false)
+    if (!validateForm()) {
       return
     }
+
+    setSaving(true)
 
     const payload: Record<string, unknown> = {
       name: name.trim(),
@@ -244,7 +317,7 @@ export default function AdminTherapistEditPage() {
               <select
                 className="mt-1 w-full rounded border border-neutral-borderLight bg-white px-2 py-1.5"
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={(e) => handleStatusChange(e.target.value)}
               >
                 {STATUS_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -252,6 +325,9 @@ export default function AdminTherapistEditPage() {
                   </option>
                 ))}
               </select>
+              {status === 'active' && (
+                <p className="mt-1 text-xs text-green-600">このセラピストは公開中です</p>
+              )}
             </label>
             <label className="flex items-center gap-2 self-end pb-1.5">
               <input
@@ -284,16 +360,23 @@ export default function AdminTherapistEditPage() {
               <label className="block">
                 名前 <span className="text-red-500">*</span>
                 <input
-                  className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                  className={`mt-1 w-full rounded border px-2 py-1.5 ${
+                    validationErrors.name ? 'border-red-500' : 'border-neutral-borderLight'
+                  }`}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="必須"
                 />
+                {validationErrors.name && (
+                  <p className="mt-1 text-xs text-red-600">{validationErrors.name}</p>
+                )}
               </label>
               <label className="block">
                 年齢
                 <input
-                  className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                  className={`mt-1 w-full rounded border px-2 py-1.5 ${
+                    validationErrors.age ? 'border-red-500' : 'border-neutral-borderLight'
+                  }`}
                   value={age}
                   onChange={(e) => setAge(e.target.value)}
                   placeholder="例: 25"
@@ -301,26 +384,39 @@ export default function AdminTherapistEditPage() {
                   min="18"
                   max="99"
                 />
+                {validationErrors.age && (
+                  <p className="mt-1 text-xs text-red-600">{validationErrors.age}</p>
+                )}
               </label>
             </div>
             <label className="block">
               キャッチコピー・見出し
               <input
-                className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                className={`mt-1 w-full rounded border px-2 py-1.5 ${
+                  validationErrors.headline ? 'border-red-500' : 'border-neutral-borderLight'
+                }`}
                 value={headline}
                 onChange={(e) => setHeadline(e.target.value)}
                 placeholder="例: 癒しのプロフェッショナル"
               />
+              {validationErrors.headline && (
+                <p className="mt-1 text-xs text-red-600">{validationErrors.headline}</p>
+              )}
             </label>
             <label className="block">
               自己紹介・略歴
               <textarea
-                className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                className={`mt-1 w-full rounded border px-2 py-1.5 ${
+                  validationErrors.biography ? 'border-red-500' : 'border-neutral-borderLight'
+                }`}
                 value={biography}
                 onChange={(e) => setBiography(e.target.value)}
                 placeholder="自己紹介文を入力してください"
                 rows={4}
               />
+              {validationErrors.biography && (
+                <p className="mt-1 text-xs text-red-600">{validationErrors.biography}</p>
+              )}
             </label>
             <label className="block">
               得意技術・タグ（カンマ区切り）
@@ -350,6 +446,9 @@ export default function AdminTherapistEditPage() {
           <div className="mt-2 text-sm text-neutral-textMuted">
             {photoUrlList.length > 0 ? `${photoUrlList.length}枚の写真` : '写真なし'}
           </div>
+          {validationErrors.photos && (
+            <p className="mt-1 text-xs text-red-600">{validationErrors.photos}</p>
+          )}
           {photoUrlList.length > 1 && (
             <label className="mt-2 block">
               メイン写真（0から始まるインデックス）
@@ -490,6 +589,22 @@ export default function AdminTherapistEditPage() {
           </Link>
         </div>
       </form>
+
+      {/* Status Change Confirmation Dialog */}
+      <ConfirmDialog
+        open={showStatusConfirm}
+        title="ステータス変更の確認"
+        message={
+          pendingStatus === 'active'
+            ? 'このセラピストを公開しますか？公開すると、ゲストから予約可能になります。'
+            : 'このセラピストを非公開にしますか？非公開にすると、ゲストからは見えなくなります。'
+        }
+        confirmLabel={pendingStatus === 'active' ? '公開する' : '非公開にする'}
+        cancelLabel="キャンセル"
+        variant={pendingStatus === 'active' ? 'default' : 'danger'}
+        onConfirm={confirmStatusChange}
+        onCancel={cancelStatusChange}
+      />
     </main>
   )
 }
