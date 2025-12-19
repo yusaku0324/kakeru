@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 type Shop = {
   id: string
@@ -47,6 +48,14 @@ export default function AdminShopEditPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // Confirmation dialog state
+  const [showStatusConfirm, setShowStatusConfirm] = useState(false)
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null)
+  const initialStatus = useRef<string>('draft')
+
+  // Validation errors
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+
   // Form state
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
@@ -80,6 +89,7 @@ export default function AdminShopEditPage() {
       setSlug(data.slug || '')
       setArea(data.area || '')
       setStatus(data.status || 'draft')
+      initialStatus.current = data.status || 'draft'
       setDescription(data.description || '')
       setCatchCopy(data.catch_copy || '')
       setAddress(data.address || '')
@@ -106,17 +116,120 @@ export default function AdminShopEditPage() {
     void load()
   }, [load])
 
+  // Handle status change with confirmation for publishing
+  const handleStatusChange = useCallback((newStatus: string) => {
+    // Confirm when publishing (draft → published)
+    if (newStatus === 'published' && initialStatus.current !== 'published') {
+      setPendingStatus(newStatus)
+      setShowStatusConfirm(true)
+    }
+    // Confirm when unpublishing (published → draft)
+    else if (newStatus !== 'published' && initialStatus.current === 'published') {
+      setPendingStatus(newStatus)
+      setShowStatusConfirm(true)
+    }
+    // No confirmation needed for other changes
+    else {
+      setStatus(newStatus)
+    }
+  }, [])
+
+  const confirmStatusChange = useCallback(() => {
+    if (pendingStatus) {
+      setStatus(pendingStatus)
+    }
+    setPendingStatus(null)
+    setShowStatusConfirm(false)
+  }, [pendingStatus])
+
+  const cancelStatusChange = useCallback(() => {
+    setPendingStatus(null)
+    setShowStatusConfirm(false)
+  }, [])
+
+  // Validation
+  const validateForm = useCallback(() => {
+    const errors: Record<string, string> = {}
+
+    // Name validation
+    if (!name.trim()) {
+      errors.name = '店舗名は必須です'
+    } else if (name.trim().length > 100) {
+      errors.name = '店舗名は100文字以内で入力してください'
+    }
+
+    // Slug validation
+    if (slug.trim() && !/^[a-z0-9-]+$/.test(slug.trim())) {
+      errors.slug = 'スラッグは半角英数字とハイフンのみ使用可能です'
+    }
+
+    // Catch copy validation
+    if (catchCopy.trim().length > 100) {
+      errors.catchCopy = 'キャッチコピーは100文字以内で入力してください'
+    }
+
+    // Description validation
+    if (description.trim().length > 2000) {
+      errors.description = '店舗説明は2000文字以内で入力してください'
+    }
+
+    // Buffer minutes validation
+    if (bufferMinutes && (Number(bufferMinutes) < 0 || Number(bufferMinutes) > 120)) {
+      errors.bufferMinutes = 'バッファ時間は0〜120分の範囲で入力してください'
+    }
+
+    // Room count validation
+    if (roomCount && Number(roomCount) < 1) {
+      errors.roomCount = '同時予約可能数は1以上で入力してください'
+    }
+
+    // Default slot duration validation
+    if (defaultSlotDuration && Number(defaultSlotDuration) < 30) {
+      errors.defaultSlotDuration = 'デフォルト施術時間は30分以上で入力してください'
+    }
+
+    // Price validation
+    if (priceMin && priceMax && Number(priceMin) > Number(priceMax)) {
+      errors.priceMin = '最低価格は最高価格以下にしてください'
+    }
+
+    // Photo URL validation
+    const photoList = photos.split('\n').map((u) => u.trim()).filter(Boolean)
+    const invalidUrls = photoList.filter((url) => {
+      try {
+        new URL(url)
+        return false
+      } catch {
+        return true
+      }
+    })
+    if (invalidUrls.length > 0) {
+      errors.photos = '無効なURLが含まれています'
+    }
+
+    // Website URL validation
+    if (websiteUrl.trim()) {
+      try {
+        new URL(websiteUrl.trim())
+      } catch {
+        errors.websiteUrl = '有効なURLを入力してください'
+      }
+    }
+
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }, [name, slug, catchCopy, description, bufferMinutes, roomCount, defaultSlotDuration, priceMin, priceMax, photos, websiteUrl])
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
     setSuccess(null)
-    setSaving(true)
 
-    if (!name.trim()) {
-      setError('店舗名を入力してください')
-      setSaving(false)
+    if (!validateForm()) {
       return
     }
+
+    setSaving(true)
 
     const payload: Record<string, unknown> = {
       name: name.trim(),
@@ -234,7 +347,7 @@ export default function AdminShopEditPage() {
               <select
                 className="mt-1 w-full rounded border border-neutral-borderLight bg-white px-2 py-1.5"
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={(e) => handleStatusChange(e.target.value)}
               >
                 {STATUS_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -242,18 +355,25 @@ export default function AdminShopEditPage() {
                   </option>
                 ))}
               </select>
+              {status === 'published' && (
+                <p className="mt-1 text-xs text-green-600">公開中 - ユーザーに表示されます</p>
+              )}
             </label>
             <label className="block">
               URL スラッグ
               <input
-                className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                className={`mt-1 w-full rounded border px-2 py-1.5 ${validationErrors.slug ? 'border-red-500' : 'border-neutral-borderLight'}`}
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
                 placeholder="例: my-shop"
               />
-              <p className="mt-1 text-xs text-neutral-textMuted">
-                /profiles/{slug || 'shop-slug'} でアクセス可能
-              </p>
+              {validationErrors.slug ? (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.slug}</p>
+              ) : (
+                <p className="mt-1 text-xs text-neutral-textMuted">
+                  /profiles/{slug || 'shop-slug'} でアクセス可能
+                </p>
+              )}
             </label>
           </div>
         </section>
@@ -266,11 +386,14 @@ export default function AdminShopEditPage() {
               <label className="block">
                 店舗名 <span className="text-red-500">*</span>
                 <input
-                  className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                  className={`mt-1 w-full rounded border px-2 py-1.5 ${validationErrors.name ? 'border-red-500' : 'border-neutral-borderLight'}`}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="必須"
                 />
+                {validationErrors.name && (
+                  <p className="mt-1 text-xs text-red-500">{validationErrors.name}</p>
+                )}
               </label>
               <label className="block">
                 エリア
@@ -289,21 +412,27 @@ export default function AdminShopEditPage() {
             <label className="block">
               キャッチコピー
               <input
-                className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                className={`mt-1 w-full rounded border px-2 py-1.5 ${validationErrors.catchCopy ? 'border-red-500' : 'border-neutral-borderLight'}`}
                 value={catchCopy}
                 onChange={(e) => setCatchCopy(e.target.value)}
                 placeholder="例: 癒しの空間で極上のひととき"
               />
+              {validationErrors.catchCopy && (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.catchCopy}</p>
+              )}
             </label>
             <label className="block">
               店舗説明
               <textarea
-                className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                className={`mt-1 w-full rounded border px-2 py-1.5 ${validationErrors.description ? 'border-red-500' : 'border-neutral-borderLight'}`}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="店舗の説明文を入力してください"
                 rows={4}
               />
+              {validationErrors.description && (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.description}</p>
+              )}
             </label>
             <label className="block">
               住所
@@ -347,38 +476,49 @@ export default function AdminShopEditPage() {
               バッファ時間（分）
               <input
                 type="number"
-                className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                className={`mt-1 w-full rounded border px-2 py-1.5 ${validationErrors.bufferMinutes ? 'border-red-500' : 'border-neutral-borderLight'}`}
                 value={bufferMinutes}
                 onChange={(e) => setBufferMinutes(e.target.value)}
                 placeholder="例: 15"
                 min="0"
                 max="120"
               />
-              <p className="mt-1 text-xs text-neutral-textMuted">予約間の準備時間</p>
+              {validationErrors.bufferMinutes ? (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.bufferMinutes}</p>
+              ) : (
+                <p className="mt-1 text-xs text-neutral-textMuted">予約間の準備時間</p>
+              )}
             </label>
             <label className="block">
               同時予約可能数
               <input
                 type="number"
-                className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                className={`mt-1 w-full rounded border px-2 py-1.5 ${validationErrors.roomCount ? 'border-red-500' : 'border-neutral-borderLight'}`}
                 value={roomCount}
                 onChange={(e) => setRoomCount(e.target.value)}
                 placeholder="例: 1"
                 min="1"
               />
-              <p className="mt-1 text-xs text-neutral-textMuted">部屋数・ベッド数</p>
+              {validationErrors.roomCount ? (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.roomCount}</p>
+              ) : (
+                <p className="mt-1 text-xs text-neutral-textMuted">部屋数・ベッド数</p>
+              )}
             </label>
             <label className="block">
               デフォルト施術時間（分）
               <input
                 type="number"
-                className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                className={`mt-1 w-full rounded border px-2 py-1.5 ${validationErrors.defaultSlotDuration ? 'border-red-500' : 'border-neutral-borderLight'}`}
                 value={defaultSlotDuration}
                 onChange={(e) => setDefaultSlotDuration(e.target.value)}
                 placeholder="例: 60"
                 min="30"
                 step="30"
               />
+              {validationErrors.defaultSlotDuration && (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.defaultSlotDuration}</p>
+              )}
             </label>
           </div>
         </section>
@@ -391,13 +531,16 @@ export default function AdminShopEditPage() {
               最低価格（円）
               <input
                 type="number"
-                className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                className={`mt-1 w-full rounded border px-2 py-1.5 ${validationErrors.priceMin ? 'border-red-500' : 'border-neutral-borderLight'}`}
                 value={priceMin}
                 onChange={(e) => setPriceMin(e.target.value)}
                 placeholder="例: 5000"
                 min="0"
                 step="1000"
               />
+              {validationErrors.priceMin && (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.priceMin}</p>
+              )}
             </label>
             <label className="block">
               最高価格（円）
@@ -420,12 +563,15 @@ export default function AdminShopEditPage() {
           <label className="block">
             写真URL（1行に1つ）
             <textarea
-              className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5 font-mono text-sm"
+              className={`mt-1 w-full rounded border px-2 py-1.5 font-mono text-sm ${validationErrors.photos ? 'border-red-500' : 'border-neutral-borderLight'}`}
               value={photos}
               onChange={(e) => setPhotos(e.target.value)}
               placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"
               rows={4}
             />
+            {validationErrors.photos && (
+              <p className="mt-1 text-xs text-red-500">{validationErrors.photos}</p>
+            )}
           </label>
         </section>
 
@@ -456,11 +602,14 @@ export default function AdminShopEditPage() {
               ウェブサイトURL
               <input
                 type="url"
-                className="mt-1 w-full rounded border border-neutral-borderLight px-2 py-1.5"
+                className={`mt-1 w-full rounded border px-2 py-1.5 ${validationErrors.websiteUrl ? 'border-red-500' : 'border-neutral-borderLight'}`}
                 value={websiteUrl}
                 onChange={(e) => setWebsiteUrl(e.target.value)}
                 placeholder="例: https://example.com"
               />
+              {validationErrors.websiteUrl && (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.websiteUrl}</p>
+              )}
             </label>
           </div>
         </section>
@@ -482,6 +631,22 @@ export default function AdminShopEditPage() {
           </Link>
         </div>
       </form>
+
+      {/* Status change confirmation dialog */}
+      <ConfirmDialog
+        open={showStatusConfirm}
+        title={pendingStatus === 'published' ? '店舗を公開しますか？' : '店舗を非公開にしますか？'}
+        message={
+          pendingStatus === 'published'
+            ? 'この店舗がユーザーに表示されるようになります。公開してもよろしいですか？'
+            : 'この店舗がユーザーに表示されなくなります。非公開にしてもよろしいですか？'
+        }
+        confirmLabel={pendingStatus === 'published' ? '公開する' : '非公開にする'}
+        cancelLabel="キャンセル"
+        variant={pendingStatus === 'published' ? 'default' : 'danger'}
+        onConfirm={confirmStatusChange}
+        onCancel={cancelStatusChange}
+      />
     </main>
   )
 }
