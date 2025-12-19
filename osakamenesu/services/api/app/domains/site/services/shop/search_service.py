@@ -20,7 +20,8 @@ from app.schemas import (
 )
 from app.utils.datetime import JST, now_jst
 from app.utils.profiles import PRICE_BANDS
-from .availability import slots_have_open
+
+# Note: slots_have_open removed - SoT compliance (no slots_json in guest code)
 from .shared import normalize_promotions, normalize_staff_uuid, safe_float, safe_int
 
 logger = logging.getLogger(__name__)
@@ -548,21 +549,62 @@ async def _search_from_postgres(
 async def _filter_results_by_availability(
     db: AsyncSession, shops: List[ShopSummary], target_date: date
 ) -> List[ShopSummary]:
+    """Filter shops that have at least one therapist available on target_date.
+
+    SoT Compliance: Uses TherapistShift + GuestReservation (not slots_json).
+    """
     if not shops:
         return []
+
     shop_ids = [shop.id for shop in shops]
-    stmt = (
-        select(models.Availability.profile_id, models.Availability.slots_json)
-        .where(models.Availability.profile_id.in_(shop_ids))
-        .where(models.Availability.date == target_date)
+
+    # 1) Get therapist_ids for each shop (profile_id)
+    therapist_stmt = (
+        select(models.Therapist.id, models.Therapist.profile_id)
+        .where(models.Therapist.profile_id.in_(shop_ids))
+        .where(models.Therapist.status == "published")
     )
-    res = await db.execute(stmt)
-    rows = res.all()
-    eligible: Set[UUID] = set()
-    for profile_id, slots_json in rows:
-        if slots_have_open(slots_json):
-            eligible.add(profile_id)
-    return [shop for shop in shops if shop.id in eligible]
+    therapist_rows = (await db.execute(therapist_stmt)).all()
+
+    if not therapist_rows:
+        return []
+
+    # Build mapping: therapist_id -> profile_id
+    therapist_to_shop: dict[UUID, UUID] = {tid: pid for tid, pid in therapist_rows}
+    therapist_ids = list(therapist_to_shop.keys())
+
+    # 2) Calculate availability using SoT (lookahead_days=1 for single day check)
+    # We need to check if target_date has availability
+    from app.domains.site import therapist_availability as sot
+
+    now = now_jst()
+    today = now.date()
+
+    # Calculate days from today to target_date
+    days_ahead = (target_date - today).days
+    if days_ahead < 0:
+        # Past date, no availability
+        return []
+
+    lookahead = days_ahead + 1  # Include target_date in the range
+
+    # Use SoT-based calculation
+    availability_map = await _derive_next_availability_from_slots_sot(
+        db, therapist_ids, lookahead_days=lookahead
+    )
+
+    # 3) Find shops with at least one available therapist on target_date
+    eligible_shops: Set[UUID] = set()
+    for therapist_id, (today_available, next_slot) in availability_map.items():
+        if next_slot is not None:
+            # Check if next_slot is on target_date
+            slot_date = next_slot.start_at.date()
+            if slot_date == target_date:
+                shop_id = therapist_to_shop.get(therapist_id)
+                if shop_id:
+                    eligible_shops.add(shop_id)
+
+    return [shop for shop in shops if shop.id in eligible_shops]
 
 
 async def _search_shops_impl(

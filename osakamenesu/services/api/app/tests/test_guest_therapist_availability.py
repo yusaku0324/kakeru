@@ -86,16 +86,8 @@ def test_availability_summary_with_open_slots(monkeypatch: pytest.MonkeyPatch) -
     async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
         return []
 
-    async def fake_fetch_availability_slots_batch(
-        db, profile_id, therapist_id, date_from, date_to
-    ):
-        return {}
-
     monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
     monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
-    monkeypatch.setattr(
-        domain, "_fetch_availability_slots_batch", fake_fetch_availability_slots_batch
-    )
 
     res = client.get(
         f"/api/guest/therapists/{THERAPIST_ID}/availability_summary",
@@ -127,16 +119,8 @@ def test_availability_summary_full_day_booked(monkeypatch: pytest.MonkeyPatch) -
     async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
         return [resv]
 
-    async def fake_fetch_availability_slots_batch(
-        db, profile_id, therapist_id, date_from, date_to
-    ):
-        return {}
-
     monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
     monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
-    monkeypatch.setattr(
-        domain, "_fetch_availability_slots_batch", fake_fetch_availability_slots_batch
-    )
 
     res = client.get(
         f"/api/guest/therapists/{THERAPIST_ID}/availability_summary",
@@ -240,16 +224,8 @@ def test_multiple_shifts_same_day(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
         return []
 
-    async def fake_fetch_availability_slots_batch(
-        db, profile_id, therapist_id, date_from, date_to
-    ):
-        return {}
-
     monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
     monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
-    monkeypatch.setattr(
-        domain, "_fetch_availability_slots_batch", fake_fetch_availability_slots_batch
-    )
 
     res = client.get(
         f"/api/guest/therapists/{THERAPIST_ID}/availability_slots",
@@ -267,17 +243,17 @@ def test_multiple_shifts_same_day(monkeypatch: pytest.MonkeyPatch) -> None:
     assert slots[1]["end_at"].startswith("2025-01-06T18:00")
 
 
-def test_availability_fallback_to_availability_table(
+def test_no_shifts_returns_empty_slots(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """
-    Test that when TherapistShift has no data, the API does NOT fall back to Availability table.
+    Test that when TherapistShift has no data, the API returns empty slots.
 
-    Availability(slots_json) はキャッシュであり、シフトが無い場合に “予約できそうな時刻” を返すと
-    予約作成側(is_available)と不整合になるため、ゲスト向けは TherapistShift を SoT として扱う。
+    SoT Compliance: TherapistShift + GuestReservation is the source of truth.
+    When there are no shifts, there are no available slots - regardless of
+    what may be in Availability.slots_json (which is for admin use only).
     """
     day = date(2025, 1, 4)
-    profile_id = THERAPIST_ID  # In this case, therapist_id IS the profile_id
 
     # No TherapistShift data
     async def fake_fetch_shifts(db, therapist_id, date_from, date_to):
@@ -286,25 +262,8 @@ def test_availability_fallback_to_availability_table(
     async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
         return []
 
-    # Mock _fetch_availability_slots to return fallback data with different time (13:00-17:00 JST)
-    fallback_start = datetime.combine(day, datetime.min.time(), tzinfo=JST) + timedelta(
-        hours=13
-    )
-    fallback_end = datetime.combine(day, datetime.min.time(), tzinfo=JST) + timedelta(
-        hours=17
-    )
-
-    async def fake_fetch_availability_slots(db, pid, therapist_id, target_date):
-        # Only return data when profile_id matches
-        if pid == profile_id:
-            return [(fallback_start, fallback_end)]
-        return []
-
     monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
     monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
-    monkeypatch.setattr(
-        domain, "_fetch_availability_slots", fake_fetch_availability_slots
-    )
 
     res = client.get(
         f"/api/guest/therapists/{THERAPIST_ID}/availability_slots",
