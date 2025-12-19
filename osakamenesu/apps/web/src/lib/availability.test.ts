@@ -119,10 +119,12 @@ describe('normalizeSlotStatus', () => {
     expect(normalizeSlotStatus('ok')).toBe('open')
   })
 
-  it('tentative 系のステータスを "tentative" に正規化する', () => {
-    expect(normalizeSlotStatus('tentative')).toBe('tentative')
-    expect(normalizeSlotStatus('TENTATIVE')).toBe('tentative')
-    expect(normalizeSlotStatus('maybe')).toBe('tentative')
+  it('未知のステータス（tentative含む）は "open" に正規化する', () => {
+    // Final Decision: tentative is UI-only, should not come from API
+    // Unknown statuses default to open for safety
+    expect(normalizeSlotStatus('tentative')).toBe('open')
+    expect(normalizeSlotStatus('TENTATIVE')).toBe('open')
+    expect(normalizeSlotStatus('maybe')).toBe('open')
   })
 
   it('blocked 系のステータスを "blocked" に正規化する', () => {
@@ -203,13 +205,13 @@ describe('normalizeAvailabilityDays', () => {
   it('ステータスを正規化する', () => {
     const slots = [
       { start_at: '2024-12-15T10:00:00+09:00', end_at: '2024-12-15T11:00:00+09:00', status: 'ok' },
-      { start_at: '2024-12-15T14:00:00+09:00', end_at: '2024-12-15T15:00:00+09:00', status: 'maybe' },
+      { start_at: '2024-12-15T14:00:00+09:00', end_at: '2024-12-15T15:00:00+09:00', status: 'busy' },
     ]
 
     const result = normalizeAvailabilityDays(slots, todayIso)
 
     expect(result![0].slots[0].status).toBe('open')
-    expect(result![0].slots[1].status).toBe('tentative')
+    expect(result![0].slots[1].status).toBe('blocked')
   })
 })
 
@@ -474,9 +476,10 @@ describe('Final Decision: Status Mapping', () => {
     }
   })
 
-  it('tentative is preserved for UI state (legacy fallback)', () => {
-    // tentative might exist in local storage or legacy data
-    expect(normalizeSlotStatus('tentative')).toBe('tentative')
-    expect(normalizeSlotStatus('maybe')).toBe('tentative')
+  it('tentative/maybe from API defaults to open (not preserved)', () => {
+    // Final Decision: tentative is UI-only state, not from API
+    // If API mistakenly sends tentative/maybe, treat as open
+    expect(normalizeSlotStatus('tentative')).toBe('open')
+    expect(normalizeSlotStatus('maybe')).toBe('open')
   })
 })

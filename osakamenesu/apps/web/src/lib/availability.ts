@@ -82,9 +82,6 @@ export type DisplayAvailabilityDay = Omit<NormalizedAvailabilityDay, 'is_today' 
  * - available/ok → open (DB語彙のマッピング)
  * - busy/unavailable → blocked (DB語彙のマッピング)
  * - tentative は API から返されない（UI-only state）
- *
- * Note: 既存の tentative/maybe 処理は後方互換性のために残すが、
- * 新しいAPIでは使用されない
  */
 export function normalizeSlotStatus(rawStatus?: string | null): AvailabilityStatus {
   const status = (rawStatus ?? 'open').toLowerCase()
@@ -92,9 +89,7 @@ export function normalizeSlotStatus(rawStatus?: string | null): AvailabilityStat
   if (status === 'open' || status === 'available' || status === 'ok') return 'open'
   // Final Decision: DB "busy" → API "blocked"
   if (status === 'blocked' || status === 'busy' || status === 'unavailable') return 'blocked'
-  // Legacy fallback (tentative is UI-only, should not come from API)
-  if (status === 'tentative' || status === 'maybe') return 'tentative'
-  return 'open' // デフォルト
+  return 'open' // デフォルト（未知のステータスは open として扱う）
 }
 
 // =============================================================================
