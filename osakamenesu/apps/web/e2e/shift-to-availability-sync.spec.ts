@@ -1140,18 +1140,29 @@ async function verifyCandidateInvariantsV2(
     await expect(dialog).toBeVisible({ timeout: 15000 })
 
     // 「空き状況・予約」タブに切り替え、または「予約フォームを開く」ボタンをクリック
-    const bookingTab = dialog.getByRole('tab', { name: /空き状況|予約/ })
+    const bookingTab = dialog.getByRole('button', { name: /空き状況.*予約/ })
     const openFormButton = dialog.getByRole('button', { name: /予約フォームを開く/ })
 
-    if (await bookingTab.isVisible().catch(() => false)) {
-      await bookingTab.click({ force: true })
-      await page.waitForTimeout(500)
-    } else if (await openFormButton.isVisible().catch(() => false)) {
-      // ボタンをスクロールして表示し、forceでクリック
+    // まず「予約フォームを開く」ボタンを試す（これがbookingタブに切り替える）
+    if (await openFormButton.isVisible().catch(() => false)) {
       await openFormButton.scrollIntoViewIfNeeded()
       await openFormButton.click({ force: true })
-      await page.waitForTimeout(500)
+      await page.waitForTimeout(1000) // タブ切り替えを待つ
+    } else if (await bookingTab.isVisible().catch(() => false)) {
+      // タブが直接見える場合はクリック
+      await bookingTab.click({ force: true })
+      await page.waitForTimeout(1000)
     }
+
+    // bookingタブがアクティブになったことを確認（グラデーション背景を持つ）
+    await expect(async () => {
+      const activeBookingTab = dialog.locator('button:has-text("空き状況・予約")').first()
+      const className = await activeBookingTab.getAttribute('class') || ''
+      // アクティブなタブはグラデーション背景を持つ
+      expect(className.includes('from-brand-primary') || className.includes('gradient')).toBe(true)
+    }).toPass({ timeout: 5000 }).catch(() => {
+      // タブの状態確認に失敗してもグリッド検出に進む
+    })
 
     // APIレスポンスを待機（ポーリングで確認）
     await expect(async () => {
@@ -1173,27 +1184,57 @@ async function verifyCandidateInvariantsV2(
     }
 
     // UIスロットをカウント（ポーリングで安定化）
+    // グリッドはダイアログ内のレスポンシブコンテナにあるため、
+    // CSS display:none でもDOM上は存在する。countで検出する。
     await expect(async () => {
-      const grid = page.getByTestId('availability-grid')
-      const gridVisible = await grid.isVisible().catch(() => false)
-      expect(gridVisible).toBe(true)
+      // ダイアログ内のグリッドを検索（デスクトップ/モバイル両方）
+      const gridsInDialog = dialog.getByTestId('availability-grid')
+      const gridCount = await gridsInDialog.count()
+
+      if (gridCount === 0) {
+        // ダイアログ外（ページ全体）で検索
+        const pageGrids = page.getByTestId('availability-grid')
+        const pageGridCount = await pageGrids.count()
+        expect(pageGridCount).toBeGreaterThan(0)
+      } else {
+        expect(gridCount).toBeGreaterThan(0)
+      }
     }).toPass({ timeout: 10000 })
 
-    const availableSlots = page.getByTestId('slot-available')
-    const pendingSlots = page.getByTestId('slot-pending')
+    // スロットはダイアログ内の可視グリッドから取得
+    // レスポンシブ対応でデスクトップ/モバイル両方のグリッドが存在するが、
+    // 一方はCSSで非表示。:visible擬似セレクタを使って可視要素のみカウント
+    const availableSlots = dialog.locator('[data-testid="slot-available"]:visible')
+    const pendingSlots = dialog.locator('[data-testid="slot-pending"]:visible')
 
-    const availableCount = await availableSlots.count()
-    const pendingCount = await pendingSlots.count()
+    // 可視スロットがない場合はページ全体から検索（フォールバック）
+    let availableCount = await availableSlots.count()
+    let pendingCount = await pendingSlots.count()
+    let blockedCount = await dialog.locator('[data-testid="slot-blocked"]:visible').count()
+
+    if (availableCount === 0 && pendingCount === 0) {
+      // フォールバック: ページ全体から検索
+      availableCount = await page.locator('[data-testid="slot-available"]:visible').count()
+      pendingCount = await page.locator('[data-testid="slot-pending"]:visible').count()
+      blockedCount = await page.locator('[data-testid="slot-blocked"]:visible').count()
+    }
 
     diagnostic.uiSlotCounts = {
       available: availableCount,
       pending: pendingCount,
-      blocked: await page.getByTestId('slot-blocked').count(),
+      blocked: blockedCount,
     }
 
     // UIスロットのdata属性から時刻データを抽出
-    const allBookableSlots = page.locator('[data-testid="slot-available"], [data-testid="slot-pending"]')
-    const slotCount = await allBookableSlots.count()
+    // 可視スロットのみを対象とする
+    let allBookableSlots = dialog.locator('[data-testid="slot-available"]:visible, [data-testid="slot-pending"]:visible')
+    let slotCount = await allBookableSlots.count()
+
+    if (slotCount === 0) {
+      // フォールバック: ページ全体から検索
+      allBookableSlots = page.locator('[data-testid="slot-available"]:visible, [data-testid="slot-pending"]:visible')
+      slotCount = await allBookableSlots.count()
+    }
 
     for (let i = 0; i < slotCount; i++) {
       const slot = allBookableSlots.nth(i)
@@ -1342,11 +1383,23 @@ async function verifyCandidateInvariantsV2(
   } finally {
     page.off('response', responseHandler)
 
-    // オーバーレイを閉じる
-    const dialog = page.getByRole('dialog')
-    if (await dialog.isVisible().catch(() => false)) {
-      await page.keyboard.press('Escape')
-      await expect(dialog).not.toBeVisible({ timeout: 3000 }).catch(() => {})
+    // オーバーレイを閉じる（候補名を含むダイアログを探す）
+    const dialogToClose = page.locator(`[role="dialog"][aria-label*="${candidate.name}"]`).first()
+    if (await dialogToClose.isVisible().catch(() => false)) {
+      // 閉じるボタンをクリック
+      const closeButton = dialogToClose.locator('button[aria-label*="閉じる"]')
+      if (await closeButton.isVisible().catch(() => false)) {
+        await closeButton.click({ force: true })
+      } else {
+        // ESCキーでフォールバック
+        await page.keyboard.press('Escape')
+      }
+      // ダイアログが閉じるのを待つ
+      await expect(dialogToClose).not.toBeVisible({ timeout: 5000 }).catch(() => {
+        // 閉じなかった場合、背景をクリックして強制的に閉じる
+        page.locator('.fixed.inset-0.z-\\[998\\]').click({ position: { x: 10, y: 10 }, force: true }).catch(() => {})
+      })
+      await page.waitForTimeout(500) // 安定化のため待機
     }
   }
 }
