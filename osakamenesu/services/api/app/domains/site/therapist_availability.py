@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Any, Iterable
+from typing import Any, Iterable, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -208,15 +208,51 @@ class AvailabilitySummaryResponse(BaseModel):
     items: list[AvailabilitySummaryItem]
 
 
+# ステータス定義: open=予約可, tentative=要確認, blocked=予約不可
+AvailabilitySlotStatus = Literal["open", "tentative", "blocked"]
+
+
 class AvailabilitySlot(BaseModel):
     start_at: datetime = Field(..., description="ISO datetime of the available start")
     end_at: datetime = Field(..., description="ISO datetime of the available end")
+    status: AvailabilitySlotStatus = Field(
+        default="open",
+        description="Slot status: open=available, tentative=needs confirmation, blocked=unavailable",
+    )
 
 
 class AvailabilitySlotsResponse(BaseModel):
     therapist_id: UUID
     date: date
     slots: list[AvailabilitySlot]
+
+
+def determine_slot_status(
+    slot_start: datetime,
+    slot_end: datetime,
+    now: datetime | None = None,
+) -> AvailabilitySlotStatus:
+    """
+    スロットのステータスを決定する。
+
+    Rules:
+    - 過去のスロット（end_at <= now）→ blocked
+    - それ以外 → open
+
+    Note: tentative ステータスは将来的に予約中（未確定）の場合に使用予定
+    """
+    if now is None:
+        now = datetime.now(JST)
+
+    # Ensure timezone-aware comparison
+    slot_end_aware = slot_end if slot_end.tzinfo else slot_end.replace(tzinfo=JST)
+    now_aware = now if now.tzinfo else now.replace(tzinfo=JST)
+
+    # 過去のスロットは blocked
+    if slot_end_aware <= now_aware:
+        return "blocked"
+
+    return "open"
 
 
 def _ensure_aware(dt: datetime) -> datetime:
@@ -531,8 +567,119 @@ async def get_availability_slots_api(
             detail="therapist_not_found",
         )
     slots = await list_daily_slots(db, resolved_id, date)
+    now = datetime.now(JST)
     return AvailabilitySlotsResponse(
         therapist_id=resolved_id,
         date=date,
-        slots=[AvailabilitySlot(start_at=start, end_at=end) for start, end in slots],
+        slots=[
+            AvailabilitySlot(
+                start_at=start,
+                end_at=end,
+                status=determine_slot_status(start, end, now),
+            )
+            for start, end in slots
+        ],
+    )
+
+
+class SlotVerificationResponse(BaseModel):
+    """スロット検証結果"""
+
+    therapist_id: UUID
+    start_at: datetime
+    end_at: datetime
+    status: AvailabilitySlotStatus
+    verified_at: datetime = Field(..., description="Verification timestamp in JST")
+    is_available: bool = Field(..., description="True if slot can be booked")
+
+
+@router.get(
+    "/{therapist_id}/verify_slot",
+    response_model=SlotVerificationResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        409: {
+            "description": "Slot is no longer available",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "slot_unavailable",
+                        "status": "blocked",
+                        "conflicted_at": "2025-01-01T12:00:00+09:00",
+                    }
+                }
+            },
+        }
+    },
+)
+async def verify_slot_api(
+    therapist_id: str,
+    start_at: datetime = Query(..., description="Slot start time (ISO format)"),
+    db: AsyncSession = Depends(get_session),
+):
+    """
+    予約前にスロットの最新状態を検証する。
+
+    - 200: スロットが予約可能
+    - 409: スロットが予約不可（他の予約が入った等）
+    """
+    resolved_id = await resolve_therapist_id(db, therapist_id)
+    if not resolved_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="therapist_not_found",
+        )
+
+    now = datetime.now(JST)
+
+    # start_at から日付を取得してスロット一覧を取得
+    target_date = (
+        start_at.date() if start_at.tzinfo else start_at.replace(tzinfo=JST).date()
+    )
+    slots = await list_daily_slots(db, resolved_id, target_date)
+
+    # 指定された start_at に一致するスロットを検索
+    matching_slot = None
+    start_at_aware = start_at if start_at.tzinfo else start_at.replace(tzinfo=JST)
+
+    for slot_start, slot_end in slots:
+        slot_start_aware = (
+            slot_start if slot_start.tzinfo else slot_start.replace(tzinfo=JST)
+        )
+        # タイムスタンプが一致するか確認（秒単位で比較）
+        if abs((slot_start_aware - start_at_aware).total_seconds()) < 60:
+            matching_slot = (slot_start, slot_end)
+            break
+
+    if not matching_slot:
+        # スロットが存在しない（予約済み or シフト外）
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "detail": "slot_unavailable",
+                "status": "blocked",
+                "conflicted_at": now.isoformat(),
+            },
+        )
+
+    slot_start, slot_end = matching_slot
+    slot_status = determine_slot_status(slot_start, slot_end, now)
+
+    if slot_status == "blocked":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "detail": "slot_unavailable",
+                "status": slot_status,
+                "conflicted_at": now.isoformat(),
+            },
+        )
+
+    return SlotVerificationResponse(
+        therapist_id=resolved_id,
+        start_at=slot_start,
+        end_at=slot_end,
+        status=slot_status,
+        verified_at=now,
+        is_available=slot_status in ("open", "tentative"),
     )
