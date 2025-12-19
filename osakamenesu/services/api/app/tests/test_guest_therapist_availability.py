@@ -302,8 +302,9 @@ def test_availability_slots_includes_status_field(
     assert len(slots) == 1
 
     # Verify status field exists and has valid value
+    # Final Decision: API returns "open" | "blocked" only (tentative is UI-only)
     assert "status" in slots[0]
-    assert slots[0]["status"] in ("open", "tentative", "blocked")
+    assert slots[0]["status"] in ("open", "blocked")
 
 
 def test_determine_slot_status_past_returns_blocked() -> None:
@@ -398,3 +399,151 @@ def test_verify_slot_returns_409_when_unavailable(
     assert body["detail"] == "slot_unavailable"
     assert body["status"] == "blocked"
     assert "conflicted_at" in body
+
+
+# =============================================================================
+# Final Decision Tests
+# =============================================================================
+
+
+def test_api_contract_status_no_tentative(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Final Decision: API response must NOT include 'tentative' status.
+    tentative is UI-only state.
+    """
+    day = date(2025, 1, 10)
+    shift = _shift(day, 10, 14)
+
+    async def fake_fetch_shifts(db, therapist_id, date_from, date_to):
+        return [shift]
+
+    async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
+        return []
+
+    monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
+    monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
+
+    res = client.get(
+        f"/api/guest/therapists/{THERAPIST_ID}/availability_slots",
+        params={"date": str(day)},
+    )
+    assert res.status_code == 200
+    slots = res.json()["slots"]
+
+    # Verify no slot has 'tentative' status
+    for slot in slots:
+        assert slot["status"] != "tentative", "API must not return tentative status"
+        assert slot["status"] in ("open", "blocked")
+
+
+def test_break_slots_iso_format() -> None:
+    """
+    Final Decision: break_slots with ISO 8601 format (start_at/end_at).
+    """
+    from app.domains.site.therapist_availability import _parse_breaks
+
+    shift_date = date(2025, 1, 15)
+    break_slots = [
+        {
+            "start_at": "2025-01-15T12:00:00+09:00",
+            "end_at": "2025-01-15T12:30:00+09:00",
+        }
+    ]
+
+    result = _parse_breaks(break_slots, shift_date)
+    assert len(result) == 1
+    start, end = result[0]
+    assert start.hour == 12
+    assert start.minute == 0
+    assert end.hour == 12
+    assert end.minute == 30
+
+
+def test_break_slots_legacy_hhmm_format() -> None:
+    """
+    Final Decision: break_slots with legacy HH:MM format (start_time/end_time).
+    Should fallback when ISO format is not available.
+    """
+    from app.domains.site.therapist_availability import _parse_breaks
+
+    shift_date = date(2025, 1, 15)
+    break_slots = [
+        {
+            "start_time": "12:00",
+            "end_time": "13:00",
+            "description": "昼休憩",
+        }
+    ]
+
+    result = _parse_breaks(break_slots, shift_date)
+    assert len(result) == 1
+    start, end = result[0]
+    assert start.hour == 12
+    assert start.minute == 0
+    assert end.hour == 13
+    assert end.minute == 0
+
+
+def test_break_slots_iso_priority_over_legacy() -> None:
+    """
+    Final Decision: ISO format takes priority over legacy HH:MM format.
+    """
+    from app.domains.site.therapist_availability import _parse_breaks
+
+    shift_date = date(2025, 1, 15)
+    # Both formats provided - ISO should win
+    break_slots = [
+        {
+            "start_at": "2025-01-15T14:00:00+09:00",
+            "end_at": "2025-01-15T14:30:00+09:00",
+            "start_time": "12:00",  # Should be ignored
+            "end_time": "13:00",  # Should be ignored
+        }
+    ]
+
+    result = _parse_breaks(break_slots, shift_date)
+    assert len(result) == 1
+    start, end = result[0]
+    # Should use ISO format (14:00-14:30), not legacy (12:00-13:00)
+    assert start.hour == 14
+    assert start.minute == 0
+    assert end.hour == 14
+    assert end.minute == 30
+
+
+def test_status_mapping_available_to_open() -> None:
+    """
+    Final Decision: DB status 'available' should map to API status 'open'.
+    """
+    from app.domains.site.services.shop.availability import convert_slots
+
+    slots_json = [
+        {
+            "start_at": "2025-01-15T10:00:00+09:00",
+            "end_at": "2025-01-15T11:00:00+09:00",
+            "status": "available",  # DB status
+        }
+    ]
+
+    result = convert_slots(slots_json)
+    assert len(result) == 1
+    assert result[0].status == "open"  # API status
+
+
+def test_status_mapping_busy_to_blocked() -> None:
+    """
+    Final Decision: DB status 'busy' should map to API status 'blocked'.
+    """
+    from app.domains.site.services.shop.availability import convert_slots
+
+    slots_json = [
+        {
+            "start_at": "2025-01-15T10:00:00+09:00",
+            "end_at": "2025-01-15T11:00:00+09:00",
+            "status": "busy",  # DB status
+        }
+    ]
+
+    result = convert_slots(slots_json)
+    assert len(result) == 1
+    assert result[0].status == "blocked"  # API status

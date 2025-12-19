@@ -4,6 +4,48 @@
 
 本タスクリストは、requirements.mdとdesign.mdで定義された仕様を実装するための具体的な作業項目を示す。各タスクは独立して実行可能で、段階的にシステムを改善できるよう設計されている。
 
+## Phase 0: 仕様整合確認（最優先）
+
+### 0.1 Final Decisions 文書化完了確認
+
+- [ ] **requirements.md に Final decisions (Overrides) セクション追加**
+  - break_slots ISO 8601 形式の最終決定
+  - tentative フロントエンド専用の最終決定
+  - reserved_until 設計の最終決定
+  - availability_status 用語マッピングの最終決定
+  - _要件: 曖昧性解決の文書化_
+
+- [ ] **design.md に Terminology & Mapping (Final) セクション追加**
+  - DB語彙とAPI/UI語彙のマッピング表
+  - ステータス管理レイヤー分離の明文化
+  - _要件: 用語統一の文書化_
+
+- [ ] **design.md に reserved_until validity (Final) セクション追加**
+  - 判定フローの箇条書き固定
+  - 設定ルールの明文化
+  - _要件: reserved_until 設計の文書化_
+
+### 0.2 Legacy/Deprecated 表記追加
+
+- [ ] **Legacy 形式の非推奨表記**
+  - HH:MM形式 break_slots を Deprecated として明記
+  - tentative 含む enum を Legacy として明記
+  - 新規実装では Final decisions に従うことを明記
+  - _要件: 既存仕様との整合性確保_
+
+### 0.3 API Contract 整合性確認
+
+- [ ] **status enum から tentative 除外前提の確認**
+  - APIレスポンス型定義の確認
+  - フロントエンド専用 tentative の動作確認
+  - バックエンドが tentative を認識しないことの確認
+  - _要件: API契約の整合性確保（実装ではなく仕様整合確認）_
+
+- [ ] **break_slots ISO 8601 形式の受け入れ確認**
+  - 既存パーサーの ISO 8601 対応確認
+  - タイムゾーン情報（+09:00）の処理確認
+  - _要件: データ形式の整合性確保（実装ではなく仕様整合確認）_
+
 ## Phase 1: API修正（高優先度）
 
 ### 1.1 AvailabilitySlotsResponse に status フィールド追加

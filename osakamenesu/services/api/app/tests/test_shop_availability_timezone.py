@@ -30,10 +30,11 @@ def test_convert_slots_normalizes_z_suffix_to_jst():
 
 
 def test_build_next_slot_candidate_outputs_jst_datetime():
+    # Final Decision: API status is "open" | "blocked" only (tentative is UI-only)
     slot = AvailabilitySlot(
         start_at=datetime(2025, 1, 5, 10, 0),
         end_at=datetime(2025, 1, 5, 11, 0),
-        status="tentative",
+        status="open",
     )
     now_value = ensure_jst_datetime(datetime(2025, 1, 5, 9, 30))
 
@@ -46,7 +47,7 @@ def test_build_next_slot_candidate_outputs_jst_datetime():
     assert comparable.tzinfo == JST
     assert payload.start_at.tzinfo == JST
     assert payload.start_at.isoformat().endswith("+09:00")
-    assert payload.status == "maybe"
+    assert payload.status == "ok"
 
 
 def test_build_next_slot_candidate_rejects_past_slot_with_jst():

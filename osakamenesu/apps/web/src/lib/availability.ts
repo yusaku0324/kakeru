@@ -14,6 +14,19 @@ import { today as jstToday, extractDate, extractTime } from '@/lib/jst'
 // 型定義
 // =============================================================================
 
+/**
+ * API Response Status: "open" | "blocked" のみ
+ * Final Decision: tentative は API response に含まれない
+ */
+export type ApiAvailabilityStatus = 'open' | 'blocked'
+
+/**
+ * UI State Status: "open" | "tentative" | "blocked"
+ * Final Decision: tentative は UI-only state（ユーザーが選択した状態）
+ * - open: 予約可能な時間枠（APIから取得）
+ * - tentative: ユーザーが選択中の時間枠（フロントエンドのみ）
+ * - blocked: 予約済み/利用不可の時間枠（APIから取得）
+ */
 export type AvailabilityStatus = 'open' | 'tentative' | 'blocked'
 
 /** blocked を除いた選択可能なステータス */
@@ -64,12 +77,23 @@ export type DisplayAvailabilityDay = Omit<NormalizedAvailabilityDay, 'is_today' 
 
 /**
  * APIから返されるステータス値を正規化
+ *
+ * Final Decision: API returns "open" | "blocked" only.
+ * - available/ok → open (DB語彙のマッピング)
+ * - busy/unavailable → blocked (DB語彙のマッピング)
+ * - tentative は API から返されない（UI-only state）
+ *
+ * Note: 既存の tentative/maybe 処理は後方互換性のために残すが、
+ * 新しいAPIでは使用されない
  */
 export function normalizeSlotStatus(rawStatus?: string | null): AvailabilityStatus {
   const status = (rawStatus ?? 'open').toLowerCase()
+  // Final Decision: DB "available" → API "open"
   if (status === 'open' || status === 'available' || status === 'ok') return 'open'
+  // Final Decision: DB "busy" → API "blocked"
+  if (status === 'blocked' || status === 'busy' || status === 'unavailable') return 'blocked'
+  // Legacy fallback (tentative is UI-only, should not come from API)
   if (status === 'tentative' || status === 'maybe') return 'tentative'
-  if (status === 'blocked' || status === 'unavailable') return 'blocked'
   return 'open' // デフォルト
 }
 

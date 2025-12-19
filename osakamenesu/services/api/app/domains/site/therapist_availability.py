@@ -172,7 +172,7 @@ async def is_available(
         buffered_end = end_at + buffer_delta
 
         # 2) 休憩との重なり（バッファ込みでチェック）
-        breaks = _parse_breaks(shift.break_slots)
+        breaks = _parse_breaks(shift.break_slots, shift.date)
         for br_start_dt, br_end_dt in breaks:
             if _overlaps(buffered_start, buffered_end, br_start_dt, br_end_dt):
                 return False, {"rejected_reasons": ["on_break"]}
@@ -264,30 +264,62 @@ def _ensure_aware(dt: datetime) -> datetime:
 
 def _parse_breaks(
     break_slots: Iterable[dict[str, Any]] | None,
+    shift_date: date | None = None,
 ) -> list[tuple[datetime, datetime]]:
-    """Parse break slots and ensure all datetimes are timezone-aware (JST if naive)."""
+    """Parse break slots and ensure all datetimes are timezone-aware (JST if naive).
+
+    Final Decision: break_slots format priority:
+    1. ISO 8601 format (start_at/end_at with +09:00) - canonical
+    2. Legacy HH:MM format (start_time/end_time) - fallback, requires shift_date
+    """
     parsed: list[tuple[datetime, datetime]] = []
     for br in break_slots or []:
+        start_dt: datetime | None = None
+        end_dt: datetime | None = None
+
+        # Priority 1: ISO 8601 format (start_at/end_at)
         start_raw = br.get("start_at")
         end_raw = br.get("end_at")
-        if not start_raw or not end_raw:
+        if start_raw and end_raw:
+            try:
+                start_dt = (
+                    start_raw
+                    if isinstance(start_raw, datetime)
+                    else datetime.fromisoformat(start_raw)
+                )
+                end_dt = (
+                    end_raw
+                    if isinstance(end_raw, datetime)
+                    else datetime.fromisoformat(end_raw)
+                )
+            except Exception:
+                start_dt = None
+                end_dt = None
+
+        # Priority 2: Legacy HH:MM format (start_time/end_time)
+        if start_dt is None or end_dt is None:
+            start_time_raw = br.get("start_time")
+            end_time_raw = br.get("end_time")
+            if start_time_raw and end_time_raw and shift_date:
+                try:
+                    # Parse HH:MM format
+                    start_time = time.fromisoformat(start_time_raw)
+                    end_time = time.fromisoformat(end_time_raw)
+                    # Combine with shift_date and JST timezone
+                    start_dt = datetime.combine(shift_date, start_time).replace(
+                        tzinfo=JST
+                    )
+                    end_dt = datetime.combine(shift_date, end_time).replace(tzinfo=JST)
+                except Exception:
+                    continue
+
+        if start_dt is None or end_dt is None:
             continue
-        try:
-            start_dt = (
-                start_raw
-                if isinstance(start_raw, datetime)
-                else datetime.fromisoformat(start_raw)
-            )
-            end_dt = (
-                end_raw
-                if isinstance(end_raw, datetime)
-                else datetime.fromisoformat(end_raw)
-            )
-            # Ensure timezone-aware (naive datetimes are treated as JST)
-            start_dt = _ensure_aware(start_dt)
-            end_dt = _ensure_aware(end_dt)
-        except Exception:
-            continue
+
+        # Ensure timezone-aware (naive datetimes are treated as JST)
+        start_dt = _ensure_aware(start_dt)
+        end_dt = _ensure_aware(end_dt)
+
         if start_dt >= end_dt:
             continue
         parsed.append((start_dt, end_dt))
@@ -390,7 +422,7 @@ def _calculate_available_slots(
         shift_start = _ensure_aware(shift.start_at)
         shift_end = _ensure_aware(shift.end_at)
         base_intervals = [(shift_start, shift_end)]
-        breaks = _parse_breaks(shift.break_slots)
+        breaks = _parse_breaks(shift.break_slots, shift.date)
         base_minus_breaks = _subtract_intervals(base_intervals, breaks)
         intervals.extend(base_minus_breaks)
 
