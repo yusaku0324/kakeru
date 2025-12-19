@@ -15,7 +15,7 @@ from .settings import settings
 logger = logging.getLogger("app.review_notifications")
 
 EMAIL_ENDPOINT = getattr(settings, "notify_email_endpoint", None)
-LINE_ENDPOINT = getattr(settings, "notify_line_endpoint", None)
+LINE_NOTIFY_API_URL = "https://notify-api.line.me/api/notify"
 
 
 async def _post_json(url: str, payload: Dict[str, Any]) -> httpx.Response:
@@ -86,35 +86,53 @@ async def _send_review_notification_email(
         return False
 
 
+def _build_line_review_message(review: models.Review, shop_name: str) -> str:
+    """Build a LINE-formatted message for review notification."""
+    score_stars = "★" * review.score + "☆" * (5 - review.score)
+    return f"""
+📝 新しい口コミが投稿されました
+
+📍 {shop_name}
+⭐ {score_stars} ({review.score}点)
+👤 {review.author_alias or "匿名"}
+📋 {review.title or "-"}
+
+{review.body[:100]}{"..." if len(review.body) > 100 else ""}
+
+ダッシュボードから承認・非承認を設定してください。
+""".strip()
+
+
 async def _send_review_notification_line(
     token: str,
     review: models.Review,
     shop_name: str,
 ) -> bool:
-    if not LINE_ENDPOINT:
-        logger.debug("line endpoint not configured, skipping line notification")
-        return False
-
     if not token:
         return False
 
-    message = _build_review_notification_message(review, shop_name)
+    message = _build_line_review_message(review, shop_name)
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
 
     try:
-        await _post_json(
-            LINE_ENDPOINT,
-            {
-                "message": message,
-                "token": token,
-                "review_id": str(review.id),
-                "shop_id": str(review.profile_id),
-            },
-        )
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                LINE_NOTIFY_API_URL,
+                headers=headers,
+                data={"message": message},
+            )
+            response.raise_for_status()
+
         logger.info(
             "review_notification_line_sent",
             extra={
                 "review_id": str(review.id),
                 "shop_id": str(review.profile_id),
+                "status_code": response.status_code,
             },
         )
         return True
