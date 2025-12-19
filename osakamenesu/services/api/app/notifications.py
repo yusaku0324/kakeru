@@ -14,12 +14,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from . import models
 from .db import SessionLocal
 from .settings import settings
+from .utils.email import send_email_async, MailNotConfiguredError
 
 logger = logging.getLogger("app.notifications")
 
 SLACK_WEBHOOK = getattr(settings, "slack_webhook_url", None)
 EMAIL_ENDPOINT = getattr(settings, "notify_email_endpoint", None)
 LINE_ENDPOINT = getattr(settings, "notify_line_endpoint", None)
+# Check if Resend email is configured
+RESEND_CONFIGURED = bool(settings.mail_api_key)
 
 
 __all__ = (
@@ -100,11 +103,14 @@ def _channel_configs(
     if slack_url:
         configs.append(("slack", {"webhook_url": slack_url}))
 
-    if EMAIL_ENDPOINT:
-        recipients = [
-            addr for addr in (payload.email_recipients or []) if isinstance(addr, str)
-        ]
-        configs.append(("email", {"recipients": recipients}))
+    # Email channel: prefer Resend direct send, fall back to endpoint if configured
+    recipients = [
+        addr for addr in (payload.email_recipients or []) if isinstance(addr, str)
+    ]
+    if recipients and (RESEND_CONFIGURED or EMAIL_ENDPOINT):
+        configs.append(
+            ("email", {"recipients": recipients, "use_resend": RESEND_CONFIGURED})
+        )
 
     line_token = payload.line_notify_token
     if LINE_ENDPOINT and line_token:
@@ -186,25 +192,116 @@ async def _send_via_slack(
     return await _post_json(webhook, slack_payload)
 
 
+def _build_email_html(payload: ReservationNotification, message: str) -> str:
+    """Build HTML email body for reservation notification."""
+    status_label = {
+        "pending": "受付中",
+        "confirmed": "確定",
+        "declined": "お断り",
+        "cancelled": "キャンセル",
+        "expired": "期限切れ",
+    }.get(payload.status, payload.status)
+
+    return f"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {{ font-family: sans-serif; line-height: 1.6; color: #333; }}
+    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+    .header {{ background: #4A90A4; color: white; padding: 20px; text-align: center; }}
+    .content {{ padding: 20px; background: #f9f9f9; }}
+    .info-row {{ padding: 8px 0; border-bottom: 1px solid #eee; }}
+    .label {{ font-weight: bold; color: #666; }}
+    .status {{ display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; }}
+    .status-pending {{ background: #FEF3C7; color: #92400E; }}
+    .status-confirmed {{ background: #D1FAE5; color: #065F46; }}
+    .status-declined {{ background: #FEE2E2; color: #991B1B; }}
+    .footer {{ padding: 20px; text-align: center; font-size: 12px; color: #666; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>予約通知</h1>
+    </div>
+    <div class="content">
+      <div class="info-row">
+        <span class="label">店舗:</span> {payload.shop_name}
+      </div>
+      <div class="info-row">
+        <span class="label">ステータス:</span>
+        <span class="status status-{payload.status}">{status_label}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">来店希望日時:</span> {payload.desired_start} 〜 {payload.desired_end}
+      </div>
+      <div class="info-row">
+        <span class="label">お客様名:</span> {payload.customer_name}
+      </div>
+      <div class="info-row">
+        <span class="label">電話番号:</span> {payload.customer_phone}
+      </div>
+      {f'<div class="info-row"><span class="label">メモ:</span> {payload.notes}</div>' if payload.notes else ""}
+    </div>
+    <div class="footer">
+      このメールは大阪メンエス.comから自動送信されています。
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+
 async def _send_via_email(
     payload: ReservationNotification,
     message: str,
     config: Dict[str, Any],
 ) -> Optional[httpx.Response]:
+    recipients = [
+        addr for addr in config.get("recipients", []) if isinstance(addr, str)
+    ]
+    if not recipients:
+        raise ValueError("email recipients list is empty")
+
+    use_resend = config.get("use_resend", False)
+    subject = f"予約更新: {payload.shop_name} ({payload.status})"
+
+    # Use Resend direct send if configured
+    if use_resend:
+        html = _build_email_html(payload, message)
+        try:
+            await send_email_async(
+                to=recipients,
+                subject=subject,
+                html=html,
+                text=message,
+                tags=["reservation", payload.status],
+            )
+            logger.info(
+                "email_sent_via_resend",
+                extra={
+                    "recipients": recipients,
+                    "reservation_id": payload.reservation_id,
+                },
+            )
+            return None  # Resend doesn't return httpx.Response
+        except MailNotConfiguredError:
+            logger.warning("resend_not_configured, falling back to endpoint")
+            # Fall through to endpoint-based send
+
+    # Fallback to endpoint-based send
     if not EMAIL_ENDPOINT:
         raise RuntimeError("email notification endpoint is not configured")
 
     email_payload: Dict[str, Any] = {
-        "subject": f"予約更新: {payload.shop_name} ({payload.status})",
+        "subject": subject,
         "message": message,
         "reservation_id": payload.reservation_id,
         "shop_id": payload.shop_id,
+        "recipients": recipients,
     }
-    recipients = [
-        addr for addr in config.get("recipients", []) if isinstance(addr, str)
-    ]
-    if recipients:
-        email_payload["recipients"] = recipients
 
     return await _post_json(EMAIL_ENDPOINT, email_payload)
 
