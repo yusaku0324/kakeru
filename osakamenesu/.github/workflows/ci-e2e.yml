@@ -46,4 +46,4 @@ jobs:
           E2E_BASE_URL: https://osakamenesu.com
           E2E_API_BASE: https://api.osakamenesu.com
           E2E_SEED_TOKEN: ${{ secrets.E2E_SEED_TOKEN }}
-        run: pnpm exec playwright test e2e/shift-to-availability-sync.spec.ts e2e/search-no-results.spec.ts e2e/search-card-availability-consistency.spec.ts e2e/shift-to-public-ui-consistency.spec.ts --reporter=line --timeout=120000
+        run: pnpm exec playwright test e2e/shift-to-availability-sync.spec.ts e2e/search-card-availability-consistency.spec.ts e2e/shift-to-public-ui-consistency.spec.ts e2e/jst-date-consistency.spec.ts --reporter=line --timeout=120000
