@@ -134,15 +134,15 @@ export function ReservationModal({
             <h2 id="reservation-modal-title" className="text-lg font-semibold text-neutral-900">
               予約詳細
             </h2>
-            <p className="text-xs text-neutral-500">予約ID: {reservation.id}</p>
+            <p className="text-xs text-neutral-600">予約ID: {reservation.id}</p>
             {filterSummary ? (
-              <p className="mt-1 text-[11px] text-neutral-500">現在の表示条件: {filterSummary}</p>
+              <p className="mt-1 text-[11px] text-neutral-600">現在の表示条件: {filterSummary}</p>
             ) : null}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
+            className="rounded-full p-2 text-neutral-600 transition hover:bg-neutral-100 hover:text-neutral-800"
             aria-label="予約詳細モーダルを閉じる"
           >
             ✕
@@ -165,7 +165,7 @@ export function ReservationModal({
 
           <div className="grid gap-4 text-sm text-neutral-700 md:grid-cols-2">
             <div className="space-y-1">
-              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-600">
                 希望日時
               </div>
               <div>
@@ -177,7 +177,7 @@ export function ReservationModal({
               </div>
             </div>
             <div className="space-y-1">
-              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-600">
                 連絡先
               </div>
               <div className="space-y-1">
@@ -187,7 +187,7 @@ export function ReservationModal({
             </div>
             {preferredSlots.length ? (
               <div className="space-y-1 md:col-span-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-600">
                   候補日時
                 </div>
                 <div className="space-y-1 whitespace-pre-line rounded-2xl border border-dashed border-neutral-300 bg-neutral-50/80 px-4 py-3 text-sm">
@@ -197,7 +197,7 @@ export function ReservationModal({
             ) : null}
             {reservation.notes ? (
               <div className="space-y-1 md:col-span-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-600">
                   メモ
                 </div>
                 <p className="whitespace-pre-line rounded-2xl bg-neutral-50 px-4 py-3 text-sm text-neutral-700">

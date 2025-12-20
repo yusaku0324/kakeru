@@ -88,10 +88,11 @@ export default function SimilarTherapists({
                 {therapist.photos && therapist.photos.length > 0 ? (
                   <Image
                     src={therapist.photos[0]}
-                    alt={therapist.name}
+                    alt={`${therapist.name}の写真`}
                     width={300}
                     height={192}
                     className="w-full h-48 object-cover"
+                    loading="lazy"
                   />
                 ) : (
                   <div className="w-full h-48 bg-gray-200 flex items-center justify-center">

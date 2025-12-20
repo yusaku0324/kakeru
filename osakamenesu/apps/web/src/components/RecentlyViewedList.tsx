@@ -135,7 +135,7 @@ export default function RecentlyViewedList({ className }: Props) {
                     </div>
                     {item.area ? <div className="text-xs text-neutral-600">{item.area}</div> : null}
                     {viewedLabel ? (
-                      <div className="text-xs text-neutral-500">最終閲覧: {viewedLabel}</div>
+                      <div className="text-xs text-neutral-600">最終閲覧: {viewedLabel}</div>
                     ) : null}
                   </div>
                 </Link>

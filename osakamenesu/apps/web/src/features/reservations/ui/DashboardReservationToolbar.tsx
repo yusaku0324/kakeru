@@ -23,7 +23,7 @@ export function DashboardReservationToolbar({
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div>
         <h3 className="text-lg font-semibold text-neutral-text">最近の予約リクエスト</h3>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-neutral-600">
           全 {total} 件中 {visibleCount} 件を表示中
         </p>
       </div>
