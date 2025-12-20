@@ -77,9 +77,10 @@ export function TagInput({
                   e.stopPropagation()
                   removeTag(index)
                 }}
+                aria-label={`${tag}を削除`}
                 className="ml-0.5 rounded-full p-0.5 text-brand-primary/60 transition hover:bg-brand-primary/20 hover:text-brand-primary"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>

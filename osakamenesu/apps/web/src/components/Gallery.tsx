@@ -137,7 +137,7 @@ export default function Gallery({ photos, altBase, id }: Props) {
             onClick={() => goTo(i)}
             data-testid="gallery-thumb"
             data-active={i === index}
-            className={`relative w-24 aspect-[4/3] shrink-0 rounded overflow-hidden ring-1 transition-all ${i === index ? 'ring-slate-900 ring-2' : 'ring-slate-200 hover:ring-brand-primary/50 hover:shadow-md'}`}
+            className={`relative w-24 aspect-[4/3] shrink-0 rounded overflow-hidden ring-1 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary ${i === index ? 'ring-slate-900 ring-2' : 'ring-slate-200 hover:ring-brand-primary/50 hover:shadow-md'}`}
           >
             <SafeImage
               src={src}
@@ -192,11 +192,11 @@ export default function Gallery({ photos, altBase, id }: Props) {
           {photos.map((_, i) => (
             <button
               key={i}
-              aria-label={`go to ${i + 1}`}
+              aria-label={`${i + 1}枚目に移動`}
               onClick={() => goTo(i)}
               data-testid="gallery-dot"
               data-active={i === index}
-              className={`h-2 w-2 rounded-full transition-all ${i === index ? 'bg-slate-900 scale-125' : 'bg-slate-300 hover:bg-brand-primary/50'}`}
+              className={`h-2 w-2 rounded-full transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary ${i === index ? 'bg-slate-900 scale-125' : 'bg-slate-300 hover:bg-brand-primary/50'}`}
             />
           ))}
         </div>
@@ -209,7 +209,7 @@ export default function Gallery({ photos, altBase, id }: Props) {
               onClick={() => goTo(i)}
               data-testid="gallery-thumb"
               data-active={i === index}
-              className={`relative h-16 w-20 shrink-0 rounded overflow-hidden ring-1 transition-all ${i === index ? 'ring-slate-900 ring-2' : 'ring-slate-200 hover:ring-brand-primary/50 hover:shadow-md'}`}
+              className={`relative h-16 w-20 shrink-0 rounded overflow-hidden ring-1 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary ${i === index ? 'ring-slate-900 ring-2' : 'ring-slate-200 hover:ring-brand-primary/50 hover:shadow-md'}`}
             >
               <SafeImage
                 src={src}

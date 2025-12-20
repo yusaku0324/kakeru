@@ -63,6 +63,8 @@ export function SiteMagicLinkRequestForm() {
           <input
             type="email"
             inputMode="email"
+            autoComplete="email"
+            autoFocus
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             className="w-full rounded-full border border-white/50 bg-white/85 px-4 py-3 text-sm text-neutral-text shadow-sm transition focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
