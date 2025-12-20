@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
@@ -148,18 +148,42 @@ async def _has_overlap(
 async def list_shifts(
     therapist_id: UUID | None = None,
     date_filter: date | None = Query(default=None, alias="date"),
+    page: int = 1,
+    limit: int = 50,
     db: AsyncSession = Depends(get_session),
     _admin=Depends(require_admin),
     _audit=Depends(audit_admin),
 ):
-    stmt = select(TherapistShift)
+    # Build base query with filters
+    base_stmt = select(TherapistShift)
     if therapist_id:
-        stmt = stmt.where(TherapistShift.therapist_id == therapist_id)
+        base_stmt = base_stmt.where(TherapistShift.therapist_id == therapist_id)
     if date_filter:
-        stmt = stmt.where(TherapistShift.date == date_filter)
-    res = await db.execute(stmt.order_by(TherapistShift.start_at))
+        base_stmt = base_stmt.where(TherapistShift.date == date_filter)
+
+    # Get total count for pagination
+    count_stmt = select(func.count()).select_from(base_stmt.subquery())
+    count_res = await db.execute(count_stmt)
+    total = count_res.scalar() or 0
+
+    # Apply pagination
+    page = max(1, page)
+    limit = min(max(1, limit), 100)  # Max 100 per page
+    offset = (page - 1) * limit
+    total_pages = (total + limit - 1) // limit if total > 0 else 1
+
+    # Fetch paginated results
+    stmt = base_stmt.order_by(TherapistShift.start_at).offset(offset).limit(limit)
+    res = await db.execute(stmt)
     items = res.scalars().all()
-    return {"items": [_serialize(s) for s in items]}
+
+    return {
+        "items": [_serialize(s) for s in items],
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages,
+    }
 
 
 @router.post("/api/admin/therapist_shifts", status_code=status.HTTP_201_CREATED)

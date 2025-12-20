@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
@@ -40,6 +40,10 @@ class AdminGuestReservation(BaseModel):
 class AdminGuestReservationListResponse(BaseModel):
     items: list[AdminGuestReservation]
     summary: dict[str, int]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
 
 
 class AdminGuestReservationStatusPayload(BaseModel):
@@ -92,17 +96,36 @@ async def list_guest_reservations(
     shop_id: UUID | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    page: int = 1,
+    limit: int = 50,
     db: AsyncSession = Depends(get_session),
     _admin=Depends(require_admin),
     _audit=Depends(audit_admin),
 ):
-    stmt = select(GuestReservation).order_by(desc(GuestReservation.start_at))
+    # Build base query with filters
+    base_stmt = select(GuestReservation)
     if shop_id:
-        stmt = stmt.where(GuestReservation.shop_id == shop_id)
+        base_stmt = base_stmt.where(GuestReservation.shop_id == shop_id)
     if date_from:
-        stmt = stmt.where(GuestReservation.start_at >= date_from)
+        base_stmt = base_stmt.where(GuestReservation.start_at >= date_from)
     if date_to:
-        stmt = stmt.where(GuestReservation.start_at <= date_to)
+        base_stmt = base_stmt.where(GuestReservation.start_at <= date_to)
+
+    # Get total count for pagination
+    count_stmt = select(func.count()).select_from(base_stmt.subquery())
+    count_res = await db.execute(count_stmt)
+    total = count_res.scalar() or 0
+
+    # Apply pagination
+    page = max(1, page)
+    limit = min(max(1, limit), 100)  # Max 100 per page
+    offset = (page - 1) * limit
+    total_pages = (total + limit - 1) // limit if total > 0 else 1
+
+    # Fetch paginated results
+    stmt = (
+        base_stmt.order_by(desc(GuestReservation.start_at)).offset(offset).limit(limit)
+    )
     res = await db.execute(stmt)
     reservations = res.scalars().all()
 
@@ -120,8 +143,12 @@ async def list_guest_reservations(
         shop_res = await db.execute(select(Profile).where(Profile.id.in_(shop_ids)))
         shop_names = {s.id: s.name for s in shop_res.scalars().all()}
 
+    # Summary is still computed over full dataset for filtering purposes
+    # Fetch all for summary (without pagination)
+    all_res = await db.execute(base_stmt)
+    all_reservations = all_res.scalars().all()
     summary: dict[str, int] = {}
-    for r in reservations:
+    for r in all_reservations:
         status_value = _status_value(r)
         summary[status_value] = summary.get(status_value, 0) + 1
 
@@ -129,7 +156,14 @@ async def list_guest_reservations(
         _serialize_admin_reservation(r, therapist_names, shop_names)
         for r in reservations
     ]
-    return AdminGuestReservationListResponse(items=items, summary=summary)
+    return AdminGuestReservationListResponse(
+        items=items,
+        summary=summary,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+    )
 
 
 @router.get(
