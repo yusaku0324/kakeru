@@ -11,6 +11,12 @@ from urllib import request, parse, error
 
 
 def make_client(api_base: str, admin_key: str, authorization: Optional[str]):
+    def _headers() -> dict:
+        headers = {"X-Admin-Key": admin_key}
+        if authorization:
+            headers["Authorization"] = authorization
+        return headers
+
     def _execute(req: request.Request) -> dict:
         try:
             with request.urlopen(req) as resp:
@@ -24,38 +30,28 @@ def make_client(api_base: str, admin_key: str, authorization: Optional[str]):
     def post_json(path: str, payload: dict) -> dict:
         url = f"{api_base}{path}"
         data = json.dumps(payload).encode("utf-8")
-        headers = {
-            "Content-Type": "application/json",
-            "X-Admin-Key": admin_key,
-        }
-        if authorization:
-            headers["Authorization"] = authorization
+        headers = {**_headers(), "Content-Type": "application/json"}
         req = request.Request(url, data=data, headers=headers, method="POST")
         return _execute(req)
 
     def patch_json(path: str, payload: dict) -> dict:
         url = f"{api_base}{path}"
         data = json.dumps(payload).encode("utf-8")
-        headers = {
-            "Content-Type": "application/json",
-            "X-Admin-Key": admin_key,
-        }
-        if authorization:
-            headers["Authorization"] = authorization
+        headers = {**_headers(), "Content-Type": "application/json"}
         req = request.Request(url, data=data, headers=headers, method="PATCH")
         return _execute(req)
 
     def post_query(path: str, params: dict) -> dict:
         url = f"{api_base}{path}?{parse.urlencode(params)}"
-        headers = {
-            "X-Admin-Key": admin_key,
-        }
-        if authorization:
-            headers["Authorization"] = authorization
-        req = request.Request(url, headers=headers, method="POST")
+        req = request.Request(url, headers=_headers(), method="POST")
         return _execute(req)
 
-    return post_json, patch_json, post_query
+    def delete(path: str) -> dict:
+        url = f"{api_base}{path}"
+        req = request.Request(url, headers=_headers(), method="DELETE")
+        return _execute(req)
+
+    return post_json, patch_json, post_query, delete
 
 
 def main(argv: list[str]) -> int:
@@ -96,16 +92,42 @@ def main(argv: list[str]) -> int:
         default=os.environ.get("CLOUD_RUN_ID_TOKEN"),
         help="Identity token used as Bearer token for Cloud Run IAM auth",
     )
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Delete existing seed data before creating new data",
+    )
+    parser.add_argument(
+        "--clean-only",
+        action="store_true",
+        help="Only delete existing seed data, don't create new data",
+    )
     args = parser.parse_args(argv)
 
     auth_header = args.authorization
     if not auth_header and args.id_token:
         auth_header = f"Bearer {args.id_token}"
 
-    post_json, patch_json, post_query = make_client(
+    post_json, patch_json, post_query, delete = make_client(
         args.api_base, args.admin_key, auth_header
     )
     today = date.today().strftime("%Y-%m-%d")
+
+    # Cleanup existing seed data if requested
+    if args.clean or args.clean_only:
+        print("[info] Cleaning up existing seed data...", file=sys.stderr)
+        try:
+            result = post_query("/api/admin/seed/cleanup", {"name_pattern": "メンエス"})
+            print(
+                f"[info] Deleted {result.get('deleted_count', 0)} profiles",
+                file=sys.stderr,
+            )
+        except Exception as e:
+            print(f"[warn] Cleanup failed: {e}", file=sys.stderr)
+
+        if args.clean_only:
+            print(json.dumps({"cleaned": True}))
+            return 0
 
     names = [
         "葵",
@@ -264,6 +286,11 @@ def main(argv: list[str]) -> int:
             else []
         )
 
+        # Vary buffer_minutes for some shops (0, 15, 30 minutes)
+        buffer_minutes = [0, 15, 30][i % 3]
+        # Vary room_count (1-3 rooms)
+        room_count = 1 + (i % 3)
+
         body = {
             "name": store_name,
             "area": area,
@@ -281,6 +308,8 @@ def main(argv: list[str]) -> int:
             + (["本日注目"] if i % 4 == 0 else []),
             "ranking_weight": 100 - i,
             "status": "published",
+            "buffer_minutes": buffer_minutes,
+            "room_count": room_count,
         }
         res = post_json("/api/admin/profiles?skip_index=1", body)
         pid = res["id"]

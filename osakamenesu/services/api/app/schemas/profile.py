@@ -20,6 +20,10 @@ class ProfileCreate(BaseModel):
     ranking_badges: Optional[List[str]] = None
     ranking_weight: Optional[int] = None
     status: str = "draft"
+    buffer_minutes: Optional[int] = Field(
+        default=0, ge=0, description="予約間バッファ時間（分）"
+    )
+    room_count: Optional[int] = Field(default=1, ge=1, description="同時予約可能数")
 
 
 class DiscountIn(BaseModel):

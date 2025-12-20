@@ -92,6 +92,8 @@ async def create_profile(
         ranking_badges=payload.ranking_badges,
         ranking_weight=payload.ranking_weight,
         status=payload.status,
+        buffer_minutes=payload.buffer_minutes or 0,
+        room_count=payload.room_count or 1,
     )
     db.add(p)
     try:
@@ -168,3 +170,66 @@ async def get_profile_detail(profile_id: str, db: AsyncSession = Depends(get_ses
     except AdminServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     return detail.model_dump()
+
+
+@router.delete("/api/admin/profiles/{profile_id}", summary="Delete profile")
+async def delete_profile(
+    profile_id: uuid.UUID,
+    db: AsyncSession = Depends(get_session),
+    _=Depends(require_admin),
+    __=Depends(audit_admin),
+):
+    """Delete a profile and all related data (therapists, shifts, etc.)."""
+    profile = await db.get(models.Profile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="profile_not_found")
+
+    await db.delete(profile)
+    await db.commit()
+
+    # Remove from Meilisearch
+    from ...meili import delete_profile as meili_delete
+
+    try:
+        meili_delete(str(profile_id))
+    except Exception as e:
+        logger.warning(f"Failed to delete profile from Meilisearch: {e}")
+
+    return {"deleted": str(profile_id)}
+
+
+@router.post("/api/admin/seed/cleanup", summary="Cleanup seed data")
+async def cleanup_seed_data(
+    name_pattern: str = Query(
+        default="メンエス",
+        description="Delete profiles with names containing this pattern",
+    ),
+    db: AsyncSession = Depends(get_session),
+    _=Depends(require_admin),
+    __=Depends(audit_admin),
+):
+    """Delete all profiles matching the name pattern (for seed cleanup)."""
+    from sqlalchemy import func
+
+    # Find profiles matching the pattern
+    stmt = select(models.Profile).where(models.Profile.name.ilike(f"%{name_pattern}%"))
+    result = await db.execute(stmt)
+    profiles = result.scalars().all()
+
+    deleted_ids = []
+    for profile in profiles:
+        deleted_ids.append(str(profile.id))
+        await db.delete(profile)
+
+    await db.commit()
+
+    # Cleanup Meilisearch
+    from ...meili import delete_profile as meili_delete
+
+    for pid in deleted_ids:
+        try:
+            meili_delete(pid)
+        except Exception as e:
+            logger.warning(f"Failed to delete {pid} from Meilisearch: {e}")
+
+    return {"deleted_count": len(deleted_ids), "deleted_ids": deleted_ids}
