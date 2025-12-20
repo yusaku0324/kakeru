@@ -137,7 +137,7 @@ export default function Gallery({ photos, altBase, id }: Props) {
             onClick={() => goTo(i)}
             data-testid="gallery-thumb"
             data-active={i === index}
-            className={`relative w-24 aspect-[4/3] shrink-0 rounded overflow-hidden ring-1 ${i === index ? 'ring-slate-900' : 'ring-slate-200'}`}
+            className={`relative w-24 aspect-[4/3] shrink-0 rounded overflow-hidden ring-1 transition-all ${i === index ? 'ring-slate-900 ring-2' : 'ring-slate-200 hover:ring-brand-primary/50 hover:shadow-md'}`}
           >
             <SafeImage
               src={src}
@@ -196,7 +196,7 @@ export default function Gallery({ photos, altBase, id }: Props) {
               onClick={() => goTo(i)}
               data-testid="gallery-dot"
               data-active={i === index}
-              className={`h-2 w-2 rounded-full ${i === index ? 'bg-slate-900' : 'bg-slate-300'}`}
+              className={`h-2 w-2 rounded-full transition-all ${i === index ? 'bg-slate-900 scale-125' : 'bg-slate-300 hover:bg-brand-primary/50'}`}
             />
           ))}
         </div>
@@ -209,7 +209,7 @@ export default function Gallery({ photos, altBase, id }: Props) {
               onClick={() => goTo(i)}
               data-testid="gallery-thumb"
               data-active={i === index}
-              className={`relative h-16 w-20 shrink-0 rounded overflow-hidden ring-1 ${i === index ? 'ring-slate-900' : 'ring-slate-200'}`}
+              className={`relative h-16 w-20 shrink-0 rounded overflow-hidden ring-1 transition-all ${i === index ? 'ring-slate-900 ring-2' : 'ring-slate-200 hover:ring-brand-primary/50 hover:shadow-md'}`}
             >
               <SafeImage
                 src={src}

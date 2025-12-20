@@ -30,12 +30,15 @@ function sanitizeSrc(
 export type SafeImageProps = Omit<ImageProps, 'src'> & {
   src?: ImageProps['src'] | null
   fallbackSrc?: ImageProps['src'] | null
+  /** Loading strategy: 'lazy' (default) or 'eager' for above-the-fold images */
+  loading?: 'lazy' | 'eager'
 }
 
 export function SafeImage({
   src,
   alt,
   fallbackSrc = DEFAULT_PLACEHOLDER,
+  loading = 'lazy',
   onError,
   ...rest
 }: SafeImageProps) {
@@ -64,6 +67,7 @@ export function SafeImage({
       {...rest}
       alt={alt}
       src={currentSrc}
+      loading={loading}
       unoptimized={isR2Domain || rest.unoptimized}
       onError={(event) => {
         const fallback = isMeaningfulString(fallbackSrc) ? fallbackSrc : null
