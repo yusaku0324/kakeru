@@ -141,7 +141,9 @@ export type ShopDetail = {
 }
 
 async function fetchShop(id: string, preferApi = false): Promise<ShopDetail> {
-  if (preferApi) {
+  // Always try API first when API base is configured (e.g., local development)
+  const hasApiBase = Boolean(process.env.OSAKAMENESU_API_BASE || process.env.OSAKAMENESU_API_INTERNAL_BASE)
+  if (preferApi || hasApiBase) {
     const targets = resolveApiBases()
     const endpoint = `/api/v1/shops/${id}`
     for (const base of targets) {

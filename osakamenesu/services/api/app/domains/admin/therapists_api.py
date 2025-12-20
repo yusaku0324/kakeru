@@ -206,10 +206,10 @@ async def update_therapist(
 
     # Status & display
     if payload.status is not None:
-        if payload.status not in ("draft", "active", "inactive"):
+        if payload.status not in ("draft", "published", "archived"):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="status must be one of: draft, active, inactive",
+                detail="status must be one of: draft, published, archived",
             )
         therapist.status = payload.status
     if payload.is_booking_enabled is not None:
