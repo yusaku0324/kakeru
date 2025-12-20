@@ -199,7 +199,12 @@ export function WeekAvailabilityGrid({
     )
 
   return (
-    <div data-testid="availability-grid" className="relative overflow-hidden rounded-[32px] border border-white/65 bg-white/92 shadow-[0_35px_110px_rgba(21,93,252,0.18)]">
+    <div
+      data-testid="availability-grid"
+      role="grid"
+      aria-label="週間空き状況カレンダー。空き枠を選択して予約できます"
+      className="relative overflow-hidden rounded-[32px] border border-white/65 bg-white/92 shadow-[0_35px_110px_rgba(21,93,252,0.18)]"
+    >
       {isFallback && (
         <div className="absolute right-3 top-3 z-10">
           <DemoBadge />

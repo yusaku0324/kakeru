@@ -75,7 +75,7 @@ export function ReservationScheduleHeader({
           </button>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-neutral-textMuted">
+          <span className="text-neutral-textMuted" aria-label={`${schedulePageCount}週中${schedulePage + 1}週目を表示中`}>
             {schedulePage + 1} / {schedulePageCount}
           </span>
           <button
