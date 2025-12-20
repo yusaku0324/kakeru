@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { ErrorAlert } from '@/components/ui/Alert'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+
 type TherapistItem = {
   id: string
   name: string
@@ -14,9 +17,11 @@ type TherapistsResponse = { items?: TherapistItem[] }
 export default function AdminTherapistsPage() {
   const [therapists, setTherapists] = useState<TherapistItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const loadTherapists = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const resp = await fetch('/api/admin/therapists', { cache: 'no-store' })
       if (resp.ok) {
@@ -24,10 +29,12 @@ export default function AdminTherapistsPage() {
         setTherapists(data.items ?? [])
       } else {
         setTherapists([])
+        setError('セラピストの取得に失敗しました')
       }
-    } catch (error) {
-      console.error('Failed to load therapists', error)
+    } catch (err) {
+      console.error('Failed to load therapists', err)
       setTherapists([])
+      setError('セラピストの取得中にエラーが発生しました')
     } finally {
       setLoading(false)
     }
@@ -48,10 +55,10 @@ export default function AdminTherapistsPage() {
         </p>
       </div>
 
+      {error && <ErrorAlert message={error} onRetry={loadTherapists} />}
+
       {loading ? (
-        <div className="rounded border border-dashed border-neutral-borderLight px-4 py-3 text-sm text-neutral-textMuted">
-          読み込み中です…
-        </div>
+        <LoadingSpinner label="読み込み中..." />
       ) : therapists.length === 0 ? (
         <div className="rounded border border-neutral-borderLight px-4 py-3 text-sm text-neutral-textMuted">
           表示できるセラピストが見つかりませんでした。

@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { ErrorAlert } from '@/components/ui/Alert'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+
 type Shop = {
   id: string
   name: string
@@ -119,7 +122,7 @@ export default function AdminShopsPage() {
         <p className="text-sm text-neutral-textMuted">店舗の一覧と追加を管理します。</p>
       </div>
 
-      {error ? <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">{error}</div> : null}
+      {error && <ErrorAlert message={error} onRetry={load} />}
 
       <section className="space-y-2 rounded border border-neutral-borderLight bg-white p-3">
         <h2 className="text-lg font-semibold text-neutral-text">新規店舗を追加</h2>
@@ -256,7 +259,7 @@ export default function AdminShopsPage() {
       <section className="space-y-2 rounded border border-neutral-borderLight bg-white p-3">
         <h2 className="text-lg font-semibold text-neutral-text">店舗一覧</h2>
         {loading ? (
-          <div className="text-sm text-neutral-textMuted">読み込み中…</div>
+          <LoadingSpinner label="読み込み中..." />
         ) : shops.length === 0 ? (
           <div className="text-sm text-neutral-textMuted">店舗がありません。</div>
         ) : (
