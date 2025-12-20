@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
+import { captureConsoleIntegration } from '@sentry/nextjs'
 
 if (process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN) {
   Sentry.init({
@@ -14,5 +15,10 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN) {
     replaysOnErrorSampleRate: Number(
       process.env.NEXT_PUBLIC_SENTRY_REPLAYS_ERROR_SAMPLE_RATE ?? 1.0,
     ),
+    integrations: [
+      captureConsoleIntegration({
+        levels: ['error'],
+      }),
+    ],
   })
 }
