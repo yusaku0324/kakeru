@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangeEvent, DragEvent, useState, useCallback } from 'react'
+import { ChangeEvent, DragEvent, KeyboardEvent, useState, useCallback } from 'react'
 import clsx from 'clsx'
 import SafeImage from '@/components/SafeImage'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -98,6 +98,45 @@ export function PhotoGrid({
     setDragOverIndex(null)
   }, [draggedIndex, dragOverIndex, photos, onChange])
 
+  // Keyboard navigation for reordering photos
+  const handlePhotoKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>, index: number) => {
+    if (disabled) return
+
+    const movePhoto = (fromIndex: number, toIndex: number) => {
+      if (toIndex < 0 || toIndex >= photos.length) return
+      const newPhotos = [...photos]
+      const [moved] = newPhotos.splice(fromIndex, 1)
+      newPhotos.splice(toIndex, 0, moved)
+      onChange(newPhotos)
+    }
+
+    switch (event.key) {
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        event.preventDefault()
+        movePhoto(index, index - 1)
+        break
+      case 'ArrowRight':
+      case 'ArrowDown':
+        event.preventDefault()
+        movePhoto(index, index + 1)
+        break
+      case 'Home':
+        event.preventDefault()
+        movePhoto(index, 0)
+        break
+      case 'End':
+        event.preventDefault()
+        movePhoto(index, photos.length - 1)
+        break
+      case 'Delete':
+      case 'Backspace':
+        event.preventDefault()
+        handleDeleteClick(index)
+        break
+    }
+  }, [disabled, photos, onChange, handleDeleteClick])
+
   return (
     <div className="space-y-4">
       {/* Photo grid */}
@@ -106,6 +145,9 @@ export function PhotoGrid({
           {photos.map((url, index) => (
             <div
               key={`${url}-${index}`}
+              role="button"
+              tabIndex={disabled ? -1 : 0}
+              aria-label={`写真${index + 1}${index === 0 ? '（メイン）' : ''}。矢印キーで並べ替え、Deleteで削除`}
               draggable={!disabled}
               onDragStart={() => handlePhotoDragStart(index)}
               onDragOver={(e) => {
@@ -113,8 +155,10 @@ export function PhotoGrid({
                 handlePhotoDragOver(index)
               }}
               onDragEnd={handlePhotoDragEnd}
+              onKeyDown={(e) => handlePhotoKeyDown(e, index)}
               className={clsx(
                 'group relative aspect-square cursor-grab overflow-hidden rounded-xl border-2 transition-all active:cursor-grabbing',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary',
                 dragOverIndex === index && 'border-brand-primary scale-105',
                 draggedIndex === index ? 'opacity-50' : 'border-transparent',
                 index === 0 ? 'ring-2 ring-brand-primary ring-offset-2' : ''
@@ -251,10 +295,17 @@ export function PhotoGrid({
         </div>
       )}
 
-      {/* Photo count */}
-      <p className="text-xs text-neutral-500">
-        {photos.length} / {maxPhotos} 枚の写真がアップロードされています
-      </p>
+      {/* Photo count and keyboard hint */}
+      <div className="space-y-1">
+        <p className="text-xs text-neutral-500">
+          {photos.length} / {maxPhotos} 枚の写真がアップロードされています
+        </p>
+        {photos.length > 1 && !disabled && (
+          <p className="text-xs text-neutral-400">
+            ヒント: 写真を選択して矢印キーで並べ替えできます
+          </p>
+        )}
+      </div>
 
       {/* Delete confirmation dialog */}
       <ConfirmDialog
