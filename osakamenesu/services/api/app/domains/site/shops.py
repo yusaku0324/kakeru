@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
 from ...schemas import ReviewCreateRequest
+from ...utils.cache import shop_cache
 from .services.shop.search_service import ShopSearchService
 from .services.shop.diary_service import ShopDiaryService
 from .services.shop_services import (
@@ -203,9 +204,17 @@ async def get_shop_detail(shop_id: str, db: AsyncSession = Depends(get_session))
     if sample_response:
         return sample_response
 
+    cache_key = f"shop_detail:{shop_id}"
+    hit, cached = await shop_cache.get(cache_key)
+    if hit:
+        return cached
+
     assembler = ShopDetailAssembler(db)
     try:
-        return await assembler.get_detail(shop_id)
+        result = await assembler.get_detail(shop_id)
+        # Cache the serialized result
+        await shop_cache.set(cache_key, result.model_dump())
+        return result
     except ShopNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
