@@ -143,14 +143,22 @@ async def list_guest_reservations(
         shop_res = await db.execute(select(Profile).where(Profile.id.in_(shop_ids)))
         shop_names = {s.id: s.name for s in shop_res.scalars().all()}
 
-    # Summary is still computed over full dataset for filtering purposes
-    # Fetch all for summary (without pagination)
-    all_res = await db.execute(base_stmt)
-    all_reservations = all_res.scalars().all()
+    # Summary computed via SQL aggregation (GROUP BY) instead of fetching all records
+    summary_stmt = select(GuestReservation.status, func.count()).where(
+        GuestReservation.shop_id == shop_id if shop_id else True
+    )
+    if date_from:
+        summary_stmt = summary_stmt.where(GuestReservation.start_at >= date_from)
+    if date_to:
+        summary_stmt = summary_stmt.where(GuestReservation.start_at <= date_to)
+    summary_stmt = summary_stmt.group_by(GuestReservation.status)
+    summary_res = await db.execute(summary_stmt)
     summary: dict[str, int] = {}
-    for r in all_reservations:
-        status_value = _status_value(r)
-        summary[status_value] = summary.get(status_value, 0) + 1
+    for status_val, count in summary_res.all():
+        status_str = (
+            status_val.value if hasattr(status_val, "value") else str(status_val)
+        )
+        summary[status_str] = count
 
     items = [
         _serialize_admin_reservation(r, therapist_names, shop_names)

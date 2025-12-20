@@ -111,6 +111,8 @@ export function normalizeAvailabilityDays(
 
   const today = todayIso || jstToday()
   const grouped = new Map<string, NormalizedAvailabilityDay>()
+  // O(1) duplicate detection using Set instead of O(n) array search
+  const seenSlots = new Set<string>()
 
   for (const slot of slots) {
     if (!slot.start_at) continue
@@ -127,18 +129,16 @@ export function normalizeAvailabilityDays(
 
     const day = grouped.get(dateStr)!
 
-    // 重複スロットを防ぐ
-    const isDuplicate = day.slots.some(
-      (s) => s.start_at === slot.start_at && s.end_at === slot.end_at
-    )
+    // 重複スロットを防ぐ（O(1) lookup）
+    const slotKey = `${slot.start_at}|${slot.end_at}`
+    if (seenSlots.has(slotKey)) continue
+    seenSlots.add(slotKey)
 
-    if (!isDuplicate) {
-      day.slots.push({
-        start_at: slot.start_at,
-        end_at: slot.end_at,
-        status: normalizeSlotStatus(slot.status),
-      })
-    }
+    day.slots.push({
+      start_at: slot.start_at,
+      end_at: slot.end_at,
+      status: normalizeSlotStatus(slot.status),
+    })
   }
 
   // 日付でソートして返す
