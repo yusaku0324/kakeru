@@ -154,15 +154,9 @@ async function fetchFavorites(cookieHeader?: string): Promise<FavoritesResult> {
 async function fetchTherapistFavorites(cookieHeader?: string): Promise<TherapistFavoritesResult> {
   let lastError: Error | null = null
   const bases = resolveApiBases()
-  if (process.env.NODE_ENV !== 'production') {
-    console.info('[fetch-therapist-favorites] bases', bases)
-  }
 
   for (const base of bases) {
     const url = buildApiUrl(base, 'api/favorites/therapists')
-    if (process.env.NODE_ENV !== 'production') {
-      console.info('[fetch-therapist-favorites] request', { base, url })
-    }
     try {
       const res = await fetch(url, {
         headers: cookieHeader ? { cookie: cookieHeader } : undefined,
@@ -294,16 +288,6 @@ export default async function FavoritesDashboardPage() {
     fetchFavorites(cookieHeader),
     fetchTherapistFavorites(cookieHeader),
   ])
-
-  if (process.env.NODE_ENV !== 'production') {
-    console.info('[favorites-page]', {
-      favoritesStatus: favoritesResult.status,
-      therapistStatus: therapistFavoritesResult.status,
-      favoritesCount: favoritesResult.status === 'ok' ? favoritesResult.favorites.length : null,
-      therapistFavoritesCount:
-        therapistFavoritesResult.status === 'ok' ? therapistFavoritesResult.favorites.length : null,
-    })
-  }
 
   if (favoritesResult.status === 'error' && therapistFavoritesResult.status === 'error') {
     const combinedMessage = [favoritesResult.message, therapistFavoritesResult.message]

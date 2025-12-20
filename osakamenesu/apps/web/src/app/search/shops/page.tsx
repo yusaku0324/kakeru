@@ -179,7 +179,7 @@ export default async function ShopSearchPage({ searchParams }: { searchParams: P
           ) : null}
 
           <div className="mt-8 space-y-6 lg:space-y-8" id="search-filters">
-            <SearchFilters init={searchParams} facets={facets} />
+            <SearchFilters init={resolvedSearchParams} facets={facets} />
 
             <ShopFavoritesProvider>
               <Section

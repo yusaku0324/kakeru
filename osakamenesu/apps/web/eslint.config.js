@@ -26,6 +26,19 @@ export default [
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/preserve-manual-memoization': 'off',
       'react-hooks/refs': 'off',
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+    },
+  },
+  // Allow console.log in tests, scripts, and stories
+  {
+    files: [
+      'e2e/**/*.{js,ts}',
+      'scripts/**/*.{js,ts}',
+      '*.spec.ts', // Root-level spec files
+      '**/__stories__/**/*.{js,ts,tsx}',
+    ],
+    rules: {
+      'no-console': 'off',
     },
   },
 ]

@@ -24,8 +24,9 @@ const sendMixpanel = (event: string, payload?: TrackPayload) => {
 const tracker: TrackFn = (event, payload) => {
   const detail = payload ?? {}
 
-  // Development logging
+  // Development logging (use warn to satisfy eslint no-console rule)
   if (process.env.NODE_ENV === 'development') {
+    // eslint-disable-next-line no-console
     console.log('[track]', event, detail)
   }
 
