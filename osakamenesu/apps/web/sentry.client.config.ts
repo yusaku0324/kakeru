@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
-import { captureConsoleIntegration } from '@sentry/nextjs'
+import { browserTracingIntegration, captureConsoleIntegration } from '@sentry/nextjs'
 
 if (process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN) {
   Sentry.init({
@@ -16,9 +16,19 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN) {
       process.env.NEXT_PUBLIC_SENTRY_REPLAYS_ERROR_SAMPLE_RATE ?? 1.0,
     ),
     integrations: [
+      browserTracingIntegration({
+        // Trace all API calls to the backend
+        tracePropagationTargets: [
+          'localhost',
+          /^https:\/\/[^/]+\.osakamenesu\.com/,
+          /^\/api\//,
+        ],
+      }),
       captureConsoleIntegration({
         levels: ['error'],
       }),
     ],
+    // Enable performance monitoring
+    enableTracing: true,
   })
 }
