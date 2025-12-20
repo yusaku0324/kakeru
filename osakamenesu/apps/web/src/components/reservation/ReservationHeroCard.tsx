@@ -67,7 +67,7 @@ export function ReservationHeroCard({
             <button
               type="button"
               onClick={onPrev}
-              className="absolute left-4 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/85 text-lg text-brand-primary shadow-sm shadow-brand-primary/20 transition hover:bg-white"
+              className="absolute left-4 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/85 text-lg text-brand-primary shadow-sm shadow-brand-primary/20 transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
               aria-label="前の写真"
             >
               ←
@@ -75,12 +75,15 @@ export function ReservationHeroCard({
             <button
               type="button"
               onClick={onNext}
-              className="absolute right-4 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/85 text-lg text-brand-primary shadow-sm shadow-brand-primary/20 transition hover:bg-white"
+              className="absolute right-4 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/85 text-lg text-brand-primary shadow-sm shadow-brand-primary/20 transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
               aria-label="次の写真"
             >
               →
             </button>
-            <div className="pointer-events-none absolute inset-x-0 bottom-5 flex items-center justify-center gap-2">
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-5 flex items-center justify-center gap-2"
+              aria-hidden="true"
+            >
               {images.map((_, index) => (
                 <span
                   key={`hero-indicator-${index}`}

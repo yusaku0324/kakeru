@@ -31,7 +31,7 @@ export function ShopCardNavigateToTherapists({ hit }: Props) {
   return (
     <Link
       href={getTherapistListHref(hit)}
-      className="block focus:outline-none"
+      className="block rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
       prefetch
     >
       <Card interactive className="h-full" data-testid="shop-card-navigate">

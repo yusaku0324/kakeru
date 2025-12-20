@@ -82,7 +82,7 @@ export default function SimilarTherapists({
           <Card key={therapist.id} className="overflow-hidden hover:shadow-lg transition-shadow">
             <Link
               href={`/shops/${shopSlug}/therapists/${therapist.id}`}
-              className="block"
+              className="block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary rounded-lg"
             >
               <div className="aspect-w-16 aspect-h-9 relative">
                 {therapist.photos && therapist.photos.length > 0 ? (

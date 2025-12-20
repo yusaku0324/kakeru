@@ -272,7 +272,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
                 ? 'bg-emerald-500/90 text-white'
                 : 'bg-amber-500/90 text-white'
             }`} data-testid="therapist-availability-badge">
-              <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
+              <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} aria-hidden="true" />
               <span data-testid={todayLabelTestId}>{availabilityLabel}</span>
             </div>
           )}
@@ -303,7 +303,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
                   ? 'bg-emerald-500/90 text-white'
                   : 'bg-amber-500/90 text-white'
               }`} data-testid="therapist-availability-badge">
-                <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
+                <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} aria-hidden="true" />
                 <span data-testid={todayLabelTestId}>{availabilityLabel}</span>
               </div>
             )}
