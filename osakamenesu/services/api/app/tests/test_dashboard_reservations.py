@@ -81,73 +81,94 @@ from app.domains.dashboard.reservations.router import (  # type: ignore  # noqa:
     _decode_cursor,
     _encode_cursor,
     _parse_date_param,
-    _serialize_reservation,
+    _serialize_guest_reservation,
 )
 
 
-def _make_slot(start_offset: int, duration: int, status: str):
-    base = datetime.datetime(2025, 5, 1, 12, 0, tzinfo=datetime.UTC)
-    start = base + datetime.timedelta(minutes=start_offset)
-    end = start + datetime.timedelta(minutes=duration)
-    return SimpleNamespace(
-        desired_start=start,
-        desired_end=end,
-        status=status,
-    )
-
-
-def test_serialize_reservation_rounds_out_optional_fields() -> None:
+def test_serialize_guest_reservation_maps_fields() -> None:
+    """Test that GuestReservation is serialized to DashboardReservationItem correctly."""
     reservation_id = uuid.uuid4()
     profile_id = uuid.uuid4()
+    therapist_id = uuid.uuid4()
     created_at = datetime.datetime(2025, 5, 1, 3, 0, tzinfo=datetime.UTC)
     updated_at = created_at + datetime.timedelta(minutes=5)
 
+    # Create a mock GuestReservation with its field names
     reservation = SimpleNamespace(
         id=reservation_id,
-        status='pending',
-        channel='web',
-        desired_start=datetime.datetime(2025, 5, 1, 12, 0, tzinfo=datetime.UTC),
-        desired_end=datetime.datetime(2025, 5, 1, 13, 30, tzinfo=datetime.UTC),
-        customer_name='山田太郎',
-        customer_phone='09000000000',
-        customer_email='guest@example.com',
-        notes='希望: アロマ',
-        marketing_opt_in=True,
-        staff_id=None,
+        status="pending",
+        channel="web",
+        start_at=datetime.datetime(2025, 5, 1, 12, 0, tzinfo=datetime.UTC),
+        end_at=datetime.datetime(2025, 5, 1, 13, 30, tzinfo=datetime.UTC),
+        customer_name="山田太郎",
+        customer_phone="09000000000",
+        customer_email="guest@example.com",
+        contact_info=None,  # Using dedicated fields instead
+        notes="希望: アロマ",
+        therapist_id=therapist_id,
+        shop_id=profile_id,
         created_at=created_at,
         updated_at=updated_at,
-        approval_decision='approved',
-        approval_decided_at=created_at + datetime.timedelta(hours=1),
-        approval_decided_by='line',
-        reminder_scheduled_at=created_at + datetime.timedelta(hours=9),
-        preferred_slots=[
-            _make_slot(0, 90, 'open'),
-            _make_slot(120, 90, 'tentative'),
-        ],
-        shop_id=profile_id,
     )
 
-    serialized = _serialize_reservation(reservation)
+    serialized = _serialize_guest_reservation(reservation)
 
     assert serialized.id == reservation_id
-    assert serialized.status == 'pending'
-    assert serialized.channel == 'web'
-    assert serialized.customer_name == '山田太郎'
-    assert serialized.customer_phone == '09000000000'
-    assert serialized.customer_email == 'guest@example.com'
-    assert serialized.notes == '希望: アロマ'
-    assert serialized.marketing_opt_in is True
-    assert serialized.staff_id is None
+    assert serialized.status == "pending"
+    assert serialized.channel == "web"
+    assert serialized.customer_name == "山田太郎"
+    assert serialized.customer_phone == "09000000000"
+    assert serialized.customer_email == "guest@example.com"
+    assert serialized.notes == "希望: アロマ"
+    # GuestReservation doesn't track these fields
+    assert serialized.marketing_opt_in is None
+    assert serialized.staff_id == therapist_id  # therapist_id maps to staff_id
     assert serialized.created_at == created_at
     assert serialized.updated_at == updated_at
-    assert serialized.approval_decision == 'approved'
-    assert serialized.approval_decided_by == 'line'
-    assert serialized.preferred_slots[0].status == 'open'
-    assert serialized.preferred_slots[1].status == 'tentative'
+    # These are not in GuestReservation, should be None/empty
+    assert serialized.approval_decision is None
+    assert serialized.approval_decided_by is None
+    assert serialized.preferred_slots == []
+    # desired_start/end should map from start_at/end_at
+    assert serialized.desired_start == reservation.start_at
+    assert serialized.desired_end == reservation.end_at
+
+
+def test_serialize_guest_reservation_uses_contact_info_fallback() -> None:
+    """Test that contact_info is used as fallback when customer fields are empty."""
+    reservation_id = uuid.uuid4()
+    created_at = datetime.datetime(2025, 5, 1, 3, 0, tzinfo=datetime.UTC)
+
+    reservation = SimpleNamespace(
+        id=reservation_id,
+        status="confirmed",
+        channel="phone",
+        start_at=datetime.datetime(2025, 5, 1, 12, 0, tzinfo=datetime.UTC),
+        end_at=datetime.datetime(2025, 5, 1, 13, 30, tzinfo=datetime.UTC),
+        customer_name=None,  # Not set directly
+        customer_phone=None,
+        customer_email=None,
+        contact_info={
+            "name": "佐藤花子",
+            "phone": "08011112222",
+            "email": "sato@example.com",
+        },
+        notes=None,
+        therapist_id=None,
+        shop_id=uuid.uuid4(),
+        created_at=created_at,
+        updated_at=created_at,
+    )
+
+    serialized = _serialize_guest_reservation(reservation)
+
+    assert serialized.customer_name == "佐藤花子"
+    assert serialized.customer_phone == "08011112222"
+    assert serialized.customer_email == "sato@example.com"
 
 
 def test_parse_date_param_accepts_date_only_start() -> None:
-    parsed = _parse_date_param('2025-11-05', field='start')
+    parsed = _parse_date_param("2025-11-05", field="start")
 
     assert parsed.year == 2025
     assert parsed.month == 11
@@ -158,7 +179,7 @@ def test_parse_date_param_accepts_date_only_start() -> None:
 
 
 def test_parse_date_param_accepts_date_only_end() -> None:
-    parsed = _parse_date_param('2025-11-05', field='end', is_end=True)
+    parsed = _parse_date_param("2025-11-05", field="end", is_end=True)
 
     assert parsed.year == 2025
     assert parsed.hour == 23
@@ -168,7 +189,7 @@ def test_parse_date_param_accepts_date_only_end() -> None:
 
 
 def test_parse_date_param_converts_offset_to_utc() -> None:
-    parsed = _parse_date_param('2025-11-05T15:00:00+09:00', field='start')
+    parsed = _parse_date_param("2025-11-05T15:00:00+09:00", field="start")
 
     assert parsed.hour == 6  # converted to UTC
     assert parsed.tzinfo is not None
@@ -176,7 +197,7 @@ def test_parse_date_param_converts_offset_to_utc() -> None:
 
 def test_parse_date_param_raises_on_invalid_input() -> None:
     with pytest.raises(HTTPException):
-        _parse_date_param('invalid-date', field='start')
+        _parse_date_param("invalid-date", field="start")
 
 
 def test_encode_decode_cursor_roundtrip() -> None:
@@ -190,7 +211,7 @@ def test_encode_decode_cursor_roundtrip() -> None:
 
 def test_decode_cursor_invalid() -> None:
     with pytest.raises(HTTPException):
-        _decode_cursor('invalid-cursor')
+        _decode_cursor("invalid-cursor")
 
 
 def test_decode_cursor_signature_mismatch() -> None:

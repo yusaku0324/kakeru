@@ -521,67 +521,10 @@ def main(argv: list[str]) -> int:
     if bulk_updates:
         post_json("/api/admin/shops/content:bulk", {"shops": bulk_updates})
 
-    # Create sample reservations (various statuses)
-    # Use first few therapists to create sample reservations
-    jst = timezone(timedelta(hours=9))
-    reservation_statuses = ["pending", "confirmed", "declined", "cancelled"]
-    customer_names = ["田中太郎", "佐藤花子", "鈴木一郎", "高橋美咲", "山田健太"]
-    reservations_created = 0
-    for idx, therapist_info in enumerate(created_therapists[:8]):
-        # Create reservations for today and tomorrow
-        for day_offset in range(2):
-            reservation_date = date.today() + timedelta(days=day_offset)
-            # Vary start times: 12:00, 14:00, 16:00, 18:00
-            start_hour = 12 + (idx % 4) * 2
-            reservation_start = datetime(
-                reservation_date.year,
-                reservation_date.month,
-                reservation_date.day,
-                start_hour,
-                0,
-                0,
-                tzinfo=jst,
-            )
-            reservation_end = reservation_start + timedelta(hours=2)
-
-            # Pick status based on index
-            status_idx = (idx + day_offset) % len(reservation_statuses)
-            reservation_status = reservation_statuses[status_idx]
-            customer_name = customer_names[idx % len(customer_names)]
-
-            reservation_payload = {
-                "shop_id": therapist_info["shop_id"],
-                "staff_id": therapist_info["therapist_id"],
-                "channel": "web",
-                "desired_start": reservation_start.isoformat(),
-                "desired_end": reservation_end.isoformat(),
-                "notes": f"シードデータ予約 {idx + 1}",
-                "customer": {
-                    "name": customer_name,
-                    "phone": f"090{idx:04}{day_offset:04}",
-                    "email": f"test{idx}@example.com",
-                },
-                "marketing_opt_in": idx % 2 == 0,
-            }
-            try:
-                res = post_json("/api/v1/reservations", reservation_payload)
-                reservation_id = res.get("id")
-                if reservation_id and reservation_status != "pending":
-                    # Update status to the desired one
-                    patch_json(
-                        f"/api/v1/reservations/{reservation_id}",
-                        {"status": reservation_status},
-                    )
-                reservations_created += 1
-            except Exception as e:
-                # Overlap or other error - skip
-                print(f"[warn] reservation creation failed: {e}", file=sys.stderr)
-
-    if reservations_created > 0:
-        print(f"[info] Created {reservations_created} reservations", file=sys.stderr)
-
-    # Create GuestReservations (affects availability slot calculation)
+    # Create GuestReservations (unified reservation system)
     # These are actual slot bookings that block therapist availability
+    jst = timezone(timedelta(hours=9))
+    customer_names = ["田中太郎", "佐藤花子", "鈴木一郎", "高橋美咲", "山田健太"]
     guest_reservations_created = 0
     guest_statuses = ["confirmed", "confirmed", "reserved", "pending"]
     for idx, therapist_info in enumerate(created_therapists[:6]):
@@ -609,6 +552,8 @@ def main(argv: list[str]) -> int:
 
             guest_status = guest_statuses[idx % len(guest_statuses)]
             duration = 90 if idx % 2 == 0 else 120  # 90 or 120 minutes
+            customer_name = customer_names[idx % len(customer_names)]
+            channel = ["web", "phone", "line"][idx % 3]
 
             guest_payload = {
                 "shop_id": therapist_info["shop_id"],
@@ -618,6 +563,12 @@ def main(argv: list[str]) -> int:
                 "price": 7000 + (idx % 5) * 1000,
                 "payment_method": "cash" if idx % 2 == 0 else "card",
                 "notes": f"シードゲスト予約 {idx + 1}",
+                "contact_info": {
+                    "name": customer_name,
+                    "phone": f"090{idx:04}{day_offset:04}",
+                    "email": f"test{idx}@example.com",
+                    "channel": channel,
+                },
             }
             try:
                 post_json("/api/guest/reservations", guest_payload)

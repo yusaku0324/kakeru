@@ -350,6 +350,12 @@ class GuestReservation(Base):
     base_staff_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True, index=True
     )
+    channel: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, index=True, default="web"
+    )
+    customer_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    customer_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    customer_email: Mapped[str | None] = mapped_column(String(160), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, nullable=False
     )
