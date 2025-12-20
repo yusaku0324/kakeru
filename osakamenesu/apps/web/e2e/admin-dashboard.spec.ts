@@ -149,7 +149,7 @@ type EnsureReservationOptions = {
 
 async function ensureReservation(page: Page, options: EnsureReservationOptions = {}) {
   if (!options.forceNew) {
-    const listResponse = await page.request.get('/api/admin/reservations?limit=1')
+    const listResponse = await page.request.get('/api/admin/guest_reservations?limit=1')
     if (listResponse.ok()) {
       const listJson = await listResponse.json()
       if (Array.isArray(listJson.items) && listJson.items.length > 0) {
@@ -205,7 +205,7 @@ async function ensureReservation(page: Page, options: EnsureReservationOptions =
       await page.goto('/admin/reservations')
       await page.waitForResponse(
         (response) =>
-          response.url().includes('/api/admin/reservations') &&
+          response.url().includes('/api/admin/guest_reservations') &&
           response.request().method() === 'GET' &&
           response.status() === 200,
       )
@@ -229,7 +229,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
   await expect
     .poll(
       async () => {
-        const response = await page.request.get('/api/admin/reservations?limit=50')
+        const response = await page.request.get('/api/admin/guest_reservations?limit=50')
         if (!response.ok()) {
           return -1
         }
@@ -588,7 +588,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     const waitForReservations = () =>
       page.waitForResponse(
         (response) =>
-          response.url().includes('/api/admin/reservations') &&
+          response.url().includes('/api/admin/guest_reservations') &&
           response.request().method() === 'GET' &&
           response.status() === 200,
         { timeout: 20000 },
@@ -667,7 +667,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     const waitForReservations = () =>
       page.waitForResponse(
         (response) =>
-          response.url().includes('/api/admin/reservations') &&
+          response.url().includes('/api/admin/guest_reservations') &&
           response.request().method() === 'GET' &&
           response.status() === 200,
         { timeout: 20000 },
@@ -723,7 +723,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     await expect(page.getByRole('heading', { name: '予約管理' })).toBeVisible()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/admin/reservations') &&
+        response.url().includes('/api/admin/guest_reservations') &&
         response.request().method() === 'GET' &&
         response.status() === 200,
     )
@@ -732,7 +732,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     await page.getByTestId('reservations-refresh').click()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/admin/reservations') &&
+        response.url().includes('/api/admin/guest_reservations') &&
         response.request().method() === 'GET' &&
         response.status() === 200,
     )
@@ -784,7 +784,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     await expect(page.getByRole('heading', { name: '予約管理' })).toBeVisible()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/admin/reservations') &&
+        response.url().includes('/api/admin/guest_reservations') &&
         response.request().method() === 'GET' &&
         response.status() === 200,
     )
@@ -833,24 +833,16 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     await expect(page.getByRole('heading', { name: '予約管理' })).toBeVisible()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/admin/reservations') &&
+        response.url().includes('/api/admin/guest_reservations') &&
         response.request().method() === 'GET' &&
         response.status() === 200,
     )
 
     const apiBase = resolveApiBase(baseURL)
-    const adminKey = process.env.ADMIN_API_KEY ?? process.env.OSAKAMENESU_ADMIN_API_KEY
 
     const ensureManyReservations = async () => {
       const shop = await fetchFirstShop(page)
-      if (adminKey) {
-        await page.request
-          .delete(`${apiBase}/api/v1/reservations`, {
-            params: { shop_id: shop.id },
-            headers: { 'X-Admin-Key': adminKey },
-          })
-          .catch(() => null)
-      }
+      // Note: GuestReservation API does not have a bulk delete endpoint
       const runSeed = Date.now()
       for (let i = 0; i < 12; i += 1) {
         const baseStart = runSeed + (i + 1) * 60 * 60 * 1000
@@ -861,19 +853,20 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
         let lastStatus = 0
         for (let attempt = 0; attempt < 3 && !created; attempt += 1) {
           const offset = attempt * 5 * 60 * 1000
-          const desiredStart = new Date(baseStart + offset).toISOString()
-          const desiredEnd = new Date(baseEnd + offset).toISOString()
-          const response = await page.request.post(`${apiBase}/api/v1/reservations`, {
+          const startAt = new Date(baseStart + offset).toISOString()
+          const endAt = new Date(baseEnd + offset).toISOString()
+          // Use GuestReservation API format
+          const response = await page.request.post(`${apiBase}/api/guest/reservations`, {
             data: {
               shop_id: shop.id,
-              desired_start: desiredStart,
-              desired_end: desiredEnd,
-              channel: 'web',
-              notes: `Playwright paging ${i}`,
-              customer: {
+              start_at: startAt,
+              end_at: endAt,
+              contact_info: {
                 name: `Paging User ${i}`,
                 phone: uniquePhone,
+                channel: 'web',
               },
+              notes: `Playwright paging ${i}`,
             },
           })
           if (response.ok()) {
@@ -898,7 +891,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
       await page.reload()
       await page.waitForResponse(
         (response) =>
-          response.url().includes('/api/admin/reservations') &&
+          response.url().includes('/api/admin/guest_reservations') &&
           response.request().method() === 'GET' &&
           response.status() === 200,
       )
@@ -912,7 +905,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     await page.getByTestId('reservations-next').click()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/admin/reservations') &&
+        response.url().includes('/api/admin/guest_reservations') &&
         response.request().method() === 'GET' &&
         response.status() === 200,
     )
@@ -928,7 +921,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     await page.getByTestId('reservations-prev').click()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/admin/reservations') &&
+        response.url().includes('/api/admin/guest_reservations') &&
         response.request().method() === 'GET' &&
         response.status() === 200,
     )
@@ -942,7 +935,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     await expect(page.getByRole('heading', { name: '予約管理' })).toBeVisible()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/admin/reservations') &&
+        response.url().includes('/api/admin/guest_reservations') &&
         response.request().method() === 'GET' &&
         response.status() === 200,
     )
@@ -957,7 +950,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     const originalStatus = await statusSelect.inputValue()
     const alternateStatus = originalStatus === 'pending' ? 'confirmed' : 'pending'
 
-    const errorRoute = `**/api/admin/reservations/${targetReservationId}`
+    const errorRoute = `**/api/admin/guest_reservations/${targetReservationId}`
     await page.route(errorRoute, async (route) => {
       if (route.request().method() === 'PATCH') {
         await route.fulfill({
@@ -976,7 +969,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
       page.locator('text=/更新に失敗しました|simulated patch error/').first(),
     ).toBeVisible({ timeout: 5000 })
 
-    await page.request.patch(`/api/admin/reservations/${targetReservationId}`, {
+    await page.request.patch(`/api/admin/guest_reservations/${targetReservationId}`, {
       data: {
         status: originalStatus,
       },
@@ -991,7 +984,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     await expect(page.getByRole('heading', { name: '予約管理' })).toBeVisible()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/admin/reservations') &&
+        response.url().includes('/api/admin/guest_reservations') &&
         response.request().method() === 'GET' &&
         response.status() === 200,
     )
@@ -1006,7 +999,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     const originalStatus = await statusSelect.inputValue()
     const alternateStatus = originalStatus === 'pending' ? 'confirmed' : 'pending'
 
-    const throttleRoute = `**/api/admin/reservations/${targetReservationId}`
+    const throttleRoute = `**/api/admin/guest_reservations/${targetReservationId}`
     await page.route(throttleRoute, async (route) => {
       if (route.request().method() === 'PATCH') {
         await route.fulfill({
@@ -1025,7 +1018,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
       timeout: 5000,
     })
 
-    await page.request.patch(`/api/admin/reservations/${targetReservationId}`, {
+    await page.request.patch(`/api/admin/guest_reservations/${targetReservationId}`, {
       data: {
         status: originalStatus,
       },
@@ -1040,7 +1033,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     await expect(page.getByRole('heading', { name: '予約管理' })).toBeVisible()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/admin/reservations') &&
+        response.url().includes('/api/admin/guest_reservations') &&
         response.request().method() === 'GET' &&
         response.status() === 200,
     )
@@ -1058,7 +1051,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
       await statusSelect.selectOption(nextStatus)
       await page.waitForResponse(
         (response) =>
-          response.url().includes('/api/admin/reservations') &&
+          response.url().includes('/api/admin/guest_reservations') &&
           response.request().method() === 'PATCH',
       )
       await expect(statusSelect).toHaveValue(nextStatus, { timeout: 5000 })
@@ -1066,7 +1059,7 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
       await statusSelect.selectOption(originalStatus)
       await page.waitForResponse(
         (response) =>
-          response.url().includes('/api/admin/reservations') &&
+          response.url().includes('/api/admin/guest_reservations') &&
           response.request().method() === 'PATCH',
       )
       await expect(statusSelect).toHaveValue(originalStatus, { timeout: 5000 })
@@ -1082,13 +1075,13 @@ async function waitForAdminReservations(page: Page, minimum: number, timeout = 1
     await saveNotesButton.click()
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/admin/reservations') &&
+        response.url().includes('/api/admin/guest_reservations') &&
         response.request().method() === 'PATCH',
     )
     await expect(notesField).toHaveValue(notesForTest, { timeout: 5000 })
 
     const revertRequest = await page.request.patch(
-      `/api/admin/reservations/${targetReservationId}`,
+      `/api/admin/guest_reservations/${targetReservationId}`,
       {
         data: {
           notes: originalNotes,

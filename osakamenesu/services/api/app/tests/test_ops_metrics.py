@@ -97,7 +97,11 @@ from app.schemas import (  # type: ignore  # noqa: E402
 
 
 class FakeResult:
-    def __init__(self, row: Sequence[Any] | None = None, rows: Sequence[Tuple[Any, ...]] | None = None) -> None:
+    def __init__(
+        self,
+        row: Sequence[Any] | None = None,
+        rows: Sequence[Tuple[Any, ...]] | None = None,
+    ) -> None:
         self._row = row
         self._rows = list(rows or [])
 
@@ -109,7 +113,12 @@ class FakeResult:
 
 
 class FakeSession:
-    def __init__(self, *, results: List[FakeResult] | None = None, scalars: List[int] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        results: List[FakeResult] | None = None,
+        scalars: List[int] | None = None,
+    ) -> None:
         self._results = list(results or [])
         self._scalars = list(scalars or [])
         self.executed_statements: List[Any] = []
@@ -129,31 +138,15 @@ class FakeSession:
 
 
 @pytest.mark.anyio
-async def test_queue_stats_computes_lag(monkeypatch: pytest.MonkeyPatch) -> None:
-    now = datetime(2025, 11, 7, 2, 30, tzinfo=timezone.utc)
-    oldest = datetime(2025, 11, 7, 2, 0, tzinfo=timezone.utc)
-    next_attempt = datetime(2025, 11, 7, 2, 31, tzinfo=timezone.utc)
-    session = FakeSession(results=[FakeResult(row=(5, oldest, next_attempt))])
-
-    monkeypatch.setattr(ops_module, "_utcnow", lambda: now)
+async def test_queue_stats_returns_empty_after_legacy_removal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Legacy notification queue was removed - always returns empty stats."""
+    session = FakeSession(results=[])
 
     stats = await ops_module._get_queue_stats(session)
 
     assert isinstance(stats, OpsQueueStats)
-    assert stats.pending == 5
-    assert stats.lag_seconds == pytest.approx(1800.0)
-    assert stats.oldest_created_at == oldest
-    assert stats.next_attempt_at == next_attempt
-
-
-@pytest.mark.anyio
-async def test_queue_stats_returns_zero_when_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    now = datetime(2025, 11, 7, 2, 30, tzinfo=timezone.utc)
-    session = FakeSession(results=[FakeResult(row=(0, None, None))])
-    monkeypatch.setattr(ops_module, "_utcnow", lambda: now)
-
-    stats = await ops_module._get_queue_stats(session)
-
     assert stats.pending == 0
     assert stats.lag_seconds == 0.0
     assert stats.oldest_created_at is None
@@ -161,26 +154,20 @@ async def test_queue_stats_returns_zero_when_empty(monkeypatch: pytest.MonkeyPat
 
 
 @pytest.mark.anyio
-async def test_outbox_summary_groups_by_channel() -> None:
-    rows = [
-        ("email", 3),
-        ("line", 2),
-        ("slack", 1),
-    ]
-    session = FakeSession(results=[FakeResult(rows=rows)])
+async def test_outbox_summary_returns_empty_after_legacy_removal() -> None:
+    """Legacy notification outbox was removed - always returns empty channels."""
+    session = FakeSession(results=[])
 
     summary = await ops_module._get_outbox_summary(session)
 
     assert isinstance(summary, OpsOutboxSummary)
-    assert summary.channels == [
-        OpsOutboxChannelSummary(channel="email", pending=3),
-        OpsOutboxChannelSummary(channel="line", pending=2),
-        OpsOutboxChannelSummary(channel="slack", pending=1),
-    ]
+    assert summary.channels == []
 
 
 @pytest.mark.anyio
-async def test_slots_summary_counts_pending_and_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_slots_summary_counts_pending_and_confirmed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     now = datetime(2025, 11, 7, 5, 0, tzinfo=UTC)
     session = FakeSession(scalars=[7, 2, 4])
     monkeypatch.setattr(ops_module, "_utcnow", lambda: now)

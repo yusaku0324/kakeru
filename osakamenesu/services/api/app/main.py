@@ -11,7 +11,6 @@ from .settings import settings
 from .domains.admin import (
     admin_router,
     admin_profiles_router,
-    admin_reservations_router,
 )
 from .domains.async_tasks.router import router as async_tasks_router
 from .domains.auth import router as auth_router
@@ -171,7 +170,6 @@ app.include_router(shops_router)
 app.include_router(guest_matching_router)
 app.include_router(guest_reservations_router)
 app.include_router(therapist_availability_router)
-app.include_router(admin_reservations_router)
 app.include_router(auth_router)
 app.include_router(favorites_router)
 app.include_router(async_tasks_router)

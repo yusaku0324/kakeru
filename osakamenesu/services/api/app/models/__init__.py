@@ -11,7 +11,7 @@ Models are organized into domain-specific modules:
 - review: Review, Report
 - notification: DashboardNotificationSetting
 - admin: AdminLog, AdminChangeLog
-- reservation: Reservation and notification delivery models, GuestReservation
+- reservation: GuestReservation (unified reservation model)
 - matching: GuestMatchLog
 """
 
@@ -28,14 +28,8 @@ from .base import (
     ReviewStatus,
     TherapistStatus,
     ServiceType,
-    ReservationStatus,
-    ReservationSlotStatus,
     GuestReservationStatus,
     TherapistShiftStatus,
-    # Constants
-    RESERVATION_NOTIFICATION_CHANNEL_KEYS,
-    RESERVATION_NOTIFICATION_STATUS_KEYS,
-    RESERVATION_NOTIFICATION_ATTEMPT_STATUS_KEYS,
 )
 
 # Profile
@@ -63,17 +57,7 @@ from .notification import DashboardNotificationSetting
 from .admin import AdminLog, AdminChangeLog
 
 # Reservation
-from .reservation import (
-    Reservation,
-    ReservationStatusEvent,
-    ReservationPreferredSlot,
-    ReservationNotificationChannelOption,
-    ReservationNotificationStatusOption,
-    ReservationNotificationAttemptStatusOption,
-    ReservationNotificationDelivery,
-    ReservationNotificationAttempt,
-    GuestReservation,
-)
+from .reservation import GuestReservation
 
 # Matching
 from .matching import GuestMatchLog
@@ -91,14 +75,8 @@ __all__ = [
     "ReviewStatus",
     "TherapistStatus",
     "ServiceType",
-    "ReservationStatus",
-    "ReservationSlotStatus",
     "GuestReservationStatus",
     "TherapistShiftStatus",
-    # Constants
-    "RESERVATION_NOTIFICATION_CHANNEL_KEYS",
-    "RESERVATION_NOTIFICATION_STATUS_KEYS",
-    "RESERVATION_NOTIFICATION_ATTEMPT_STATUS_KEYS",
     # Profile
     "Profile",
     # Therapist
@@ -127,14 +105,6 @@ __all__ = [
     "AdminLog",
     "AdminChangeLog",
     # Reservation
-    "Reservation",
-    "ReservationStatusEvent",
-    "ReservationPreferredSlot",
-    "ReservationNotificationChannelOption",
-    "ReservationNotificationStatusOption",
-    "ReservationNotificationAttemptStatusOption",
-    "ReservationNotificationDelivery",
-    "ReservationNotificationAttempt",
     "GuestReservation",
     # Matching
     "GuestMatchLog",

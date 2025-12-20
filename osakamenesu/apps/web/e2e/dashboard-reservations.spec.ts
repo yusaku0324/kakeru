@@ -45,23 +45,31 @@ async function createReservation(
     const start = new Date(options.start.getTime() + offset)
     const end = new Date(start.getTime() + baseDuration)
 
+    // Use GuestReservation API format
     const payload = {
       shop_id: shopId,
-      desired_start: start.toISOString(),
-      desired_end: end.toISOString(),
-      channel: 'web',
-      notes: 'Playwright date filter scenario',
-      customer: {
+      start_at: start.toISOString(),
+      end_at: end.toISOString(),
+      contact_info: {
         name: `${options.name} (${attempt + 1})`,
         phone: '09000000000',
         email: `${options.name.replace(/\s+/g, '-').toLowerCase()}-${attempt + 1}@example.com`,
+        channel: 'web',
       },
+      notes: 'Playwright date filter scenario',
     }
 
-    const response = await page.request.post(`${apiBase}/api/v1/reservations`, { data: payload })
+    const response = await page.request.post(`${apiBase}/api/guest/reservations`, { data: payload })
     if (response.ok()) {
       const json = await response.json()
-      return json
+      // Transform response to include legacy field names for compatibility
+      return {
+        ...json,
+        customer_name: json.contact_info?.name,
+        customer: json.contact_info,
+        desired_start: json.start_at,
+        desired_end: json.end_at,
+      }
     }
 
     if (response.status() !== 409) {
@@ -105,17 +113,10 @@ function isoDateString(date: Date) {
   return date.toISOString().slice(0, 10)
 }
 
-async function purgeReservations(page: Page, baseURL: string, shopId: string) {
-  const apiBase = resolveApiBase(baseURL)
-  const adminKey = process.env.ADMIN_API_KEY ?? process.env.OSAKAMENESU_ADMIN_API_KEY
-  if (!adminKey) {
-    console.warn('[dashboard-reservations] ADMIN_API_KEY not set; skip purge')
-    return
-  }
-  await page.request.delete(`${apiBase}/api/v1/reservations`, {
-    params: { shop_id: shopId },
-    headers: { 'X-Admin-Key': adminKey },
-  })
+async function purgeReservations(_page: Page, _baseURL: string, _shopId: string) {
+  // Note: GuestReservation API does not have a bulk delete endpoint.
+  // Reservations are not purged in test cleanup.
+  console.warn('[dashboard-reservations] purgeReservations is disabled (no bulk delete endpoint)')
 }
 
 async function setPageSize(page: Page, shopId: string, size = 100) {

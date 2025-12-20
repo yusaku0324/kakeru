@@ -669,26 +669,26 @@ def _add_reservations(
             else None
         )
 
+        # Use GuestReservation API format
         payload = {
             "shop_id": shop_id,
             "therapist_id": therapist_id,
-            "channel": "web",
-            "desired_start": start_time.isoformat(),
-            "desired_end": end_time.isoformat(),
+            "start_at": start_time.isoformat(),
+            "end_at": end_time.isoformat(),
             "notes": f"E2E sample reservation ({res_def['status']})",
-            "customer": {
+            "contact_info": {
                 "name": res_def["customer_name"],
                 "phone": "09000000000",
                 "email": f"{res_def['customer_name'].lower().replace(' ', '')}@example.com",
+                "channel": "web",
             },
-            "marketing_opt_in": False,
         }
 
         try:
             _request_json(
                 base,
                 "POST",
-                "/api/v1/reservations",
+                "/api/guest/reservations",
                 headers={},
                 payload=payload,
                 expected=(200, 201, 202, 204, 409, 422),  # Allow conflicts

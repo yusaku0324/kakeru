@@ -95,21 +95,6 @@ from .review import (
     DiaryListResponse,
 )
 
-# Reservation
-from .reservation import (
-    ReservationCustomerInput,
-    ReservationCustomer,
-    ReservationPreferredSlotBase,
-    ReservationPreferredSlotInput,
-    ReservationPreferredSlot,
-    ReservationStatusEvent,
-    Reservation,
-    ReservationCreateRequest,
-    ReservationUpdateRequest,
-    ReservationAdminSummary,
-    ReservationAdminList,
-    ReservationAdminUpdate,
-)
 
 # Admin
 from .admin import (
@@ -226,19 +211,6 @@ __all__ = [
     "DiarySnippet",
     "DiaryItem",
     "DiaryListResponse",
-    # Reservation
-    "ReservationCustomerInput",
-    "ReservationCustomer",
-    "ReservationPreferredSlotBase",
-    "ReservationPreferredSlotInput",
-    "ReservationPreferredSlot",
-    "ReservationStatusEvent",
-    "Reservation",
-    "ReservationCreateRequest",
-    "ReservationUpdateRequest",
-    "ReservationAdminSummary",
-    "ReservationAdminList",
-    "ReservationAdminUpdate",
     # Admin
     "BulkReviewInput",
     "BulkDiaryInput",

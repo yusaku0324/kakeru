@@ -18,6 +18,7 @@ from ....schemas import (
     GeoLocation,
     HighlightedReview,
     MediaImage,
+    MenuItem,
     NextAvailableSlot,
     REVIEW_ASPECT_KEYS,
     ReviewAspectScore,
@@ -407,6 +408,33 @@ async def _get_shop_detail_impl(
     area_name = contact_json.get("area_name")
     address = contact_json.get("address")
 
+    # Extract menus from contact_json and convert to MenuItem objects
+    raw_menus = contact_json.get("menus") or []
+    menu_items: List[MenuItem] = []
+    for raw_menu in raw_menus:
+        if not isinstance(raw_menu, dict):
+            continue
+        menu_id = raw_menu.get("id")
+        if menu_id is None:
+            menu_id = uuid.uuid4()
+        elif isinstance(menu_id, str):
+            try:
+                menu_id = UUID(menu_id)
+            except ValueError:
+                menu_id = uuid.uuid4()
+        menu_items.append(
+            MenuItem(
+                id=menu_id,
+                name=raw_menu.get("name", ""),
+                description=raw_menu.get("description"),
+                duration_minutes=raw_menu.get("duration_minutes"),
+                price=raw_menu.get("price", 0),
+                currency=raw_menu.get("currency", "JPY"),
+                is_reservable_online=raw_menu.get("is_reservable_online", True),
+                tags=raw_menu.get("tags") or [],
+            )
+        )
+
     detail = ShopDetail(
         id=profile.id,
         slug=profile.slug,
@@ -449,7 +477,7 @@ async def _get_shop_detail_impl(
         photos=photos,
         contact=contact_info,
         location=location,
-        menus=[],
+        menus=menu_items,
         staff=staff_members,
         availability_calendar=availability_calendar,
         reviews=review_summary,

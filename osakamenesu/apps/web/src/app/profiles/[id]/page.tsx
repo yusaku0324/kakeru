@@ -383,6 +383,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     profileBio: shop.catch_copy ?? shop.description ?? null,
     profileSchedule: overlaySchedule,
     profilePricing: overlayPricingLabel,
+    menus: menus.length ? menus : undefined,
     availabilityDays: availability,
   } satisfies Omit<ReservationOverlayProps, 'onClose'>
   const todayIso = formatZonedIso().slice(0, 10)

@@ -269,7 +269,7 @@ def _ensure_reservation(base: str, headers: Dict[str, str], shop_id: str) -> Non
     data = _request_json(
         base,
         "GET",
-        "/api/admin/reservations",
+        "/api/admin/guest_reservations",
         headers=headers,
         params={"limit": 1},
     )
@@ -281,27 +281,27 @@ def _ensure_reservation(base: str, headers: Dict[str, str], shop_id: str) -> Non
                 return
 
     now = datetime.now(JST)
-    desired_start = (now + timedelta(hours=1)).isoformat()
-    desired_end = (now + timedelta(hours=2)).isoformat()
+    start_at = (now + timedelta(hours=1)).isoformat()
+    end_at = (now + timedelta(hours=2)).isoformat()
 
+    # Use GuestReservation API format
     payload = {
         "shop_id": shop_id,
-        "channel": "web",
-        "desired_start": desired_start,
-        "desired_end": desired_end,
+        "start_at": start_at,
+        "end_at": end_at,
         "notes": "Playwright seed reservation",
-        "customer": {
+        "contact_info": {
             "name": "Playwright User",
             "phone": "09000000000",
             "email": "playwright@example.com",
+            "channel": "web",
         },
-        "marketing_opt_in": False,
     }
     try:
         _request_json(
             base,
             "POST",
-            "/api/v1/reservations",
+            "/api/guest/reservations",
             headers={},
             payload=payload,
             expected=(200, 201, 202, 204),

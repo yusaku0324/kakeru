@@ -13,7 +13,6 @@ from .base import Base, now_utc
 
 if TYPE_CHECKING:
     from .favorite import UserFavorite, UserTherapistFavorite
-    from .reservation import Reservation
     from .notification import DashboardNotificationSetting
     from .profile import Profile
 
@@ -55,7 +54,6 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
-    reservations: Mapped[list["Reservation"]] = relationship(back_populates="user")
     notification_settings_updated: Mapped[list["DashboardNotificationSetting"]] = (
         relationship(back_populates="updated_by_user")
     )

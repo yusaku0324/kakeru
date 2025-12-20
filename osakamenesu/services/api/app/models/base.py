@@ -15,8 +15,6 @@ from ..enums import (
     REVIEW_STATUS_VALUES,
     THERAPIST_STATUS_VALUES,
     SERVICE_TYPE_VALUES,
-    RESERVATION_STATUS_VALUES,
-    RESERVATION_SLOT_STATUS_VALUES,
     GUEST_RESERVATION_STATUS_VALUES,
     THERAPIST_SHIFT_STATUS_VALUES,
 )
@@ -34,27 +32,12 @@ ReportStatus = Enum(*REPORT_STATUS_VALUES, name="report_status")
 ReviewStatus = Enum(*REVIEW_STATUS_VALUES, name="review_status")
 TherapistStatus = Enum(*THERAPIST_STATUS_VALUES, name="therapist_status")
 ServiceType = Enum(*SERVICE_TYPE_VALUES, name="service_type")
-ReservationStatus = Enum(*RESERVATION_STATUS_VALUES, name="reservation_status")
-ReservationSlotStatus = Enum(
-    *RESERVATION_SLOT_STATUS_VALUES, name="reservation_slot_status"
-)
 GuestReservationStatus = Enum(
     *GUEST_RESERVATION_STATUS_VALUES, name="guest_reservation_status"
 )
 TherapistShiftStatus = Enum(
     *THERAPIST_SHIFT_STATUS_VALUES, name="therapist_shift_status"
 )
-
-# Notification constants
-RESERVATION_NOTIFICATION_CHANNEL_KEYS = ("email", "slack", "line", "log")
-RESERVATION_NOTIFICATION_STATUS_KEYS = (
-    "pending",
-    "in_progress",
-    "succeeded",
-    "failed",
-    "cancelled",
-)
-RESERVATION_NOTIFICATION_ATTEMPT_STATUS_KEYS = ("success", "failure")
 
 
 def now_utc() -> datetime:

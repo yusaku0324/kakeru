@@ -4,7 +4,6 @@ import logging
 from datetime import datetime, timedelta, timezone
 import secrets
 import subprocess
-from typing import Sequence, Tuple
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
@@ -49,73 +48,38 @@ router = APIRouter(
 
 
 async def _get_queue_stats(db: AsyncSession) -> schemas.OpsQueueStats:
-    stmt = select(
-        func.count(models.ReservationNotificationDelivery.id),
-        func.min(models.ReservationNotificationDelivery.created_at),
-        func.min(models.ReservationNotificationDelivery.next_attempt_at),
-    ).where(models.ReservationNotificationDelivery.status == "pending")
-    result = await db.execute(stmt)
-    pending, oldest_created_at, next_attempt_at = result.one()
-
-    pending_count = int(pending or 0)
-    if not pending_count:
-        return schemas.OpsQueueStats(
-            pending=0,
-            lag_seconds=0.0,
-            oldest_created_at=None,
-            next_attempt_at=None,
-        )
-
-    now = _utcnow()
-    lag_seconds = 0.0
-    if oldest_created_at:
-        lag_seconds = max(0.0, (now - oldest_created_at).total_seconds())
-
+    # Legacy notification queue removed - return empty stats
     return schemas.OpsQueueStats(
-        pending=pending_count,
-        lag_seconds=lag_seconds,
-        oldest_created_at=oldest_created_at,
-        next_attempt_at=next_attempt_at,
+        pending=0,
+        lag_seconds=0.0,
+        oldest_created_at=None,
+        next_attempt_at=None,
     )
 
 
 async def _get_outbox_summary(db: AsyncSession) -> schemas.OpsOutboxSummary:
-    stmt = (
-        select(
-            models.ReservationNotificationDelivery.channel,
-            func.count(models.ReservationNotificationDelivery.id),
-        )
-        .where(models.ReservationNotificationDelivery.status == "pending")
-        .group_by(models.ReservationNotificationDelivery.channel)
-        .order_by(models.ReservationNotificationDelivery.channel.asc())
-    )
-    result = await db.execute(stmt)
-    rows: Sequence[Tuple[str, int]] = result.all()
-
-    channels = [
-        schemas.OpsOutboxChannelSummary(channel=channel, pending=int(count or 0))
-        for channel, count in rows
-    ]
-    return schemas.OpsOutboxSummary(channels=channels)
+    # Legacy notification outbox removed - return empty stats
+    return schemas.OpsOutboxSummary(channels=[])
 
 
 async def _get_slots_summary(db: AsyncSession) -> schemas.OpsSlotsSummary:
     now = _utcnow()
     window_end = now + timedelta(hours=24)
 
-    pending_total_stmt = select(func.count(models.Reservation.id)).where(
-        models.Reservation.status == "pending"
+    # Use GuestReservation instead of old Reservation
+    pending_total_stmt = select(func.count(models.GuestReservation.id)).where(
+        models.GuestReservation.status == "pending"
     )
     pending_stale_stmt = (
-        select(func.count(models.Reservation.id))
-        .where(models.Reservation.status == "pending")
-        .where(models.Reservation.desired_start < now)
+        select(func.count(models.GuestReservation.id))
+        .where(models.GuestReservation.status == "pending")
+        .where(models.GuestReservation.start_at < now)
     )
     confirmed_stmt = (
-        select(func.count(models.Reservation.id))
-        .where(models.Reservation.status == "confirmed")
-        .where(models.Reservation.desired_start >= now)
-        .where(models.Reservation.desired_start < window_end)
+        select(func.count(models.GuestReservation.id))
+        .where(models.GuestReservation.status == "confirmed")
+        .where(models.GuestReservation.start_at >= now)
+        .where(models.GuestReservation.start_at < window_end)
     )
 
     pending_total = int(await db.scalar(pending_total_stmt) or 0)

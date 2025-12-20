@@ -19,6 +19,14 @@ import {
   buildReservationContactItems,
 } from './reservationOverlay/utils'
 
+export type ReservationOverlayMenuItem = {
+  id: string
+  name: string
+  price: number
+  duration_minutes?: number | null
+  description?: string | null
+}
+
 export type ReservationOverlayProps = {
   hit: TherapistHit
   onClose: () => void
@@ -33,6 +41,8 @@ export type ReservationOverlayProps = {
   profileSchedule?: string | null
   profilePricing?: string | null
   profileOptions?: string[] | null
+  /** 店舗のメニュー（コース）一覧 */
+  menus?: ReservationOverlayMenuItem[] | null
   availabilityDays?: Array<{
     date: string
     is_today?: boolean | null
@@ -58,6 +68,7 @@ export default function ReservationOverlay({
   profileSchedule,
   profilePricing,
   profileOptions,
+  menus,
   availabilityDays,
   therapistId,
 }: ReservationOverlayProps) {
@@ -150,16 +161,24 @@ export default function ReservationOverlay({
   const pricingSource = profilePricing ?? summaryPricing ?? ''
   const pricingItems = useMemo(() => parsePricingText(pricingSource), [pricingSource])
 
-  const courseOptions = useMemo(
-    () =>
-      pricingItems.map((item, index) => ({
-        id: `course-${index}`,
-        label: [item.title, item.duration].filter(Boolean).join(' ').trim(),
-        durationMinutes: item.durationMinutes ?? undefined,
-        priceLabel: item.price ?? undefined,
-      })),
-    [pricingItems],
-  )
+  // メニューが登録されている場合はそれを使用、なければ価格テキストをパース
+  const courseOptions = useMemo(() => {
+    if (menus && menus.length > 0) {
+      return menus.map((menu) => ({
+        id: menu.id,
+        label: menu.name,
+        durationMinutes: menu.duration_minutes ?? undefined,
+        priceLabel: menu.price ? `¥${menu.price.toLocaleString()}` : undefined,
+      }))
+    }
+    // フォールバック: 価格テキストをパース
+    return pricingItems.map((item, index) => ({
+      id: `course-${index}`,
+      label: [item.title, item.duration].filter(Boolean).join(' ').trim(),
+      durationMinutes: item.durationMinutes ?? undefined,
+      priceLabel: item.price ?? undefined,
+    }))
+  }, [menus, pricingItems])
 
 
   const handleOpenForm = useCallback(() => {

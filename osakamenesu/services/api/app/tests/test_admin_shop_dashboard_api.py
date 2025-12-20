@@ -171,9 +171,7 @@ def test_dashboard_counts_today_and_week():
         notes=None,
     )
     session = DummySession(reservations=[res_today, res_week, res_old], shifts=[shift])
-    body = asyncio.get_event_loop().run_until_complete(
-        api._compute_dashboard(session, shop_id, _dt(0))
-    )
+    body = asyncio.run(api._compute_dashboard(session, shop_id, _dt(0)))
     assert body["today_reservations"] == 1
     assert body["week_reservations"] == 2
     assert body["today_shifts"] == 1

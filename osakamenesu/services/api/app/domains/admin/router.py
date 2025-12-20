@@ -8,7 +8,6 @@ from .profiles_router import (
     router as profiles_router,
     reindex_all as profiles_reindex_all,
 )
-from .reservations_router import router as reservations_router
 from .reviews_router import router as reviews_router
 from .therapist_shifts_api import router as therapist_shifts_router
 from .shop_dashboard_api import router as shop_dashboard_router
@@ -18,7 +17,6 @@ from .therapists_api import router as therapists_router
 
 router = APIRouter(dependencies=[Depends(require_admin), Depends(audit_admin)])
 router.include_router(profiles_router)
-router.include_router(reservations_router)
 router.include_router(reviews_router)
 router.include_router(therapist_shifts_router)
 router.include_router(shops_router)
