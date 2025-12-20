@@ -53,3 +53,51 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Print styles for better printing experience */
+@media print {
+  /* Hide navigation, sidebars, and interactive elements */
+  nav,
+  footer,
+  .no-print,
+  button:not(.print-show),
+  [role="dialog"],
+  [aria-hidden="true"] {
+    display: none !important;
+  }
+
+  /* Ensure content uses full width */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+
+  /* Remove shadows and backgrounds for cleaner print */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Ensure links show URLs */
+  a[href]:after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+
+  /* Don't break elements across pages */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+
+  table, img, figure {
+    page-break-inside: avoid;
+  }
+
+  /* Add margins for printing */
+  @page {
+    margin: 2cm;
+  }
+}

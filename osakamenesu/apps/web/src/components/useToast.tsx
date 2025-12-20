@@ -59,10 +59,17 @@ export function ToastContainer({
   onDismiss: (id: number) => void
 }) {
   return (
-    <div className="fixed bottom-4 right-4 z-50 space-y-3">
+    <div
+      className="fixed bottom-4 right-4 z-50 space-y-3"
+      role="region"
+      aria-label="通知"
+      aria-live="polite"
+      aria-atomic="false"
+    >
       {toasts.map((toast) => (
         <div
           key={toast.id}
+          role="alert"
           className={`max-w-xs rounded-lg px-4 py-3 shadow-lg text-sm border ${toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'}`}
         >
           <div className="flex items-start gap-2">
@@ -70,7 +77,9 @@ export function ToastContainer({
               {toast.type === 'success' ? 'Success' : 'Error'}
             </span>
             <button
-              className="ml-auto text-xs opacity-60 hover:opacity-100"
+              type="button"
+              aria-label="通知を閉じる"
+              className="ml-auto min-h-[44px] min-w-[44px] flex items-center justify-center text-xs opacity-60 hover:opacity-100 -mr-2 -mt-1"
               onClick={() => onDismiss(toast.id)}
             >
               ×
