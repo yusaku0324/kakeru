@@ -619,19 +619,33 @@ export function ShiftList({ profileId }: Props) {
       </div>
 
       {error && (
-        <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
-          <svg className="h-5 w-5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3"
+        >
+          <svg className="h-5 w-5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span className="text-sm text-red-700">{error}</span>
-          <button
-            onClick={() => setError(null)}
-            className="ml-auto text-red-500 hover:text-red-700"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={loadData}
+              className="rounded-lg px-3 py-1 text-sm font-medium text-red-600 transition hover:bg-red-100"
+              aria-label="再読み込み"
+            >
+              再試行
+            </button>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-500 hover:text-red-700"
+              aria-label="エラーを閉じる"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 

@@ -87,7 +87,7 @@ export default async function DashboardHomePage({
   return (
     <main className="mx-auto max-w-5xl space-y-8 px-6 py-12">
       <header className="space-y-2">
-        <p className="text-sm text-neutral-500">プロフィール ID: {data.id}</p>
+        <p className="text-sm text-neutral-600">プロフィール ID: {data.id}</p>
         <h1 className="text-3xl font-semibold tracking-tight">
           {data.name || '店舗ダッシュボード'}
         </h1>

@@ -53,7 +53,7 @@ export default function TherapistProfile({ therapist }: TherapistProfileProps) {
               />
             ) : (
               <div className="w-32 h-32 sm:w-48 sm:h-48 rounded-lg bg-gray-200 flex items-center justify-center">
-                <User className="w-16 h-16 text-gray-400" />
+                <User className="w-16 h-16 text-gray-500" aria-hidden="true" />
               </div>
             )}
           </div>
@@ -74,13 +74,13 @@ export default function TherapistProfile({ therapist }: TherapistProfileProps) {
             <div className="space-y-2 text-sm">
               {therapist.age && (
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <Calendar className="w-4 h-4 text-gray-500" aria-hidden="true" />
                   <span>{therapist.age}歳</span>
                 </div>
               )}
               {therapist.price_rank && (
                 <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-gray-400" />
+                  <DollarSign className="w-4 h-4 text-gray-500" aria-hidden="true" />
                   <span className="font-medium">{getPriceDisplay(therapist.price_rank)}</span>
                 </div>
               )}

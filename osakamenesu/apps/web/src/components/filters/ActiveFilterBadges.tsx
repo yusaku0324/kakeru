@@ -35,10 +35,12 @@ export function ActiveFilterBadges({ badges, className = '' }: Props) {
               e.stopPropagation()
               badge.onRemove()
             }}
-            className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-blue-500 transition-colors hover:bg-blue-200 hover:text-blue-700"
+            className="relative -my-2 -mr-1 ml-0.5 inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-blue-500 transition-colors hover:text-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
             aria-label={`${badge.label}を解除`}
           >
-            <X className="h-3 w-3" />
+            <span className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-blue-200">
+              <X className="h-3 w-3" aria-hidden="true" />
+            </span>
           </button>
         </span>
       ))}

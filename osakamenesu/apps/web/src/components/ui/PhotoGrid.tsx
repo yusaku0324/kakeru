@@ -3,6 +3,7 @@
 import { ChangeEvent, DragEvent, useState, useCallback } from 'react'
 import clsx from 'clsx'
 import SafeImage from '@/components/SafeImage'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 export type PhotoGridProps = {
   photos: string[]
@@ -26,6 +27,7 @@ export function PhotoGrid({
   const [isDragOver, setIsDragOver] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null)
 
   const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -60,7 +62,12 @@ export function PhotoGrid({
 
   const handleRemove = useCallback((index: number) => {
     onChange(photos.filter((_, i) => i !== index))
+    setDeleteConfirmIndex(null)
   }, [photos, onChange])
+
+  const handleDeleteClick = useCallback((index: number) => {
+    setDeleteConfirmIndex(index)
+  }, [])
 
   const handleSetMain = useCallback((index: number) => {
     if (index === 0) return
@@ -131,6 +138,7 @@ export function PhotoGrid({
                   <button
                     type="button"
                     onClick={() => handleSetMain(index)}
+                    aria-label={`写真${index + 1}をメインに設定`}
                     className="rounded-lg bg-white/90 px-2 py-1 text-xs font-medium text-neutral-700 shadow transition hover:bg-white"
                   >
                     メインに
@@ -139,7 +147,8 @@ export function PhotoGrid({
                 {!disabled && (
                   <button
                     type="button"
-                    onClick={() => handleRemove(index)}
+                    onClick={() => handleDeleteClick(index)}
+                    aria-label={`写真${index + 1}を削除`}
                     className="rounded-lg bg-red-500/90 px-2 py-1 text-xs font-medium text-white shadow transition hover:bg-red-500"
                   >
                     削除
@@ -246,6 +255,18 @@ export function PhotoGrid({
       <p className="text-xs text-neutral-500">
         {photos.length} / {maxPhotos} 枚の写真がアップロードされています
       </p>
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={deleteConfirmIndex !== null}
+        title="写真を削除"
+        message={`写真${deleteConfirmIndex !== null ? deleteConfirmIndex + 1 : ''}を削除しますか？この操作は取り消せません。`}
+        confirmLabel="削除する"
+        cancelLabel="キャンセル"
+        variant="danger"
+        onConfirm={() => deleteConfirmIndex !== null && handleRemove(deleteConfirmIndex)}
+        onCancel={() => setDeleteConfirmIndex(null)}
+      />
     </div>
   )
 }

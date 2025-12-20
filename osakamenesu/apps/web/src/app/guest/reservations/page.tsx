@@ -103,7 +103,7 @@ export default function GuestReservationsPage() {
 
       {loading || authState.status === 'checking' ? <div>読み込み中...</div> : null}
       {error ? (
-        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">{error}</div>
+        <div role="alert" aria-live="polite" className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">{error}</div>
       ) : null}
 
       {!loading && authState.status !== 'checking' && !canShowReservations ? (
@@ -116,10 +116,26 @@ export default function GuestReservationsPage() {
       ) : null}
 
       {!loading && authState.status !== 'checking' && canShowReservations && rows.length === 0 && !error ? (
-        <div className="flex flex-col items-start gap-2 rounded border border-neutral-borderLight bg-white p-4 text-neutral-textMuted">
-          <div>現在、予約はありません。</div>
-          <Link href="/guest/search" className="text-brand-primary underline">
-            店舗を探す
+        <div className="flex flex-col items-center gap-4 rounded-xl border border-neutral-borderLight bg-white p-8 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-neutral-100">
+            <svg className="h-8 w-8 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div className="space-y-1">
+            <p className="text-base font-medium text-neutral-text">予約はまだありません</p>
+            <p className="text-sm text-neutral-textMuted">
+              気になるセラピストを見つけて予約してみましょう
+            </p>
+          </div>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-primary/90"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            セラピストを探す
           </Link>
         </div>
       ) : null}

@@ -226,6 +226,7 @@ export function ShopProfileEditor({
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [isPhotoUploading, setIsPhotoUploading] = useState(false)
 
   const lastSavedAtLabel = useMemo(() => {
@@ -332,24 +333,31 @@ export function ShopProfileEditor({
   }
 
   function buildUpdatePayload(): DashboardShopProfileUpdatePayload | null {
+    const errors: Record<string, string> = {}
+
     const trimmedName = name.trim()
     if (!trimmedName) {
-      setFormError('店舗名を入力してください。')
-      return null
+      errors.name = '店舗名を入力してください。'
     }
 
     const trimmedArea = area.trim()
     if (!trimmedArea) {
-      setFormError('エリアを入力してください。')
-      return null
+      errors.area = 'エリアを入力してください。'
     }
 
     const minValue = toInt(priceMin, 0)
     const maxValue = toInt(priceMax, 0)
     if (maxValue && minValue && maxValue < minValue) {
-      setFormError('料金の上限は下限以上に設定してください。')
+      errors.priceMax = '料金の上限は下限以上に設定してください。'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      setFormError('入力内容にエラーがあります。赤字の項目を確認してください。')
       return null
     }
+
+    setFieldErrors({})
 
     const normalizedTags = serviceTags
       .map((tag) => tag.trim())
@@ -434,6 +442,7 @@ export function ShopProfileEditor({
           setSnapshot(result.data)
           setLastSavedAt(new Date().toISOString())
           setFormError(null)
+          setFieldErrors({})
           push('success', '店舗情報を保存しました。')
           break
         }
@@ -521,8 +530,12 @@ export function ShopProfileEditor({
       </div>
 
       {formError && (
-        <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
-          <svg className="h-5 w-5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div
+          role="alert"
+          aria-live="polite"
+          className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3"
+        >
+          <svg className="h-5 w-5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span className="text-sm text-red-700">{formError}</span>
@@ -537,13 +550,23 @@ export function ShopProfileEditor({
           icon="🏢"
         >
           <div className="grid gap-6 md:grid-cols-2">
-            <InputField label="店舗名" required>
+            <InputField label="店舗名" required error={fieldErrors.name}>
               <input
                 value={name}
-                onChange={(event) => setName(event.target.value)}
-                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                onChange={(event) => {
+                  setName(event.target.value)
+                  if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: '' }))
+                }}
+                className={clsx(
+                  'w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2',
+                  fieldErrors.name
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20'
+                    : 'border-neutral-200 focus:border-brand-primary focus:ring-brand-primary/20'
+                )}
                 placeholder="例: アロマリゾート 難波本店"
                 required
+                aria-invalid={!!fieldErrors.name}
+                aria-describedby={fieldErrors.name ? 'name-error' : undefined}
               />
             </InputField>
             <InputField label="スラッグ" hint="URLに使用される識別子">
@@ -554,13 +577,22 @@ export function ShopProfileEditor({
                 placeholder="例: aroma-namba"
               />
             </InputField>
-            <InputField label="エリア" required>
+            <InputField label="エリア" required error={fieldErrors.area}>
               <input
                 value={area}
-                onChange={(event) => setArea(event.target.value)}
-                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                onChange={(event) => {
+                  setArea(event.target.value)
+                  if (fieldErrors.area) setFieldErrors((prev) => ({ ...prev, area: '' }))
+                }}
+                className={clsx(
+                  'w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2',
+                  fieldErrors.area
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20'
+                    : 'border-neutral-200 focus:border-brand-primary focus:ring-brand-primary/20'
+                )}
                 placeholder="例: 難波 / 心斎橋"
                 required
+                aria-invalid={!!fieldErrors.area}
               />
             </InputField>
             <InputField label="サービス形態">
@@ -593,14 +625,23 @@ export function ShopProfileEditor({
                 placeholder="例: 9000"
               />
             </InputField>
-            <InputField label="料金（上限）" hint="円">
+            <InputField label="料金（上限）" hint="円" error={fieldErrors.priceMax}>
               <input
                 value={priceMax}
-                onChange={(event) => setPriceMax(event.target.value)}
-                className="w-full rounded-xl border border-neutral-200 px-4 py-2.5 text-sm transition-all focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                onChange={(event) => {
+                  setPriceMax(event.target.value)
+                  if (fieldErrors.priceMax) setFieldErrors((prev) => ({ ...prev, priceMax: '' }))
+                }}
+                className={clsx(
+                  'w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2',
+                  fieldErrors.priceMax
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20'
+                    : 'border-neutral-200 focus:border-brand-primary focus:ring-brand-primary/20'
+                )}
                 type="number"
                 min={0}
                 placeholder="例: 16000"
+                aria-invalid={!!fieldErrors.priceMax}
               />
             </InputField>
             <InputField label="デフォルト予約枠時間" hint="分（空欄の場合は60分）">

@@ -29,7 +29,7 @@ export function MobileFilterCTA({
     >
       <div className="mx-auto flex max-w-md items-center gap-3">
         {typeof resultCount === 'number' && (
-          <span className="flex-shrink-0 text-xs text-neutral-500">
+          <span className="flex-shrink-0 text-xs text-neutral-600">
             {numberFormatter.format(resultCount)}
             {resultUnit}
           </span>

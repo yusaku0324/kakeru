@@ -19,6 +19,45 @@ type Shop = {
 
 type ShopsResponse = { items?: Shop[] }
 
+async function getErrorMessage(resp: Response, fallback: string): Promise<string> {
+  // Try to parse error details from response
+  try {
+    const data = await resp.json()
+    if (data.detail) {
+      return typeof data.detail === 'string' ? data.detail : fallback
+    }
+    if (data.message) {
+      return data.message
+    }
+  } catch {
+    // Response body was not JSON
+  }
+
+  // Return status-specific messages
+  switch (resp.status) {
+    case 400:
+      return '入力内容に誤りがあります。'
+    case 401:
+      return 'セッションが切れました。再度ログインしてください。'
+    case 403:
+      return 'この操作を行う権限がありません。'
+    case 404:
+      return '対象のデータが見つかりませんでした。'
+    case 409:
+      return '他のユーザーが更新中です。しばらくしてから再度お試しください。'
+    case 422:
+      return '入力内容を確認してください。'
+    case 429:
+      return 'リクエストが多すぎます。しばらくしてから再度お試しください。'
+    case 500:
+    case 502:
+    case 503:
+      return 'サーバーエラーが発生しました。しばらくしてから再度お試しください。'
+    default:
+      return fallback
+  }
+}
+
 export default function AdminShopsPage() {
   const [shops, setShops] = useState<Shop[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,13 +78,20 @@ export default function AdminShopsPage() {
     setError(null)
     try {
       const resp = await fetch('/api/admin/shops', { cache: 'no-store' })
-      if (!resp.ok) throw new Error(`status ${resp.status}`)
+      if (!resp.ok) {
+        const errorMessage = await getErrorMessage(resp, '店舗一覧の取得に失敗しました')
+        throw new Error(errorMessage)
+      }
       const data = (await resp.json()) as ShopsResponse
       setShops(data.items ?? [])
     } catch (e) {
       console.error('failed to load shops', e)
       setShops([])
-      setError('店舗一覧の取得に失敗しました')
+      if (e instanceof TypeError && e.message.includes('fetch')) {
+        setError('ネットワークエラーが発生しました。接続を確認してください。')
+      } else {
+        setError(e instanceof Error ? e.message : '店舗一覧の取得に失敗しました')
+      }
     } finally {
       setLoading(false)
     }
@@ -102,14 +148,19 @@ export default function AdminShopsPage() {
         body: JSON.stringify(payload),
       })
       if (!resp.ok) {
-        setError('店舗の作成に失敗しました')
+        const errorMessage = await getErrorMessage(resp, '店舗の作成に失敗しました')
+        setError(errorMessage)
         return
       }
       resetForm()
       await load()
     } catch (e) {
       console.error('failed to create shop', e)
-      setError('店舗の作成に失敗しました')
+      if (e instanceof TypeError && e.message.includes('fetch')) {
+        setError('ネットワークエラーが発生しました。接続を確認してください。')
+      } else {
+        setError('店舗の作成に失敗しました')
+      }
     }
   }
 

@@ -99,8 +99,12 @@ function getRelativeTime(iso: string): string {
 function StatusBadge({ status }: { status: string }) {
   const config = STATUS_CONFIG[status as StatusType] || STATUS_CONFIG.pending
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${config.bgColor} ${config.color}`}>
-      <span>{config.icon}</span>
+    <span
+      role="status"
+      aria-label={`予約ステータス: ${config.label}`}
+      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${config.bgColor} ${config.color}`}
+    >
+      <span aria-hidden="true">{config.icon}</span>
       {config.label}
     </span>
   )

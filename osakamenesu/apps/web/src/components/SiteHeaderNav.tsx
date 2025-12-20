@@ -3,7 +3,7 @@
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 
 import { FavoriteHeartIcon } from '@/components/FavoriteHeartIcon'
 import { SiteLoginContent } from '@/app/auth/login/SiteLoginContent'
@@ -18,6 +18,8 @@ export default function SiteHeaderNav() {
   const [showLoginOverlay, setShowLoginOverlay] = useState(false)
   const [isLoggingOut, startLogout] = useTransition()
   const router = useRouter()
+  const loginDialogRef = useRef<HTMLDivElement>(null)
+  const loginButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     let active = true
@@ -94,15 +96,47 @@ export default function SiteHeaderNav() {
     if (showLoginOverlay) {
       const originalOverflow = document.body.style.overflow
       document.body.style.overflow = 'hidden'
+      // Capture ref value for cleanup
+      const loginButton = loginButtonRef.current
+
+      // Focus first input in the dialog
+      requestAnimationFrame(() => {
+        const firstInput = loginDialogRef.current?.querySelector<HTMLInputElement>('input')
+        firstInput?.focus()
+      })
+
       const handleKey = (event: KeyboardEvent) => {
         if (event.key === 'Escape') {
           setShowLoginOverlay(false)
+          return
+        }
+
+        // Focus trap on Tab
+        if (event.key === 'Tab') {
+          const dialog = loginDialogRef.current
+          if (!dialog) return
+
+          const focusableElements = dialog.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+          const firstElement = focusableElements[0]
+          const lastElement = focusableElements[focusableElements.length - 1]
+
+          if (event.shiftKey && document.activeElement === firstElement) {
+            event.preventDefault()
+            lastElement?.focus()
+          } else if (!event.shiftKey && document.activeElement === lastElement) {
+            event.preventDefault()
+            firstElement?.focus()
+          }
         }
       }
       window.addEventListener('keydown', handleKey)
       return () => {
         document.body.style.overflow = originalOverflow
         window.removeEventListener('keydown', handleKey)
+        // Restore focus to the login button
+        loginButton?.focus()
       }
     }
   }, [showLoginOverlay])
@@ -150,6 +184,7 @@ export default function SiteHeaderNav() {
       ) : (
         <>
           <button
+            ref={loginButtonRef}
             type="button"
             onClick={() => setShowLoginOverlay(true)}
             className={baseButtonClass}
@@ -183,9 +218,11 @@ export default function SiteHeaderNav() {
             aria-hidden="true"
           />
           <div
+            ref={loginDialogRef}
             className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[40px]"
             role="dialog"
             aria-modal="true"
+            aria-label="ログイン"
           >
             <div className="pointer-events-none absolute inset-0 -z-10 rounded-[40px] bg-[radial-gradient(circle_at_top,#eef2ff_0%,rgba(255,255,255,0)_70%),linear-gradient(180deg,#ffffff_0%,rgba(255,255,255,0.9)_100%)] blur-2xl" />
             <SiteLoginContent variant="overlay" onClose={() => setShowLoginOverlay(false)} />

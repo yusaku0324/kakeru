@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useId, useRef } from 'react'
 
 type ConfirmDialogProps = {
   open: boolean
@@ -24,15 +24,27 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
+  const previousActiveElement = useRef<Element | null>(null)
+  const titleId = useId()
+  const descId = useId()
 
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog) return
 
     if (open) {
+      // Store the currently focused element to restore later
+      previousActiveElement.current = document.activeElement
       dialog.showModal()
+      // Focus the cancel button (safer default action)
+      cancelButtonRef.current?.focus()
     } else {
       dialog.close()
+      // Restore focus to the previously focused element
+      if (previousActiveElement.current instanceof HTMLElement) {
+        previousActiveElement.current.focus()
+      }
     }
   }, [open])
 
@@ -48,6 +60,7 @@ export function ConfirmDialog({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault()
         onCancel()
       }
     },
@@ -56,32 +69,44 @@ export function ConfirmDialog({
 
   if (!open) return null
 
+  const buttonBaseClass =
+    'rounded px-4 py-2 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2'
+
   return (
     <dialog
       ref={dialogRef}
       className="fixed inset-0 z-50 m-auto rounded-lg border border-neutral-borderLight bg-white p-0 shadow-xl backdrop:bg-black/50"
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
+      aria-labelledby={titleId}
+      aria-describedby={descId}
     >
-      <div className="min-w-[300px] max-w-md p-4">
-        <h2 className="mb-2 text-lg font-semibold text-neutral-text">{title}</h2>
-        <p className="mb-4 text-sm text-neutral-textMuted">{message}</p>
+      <div className="min-w-[300px] max-w-md p-4" role="document">
+        <h2 id={titleId} className="mb-2 text-lg font-semibold text-neutral-text">
+          {title}
+        </h2>
+        <p id={descId} className="mb-4 text-sm text-neutral-textMuted">
+          {message}
+        </p>
         <div className="flex justify-end gap-2">
           <button
+            ref={cancelButtonRef}
             type="button"
             onClick={onCancel}
-            className="rounded border border-neutral-borderLight bg-white px-4 py-2 text-sm hover:bg-neutral-50"
+            className={`${buttonBaseClass} border border-neutral-borderLight bg-white hover:bg-neutral-50 focus-visible:outline-neutral-400`}
+            aria-label={cancelLabel}
           >
             {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className={`rounded px-4 py-2 text-sm text-white ${
+            className={`${buttonBaseClass} text-white ${
               variant === 'danger'
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-brand-primary hover:brightness-110'
+                ? 'bg-red-600 hover:bg-red-700 focus-visible:outline-red-500'
+                : 'bg-brand-primary hover:brightness-110 focus-visible:outline-brand-primary'
             }`}
+            aria-label={confirmLabel}
           >
             {confirmLabel}
           </button>

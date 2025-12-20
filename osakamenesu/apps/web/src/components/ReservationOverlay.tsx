@@ -1,7 +1,7 @@
 'use client'
 
 import clsx from 'clsx'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import { useHeroImages } from '@/hooks/useHeroImages'
@@ -63,6 +63,8 @@ export default function ReservationOverlay({
 }: ReservationOverlayProps) {
   useBodyScrollLock(true)
 
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previousActiveElement = useRef<Element | null>(null)
   const [activeTab, setActiveTab] = useState<OverlayTab>('profile')
   const fallbackMeta = FALLBACK_STAFF_META[hit.name] ?? null
 
@@ -165,13 +167,57 @@ export default function ReservationOverlay({
     openForm()
   }, [openForm, setActiveTab])
 
+  // Focus management: save previous focus and focus first element on mount
+  useEffect(() => {
+    previousActiveElement.current = document.activeElement
+    // Focus the close button initially
+    const closeButton = dialogRef.current?.querySelector<HTMLButtonElement>('button[aria-label="予約パネルを閉じる"]')
+    closeButton?.focus()
+
+    return () => {
+      // Restore focus on unmount
+      if (previousActiveElement.current instanceof HTMLElement) {
+        previousActiveElement.current.focus()
+      }
+    }
+  }, [])
+
+  // Focus trap and escape key handling
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      if (formOpen) {
-        closeForm()
-      } else {
-        handleClose()
+      if (event.key === 'Escape') {
+        if (formOpen) {
+          closeForm()
+        } else {
+          handleClose()
+        }
+        return
+      }
+
+      // Focus trap on Tab
+      if (event.key === 'Tab') {
+        const dialog = dialogRef.current
+        if (!dialog) return
+
+        const focusableElements = dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+        const firstElement = focusableElements[0]
+        const lastElement = focusableElements[focusableElements.length - 1]
+
+        if (event.shiftKey) {
+          // Shift+Tab: if on first element, go to last
+          if (document.activeElement === firstElement) {
+            event.preventDefault()
+            lastElement?.focus()
+          }
+        } else {
+          // Tab: if on last element, go to first
+          if (document.activeElement === lastElement) {
+            event.preventDefault()
+            firstElement?.focus()
+          }
+        }
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -184,6 +230,7 @@ export default function ReservationOverlay({
         <div className="relative flex min-h-full items-center justify-center px-4 py-8 sm:px-6 sm:py-14 lg:py-16">
           <div className="absolute inset-0" onClick={handleClose} aria-hidden="true" />
           <div
+            ref={dialogRef}
             className="relative z-10 w-full max-w-5xl overflow-hidden rounded-[40px] border border-white/40 bg-white/55 shadow-[0_50px_150px_rgba(37,99,235,0.38)] backdrop-blur-[36px]"
             role="dialog"
             aria-modal="true"

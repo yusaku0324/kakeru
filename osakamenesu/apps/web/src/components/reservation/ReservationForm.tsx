@@ -160,9 +160,9 @@ export default function ReservationForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+        <div role="alert" aria-live="polite" className="rounded-lg border border-red-200 bg-red-50 p-4">
           <div className="flex">
-            <AlertCircle className="h-5 w-5 text-red-400" />
+            <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
             <div className="ml-3">
               <p className="text-sm font-medium text-red-800">エラー</p>
               <p className="mt-1 text-sm text-red-700 whitespace-pre-line">{error}</p>

@@ -1,12 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, KeyboardEvent } from 'react'
 
 import SafeImage from '@/components/SafeImage'
 
 type Props = {
   photos: string[]
   altBase: string
+  /** Unique ID for ARIA attributes */
+  id?: string
 }
 
 // Simple, tiny gradient LQIP (no Buffer dependency on client)
@@ -15,7 +17,7 @@ const BLUR_SVG = (() => {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 })()
 
-export default function Gallery({ photos, altBase }: Props) {
+export default function Gallery({ photos, altBase, id }: Props) {
   const viewRef = useRef<HTMLDivElement>(null)
   const [index, setIndex] = useState(0)
   const count = photos.length
@@ -29,6 +31,30 @@ export default function Gallery({ photos, altBase }: Props) {
       el.scrollTo({ left: clamped * w, behavior: 'smooth' })
     },
     [count],
+  )
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>) => {
+      switch (e.key) {
+        case 'ArrowLeft':
+          e.preventDefault()
+          goTo(index - 1)
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          goTo(index + 1)
+          break
+        case 'Home':
+          e.preventDefault()
+          goTo(0)
+          break
+        case 'End':
+          e.preventDefault()
+          goTo(count - 1)
+          break
+      }
+    },
+    [goTo, index, count],
   )
 
   // sync index when scrolling
@@ -131,7 +157,13 @@ export default function Gallery({ photos, altBase }: Props) {
         <div
           ref={viewRef}
           data-testid="gallery-view"
-          className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth rounded"
+          role="region"
+          aria-roledescription="carousel"
+          aria-label={`${altBase} gallery`}
+          aria-live="polite"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+          className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
         >
           {photos.map((src, i) => (
             <div

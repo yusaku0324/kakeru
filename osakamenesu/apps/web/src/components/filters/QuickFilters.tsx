@@ -54,12 +54,12 @@ function ToggleChip({ active, onChange, icon, children, variant = 'blue' }: Togg
       type="button"
       onClick={() => onChange(!active)}
       className={clsx(
-        'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-150',
+        'inline-flex min-h-[44px] items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition-all duration-150',
         active ? styles.active : styles.inactive
       )}
       aria-pressed={active}
     >
-      <span className={clsx('flex-shrink-0', active ? styles.icon : 'text-neutral-400')}>
+      <span className={clsx('flex-shrink-0', active ? styles.icon : 'text-neutral-400')} aria-hidden="true">
         {icon}
       </span>
       {children}

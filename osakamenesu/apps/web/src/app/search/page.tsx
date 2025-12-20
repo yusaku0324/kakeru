@@ -649,7 +649,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         </header>
 
         {_error ? (
-          <Card className="border-state-dangerBg bg-state-dangerBg/60 p-4 text-sm text-state-dangerText">
+          <Card role="alert" aria-live="polite" className="border-state-dangerBg bg-state-dangerBg/60 p-4 text-sm text-state-dangerText">
             {_error}
           </Card>
         ) : null}
@@ -770,13 +770,29 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               ) : null}
 
               {!renderTherapistSection && !renderShopSection ? (
-                <div className="flex flex-col items-center justify-center gap-4 rounded-card border border-dashed border-neutral-borderLight/80 bg-neutral-surfaceAlt/70 p-10 text-center text-neutral-textMuted">
-                  <p className="text-base font-medium text-neutral-text">
-                    一致するセラピスト・店舗が見つかりませんでした
-                  </p>
-                  <p className="text-sm leading-relaxed">
-                    キーワードや条件を調整すると候補が表示される場合があります。
-                  </p>
+                <div className="flex flex-col items-center justify-center gap-5 rounded-card border border-dashed border-neutral-borderLight/80 bg-neutral-surfaceAlt/70 p-10 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-neutral-200/60">
+                    <svg className="h-8 w-8 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-base font-medium text-neutral-text">
+                      一致するセラピスト・店舗が見つかりませんでした
+                    </p>
+                    <p className="text-sm leading-relaxed text-neutral-textMuted">
+                      キーワードや条件を調整すると候補が表示される場合があります。
+                    </p>
+                  </div>
+                  <Link
+                    href="/"
+                    className="inline-flex items-center gap-2 rounded-lg border border-neutral-borderLight bg-white px-4 py-2 text-sm font-medium text-neutral-text shadow-sm transition hover:bg-neutral-50"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                    トップページに戻る
+                  </Link>
                 </div>
               ) : null}
             </div>
