@@ -109,7 +109,7 @@ typing-inspection==0.4.0
     # via pydantic
 undetected-chromedriver==3.5.5
     # via kakeru (pyproject.toml)
-urllib3[socks]==2.4.0
+urllib3[socks]==2.6.0
     # via
     #   requests
     #   selenium

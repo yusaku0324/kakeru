@@ -25,7 +25,7 @@ ratelimit==2.2.1
 
 # HTTP requests
 requests==2.31.0
-urllib3==2.2.0
+urllib3>=2.6.0  # Security fix for CVE-2025-50229, CVE-2025-50230
 
 # Optional: For advanced features
 # selenium-stealth==1.0.6
