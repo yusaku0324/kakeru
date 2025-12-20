@@ -129,6 +129,85 @@ async def _get_shift(
     return shift
 
 
+ACTIVE_RESERVATION_STATUSES = {"pending", "confirmed", "reserved"}
+
+
+async def _has_reservations_in_shift(
+    db: AsyncSession,
+    therapist_id: UUID,
+    start_at: datetime,
+    end_at: datetime,
+    *,
+    lock: bool = False,
+) -> bool:
+    """シフト時間帯にアクティブな予約があるかチェック。
+
+    Args:
+        therapist_id: セラピストID
+        start_at: シフト開始時刻
+        end_at: シフト終了時刻
+        lock: FOR UPDATE ロックを取得するかどうか（レースコンディション防止用）
+
+    Returns:
+        True if there are active reservations overlapping the shift time range
+    """
+    stmt = select(models.GuestReservation).where(
+        models.GuestReservation.therapist_id == therapist_id,
+        models.GuestReservation.status.in_(ACTIVE_RESERVATION_STATUSES),
+        # 時間帯が重複する予約を検索
+        models.GuestReservation.start_at < end_at,
+        models.GuestReservation.end_at > start_at,
+    )
+    if lock:
+        stmt = stmt.with_for_update()
+    res = await db.execute(stmt)
+    return res.scalar_one_or_none() is not None
+
+
+async def _has_reservations_outside_range(
+    db: AsyncSession,
+    therapist_id: UUID,
+    new_start: datetime,
+    new_end: datetime,
+    old_start: datetime,
+    old_end: datetime,
+) -> bool:
+    """シフト時間短縮時に、新しい範囲外にはみ出す予約があるかチェック。
+
+    シフト時間を短縮する場合、既存の予約が新しいシフト時間外に
+    張り出してしまわないかを確認する。
+
+    Args:
+        therapist_id: セラピストID
+        new_start: 新しいシフト開始時刻
+        new_end: 新しいシフト終了時刻
+        old_start: 元のシフト開始時刻
+        old_end: 元のシフト終了時刻
+
+    Returns:
+        True if there are reservations that would extend outside the new shift range
+    """
+    # 元のシフト時間内にある予約のうち、新しいシフト時間外にはみ出すものを検索
+    # ケース1: 予約開始が新シフト開始より前（元シフト開始との間）
+    # ケース2: 予約終了が新シフト終了より後（元シフト終了との間）
+    from sqlalchemy import or_
+
+    stmt = select(models.GuestReservation).where(
+        models.GuestReservation.therapist_id == therapist_id,
+        models.GuestReservation.status.in_(ACTIVE_RESERVATION_STATUSES),
+        # 元のシフト時間内にある予約
+        models.GuestReservation.start_at < old_end,
+        models.GuestReservation.end_at > old_start,
+        # かつ、新しいシフト時間外にはみ出す
+        or_(
+            models.GuestReservation.start_at < new_start,
+            models.GuestReservation.end_at > new_end,
+        ),
+    )
+    res = await db.execute(stmt)
+    return res.scalar_one_or_none() is not None
+
+
 async def _has_overlap(
     db: AsyncSession,
     therapist_id: UUID,
@@ -280,6 +359,7 @@ async def update_shift(
     profile_id: UUID,
     shift_id: UUID,
     payload: ShiftUpdatePayload,
+    force: bool = Query(default=False, description="予約がはみ出しても強制更新する"),
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ) -> ShiftItem:
@@ -297,6 +377,16 @@ async def update_shift(
         db, shift.therapist_id, new_start, new_end, exclude_id=shift_id
     ):
         raise HTTPException(status_code=409, detail="shift_overlaps_existing")
+
+    # シフト時間を短縮する場合、既存予約がはみ出さないかチェック
+    if not force and (new_start > shift.start_at or new_end < shift.end_at):
+        if await _has_reservations_outside_range(
+            db, shift.therapist_id, new_start, new_end, shift.start_at, shift.end_at
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="shift_reduction_conflicts_reservations",
+            )
 
     if payload.start_at is not None:
         shift.start_at = payload.start_at
@@ -334,12 +424,25 @@ async def update_shift(
 async def delete_shift(
     profile_id: UUID,
     shift_id: UUID,
+    force: bool = Query(default=False, description="予約があっても強制削除する"),
     db: AsyncSession = Depends(get_session),
     user: models.User = Depends(require_dashboard_user),
 ):
     # 店舗所属確認
     await verify_shop_manager(db, user.id, profile_id)
     shift = await _get_shift(db, profile_id, shift_id)
+
+    # 予約の存在チェック（lock=True でレースコンディションを防ぐ）
+    if not force:
+        has_reservations = await _has_reservations_in_shift(
+            db, shift.therapist_id, shift.start_at, shift.end_at, lock=True
+        )
+        if has_reservations:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="shift_has_reservations",
+            )
+
     shift_date = shift.date
     shop_id = shift.shop_id
     await db.delete(shift)

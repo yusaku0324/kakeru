@@ -11,8 +11,11 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
-from ...models import TherapistShift, TherapistShiftStatus
+from ...deps import require_admin, audit_admin
+from ...models import TherapistShift, TherapistShiftStatus, GuestReservation
 from ...services.availability_sync import sync_availability_for_date
+
+ACTIVE_RESERVATION_STATUSES = {"pending", "confirmed", "reserved"}
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +77,55 @@ async def _get_shift(db: AsyncSession, shift_id: UUID) -> TherapistShift | None:
     return res.scalar_one_or_none()
 
 
+async def _has_reservations_in_shift(
+    db: AsyncSession,
+    therapist_id: UUID,
+    start_at: datetime,
+    end_at: datetime,
+    *,
+    lock: bool = False,
+) -> bool:
+    """シフト時間帯にアクティブな予約があるかチェック。
+
+    lock=True で FOR UPDATE ロックを取得し、レースコンディションを防ぐ。
+    """
+    stmt = select(GuestReservation).where(
+        GuestReservation.therapist_id == therapist_id,
+        GuestReservation.status.in_(ACTIVE_RESERVATION_STATUSES),
+        GuestReservation.start_at < end_at,
+        GuestReservation.end_at > start_at,
+    )
+    if lock:
+        stmt = stmt.with_for_update()
+    res = await db.execute(stmt)
+    return res.scalar_one_or_none() is not None
+
+
+async def _has_reservations_outside_range(
+    db: AsyncSession,
+    therapist_id: UUID,
+    new_start: datetime,
+    new_end: datetime,
+    old_start: datetime,
+    old_end: datetime,
+) -> bool:
+    """シフト時間短縮時に、新しい範囲外にはみ出す予約があるかチェック。"""
+    from sqlalchemy import or_
+
+    stmt = select(GuestReservation).where(
+        GuestReservation.therapist_id == therapist_id,
+        GuestReservation.status.in_(ACTIVE_RESERVATION_STATUSES),
+        GuestReservation.start_at < old_end,
+        GuestReservation.end_at > old_start,
+        or_(
+            GuestReservation.start_at < new_start,
+            GuestReservation.end_at > new_end,
+        ),
+    )
+    res = await db.execute(stmt)
+    return res.scalar_one_or_none() is not None
+
+
 async def _has_overlap(
     db: AsyncSession,
     therapist_id: UUID,
@@ -97,6 +149,8 @@ async def list_shifts(
     therapist_id: UUID | None = None,
     date_filter: date | None = Query(default=None, alias="date"),
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     stmt = select(TherapistShift)
     if therapist_id:
@@ -112,6 +166,8 @@ async def list_shifts(
 async def create_shift(
     payload: TherapistShiftPayload,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     # time range check is handled by Pydantic; double-check in case payload bypass
     if payload.start_at >= payload.end_at:
@@ -148,7 +204,10 @@ async def create_shift(
 async def update_shift(
     shift_id: UUID,
     payload: TherapistShiftPayload,
+    force: bool = Query(default=False, description="予約がはみ出しても強制更新する"),
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     shift = await _get_shift(db, shift_id)
     if not shift:
@@ -161,6 +220,23 @@ async def update_shift(
         db, payload.therapist_id, payload.start_at, payload.end_at, exclude_id=shift_id
     ):
         raise HTTPException(status_code=409, detail="shift_overlaps_existing")
+
+    # シフト時間を短縮する場合、既存予約がはみ出さないかチェック
+    if not force and (
+        payload.start_at > shift.start_at or payload.end_at < shift.end_at
+    ):
+        if await _has_reservations_outside_range(
+            db,
+            shift.therapist_id,
+            payload.start_at,
+            payload.end_at,
+            shift.start_at,
+            shift.end_at,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="shift_reduction_conflicts_reservations",
+            )
 
     # 日付が変わる場合は両方の日付を同期
     old_date = shift.date
@@ -201,11 +277,25 @@ async def update_shift(
 )
 async def delete_shift(
     shift_id: UUID,
+    force: bool = Query(default=False, description="予約があっても強制削除する"),
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     shift = await _get_shift(db, shift_id)
     if not shift:
         raise HTTPException(status_code=404, detail="shift_not_found")
+
+    # 予約の存在チェック（lock=True でレースコンディションを防ぐ）
+    if not force:
+        has_reservations = await _has_reservations_in_shift(
+            db, shift.therapist_id, shift.start_at, shift.end_at, lock=True
+        )
+        if has_reservations:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="shift_has_reservations",
+            )
 
     shop_id = shift.shop_id
     shift_date = shift.date

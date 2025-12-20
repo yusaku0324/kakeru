@@ -113,6 +113,10 @@ class DummySession:
         # Check for shop_managers query first
         if "shop_managers" in stmt_str.lower():
             return Result(self.shop_managers)
+        # For reservation check, return empty (no reservations)
+        # Must be before therapist check because guest_reservations contains "therapist"
+        if "guest_reservations" in stmt_str.lower():
+            return Result([])
         # For overlap check, return None (no overlap) to allow tests to pass
         if "therapist_shift" in stmt_str.lower() and "!=" in stmt_str:
             # This is likely the overlap check with exclude_id

@@ -152,8 +152,16 @@ def test_update_shift(monkeypatch: pytest.MonkeyPatch):
     async def fake_get(db, shift_id):
         return existing
 
+    async def fake_has_reservations_outside(
+        db, therapist_id, new_start, new_end, old_start, old_end
+    ):
+        return False  # No reservations outside new range
+
     monkeypatch.setattr(api, "_has_overlap", fake_overlap)
     monkeypatch.setattr(api, "_get_shift", fake_get)
+    monkeypatch.setattr(
+        api, "_has_reservations_outside_range", fake_has_reservations_outside
+    )
 
     payload = {
         "therapist_id": str(existing.therapist_id),
@@ -176,7 +184,11 @@ def test_delete_shift(monkeypatch: pytest.MonkeyPatch):
     async def fake_get(db, shift_id):
         return existing
 
+    async def fake_has_reservations(db, therapist_id, start_at, end_at, *, lock=False):
+        return False  # No reservations
+
     monkeypatch.setattr(api, "_get_shift", fake_get)
+    monkeypatch.setattr(api, "_has_reservations_in_shift", fake_has_reservations)
 
     res = client.delete(f"/api/admin/therapist_shifts/{existing.id}")
     assert res.status_code in (200, 204)
