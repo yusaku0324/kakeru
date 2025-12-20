@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     headers.cookie = cookie
   }
 
-  let lastError: { status: number; body: any } | null = null
+  let lastError: { status: number; body: unknown } | null = null
 
   for (const base of uniqueBases()) {
     try {
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
         cache: 'no-store',
       })
       const text = await resp.text()
-      let payload: any = null
+      let payload: Record<string, unknown> | null = null
       if (text) {
         try {
           payload = JSON.parse(text)

@@ -18,7 +18,7 @@ import { ProfileTagList } from '@/components/staff/ProfileTagList'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { nextSlotPayloadToScheduleSlot, type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { formatSlotJp } from '@/lib/schedule'
-import { SAMPLE_SHOPS, type SampleShop } from '@/lib/sampleShops'
+import { getSampleShops, type SampleShop } from '@/lib/sampleShops'
 import { sampleShopToDetail } from '@/lib/sampleShopAdapters'
 import { TOKYO_TZ, formatDatetimeLocal, formatZonedIso, toZonedDayjs, toZonedDate } from '@/lib/timezone'
 import { getJaFormatter } from '@/utils/date'
@@ -156,7 +156,7 @@ async function fetchShop(id: string, preferApi = false): Promise<ShopDetail> {
     }
   }
 
-  const fallback = SAMPLE_SHOPS.find((shop) => shop.id === id || shop.slug === id)
+  const fallback = getSampleShops().find((shop) => shop.id === id || shop.slug === id)
   if (fallback) {
     return sampleShopToDetail(fallback)
   }

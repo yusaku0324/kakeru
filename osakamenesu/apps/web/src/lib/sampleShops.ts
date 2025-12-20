@@ -151,7 +151,9 @@ export type SampleShop = {
   }> | null
 }
 
-export const SAMPLE_SHOPS: SampleShop[] = [
+// Factory function to generate sample shops with fresh dates
+function createSampleShops(): SampleShop[] {
+  return [
   {
     id: 'sample-namba-resort',
     slug: 'sample-namba-resort',
@@ -682,4 +684,14 @@ export const SAMPLE_SHOPS: SampleShop[] = [
     diary_count: 6,
     has_diaries: true,
   },
-]
+  ]
+}
+
+// Export function to get fresh sample shops data
+export function getSampleShops(): SampleShop[] {
+  return createSampleShops()
+}
+
+// For backward compatibility - but this will be stale after first import
+// Use getSampleShops() for fresh data
+export const SAMPLE_SHOPS: SampleShop[] = createSampleShops()

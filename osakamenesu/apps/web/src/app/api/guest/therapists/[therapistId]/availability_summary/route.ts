@@ -12,7 +12,7 @@ async function proxyAvailabilitySummary(request: NextRequest, therapistId: strin
       { method: 'GET', cache: 'no-store' },
     )
     const text = await resp.text()
-    let json: any = null
+    let json: Record<string, unknown> | null = null
     if (text) {
       try {
         json = JSON.parse(text)

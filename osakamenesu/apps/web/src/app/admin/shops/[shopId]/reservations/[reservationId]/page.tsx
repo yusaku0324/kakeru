@@ -99,9 +99,9 @@ export default function AdminGuestReservationDetailPage() {
         prev ? { ...prev, status: json.status || nextStatus } : prev,
       )
       setMessage('ステータスを更新しました')
-    } catch (err: any) {
+    } catch (err) {
       console.error(err)
-      setError(err?.message || '更新に失敗しました')
+      setError(err instanceof Error ? err.message : '更新に失敗しました')
     } finally {
       setPending(false)
     }

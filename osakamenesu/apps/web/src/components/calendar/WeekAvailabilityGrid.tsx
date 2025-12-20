@@ -5,7 +5,7 @@ import { Fragment, useMemo } from 'react'
 
 import { getJaFormatter } from '@/utils/date'
 import { normalizeTimeToMinutes } from '@/lib/time-normalize'
-import { extractTime } from '@/lib/jst'
+import { extractTime, parseJstDateAtMidnight } from '@/lib/jst'
 import {
   AVAILABILITY_STATUS_META,
   type AvailabilityDay,
@@ -210,7 +210,7 @@ export function WeekAvailabilityGrid({
           時間
         </div>
         {days.map((day) => {
-          const date = new Date(`${day.date}T00:00:00`)
+          const date = parseJstDateAtMidnight(day.date)
           const monthLabel = MONTH_FORMATTER.format(date)
           const dayNumber = date.getDate()
           const weekday = WEEKDAY_FORMATTER.format(date)

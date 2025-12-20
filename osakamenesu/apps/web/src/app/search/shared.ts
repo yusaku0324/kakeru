@@ -98,6 +98,8 @@ const SAMPLE_RESULTS_BASE: ShopHit[] = [
         avatar_url:
           'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=640&q=80',
         next_available_at: nextSlotAlignedTime(2),
+        today_available: true,
+        next_available_slot: { start_at: nextSlotAlignedTime(2), status: 'ok' as const },
         mood_tag: 'calm',
         style_tag: 'relax',
         look_type: 'beauty',

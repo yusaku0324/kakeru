@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import type { ShopHit } from '@/components/shop/ShopCard'
-import { SAMPLE_SHOPS } from '@/lib/sampleShops'
+import { getSampleShops } from '@/lib/sampleShops'
 import { sampleShopToHit } from '@/lib/sampleShopAdapters'
 import { resolveInternalApiBase } from '@/lib/server-config'
 
@@ -193,7 +193,7 @@ export async function GET(request: Request) {
   const page = parsePositiveInt(params.get('page'), 1, 1000)
   const pageSize = parsePositiveInt(params.get('page_size'), 12, 50)
 
-  let hits = SAMPLE_SHOPS.map((shop) => sampleShopToHit(shop))
+  let hits = getSampleShops().map((shop) => sampleShopToHit(shop))
 
   if (q) {
     hits = filterByQuery(hits, q)

@@ -44,7 +44,7 @@ export default function AdminTherapistsPage() {
           セラピスト管理
         </h1>
         <p className="text-sm text-neutral-textMuted">
-          管理対象のセラピスト一覧を確認し、詳細は店舗編集から更新してください。
+          セラピストのプロフィール編集やシフト管理を行えます。
         </p>
       </div>
 
@@ -72,13 +72,18 @@ export default function AdminTherapistsPage() {
                   <div className="text-xs text-neutral-textMuted">所属: {member.shop}</div>
                 ) : null}
               </div>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="text-brand-primary">編集は店舗管理から</span>
+              <div className="flex items-center gap-2 text-xs">
                 <a
-                  className="text-brand-primary underline"
+                  className="rounded border border-brand-primary/30 bg-brand-primary/5 px-2.5 py-1 text-brand-primary hover:bg-brand-primary/10"
+                  href={`/admin/therapists/${member.id}/edit`}
+                >
+                  編集
+                </a>
+                <a
+                  className="rounded border border-neutral-300 px-2.5 py-1 text-neutral-600 hover:bg-neutral-50"
                   href={`/admin/therapists/${member.id}/shifts`}
                 >
-                  シフト管理
+                  シフト
                 </a>
               </div>
             </li>

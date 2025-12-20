@@ -53,7 +53,7 @@ export default function QAMenuPage() {
         if (!res.ok) return
         const data = await res.json()
         const items = Array.isArray(data?.results)
-          ? data.results.map((shop: any) => ({ id: shop.id, name: shop.name || "(no name)" }))
+          ? data.results.map((shop: { id: string; name?: string }) => ({ id: shop.id, name: shop.name || "(no name)" }))
           : []
         setShops(items)
       } finally {
@@ -75,7 +75,7 @@ export default function QAMenuPage() {
         if (!res.ok) return
         const data = await res.json()
         const items = Array.isArray(data?.results)
-          ? data.results.map((t: any) => ({ id: t.id, name: t.name || "(no name)" }))
+          ? data.results.map((t: { id: string; name?: string }) => ({ id: t.id, name: t.name || "(no name)" }))
           : []
         setTherapists(items)
       } finally {

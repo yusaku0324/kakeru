@@ -516,10 +516,6 @@ export function useAdminShopsController(notifications: AdminShopsNotifications =
         const liveAddress = document
           .querySelector<HTMLInputElement>('[data-testid="shop-address"]')
           ?.value?.trim()
-        console.log('[admin-shops/saveContent]', {
-          formAddress: preparedPayload.address,
-          liveAddress,
-        })
         if (liveAddress) {
           preparedPayload.address = liveAddress
         }

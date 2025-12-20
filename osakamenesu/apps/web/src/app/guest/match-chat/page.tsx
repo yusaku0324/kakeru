@@ -207,7 +207,21 @@ export default function MatchChatPage() {
         items,
       )
 
-      const rankedItems: MatchingCandidate[] = reranked.map((m: any) => ({
+      type RawCandidate = {
+        therapist_id?: string
+        id?: string
+        therapist_name?: string
+        name?: string
+        shop_id?: string
+        shop_name?: string
+        recommended_score?: number
+        score?: number
+        summary?: string
+        avatar_url?: string
+        photo_url?: string
+        slots?: { start_at: string; end_at: string; status?: string }[]
+      }
+      const rankedItems: MatchingCandidate[] = reranked.map((m: RawCandidate) => ({
         therapist_id: m.therapist_id || m.id || '',
         therapist_name: m.therapist_name || m.name || '',
         shop_id: m.shop_id || '',

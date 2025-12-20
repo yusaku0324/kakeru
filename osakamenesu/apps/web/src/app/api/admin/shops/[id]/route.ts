@@ -17,7 +17,7 @@ async function proxy(method: 'GET' | 'PATCH', request: NextRequest, params: { id
     headers['Content-Type'] = 'application/json'
   }
 
-  let lastError: any = null
+  let lastError: { status: number; body: unknown } | Error | null = null
   const targetPath =
     method === 'PATCH' ? `/api/admin/shops/${params.id}/content` : `/api/admin/shops/${params.id}`
 
@@ -30,7 +30,7 @@ async function proxy(method: 'GET' | 'PATCH', request: NextRequest, params: { id
         cache: 'no-store',
       })
       const text = await resp.text()
-      let json: any = null
+      let json: Record<string, unknown> | null = null
       if (text) {
         try {
           json = JSON.parse(text)
@@ -46,7 +46,7 @@ async function proxy(method: 'GET' | 'PATCH', request: NextRequest, params: { id
       lastError = err
     }
   }
-  if (lastError?.status && lastError.body) {
+  if (lastError && 'status' in lastError && 'body' in lastError) {
     return NextResponse.json(lastError.body, { status: lastError.status })
   }
   return NextResponse.json({ detail: 'admin shop unavailable' }, { status: 503 })

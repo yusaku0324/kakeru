@@ -8,7 +8,7 @@
  * Use today(), extractDate(), extractTime(), isToday(), isSameDate() from there.
  */
 
-import { today as jstToday, extractDate, extractTime } from '@/lib/jst'
+import { today as jstToday, extractDate, extractTime, parseJstDateAtMidnight } from '@/lib/jst'
 
 // =============================================================================
 // 型定義
@@ -324,7 +324,7 @@ export function toDisplayAvailabilityDays(
   return days.map((day) => ({
     date: day.date,
     isToday: day.is_today || day.date === today,
-    label: day.label || formatLabel(new Date(`${day.date}T00:00:00`)),
+    label: day.label || formatLabel(parseJstDateAtMidnight(day.date)),
     slots: day.slots.map((slot) => ({
       ...slot,
       timeKey: slot.timeKey || extractTime(slot.start_at),

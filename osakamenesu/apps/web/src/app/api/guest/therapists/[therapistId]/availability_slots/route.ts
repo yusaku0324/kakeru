@@ -4,7 +4,7 @@ import { resolveInternalApiBase } from '@/lib/server-config'
 import {
   generateWeekDateRangeWithToday,
 } from '@/lib/availability-date-range'
-import { SAMPLE_SHOPS } from '@/lib/sampleShops'
+import { getSampleShops } from '@/lib/sampleShops'
 import { today, extractDate, formatDateTimeISO } from '@/lib/jst'
 
 const API_BASE = resolveInternalApiBase().replace(/\/+$/, '')
@@ -88,7 +88,7 @@ function generateTimeSlots(
  */
 function getSampleSlotsForTherapist(therapistId: string, dateStr: string): AvailabilitySlot[] {
   // サンプル店舗からセラピストを検索
-  for (const shop of SAMPLE_SHOPS) {
+  for (const shop of getSampleShops()) {
     const calendar = shop.availability_calendar
     if (!calendar?.days) continue
 
@@ -114,7 +114,12 @@ function getSampleSlotsForTherapist(therapistId: string, dateStr: string): Avail
   return []
 }
 
-async function fetchDaySlots(therapistId: string, dateStr: string): Promise<AvailabilitySlot[]> {
+type FetchResult = {
+  slots: AvailabilitySlot[]
+  isSample: boolean
+}
+
+async function fetchDaySlots(therapistId: string, dateStr: string): Promise<FetchResult> {
   try {
     const resp = await fetch(
       `${API_BASE}/api/guest/therapists/${therapistId}/availability_slots?date=${dateStr}`,
@@ -122,36 +127,44 @@ async function fetchDaySlots(therapistId: string, dateStr: string): Promise<Avai
     )
     if (!resp.ok) {
       // バックエンドAPIが失敗した場合、サンプルデータにフォールバック
-      return getSampleSlotsForTherapist(therapistId, dateStr)
+      console.warn(`[availability_slots] Backend API failed for ${therapistId}/${dateStr}, using sample data`)
+      return { slots: getSampleSlotsForTherapist(therapistId, dateStr), isSample: true }
     }
     const data = await resp.json()
     const slots = Array.isArray(data?.slots) ? data.slots : []
     // APIから空の結果が返った場合もサンプルデータを試す
     if (slots.length === 0) {
-      return getSampleSlotsForTherapist(therapistId, dateStr)
+      const sampleSlots = getSampleSlotsForTherapist(therapistId, dateStr)
+      if (sampleSlots.length > 0) {
+        console.warn(`[availability_slots] API returned empty for ${therapistId}/${dateStr}, using sample data`)
+        return { slots: sampleSlots, isSample: true }
+      }
     }
-    return slots
-  } catch {
+    return { slots, isSample: false }
+  } catch (err) {
     // エラー時はサンプルデータにフォールバック
-    return getSampleSlotsForTherapist(therapistId, dateStr)
+    console.warn(`[availability_slots] Error fetching ${therapistId}/${dateStr}:`, err)
+    return { slots: getSampleSlotsForTherapist(therapistId, dateStr), isSample: true }
   }
 }
 
-async function fetchWeekAvailability(therapistId: string): Promise<{ days: DaySlots[] }> {
+async function fetchWeekAvailability(therapistId: string): Promise<{ days: DaySlots[]; sample: boolean }> {
   // Use tested pure function for date range generation
   const weekDates = generateWeekDateRangeWithToday()
   const days: DaySlots[] = []
+  let usedSampleData = false
 
   // Fetch all dates in parallel with error handling
   const datePromises = weekDates.map(({ date, is_today }) =>
     fetchDaySlots(therapistId, date)
-      .then((slots) => ({ dateStr: date, slots, isToday: is_today }))
-      .catch(() => ({ dateStr: date, slots: [] as AvailabilitySlot[], isToday: is_today }))
+      .then((result) => ({ dateStr: date, ...result, isToday: is_today }))
+      .catch(() => ({ dateStr: date, slots: [] as AvailabilitySlot[], isSample: false, isToday: is_today }))
   )
 
   const results = await Promise.all(datePromises)
 
-  for (const { dateStr, slots: availableSlots, isToday } of results) {
+  for (const { dateStr, slots: availableSlots, isSample, isToday } of results) {
+    if (isSample) usedSampleData = true
     const timeSlots = generateTimeSlots(dateStr, availableSlots, isToday)
     days.push({
       date: dateStr,
@@ -160,7 +173,7 @@ async function fetchWeekAvailability(therapistId: string): Promise<{ days: DaySl
     })
   }
 
-  return { days }
+  return { days, sample: usedSampleData }
 }
 
 async function proxyAvailabilitySlots(request: NextRequest, therapistId: string) {

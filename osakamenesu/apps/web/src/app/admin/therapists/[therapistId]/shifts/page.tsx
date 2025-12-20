@@ -25,6 +25,13 @@ type Message = { type: 'success' | 'error'; text: string }
 
 const STATUS_OPTIONS: TherapistShift['availability_status'][] = ['available', 'busy', 'off']
 
+// ステータスの日本語ラベルとスタイル
+const STATUS_LABELS: Record<TherapistShift['availability_status'], { label: string; className: string }> = {
+  available: { label: '出勤可能', className: 'bg-green-100 text-green-700' },
+  busy: { label: '接客中', className: 'bg-amber-100 text-amber-700' },
+  off: { label: '休み', className: 'bg-neutral-100 text-neutral-600' },
+}
+
 function formatTime(value: string) {
   try {
     return new Date(value).toISOString().slice(11, 16)
@@ -116,6 +123,9 @@ export default function AdminTherapistShiftsPage() {
 
   const handleDelete = useCallback(
     async (id: string) => {
+      const confirmed = window.confirm('このシフトを削除しますか？')
+      if (!confirmed) return
+
       setMessage(null)
       const resp = await fetch(`/api/admin/therapist_shifts/${id}`, { method: 'DELETE' })
       if (resp.ok || resp.status === 204) {
@@ -181,7 +191,11 @@ export default function AdminTherapistShiftsPage() {
                 <tr key={s.id} className="border-b border-neutral-borderLight last:border-0">
                   <td className="py-1 align-top">{formatTime(s.start_at)}</td>
                   <td className="py-1 align-top">{formatTime(s.end_at)}</td>
-                  <td className="py-1 align-top">{s.availability_status}</td>
+                  <td className="py-1 align-top">
+                    <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${STATUS_LABELS[s.availability_status].className}`}>
+                      {STATUS_LABELS[s.availability_status].label}
+                    </span>
+                  </td>
                   <td className="py-1 align-top text-neutral-textMuted">{s.notes || ''}</td>
                   <td className="py-1 text-right">
                     <button
@@ -231,7 +245,7 @@ export default function AdminTherapistShiftsPage() {
               >
                 {STATUS_OPTIONS.map((opt) => (
                   <option key={opt} value={opt}>
-                    {opt}
+                    {STATUS_LABELS[opt].label}
                   </option>
                 ))}
               </select>

@@ -65,7 +65,7 @@ export async function fetchShopAvailability(id: string): Promise<{ days: Availab
   return jsonFetch(`/api/admin/shops/${id}/availability`, { cache: 'no-store' })
 }
 
-export async function upsertShopAvailability(id: string, payload: { date: string; slots: any[] }) {
+export async function upsertShopAvailability(id: string, payload: { date: string; slots: Array<{ start_at: string; end_at: string; status?: string }> }) {
   await jsonFetch(`/api/admin/shops/${id}/availability`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

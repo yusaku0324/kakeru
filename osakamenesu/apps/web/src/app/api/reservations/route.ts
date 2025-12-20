@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   }
 
   const body = JSON.stringify(payload)
-  let lastError: any = null
+  let lastError: { status?: number; body?: unknown } | null = null
 
   for (const base of resolveBases()) {
     try {
@@ -28,10 +28,10 @@ export async function POST(req: Request) {
         cache: 'no-store',
       })
       const text = await resp.text()
-      let json: any = null
+      let json: Record<string, unknown> | null = null
       if (text) {
         try {
-          json = JSON.parse(text)
+          json = JSON.parse(text) as Record<string, unknown>
         } catch {
           json = { detail: text }
         }
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       }
       lastError = { status: resp.status, body: json }
     } catch (err) {
-      lastError = err
+      lastError = { body: err }
     }
   }
 

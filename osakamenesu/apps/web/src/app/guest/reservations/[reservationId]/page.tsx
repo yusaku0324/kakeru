@@ -64,9 +64,9 @@ export default function GuestReservationDetailPage() {
       }
       setReservation((prev) => (prev ? { ...prev, status: json.status || 'cancelled' } : prev))
       setMessage('キャンセルが完了しました')
-    } catch (err: any) {
+    } catch (err) {
       console.error(err)
-      setError(err?.message || 'キャンセルに失敗しました')
+      setError(err instanceof Error ? err.message : 'キャンセルに失敗しました')
     }
   }
 

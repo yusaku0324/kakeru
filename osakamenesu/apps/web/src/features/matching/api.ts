@@ -28,18 +28,18 @@ export type SimilarTherapistRequest = {
   excludeUnavailable?: boolean
 }
 
-function normalizeItem(raw: any): SimilarTherapist {
+function normalizeItem(raw: Record<string, unknown>): SimilarTherapist {
   return {
     id: String(raw.id ?? ''),
-    name: raw.name ?? '',
-    age: raw.age ?? null,
-    priceRank: raw.price_rank ?? null,
-    moodTag: raw.mood_tag ?? null,
-    styleTag: raw.style_tag ?? null,
-    lookType: raw.look_type ?? null,
-    contactStyle: raw.contact_style ?? null,
-    hobbyTags: Array.isArray(raw.hobby_tags) ? raw.hobby_tags : [],
-    photoUrl: raw.photo_url ?? null,
+    name: typeof raw.name === 'string' ? raw.name : '',
+    age: typeof raw.age === 'number' ? raw.age : null,
+    priceRank: typeof raw.price_rank === 'number' ? raw.price_rank : null,
+    moodTag: typeof raw.mood_tag === 'string' ? raw.mood_tag : null,
+    styleTag: typeof raw.style_tag === 'string' ? raw.style_tag : null,
+    lookType: typeof raw.look_type === 'string' ? raw.look_type : null,
+    contactStyle: typeof raw.contact_style === 'string' ? raw.contact_style : null,
+    hobbyTags: Array.isArray(raw.hobby_tags) ? (raw.hobby_tags as string[]) : [],
+    photoUrl: typeof raw.photo_url === 'string' ? raw.photo_url : null,
     isAvailableNow: Boolean(raw.is_available_now ?? true),
     score: Number(raw.score ?? 0),
     photoSimilarity: Number(raw.photo_similarity ?? raw.tag_similarity ?? 0),
@@ -61,7 +61,9 @@ export async function fetchSimilarTherapists(
   }
 
   try {
-    const resp = await fetch(`/api/guest/matching/similar?${search.toString()}`, {
+    // Use absolute URL to avoid including Basic Auth credentials from window.location
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+    const resp = await fetch(`${baseUrl}/api/guest/matching/similar?${search.toString()}`, {
       cache: 'no-store',
     })
 

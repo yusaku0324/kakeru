@@ -10,7 +10,6 @@ import { fetchDashboardShopProfile } from '@/lib/dashboard-shops'
 async function cookieHeaderFromStore(): Promise<string | undefined> {
   const store = await cookies()
   const entries = store.getAll()
-  console.log('[DashboardHomePage] cookies entries', entries.length)
   if (!entries.length) {
     return undefined
   }
