@@ -167,6 +167,7 @@ def main(argv: list[str]) -> int:
     rng = random.Random(42)
     created_ids: list[str] = []
     bulk_updates: list[dict] = []
+    created_therapists: list[dict] = []  # [{shop_id, therapist_id, name}]
     for i in range(args.count):
         name = names[i % len(names)] + (
             str((i // len(names)) + 1) if i >= len(names) else ""
@@ -434,6 +435,11 @@ def main(argv: list[str]) -> int:
                 therapist_res = post_json("/api/admin/therapists", therapist_payload)
                 therapist_id = therapist_res["id"]
 
+                # Track created therapists for reservation seeding
+                created_therapists.append(
+                    {"shop_id": pid, "therapist_id": therapist_id, "name": t_name}
+                )
+
                 # Activate the therapist (status: published)
                 patch_json(
                     f"/api/admin/therapists/{therapist_id}",
@@ -444,28 +450,55 @@ def main(argv: list[str]) -> int:
                 jst = timezone(timedelta(hours=9))
                 for day_offset in range(7):
                     shift_date = date.today() + timedelta(days=day_offset)
-                    # Vary start times: 10:00, 12:00, 14:00, etc.
-                    start_hour = 10 + (t_idx * 2) + (day_offset % 3)
-                    end_hour = min(start_hour + 6, 24)  # 6-hour shifts max
 
-                    shift_start = datetime(
-                        shift_date.year,
-                        shift_date.month,
-                        shift_date.day,
-                        start_hour,
-                        0,
-                        0,
-                        tzinfo=jst,
-                    )
-                    shift_end = datetime(
-                        shift_date.year,
-                        shift_date.month,
-                        shift_date.day,
-                        end_hour,
-                        0,
-                        0,
-                        tzinfo=jst,
-                    )
+                    # Therapist index 2 (third therapist) gets deep night shifts
+                    # that cross midnight (e.g., 22:00-02:00)
+                    if t_idx == 2:
+                        start_hour = 20 + (day_offset % 3)  # 20:00, 21:00, 22:00
+                        # Shift ends next day at 01:00-03:00
+                        next_day = shift_date + timedelta(days=1)
+                        shift_start = datetime(
+                            shift_date.year,
+                            shift_date.month,
+                            shift_date.day,
+                            start_hour,
+                            0,
+                            0,
+                            tzinfo=jst,
+                        )
+                        end_hour = 1 + (day_offset % 3)  # 01:00, 02:00, 03:00
+                        shift_end = datetime(
+                            next_day.year,
+                            next_day.month,
+                            next_day.day,
+                            end_hour,
+                            0,
+                            0,
+                            tzinfo=jst,
+                        )
+                    else:
+                        # Regular daytime shifts: 10:00-16:00, 12:00-18:00, etc.
+                        start_hour = 10 + (t_idx * 2) + (day_offset % 3)
+                        end_hour = min(start_hour + 6, 24)  # 6-hour shifts max
+
+                        shift_start = datetime(
+                            shift_date.year,
+                            shift_date.month,
+                            shift_date.day,
+                            start_hour,
+                            0,
+                            0,
+                            tzinfo=jst,
+                        )
+                        shift_end = datetime(
+                            shift_date.year,
+                            shift_date.month,
+                            shift_date.day,
+                            end_hour,
+                            0,
+                            0,
+                            tzinfo=jst,
+                        )
 
                     shift_payload = {
                         "therapist_id": therapist_id,
@@ -487,6 +520,65 @@ def main(argv: list[str]) -> int:
 
     if bulk_updates:
         post_json("/api/admin/shops/content:bulk", {"shops": bulk_updates})
+
+    # Create sample reservations (various statuses)
+    # Use first few therapists to create sample reservations
+    jst = timezone(timedelta(hours=9))
+    reservation_statuses = ["pending", "confirmed", "declined", "cancelled"]
+    customer_names = ["田中太郎", "佐藤花子", "鈴木一郎", "高橋美咲", "山田健太"]
+    reservations_created = 0
+    for idx, therapist_info in enumerate(created_therapists[:8]):
+        # Create reservations for today and tomorrow
+        for day_offset in range(2):
+            reservation_date = date.today() + timedelta(days=day_offset)
+            # Vary start times: 12:00, 14:00, 16:00, 18:00
+            start_hour = 12 + (idx % 4) * 2
+            reservation_start = datetime(
+                reservation_date.year,
+                reservation_date.month,
+                reservation_date.day,
+                start_hour,
+                0,
+                0,
+                tzinfo=jst,
+            )
+            reservation_end = reservation_start + timedelta(hours=2)
+
+            # Pick status based on index
+            status_idx = (idx + day_offset) % len(reservation_statuses)
+            reservation_status = reservation_statuses[status_idx]
+            customer_name = customer_names[idx % len(customer_names)]
+
+            reservation_payload = {
+                "shop_id": therapist_info["shop_id"],
+                "staff_id": therapist_info["therapist_id"],
+                "channel": "web",
+                "desired_start": reservation_start.isoformat(),
+                "desired_end": reservation_end.isoformat(),
+                "notes": f"シードデータ予約 {idx + 1}",
+                "customer": {
+                    "name": customer_name,
+                    "phone": f"090{idx:04}{day_offset:04}",
+                    "email": f"test{idx}@example.com",
+                },
+                "marketing_opt_in": idx % 2 == 0,
+            }
+            try:
+                res = post_json("/api/v1/reservations", reservation_payload)
+                reservation_id = res.get("id")
+                if reservation_id and reservation_status != "pending":
+                    # Update status to the desired one
+                    patch_json(
+                        f"/api/v1/reservations/{reservation_id}",
+                        {"status": reservation_status},
+                    )
+                reservations_created += 1
+            except Exception as e:
+                # Overlap or other error - skip
+                print(f"[warn] reservation creation failed: {e}", file=sys.stderr)
+
+    if reservations_created > 0:
+        print(f"[info] Created {reservations_created} reservations", file=sys.stderr)
 
     # Reindex all to pick up newly seeded content
     post_query("/api/admin/reindex", {})
