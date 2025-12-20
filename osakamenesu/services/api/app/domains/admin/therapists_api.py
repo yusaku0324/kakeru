@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
+from ...deps import require_admin, audit_admin
 from ...models import Therapist
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,8 @@ def _serialize(th: Therapist) -> dict[str, Any]:
 async def list_therapists(
     shop_id: UUID | None = Query(default=None, alias="shop_id"),
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     stmt = select(Therapist)
     if shop_id:
@@ -88,7 +91,10 @@ async def list_therapists(
 
 @router.post("/api/admin/therapists", status_code=status.HTTP_201_CREATED)
 async def create_therapist(
-    payload: TherapistPayload, db: AsyncSession = Depends(get_session)
+    payload: TherapistPayload,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     name = payload.name.strip()
     if not name:
@@ -158,6 +164,8 @@ async def update_therapist(
     therapist_id: UUID,
     payload: TherapistUpdatePayload,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     """Update therapist fields."""
     result = await db.execute(select(Therapist).where(Therapist.id == therapist_id))
@@ -244,6 +252,8 @@ class EmbeddingGenerateResponse(BaseModel):
 async def generate_photo_embeddings(
     payload: EmbeddingGenerateRequest,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ) -> EmbeddingGenerateResponse:
     """Generate or regenerate photo embeddings for therapists.
 
@@ -261,12 +271,9 @@ async def generate_photo_embeddings(
         therapist_ids = payload.therapist_ids
         # If force is True, process all. Otherwise, filter to those needing computation
         if not payload.force:
-            # Check which ones actually need computation
-            filtered_ids = []
-            for tid in therapist_ids:
-                if await service.needs_recomputation(tid):
-                    filtered_ids.append(tid)
-            therapist_ids = filtered_ids
+            # バッチで再計算が必要かチェック（N+1回避）
+            needs_update = await service.needs_recomputation_batch(therapist_ids)
+            therapist_ids = [tid for tid, needs in needs_update.items() if needs]
     else:
         # Process all without embeddings (service handles this internally)
         therapist_ids = None
@@ -291,6 +298,8 @@ async def generate_photo_embeddings(
 async def get_therapist_embedding_status(
     therapist_id: UUID,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     """Get embedding status for a specific therapist."""
     result = await db.execute(select(Therapist).where(Therapist.id == therapist_id))
@@ -335,6 +344,8 @@ async def start_batch_embedding_computation(
     payload: BatchEmbeddingRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ) -> BatchEmbeddingResponse:
     """Start batch computation of photo embeddings in the background.
 

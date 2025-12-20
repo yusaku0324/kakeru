@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from .... import models
 from ....meili import index_bulk, purge_all
@@ -86,13 +87,15 @@ async def reindex_all_profiles(*, db: AsyncSession, purge: bool = False) -> int:
                 HTTPStatus.SERVICE_UNAVAILABLE, detail=f"meili_unavailable: {exc}"
             ) from exc
 
+    # reviewsリレーションをeager loadingで一括取得（N+1回避）
     result = await db.execute(
-        select(models.Profile).where(models.Profile.status == "published")
+        select(models.Profile)
+        .where(models.Profile.status == "published")
+        .options(selectinload(models.Profile.reviews))
     )
     profiles = list(result.scalars().all())
     docs = []
     for profile in profiles:
-        await db.refresh(profile, attribute_names=["reviews"])
         docs.append(await _build_profile_document(db=db, profile=profile))
 
     if not docs:

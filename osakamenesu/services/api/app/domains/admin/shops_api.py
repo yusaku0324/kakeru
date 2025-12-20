@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
+from ...deps import require_admin, audit_admin
 from ...models import Profile
 
 logger = logging.getLogger(__name__)
@@ -67,14 +68,23 @@ def _serialize(shop: Profile) -> dict[str, Any]:
 
 
 @router.get("/api/admin/shops")
-async def list_shops(db: AsyncSession = Depends(get_session)):
+async def list_shops(
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
+):
     res = await db.execute(select(Profile).order_by(Profile.created_at.desc()))
     items = res.scalars().all()
     return {"items": [_serialize(shop) for shop in items]}
 
 
 @router.post("/api/admin/shops", status_code=status.HTTP_201_CREATED)
-async def create_shop(payload: ShopPayload, db: AsyncSession = Depends(get_session)):
+async def create_shop(
+    payload: ShopPayload,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
+):
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="name_required")
@@ -126,7 +136,12 @@ class UpdateBufferMinutesPayload(BaseModel):
 
 
 @router.get("/api/admin/shops/{shop_id}")
-async def get_shop(shop_id: UUID, db: AsyncSession = Depends(get_session)):
+async def get_shop(
+    shop_id: UUID,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
+):
     """Get a specific shop by ID."""
     res = await db.execute(select(Profile).where(Profile.id == shop_id))
     shop = res.scalar_one_or_none()
@@ -140,6 +155,8 @@ async def update_shop_buffer(
     shop_id: UUID,
     payload: UpdateBufferMinutesPayload,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     """Update buffer minutes for a shop."""
     res = await db.execute(select(Profile).where(Profile.id == shop_id))

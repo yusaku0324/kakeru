@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
+from ...deps import require_admin, audit_admin
 from ...models import GuestReservation, Therapist, TherapistShift
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,9 @@ router = APIRouter()
 
 
 def _today_range(now: datetime) -> tuple[datetime, datetime]:
-    start = now.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    start = now.astimezone(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
     end = start + timedelta(days=1)
     return start, end
 
@@ -30,7 +33,9 @@ def _week_range(now: datetime) -> tuple[datetime, datetime]:
     return start, end
 
 
-async def _compute_dashboard(db: AsyncSession, shop_id: UUID, now: datetime) -> dict[str, Any]:
+async def _compute_dashboard(
+    db: AsyncSession, shop_id: UUID, now: datetime
+) -> dict[str, Any]:
     today_start, today_end = _today_range(now)
     week_start, week_end = _week_range(now)
 
@@ -42,8 +47,16 @@ async def _compute_dashboard(db: AsyncSession, shop_id: UUID, now: datetime) -> 
     def _is_confirmed(r: GuestReservation) -> bool:
         return (r.status or "").lower() == "confirmed"
 
-    today_res = [r for r in reservations if _is_confirmed(r) and r.start_at and today_start <= r.start_at < today_end]
-    week_res = [r for r in reservations if _is_confirmed(r) and r.start_at and week_start <= r.start_at < week_end]
+    today_res = [
+        r
+        for r in reservations
+        if _is_confirmed(r) and r.start_at and today_start <= r.start_at < today_end
+    ]
+    week_res = [
+        r
+        for r in reservations
+        if _is_confirmed(r) and r.start_at and week_start <= r.start_at < week_end
+    ]
 
     recent = sorted(
         reservations,
@@ -70,7 +83,11 @@ async def _compute_dashboard(db: AsyncSession, shop_id: UUID, now: datetime) -> 
     today_shifts = [s for s in shifts if s.date == today_start.date()]
 
     # workload ratio
-    shift_minutes = sum(int((s.end_at - s.start_at).total_seconds() // 60) for s in today_shifts if s.start_at and s.end_at)
+    shift_minutes = sum(
+        int((s.end_at - s.start_at).total_seconds() // 60)
+        for s in today_shifts
+        if s.start_at and s.end_at
+    )
     res_minutes = sum(
         int((r.end_at - r.start_at).total_seconds() // 60)
         for r in today_res
@@ -101,7 +118,12 @@ async def _compute_dashboard(db: AsyncSession, shop_id: UUID, now: datetime) -> 
 
 
 @router.get("/api/admin/shops/{shop_id}/dashboard")
-async def shop_dashboard(shop_id: UUID, db: AsyncSession = Depends(get_session)):
+async def shop_dashboard(
+    shop_id: UUID,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
+):
     try:
         now = datetime.now(timezone.utc)
         data = await _compute_dashboard(db, shop_id, now)

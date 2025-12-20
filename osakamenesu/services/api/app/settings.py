@@ -96,7 +96,7 @@ class Settings(BaseSettings):
         ),
     )
     auth_magic_link_redirect_path: str = "/auth/complete"
-    auth_magic_link_debug: bool = True
+    auth_magic_link_debug: bool = False  # 本番環境でマジックリンクをログ出力しない
     site_base_url: str | None = Field(
         default=None,
         validation_alias=AliasChoices("SITE_BASE_URL", "NEXT_PUBLIC_SITE_URL"),
@@ -154,7 +154,7 @@ class Settings(BaseSettings):
         ),
     )
     test_auth_secret: str | None = Field(
-        default="secret",
+        default=None,  # 本番環境でテストログインを無効化（環境変数で明示的に設定が必要）
         validation_alias=AliasChoices("E2E_TEST_AUTH_SECRET", "TEST_AUTH_SECRET"),
     )
 

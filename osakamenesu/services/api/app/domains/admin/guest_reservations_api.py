@@ -10,6 +10,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
+from ...deps import require_admin, audit_admin
 from ...models import GuestReservation, Profile, Therapist
 from ..site.guest_reservations import update_guest_reservation_status
 
@@ -92,6 +93,8 @@ async def list_guest_reservations(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     stmt = select(GuestReservation).order_by(desc(GuestReservation.start_at))
     if shop_id:
@@ -136,6 +139,8 @@ async def list_guest_reservations(
 async def get_guest_reservation_detail(
     reservation_id: UUID,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     res = await db.execute(
         select(GuestReservation).where(GuestReservation.id == reservation_id)
@@ -174,6 +179,8 @@ async def update_guest_reservation_status_api(
     reservation_id: UUID,
     payload: AdminGuestReservationStatusPayload,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     reservation, error = await update_guest_reservation_status(
         db, reservation_id, payload.status, reason=payload.reason

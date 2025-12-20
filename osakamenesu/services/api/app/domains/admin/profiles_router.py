@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
+from ...deps import require_admin, audit_admin
 from ...schemas import (
     AvailabilityCalendar,
     AvailabilityCreate,
@@ -46,13 +47,23 @@ async def _run_service(call: Awaitable[_T]):
 @router.post(
     "/api/admin/profiles/{profile_id}/reindex", summary="Reindex single profile"
 )
-async def reindex_one(profile_id: UUID, db: AsyncSession = Depends(get_session)):
+async def reindex_one(
+    profile_id: UUID,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
+):
     await _run_service(profile_service.reindex_profile(db=db, profile_id=profile_id))
     return {"ok": True}
 
 
 @router.post("/api/admin/reindex", summary="Reindex all published profiles")
-async def reindex_all(purge: bool = False, db: AsyncSession = Depends(get_session)):
+async def reindex_all(
+    purge: bool = False,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
+):
     count = await _run_service(profile_service.reindex_all_profiles(db=db, purge=purge))
     return {"indexed": count, "purged": purge}
 
@@ -63,6 +74,8 @@ async def create_availability(
     date: str,
     slots_json: dict | None = None,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     try:
         date_value = datetime.strptime(date, "%Y-%m-%d").date()
@@ -85,6 +98,8 @@ async def create_availability(
 async def create_availability_bulk_endpoint(
     payload: list[AvailabilityCreate],
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     created = await _run_service(
         profile_service.create_availability_bulk(db=db, payload=payload)
@@ -99,6 +114,8 @@ async def create_outlink(
     token: str,
     target_url: str,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     outlink_id = await _run_service(
         profile_service.create_outlink(
@@ -119,6 +136,8 @@ async def update_marketing(
     profile_id: UUID,
     payload: ProfileMarketingUpdate,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     await _run_service(
         profile_service.update_marketing_metadata(
@@ -129,7 +148,11 @@ async def update_marketing(
 
 
 @router.get("/api/admin/shops", summary="List shops", response_model=ShopAdminList)
-async def admin_list_shops(db: AsyncSession = Depends(get_session)):
+async def admin_list_shops(
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
+):
     return await _run_service(profile_service.list_shops(db=db))
 
 
@@ -138,7 +161,12 @@ async def admin_list_shops(db: AsyncSession = Depends(get_session)):
     summary="Get shop detail",
     response_model=ShopAdminDetail,
 )
-async def admin_get_shop(shop_id: UUID, db: AsyncSession = Depends(get_session)):
+async def admin_get_shop(
+    shop_id: UUID,
+    db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
+):
     return await _run_service(profile_service.get_shop_detail(db=db, shop_id=shop_id))
 
 
@@ -152,6 +180,8 @@ async def admin_get_shop_availability(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     profile = await profile_service.resolve_profile_by_identifier(
         db=db, identifier=shop_id
@@ -183,6 +213,8 @@ async def admin_update_shop_content_endpoint(
     shop_id: UUID,
     payload: ShopContentUpdate,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     context = _admin_context(request)
     return await _run_service(
@@ -204,6 +236,8 @@ async def admin_bulk_ingest_shop_content(
     request: Request,
     payload: BulkShopContentRequest,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     context = _admin_context(request)
     return await _run_service(
@@ -223,6 +257,8 @@ async def admin_upsert_availability_endpoint(
     shop_id: UUID,
     payload: AvailabilityUpsert,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     context = _admin_context(request)
     availability_id = await _run_service(

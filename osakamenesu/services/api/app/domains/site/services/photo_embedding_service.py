@@ -221,6 +221,51 @@ class PhotoEmbeddingService:
 
         return False
 
+    async def needs_recomputation_batch(
+        self, therapist_ids: list[str]
+    ) -> dict[str, bool]:
+        """Check if multiple therapists need embedding recomputation.
+
+        Returns a dict mapping therapist_id to whether it needs recomputation.
+        This is more efficient than calling needs_recomputation() in a loop.
+        """
+        if not therapist_ids:
+            return {}
+
+        result = await self.db.execute(
+            select(Therapist).where(Therapist.id.in_(therapist_ids))
+        )
+        therapists = {str(t.id): t for t in result.scalars().all()}
+
+        needs_update: dict[str, bool] = {}
+        for tid in therapist_ids:
+            therapist = therapists.get(tid)
+            if not therapist:
+                needs_update[tid] = False
+                continue
+
+            # No embedding yet
+            if therapist.photo_embedding is None:
+                needs_update[tid] = True
+                continue
+
+            # No photos
+            if not therapist.photo_urls:
+                needs_update[tid] = False
+                continue
+
+            # Check if updated after embedding was computed
+            if (
+                therapist.photo_embedding_computed_at
+                and therapist.updated_at > therapist.photo_embedding_computed_at
+            ):
+                needs_update[tid] = True
+                continue
+
+            needs_update[tid] = False
+
+        return needs_update
+
     @staticmethod
     def compute_cosine_similarity(
         embedding1: list[float], embedding2: list[float]

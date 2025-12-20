@@ -46,7 +46,7 @@ def teardown_function() -> None:
 
 
 class StubReservation:
-    def __init__(self, status: str = "confirmed"):
+    def __init__(self, status: str = "confirmed", guest_token: str | None = None):
         now = datetime.now(timezone.utc)
         self.id = uuid4()
         self.status = status
@@ -59,7 +59,7 @@ class StubReservation:
         self.price = None
         self.payment_method = None
         self.contact_info = None
-        self.guest_token = None
+        self.guest_token = guest_token or "test-guest-token"
         self.user_id = None
         self.notes = None
         self.base_staff_id = None
@@ -140,34 +140,70 @@ def test_create_reservation_requires_timing_source() -> None:
 
 
 def test_cancel_reservation(monkeypatch: pytest.MonkeyPatch):
-    cancelled = StubReservation(status="cancelled")
+    # 予約を作成し、所有権チェック用のguest_tokenを設定
+    stub = StubReservation(status="confirmed", guest_token="test-token-123")
+    cancelled = StubReservation(status="cancelled", guest_token="test-token-123")
+    cancelled.id = stub.id  # 同じIDにする
+
+    # DummySessionで予約を返すようにする（所有権チェック用）
+    session = DummySession(result=stub)
+    app.dependency_overrides[get_session] = lambda: session
 
     async def fake_cancel(db, reservation_id):
         return cancelled
 
     monkeypatch.setattr(domain, "cancel_guest_reservation", fake_cancel)
 
-    res = client.post(f"/api/guest/reservations/{uuid4()}/cancel")
+    # guest_tokenをクエリパラメータで渡す
+    res = client.post(
+        f"/api/guest/reservations/{stub.id}/cancel?guest_token=test-token-123"
+    )
     assert res.status_code == 200
     assert res.json()["status"] == "cancelled"
 
 
 def test_cancel_reservation_404(monkeypatch: pytest.MonkeyPatch):
-    async def fake_cancel(db, reservation_id):
-        return None
-
-    monkeypatch.setattr(domain, "cancel_guest_reservation", fake_cancel)
+    # 予約が見つからない場合
+    session = DummySession(result=None)
+    app.dependency_overrides[get_session] = lambda: session
 
     res = client.post(f"/api/guest/reservations/{uuid4()}/cancel")
     assert res.status_code == 404
 
 
 def test_get_reservation_detail(monkeypatch: pytest.MonkeyPatch):
-    stub = StubReservation(status="confirmed")
+    stub = StubReservation(status="confirmed", guest_token="test-token-456")
     session = DummySession(result=stub)
     app.dependency_overrides[get_session] = lambda: session
 
-    res = client.get(f"/api/guest/reservations/{uuid4()}")
+    # guest_tokenをクエリパラメータで渡す
+    res = client.get(f"/api/guest/reservations/{stub.id}?guest_token=test-token-456")
     assert res.status_code == 200
     body = res.json()
     assert body["status"] == "confirmed"
+
+
+def test_get_reservation_detail_unauthorized():
+    """guest_tokenなしでは403を返す"""
+    stub = StubReservation(status="confirmed", guest_token="secret-token")
+    session = DummySession(result=stub)
+    app.dependency_overrides[get_session] = lambda: session
+
+    # guest_tokenなしでアクセス
+    res = client.get(f"/api/guest/reservations/{stub.id}")
+    assert res.status_code == 403
+    assert res.json()["detail"] == "not_authorized"
+
+
+def test_cancel_reservation_unauthorized():
+    """間違ったguest_tokenでは403を返す"""
+    stub = StubReservation(status="confirmed", guest_token="correct-token")
+    session = DummySession(result=stub)
+    app.dependency_overrides[get_session] = lambda: session
+
+    # 間違ったguest_tokenでアクセス
+    res = client.post(
+        f"/api/guest/reservations/{stub.id}/cancel?guest_token=wrong-token"
+    )
+    assert res.status_code == 403
+    assert res.json()["detail"] == "not_authorized"

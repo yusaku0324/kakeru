@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
+from ...deps import require_admin, audit_admin
 from ...schemas import ReviewItem, ReviewListResponse, ReviewModerationRequest
 from .services import review_service
 from .services.audit import build_admin_audit_context
@@ -40,6 +41,8 @@ async def admin_list_reviews(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     return await _run_service(
         review_service.list_reviews(
@@ -61,6 +64,8 @@ async def admin_update_review_status(
     payload: ReviewModerationRequest,
     request: Request,
     db: AsyncSession = Depends(get_session),
+    _admin=Depends(require_admin),
+    _audit=Depends(audit_admin),
 ):
     context = _admin_context(request)
     return await _run_service(

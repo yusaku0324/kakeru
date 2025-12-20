@@ -46,8 +46,9 @@ async def test_expire_reserved_holds_defensive_null_reserved_until_unblocks():
     start_at = now + timedelta(days=1)
     end_at = start_at + timedelta(hours=1)
 
-    # reserved_until が NULL の hold はブロックし続ける可能性があるため、
-    # TTL経過時に defensive に expired へ落とす。
+    # reserved_until が NULL の hold は created_at + 15分 でフォールバック判定される。
+    # created_at が30分前の場合、has_overlapping_reservation では既に非アクティブ。
+    # expire_reserved_holds はステータスを明示的に expired に更新する。
     hold = GuestReservation(
         id=uuid4(),
         shop_id=uuid4(),
@@ -64,20 +65,9 @@ async def test_expire_reserved_holds_defensive_null_reserved_until_unblocks():
     )
     session = DummySession([hold])
 
-    assert (
-        await availability.has_overlapping_reservation(
-            session,
-            therapist_id,
-            start_at,
-            end_at,
-        )
-        is True
-    )
-
-    expired = await expire_reserved_holds(session, now=now, ttl_minutes=15)
-    assert expired == 1
-    assert hold.status == "expired"
-
+    # created_at から30分経過しているので、既にフォールバックTTL(15分)を超えている。
+    # therapist_availability は created_at + 15分 で非アクティブと判定するため、
+    # has_overlapping_reservation は False を返す。
     assert (
         await availability.has_overlapping_reservation(
             session,
@@ -87,6 +77,12 @@ async def test_expire_reserved_holds_defensive_null_reserved_until_unblocks():
         )
         is False
     )
+
+    # expire_reserved_holds は reserved_until=NULL かつ created_at + TTL を超えた
+    # 予約のステータスを明示的に expired に更新する。
+    expired = await expire_reserved_holds(session, now=now, ttl_minutes=15)
+    assert expired == 1
+    assert hold.status == "expired"
 
 
 @pytest.mark.asyncio
