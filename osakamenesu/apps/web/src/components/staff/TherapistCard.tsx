@@ -315,13 +315,13 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
       <div className="relative space-y-2.5 p-3">
         <div className="text-center">
           {isClickableCard ? (
-            <h3 className="text-sm font-bold text-neutral-text tracking-wide">
+            <h3 className="text-sm font-bold text-neutral-text tracking-wide truncate">
               {hit.name}
             </h3>
           ) : (
             <Link
               href={staffHref}
-              className="text-sm font-bold text-neutral-text tracking-wide transition-colors hover:text-brand-primary"
+              className="block text-sm font-bold text-neutral-text tracking-wide transition-colors hover:text-brand-primary truncate"
             >
               {hit.name}
             </Link>

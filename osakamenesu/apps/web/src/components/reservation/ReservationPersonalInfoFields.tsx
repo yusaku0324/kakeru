@@ -26,6 +26,7 @@ export default function ReservationPersonalInfoFields({
           className={inputClass(Boolean(errors.name))}
           placeholder="例: 山田 太郎"
           required
+          autoFocus
           autoComplete="name"
           aria-invalid={Boolean(errors.name)}
           aria-describedby={errors.name ? 'reservation-name-error' : undefined}
@@ -41,6 +42,7 @@ export default function ReservationPersonalInfoFields({
         <span className="text-sm font-semibold text-neutral-text">お電話番号 *</span>
         <input
           id="reservation-phone"
+          type="tel"
           value={form.phone}
           onChange={(event) => onChange('phone', event.target.value)}
           className={inputClass(Boolean(errors.phone))}

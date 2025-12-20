@@ -324,7 +324,7 @@ export function DualSlider({
   const baseHandleClass =
     'absolute top-1/2 -translate-y-1/2 translate-x-[-50%] touch-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2'
   const knobClass = clsx(
-    'relative flex h-7 w-7 items-center justify-center rounded-full border-[3px] bg-white text-[0] shadow-[0_12px_32px_rgba(37,99,235,0.35)] transition',
+    'relative flex h-11 w-11 sm:h-7 sm:w-7 items-center justify-center rounded-full border-[3px] bg-white text-[0] shadow-[0_12px_32px_rgba(37,99,235,0.35)] transition',
   )
 
   useEffect(() => {
