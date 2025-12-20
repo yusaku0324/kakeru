@@ -49,7 +49,7 @@ export function ReservationScheduleHeader({
             onClick={onPrev}
             disabled={canGoPrev}
             className={clsx(
-              'inline-flex h-9 w-9 items-center justify-center rounded-full border transition',
+              'inline-flex h-11 w-11 items-center justify-center rounded-full border transition',
               canGoPrev
                 ? 'cursor-not-allowed border-white/60 text-neutral-textMuted'
                 : 'border-brand-primary/20 bg-white text-brand-primary hover:border-brand-primary/40',
@@ -64,7 +64,7 @@ export function ReservationScheduleHeader({
             onClick={onNext}
             disabled={canGoNext}
             className={clsx(
-              'inline-flex h-9 w-9 items-center justify-center rounded-full border transition',
+              'inline-flex h-11 w-11 items-center justify-center rounded-full border transition',
               canGoNext
                 ? 'cursor-not-allowed border-white/60 text-neutral-textMuted'
                 : 'border-brand-primary/20 bg-white text-brand-primary hover:border-brand-primary/40',

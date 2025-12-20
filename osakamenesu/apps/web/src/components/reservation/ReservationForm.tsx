@@ -160,7 +160,7 @@ export default function ReservationForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div role="alert" aria-live="polite" className="rounded-lg border border-red-200 bg-red-50 p-4">
+        <div role="alert" aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 p-4">
           <div className="flex">
             <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
             <div className="ml-3">
@@ -251,6 +251,8 @@ export default function ReservationForm({
               onChange={(e) => setPhone(e.target.value)}
               placeholder="090-1234-5678"
               className="mt-1"
+              aria-describedby={!phone && !lineId ? 'contact-validation' : undefined}
+              aria-invalid={!phone && !lineId ? true : undefined}
             />
           </div>
 
@@ -263,6 +265,8 @@ export default function ReservationForm({
               onChange={(e) => setLineId(e.target.value)}
               placeholder="your-line-id"
               className="mt-1"
+              aria-describedby={!phone && !lineId ? 'contact-validation' : undefined}
+              aria-invalid={!phone && !lineId ? true : undefined}
             />
           </div>
         </div>
@@ -301,7 +305,7 @@ export default function ReservationForm({
 
       {/* Validation Message */}
       {(!phone && !lineId) && (
-        <p className="text-sm text-red-600 text-center">
+        <p id="contact-validation" role="alert" className="text-sm text-red-600 text-center">
           電話番号またはLINE IDのいずれかを入力してください
         </p>
       )}

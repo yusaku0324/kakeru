@@ -194,7 +194,7 @@ export function WeekAvailabilityGrid({
 
   const buildUnavailableClass = (selectedNow: boolean) =>
     clsx(
-      'flex h-9 w-9 items-center justify-center rounded-full border border-white/70 text-xs font-semibold text-neutral-textMuted',
+      'flex h-9 w-9 items-center justify-center rounded-full border border-neutral-300 text-xs font-semibold text-neutral-500',
       selectedNow && 'border-brand-primary text-brand-primary',
     )
 

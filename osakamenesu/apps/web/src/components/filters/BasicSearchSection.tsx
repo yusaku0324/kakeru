@@ -59,7 +59,7 @@ export function BasicSearchSection({
       ) : null}
       {showHeader ? (
         <header className="flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary" aria-hidden="true">
             🔎
           </span>
           <div>
@@ -82,7 +82,7 @@ export function BasicSearchSection({
                 placeholder="店舗名・エリア名・駅名・施術キーワード など"
                 className={clsx(fieldClass, 'pr-12 backdrop-blur-sm')}
               />
-              <span className="pointer-events-none absolute inset-y-0 right-4 inline-flex items-center text-neutral-textMuted">
+              <span className="pointer-events-none absolute inset-y-0 right-4 inline-flex items-center text-neutral-textMuted" aria-hidden="true">
                 🔍
               </span>
             </div>
