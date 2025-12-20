@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKey,
     Boolean,
     Float,
+    Index,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
@@ -287,6 +288,15 @@ class GuestReservation(Base):
     """Guest reservation model."""
 
     __tablename__ = "guest_reservations"
+    __table_args__ = (
+        # Composite indexes for common query patterns
+        Index("ix_guest_reservations_therapist_start", "therapist_id", "start_at"),
+        Index("ix_guest_reservations_shop_start", "shop_id", "start_at"),
+        Index(
+            "ix_guest_reservations_status_reserved_until", "status", "reserved_until"
+        ),
+        Index("ix_guest_reservations_user_start", "user_id", "start_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4

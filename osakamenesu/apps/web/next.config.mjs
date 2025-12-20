@@ -19,21 +19,6 @@ if (!process.env.NEXT_DISABLE_REACT_COMPILER) {
 
 const enableReactCompiler = process.env.NEXT_DISABLE_REACT_COMPILER === '1' ? false : true
 
-if (
-  !process.env.NEXT_PUBLIC_ADMIN_BASIC_AUTH &&
-  process.env.ADMIN_BASIC_USER &&
-  process.env.ADMIN_BASIC_PASS
-) {
-  const token = Buffer.from(
-    `${process.env.ADMIN_BASIC_USER}:${process.env.ADMIN_BASIC_PASS}`,
-  ).toString('base64')
-  process.env.NEXT_PUBLIC_ADMIN_BASIC_AUTH = `Basic ${token}`
-}
-
-if (!process.env.NEXT_PUBLIC_ADMIN_API_KEY && process.env.ADMIN_API_KEY) {
-  process.env.NEXT_PUBLIC_ADMIN_API_KEY = process.env.ADMIN_API_KEY
-}
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',

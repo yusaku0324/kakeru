@@ -87,7 +87,8 @@ class Settings(BaseSettings):
             "ADMIN_SESSION_COOKIE_NAME",
         ),
     )
-    auth_session_cookie_secure: bool = False
+    # Secure by default. Set AUTH_SESSION_COOKIE_SECURE=false for local HTTP dev if needed.
+    auth_session_cookie_secure: bool = True
     auth_session_cookie_domain: str | None = None
     auth_session_cookie_same_site: str = Field(
         default="lax",
