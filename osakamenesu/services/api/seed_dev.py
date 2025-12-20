@@ -580,6 +580,58 @@ def main(argv: list[str]) -> int:
     if reservations_created > 0:
         print(f"[info] Created {reservations_created} reservations", file=sys.stderr)
 
+    # Create GuestReservations (affects availability slot calculation)
+    # These are actual slot bookings that block therapist availability
+    guest_reservations_created = 0
+    guest_statuses = ["confirmed", "confirmed", "reserved", "pending"]
+    for idx, therapist_info in enumerate(created_therapists[:6]):
+        # Create 1-2 guest reservations per therapist for today/tomorrow
+        for day_offset in range(2):
+            # Only create for some combinations to avoid too many
+            if (idx + day_offset) % 2 != 0:
+                continue
+
+            reservation_date = date.today() + timedelta(days=day_offset)
+            # Place reservations within typical shift hours (10:00-16:00 JST)
+            # Vary start times to avoid conflicts: 10:00, 11:30, 13:00, 14:30
+            base_hour = 10 + (idx % 4)
+            base_minute = 30 if idx % 2 else 0
+
+            guest_start = datetime(
+                reservation_date.year,
+                reservation_date.month,
+                reservation_date.day,
+                base_hour,
+                base_minute,
+                0,
+                tzinfo=jst,
+            )
+
+            guest_status = guest_statuses[idx % len(guest_statuses)]
+            duration = 90 if idx % 2 == 0 else 120  # 90 or 120 minutes
+
+            guest_payload = {
+                "shop_id": therapist_info["shop_id"],
+                "therapist_id": therapist_info["therapist_id"],
+                "start_at": guest_start.isoformat(),
+                "duration_minutes": duration,
+                "price": 7000 + (idx % 5) * 1000,
+                "payment_method": "cash" if idx % 2 == 0 else "card",
+                "notes": f"シードゲスト予約 {idx + 1}",
+            }
+            try:
+                post_json("/api/guest/reservations", guest_payload)
+                guest_reservations_created += 1
+            except Exception as e:
+                # Slot unavailable or other error - skip
+                print(f"[warn] guest reservation creation failed: {e}", file=sys.stderr)
+
+    if guest_reservations_created > 0:
+        print(
+            f"[info] Created {guest_reservations_created} guest reservations (affects availability)",
+            file=sys.stderr,
+        )
+
     # Reindex all to pick up newly seeded content
     post_query("/api/admin/reindex", {})
 
