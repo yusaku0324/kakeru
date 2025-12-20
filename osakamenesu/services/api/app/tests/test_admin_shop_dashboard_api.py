@@ -18,21 +18,103 @@ class DummySession:
         self.shifts = shifts or []
         self.therapists = therapists or []
 
+    def _extract_date_bounds(self, stmt):
+        """Extract date range bounds from WHERE clause."""
+        bounds = {"start_gte": None, "start_lt": None, "date_eq": None}
+        whereclause = getattr(stmt, "whereclause", None)
+        if whereclause is None:
+            return bounds
+
+        # Recursively find BinaryExpression nodes with date comparisons
+        def extract_from_clause(clause):
+            if hasattr(clause, "clauses"):
+                for sub in clause.clauses:
+                    extract_from_clause(sub)
+            elif hasattr(clause, "left") and hasattr(clause, "right"):
+                left_str = str(clause.left)
+                right = clause.right
+                op = (
+                    str(clause.operator.__name__) if hasattr(clause, "operator") else ""
+                )
+                # Get bound value
+                val = None
+                if hasattr(right, "value"):
+                    val = right.value
+                elif hasattr(right, "effective_value"):
+                    val = right.effective_value
+
+                if "start_at" in left_str:
+                    if op in ("ge", "gte"):
+                        bounds["start_gte"] = val
+                    elif op in ("lt",):
+                        bounds["start_lt"] = val
+                if "date" in left_str.lower() and op == "eq":
+                    bounds["date_eq"] = val
+
+        extract_from_clause(whereclause)
+        return bounds
+
+    def _filter_reservations(self, items, bounds):
+        """Filter reservations by date bounds."""
+        result = []
+        for r in items:
+            if bounds["start_gte"] and r.start_at < bounds["start_gte"]:
+                continue
+            if bounds["start_lt"] and r.start_at >= bounds["start_lt"]:
+                continue
+            result.append(r)
+        return result
+
+    def _filter_shifts(self, items, bounds):
+        """Filter shifts by date."""
+        if bounds["date_eq"] is None:
+            return items
+        return [s for s in items if s.date == bounds["date_eq"]]
+
     async def execute(self, stmt):
-        # naive type inspection
-        model = stmt.column_descriptions[0]["entity"]
+        # Check if this is a count query (func.count)
+        is_count_query = False
+        selected_columns = getattr(stmt, "selected_columns", None) or getattr(
+            stmt, "columns", []
+        )
+        for col in selected_columns:
+            col_str = str(col)
+            if "count" in col_str.lower():
+                is_count_query = True
+                break
+
+        # Determine which model/table is being queried
         items = []
-        if model is GuestReservation:
-            items = self.reservations
-        elif model is TherapistShift:
-            items = self.shifts
-        else:
-            # therapist lookup
+        stmt_str = str(stmt).lower()
+        bounds = self._extract_date_bounds(stmt)
+
+        if "guest_reservations" in stmt_str:
+            items = self._filter_reservations(self.reservations, bounds)
+        elif "therapist_shifts" in stmt_str:
+            items = self._filter_shifts(self.shifts, bounds)
+        elif "therapists" in stmt_str:
             items = self.therapists
+        else:
+            # Fallback to naive type inspection
+            try:
+                model = stmt.column_descriptions[0]["entity"]
+                if model is GuestReservation:
+                    items = self._filter_reservations(self.reservations, bounds)
+                elif model is TherapistShift:
+                    items = self._filter_shifts(self.shifts, bounds)
+                else:
+                    items = self.therapists
+            except (AttributeError, IndexError, KeyError):
+                items = []
 
         class R:
-            def __init__(self, items):
+            def __init__(self, items, is_count):
                 self.items = items
+                self.is_count = is_count
+
+            def scalar(self):
+                # For count queries, return the count
+                return len(self.items) if self.is_count else None
 
             def scalars(self):
                 class S:
@@ -44,7 +126,7 @@ class DummySession:
 
                 return S(self.items)
 
-        return R(items)
+        return R(items, is_count_query)
 
 
 def test_dashboard_counts_today_and_week():

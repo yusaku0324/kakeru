@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
@@ -38,33 +38,57 @@ async def _compute_dashboard(
 ) -> dict[str, Any]:
     today_start, today_end = _today_range(now)
     week_start, week_end = _week_range(now)
+    today_date = today_start.date()
 
-    # reservations
-    res_stmt = select(GuestReservation).where(GuestReservation.shop_id == shop_id)
-    res_res = await db.execute(res_stmt)
-    reservations = res_res.scalars().all()
+    # Query 1: Count today's confirmed reservations (SQL aggregation)
+    today_count_stmt = (
+        select(func.count())
+        .select_from(GuestReservation)
+        .where(
+            GuestReservation.shop_id == shop_id,
+            GuestReservation.status == "confirmed",
+            GuestReservation.start_at >= today_start,
+            GuestReservation.start_at < today_end,
+        )
+    )
+    today_count_res = await db.execute(today_count_stmt)
+    today_reservations = today_count_res.scalar() or 0
 
-    def _is_confirmed(r: GuestReservation) -> bool:
-        return (r.status or "").lower() == "confirmed"
+    # Query 2: Count week's confirmed reservations (SQL aggregation)
+    week_count_stmt = (
+        select(func.count())
+        .select_from(GuestReservation)
+        .where(
+            GuestReservation.shop_id == shop_id,
+            GuestReservation.status == "confirmed",
+            GuestReservation.start_at >= week_start,
+            GuestReservation.start_at < week_end,
+        )
+    )
+    week_count_res = await db.execute(week_count_stmt)
+    week_reservations = week_count_res.scalar() or 0
 
-    today_res = [
-        r
-        for r in reservations
-        if _is_confirmed(r) and r.start_at and today_start <= r.start_at < today_end
-    ]
-    week_res = [
-        r
-        for r in reservations
-        if _is_confirmed(r) and r.start_at and week_start <= r.start_at < week_end
-    ]
+    # Query 3: Get today's confirmed reservations for workload calculation
+    today_res_stmt = select(GuestReservation).where(
+        GuestReservation.shop_id == shop_id,
+        GuestReservation.status == "confirmed",
+        GuestReservation.start_at >= today_start,
+        GuestReservation.start_at < today_end,
+    )
+    today_res_result = await db.execute(today_res_stmt)
+    today_res = today_res_result.scalars().all()
 
-    recent = sorted(
-        reservations,
-        key=lambda r: r.start_at or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
-    )[:5]
+    # Query 4: Get recent 5 reservations (with date filter for efficiency)
+    recent_stmt = (
+        select(GuestReservation)
+        .where(GuestReservation.shop_id == shop_id)
+        .order_by(desc(GuestReservation.start_at))
+        .limit(5)
+    )
+    recent_res = await db.execute(recent_stmt)
+    recent = recent_res.scalars().all()
 
-    # therapist lookup for names
+    # Query 5: Therapist lookup for recent reservations
     therapist_ids = {r.therapist_id for r in recent if r.therapist_id}
     names: dict[UUID, str] = {}
     if therapist_ids:
@@ -73,16 +97,16 @@ async def _compute_dashboard(
         for th in th_res.scalars().all():
             names[th.id] = th.name
 
-    # shifts
+    # Query 6: Get today's available shifts (filtered by date in SQL)
     shift_stmt = select(TherapistShift).where(
         TherapistShift.shop_id == shop_id,
         TherapistShift.availability_status == "available",
+        TherapistShift.date == today_date,
     )
     shift_res = await db.execute(shift_stmt)
-    shifts = shift_res.scalars().all()
-    today_shifts = [s for s in shifts if s.date == today_start.date()]
+    today_shifts = shift_res.scalars().all()
 
-    # workload ratio
+    # workload ratio calculation
     shift_minutes = sum(
         int((s.end_at - s.start_at).total_seconds() // 60)
         for s in today_shifts
@@ -99,8 +123,8 @@ async def _compute_dashboard(
 
     return {
         "shop_id": str(shop_id),
-        "today_reservations": len(today_res),
-        "week_reservations": len(week_res),
+        "today_reservations": today_reservations,
+        "week_reservations": week_reservations,
         "today_shifts": len(today_shifts),
         "today_workload_ratio": workload_ratio,
         "recent_reservations": [
