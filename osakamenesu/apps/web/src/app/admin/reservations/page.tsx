@@ -39,6 +39,10 @@ type GuestReservationAdminItem = {
 type GuestReservationListResponse = {
   items: GuestReservationAdminItem[]
   summary: Record<string, number>
+  total: number
+  page: number
+  limit: number
+  total_pages: number
 }
 
 function formatDate(iso: string) {
@@ -168,8 +172,11 @@ function ClockIcon() {
 }
 
 export default function AdminReservationsPage() {
-  const [data, setData] = useState<GuestReservationListResponse>({ items: [], summary: {} })
+  const [data, setData] = useState<GuestReservationListResponse>({ items: [], summary: {}, total: 0, page: 1, limit: 50, total_pages: 1 })
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [dateFrom, setDateFrom] = useState<string>('')
+  const [dateTo, setDateTo] = useState<string>('')
+  const [currentPage, setCurrentPage] = useState(1)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
   const [highlightIds, setHighlightIds] = useState<Set<string>>(new Set())
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -231,7 +238,13 @@ export default function AdminReservationsPage() {
 
   const { loading: isLoading, refresh } = usePolling(
     async () => {
-      const resp = await fetch('/api/admin/guest_reservations', {
+      const params = new URLSearchParams()
+      params.set('page', String(currentPage))
+      params.set('limit', '50')
+      if (dateFrom) params.set('date_from', new Date(dateFrom).toISOString())
+      if (dateTo) params.set('date_to', new Date(dateTo + 'T23:59:59').toISOString())
+
+      const resp = await fetch(`/api/admin/guest_reservations?${params.toString()}`, {
         cache: 'no-store',
       })
       if (!resp.ok) {
@@ -267,7 +280,7 @@ export default function AdminReservationsPage() {
   useEffect(() => {
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [currentPage, dateFrom, dateTo])
 
   async function updateReservationStatus(id: string, nextStatus: string) {
     setPendingIds((prev) => new Set(prev).add(id))
@@ -315,7 +328,7 @@ export default function AdminReservationsPage() {
     [],
   )
 
-  const totalCount = data.items.length
+  const totalCount = data.total || data.items.length
   const pendingCount = data.summary.pending || 0
 
   return (
@@ -370,6 +383,51 @@ export default function AdminReservationsPage() {
             onClick={() => setStatusFilter('declined')}
             active={statusFilter === 'declined' || statusFilter === 'cancelled' || statusFilter === 'expired'}
           />
+        </div>
+
+        {/* Date Filters */}
+        <div className="flex flex-wrap items-end gap-4 p-4 bg-white rounded-xl border border-slate-100">
+          <div className="flex-1 min-w-[150px]">
+            <label className="block text-xs font-medium text-slate-500 mb-1">開始日</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+            />
+          </div>
+          <div className="flex-1 min-w-[150px]">
+            <label className="block text-xs font-medium text-slate-500 mb-1">終了日</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+            />
+          </div>
+          <button
+            onClick={() => {
+              setDateFrom('')
+              setDateTo('')
+              setCurrentPage(1)
+            }}
+            className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            リセット
+          </button>
+          <button
+            onClick={() => refresh()}
+            disabled={isLoading}
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            検索
+          </button>
         </div>
 
         {/* Reservation List */}
@@ -555,10 +613,39 @@ export default function AdminReservationsPage() {
           )}
         </div>
 
+        {/* Pagination */}
+        {!isLoading && data.total_pages > 1 && (
+          <div className="flex items-center justify-center gap-2 py-4">
+            <button
+              onClick={() => {
+                setCurrentPage((p) => Math.max(1, p - 1))
+                refresh()
+              }}
+              disabled={currentPage <= 1}
+              className="px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ← 前へ
+            </button>
+            <span className="px-4 py-1.5 text-sm text-slate-600">
+              {currentPage} / {data.total_pages} ページ
+            </span>
+            <button
+              onClick={() => {
+                setCurrentPage((p) => Math.min(data.total_pages, p + 1))
+                refresh()
+              }}
+              disabled={currentPage >= data.total_pages}
+              className="px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              次へ →
+            </button>
+          </div>
+        )}
+
         {/* Footer Stats */}
         {!isLoading && filteredItems.length > 0 && (
           <div className="text-center text-sm text-slate-400 py-4">
-            {statusFilter ? `${filteredItems.length}件を表示中` : `全${totalCount}件`} • 15秒ごとに自動更新
+            {statusFilter ? `${filteredItems.length}件を表示中` : `全${data.total}件中${data.items.length}件を表示`} • 15秒ごとに自動更新
           </div>
         )}
       </div>
