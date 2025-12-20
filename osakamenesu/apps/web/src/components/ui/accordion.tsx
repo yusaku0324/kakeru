@@ -29,13 +29,13 @@ const AccordionTrigger = React.forwardRef<
     <AccordionPrimitive.Trigger
       ref={ref}
       className={clsx(
-        'flex flex-1 items-center justify-between gap-3 rounded-2xl px-5 py-4 text-left text-sm font-semibold text-neutral-text transition hover:text-brand-primary focus:outline-none',
+        'flex flex-1 items-center justify-between gap-3 rounded-2xl px-5 py-4 text-left text-sm font-semibold text-neutral-text transition hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary',
         className,
       )}
       {...props}
     >
       {children}
-      <span className="ml-2 text-lg text-neutral-textMuted transition duration-200 [data-state=open]:rotate-45">
+      <span className="ml-2 text-lg text-neutral-textMuted transition duration-200 [data-state=open]:rotate-45" aria-hidden="true">
         ＋
       </span>
     </AccordionPrimitive.Trigger>

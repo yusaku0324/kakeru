@@ -82,8 +82,10 @@ export default function ReservationContactBar({
           return (
             <a
               key={item.key}
-              className={`inline-flex items-center justify-center gap-2 rounded px-3 py-2 text-white ${
-                isLine ? 'bg-[#06C755]' : 'bg-blue-600'
+              className={`inline-flex items-center justify-center gap-2 rounded px-3 py-2 text-white transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                isLine
+                  ? 'bg-[#06C755] hover:bg-[#05B14D] focus-visible:outline-[#06C755]'
+                  : 'bg-blue-600 hover:bg-blue-700 focus-visible:outline-blue-600'
               }`}
               href={item.href}
               target={isLine ? '_blank' : undefined}

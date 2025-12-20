@@ -15,7 +15,7 @@ export function ShopPhotosSection({
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-slate-700">掲載写真URL</label>
-        <button onClick={onAddPhoto} className="rounded border px-3 py-1 text-sm" type="button">
+        <button onClick={onAddPhoto} className="rounded border px-3 py-1 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary" type="button">
           行を追加
         </button>
       </div>
@@ -25,16 +25,18 @@ export function ShopPhotosSection({
             <input
               value={url}
               onChange={(e) => onUpdatePhoto(idx, e.target.value)}
-              className="flex-1 rounded border px-3 py-2 text-sm font-mono"
+              className="flex-1 rounded border px-3 py-2 text-sm font-mono focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
               placeholder="https://example.com/photo.jpg"
+              aria-label={`写真URL ${idx + 1}`}
               data-testid="shop-photo-input"
             />
             <div className="flex gap-2">
               <button
                 onClick={() => onRemovePhoto(idx)}
-                className="text-xs text-red-600"
+                className="text-xs text-red-600 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
                 type="button"
                 disabled={photos.length <= 1}
+                aria-label={`写真URL ${idx + 1}を削除`}
               >
                 削除
               </button>

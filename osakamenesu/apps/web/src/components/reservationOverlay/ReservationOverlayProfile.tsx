@@ -31,7 +31,7 @@ export default function ReservationOverlayProfile({
             </div>
             {hit.reviewCount ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 text-[11px] font-semibold text-brand-primary">
-                ★ {hit.rating ? hit.rating.toFixed(1) : '--'} / {hit.reviewCount}件
+                <span aria-hidden="true">★</span> {hit.rating ? hit.rating.toFixed(1) : '--'} / {hit.reviewCount}件
               </span>
             ) : null}
           </div>
@@ -84,7 +84,7 @@ export default function ReservationOverlayProfile({
                           key={`option-${option}`}
                           className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 font-semibold text-brand-primary"
                         >
-                          ✦ {option}
+                          <span aria-hidden="true">✦</span> {option}
                         </span>
                       ))}
                     </div>
