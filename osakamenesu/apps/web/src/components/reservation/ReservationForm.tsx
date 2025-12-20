@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/Badge'
 import { Calendar, Clock, AlertCircle } from 'lucide-react'
+import { verifySlot, createConflictErrorMessage } from '@/lib/verify-slot'
 
 interface ReservationPayload {
   shop_id: string
@@ -119,6 +120,16 @@ export default function ReservationForm({
 
     setLoading(true)
     try {
+      // Step 1: Verify slot availability before submitting
+      const verifyResult = await verifySlot(therapistId, payload.start_at)
+      if (!verifyResult.isAvailable) {
+        const reason = 'reason' in verifyResult ? verifyResult.reason : undefined
+        setError(createConflictErrorMessage(reason))
+        setLoading(false)
+        return
+      }
+
+      // Step 2: Submit reservation
       const resp = await fetch('/api/guest/reservations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

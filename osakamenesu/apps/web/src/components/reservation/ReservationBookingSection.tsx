@@ -6,6 +6,7 @@ import { Dispatch, SetStateAction } from 'react'
 import type { SelectedSlot } from '@/components/calendar/AvailabilityPickerDesktop'
 import type { AvailabilityStatus, CalendarTime } from '@/components/calendar/types'
 
+import { parseJstDateAtMidnight } from '@/lib/jst'
 import { RESERVATION_LEGEND_ITEMS } from './constants'
 import {
   ReservationAvailabilitySection,
@@ -67,7 +68,7 @@ export function ReservationBookingSection({
 
   const monthLabel = currentScheduleDays[0]
     ? (() => {
-        const date = new Date(`${currentScheduleDays[0].date}T00:00:00`)
+        const date = parseJstDateAtMidnight(currentScheduleDays[0].date)
         if (Number.isNaN(date.getTime())) return ''
         return `${date.getFullYear()}年${date.getMonth() + 1}月`
       })()

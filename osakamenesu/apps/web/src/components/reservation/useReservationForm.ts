@@ -454,10 +454,10 @@ export function useReservationForm({
           body: JSON.stringify(payload),
         })
         const text = await resp.text()
-        let data: any = null
+        let data: { id?: string; detail?: string | Array<{ msg?: string }> | { msg?: string } } | null = null
         if (text) {
           try {
-            data = JSON.parse(text)
+            data = JSON.parse(text) as typeof data
           } catch {
             data = { detail: text }
           }
@@ -467,11 +467,13 @@ export function useReservationForm({
             if (typeof data?.detail === 'string') return data.detail
             if (Array.isArray(data?.detail)) {
               return data.detail
-                .map((item: any) => item?.msg)
+                .map((item) => item?.msg)
                 .filter(Boolean)
                 .join('\n')
             }
-            if (data?.detail?.msg) return data.detail.msg
+            if (data?.detail && typeof data.detail === 'object' && 'msg' in data.detail) {
+              return data.detail.msg
+            }
             return '予約の送信に失敗しました。しばらくしてから再度お試しください。'
           })()
           push('error', errorMessage)

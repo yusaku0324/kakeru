@@ -1,4 +1,5 @@
 import { formatLocalDate, pad } from '@/utils/date'
+import { parseJstDateAtMidnight, formatDateISO } from '@/lib/jst'
 
 import type { NormalizedDay, TimelineEntry, ReservationContactItem } from '@/components/reservation'
 
@@ -85,12 +86,10 @@ export function calculateSchedulePages({
   chunkSize = 7,
 }: CalculateSchedulePagesParams): NormalizedDay[][] {
   if (!normalizedAvailability.length) {
-    const base = new Date(todayIso)
-    base.setHours(0, 0, 0, 0)
+    const base = parseJstDateAtMidnight(todayIso)
     const page: NormalizedDay[] = Array.from({ length: chunkSize }).map((_, offset) => {
-      const date = new Date(base)
-      date.setDate(base.getDate() + offset)
-      const iso = formatLocalDate(date)
+      const date = new Date(base.getTime() + offset * 24 * 60 * 60 * 1000)
+      const iso = formatDateISO(date)
       return {
         date: iso,
         label: dayFormatter.format(date),
@@ -103,8 +102,7 @@ export function calculateSchedulePages({
 
   const dayMap = new Map(normalizedAvailability.map((day) => [day.date, day]))
   const firstDate = normalizedAvailability[0]?.date ?? todayIso
-  const base = new Date(firstDate)
-  base.setHours(0, 0, 0, 0)
+  const base = parseJstDateAtMidnight(firstDate)
   const totalDays = Math.max(normalizedAvailability.length, chunkSize)
   const pageCount = Math.max(1, Math.ceil(totalDays / chunkSize))
   const pages: NormalizedDay[][] = []
@@ -113,9 +111,8 @@ export function calculateSchedulePages({
     const page: NormalizedDay[] = []
     for (let dayIndex = 0; dayIndex < chunkSize; dayIndex++) {
       const offset = pageIndex * chunkSize + dayIndex
-      const date = new Date(base)
-      date.setDate(base.getDate() + offset)
-      const iso = formatLocalDate(date)
+      const date = new Date(base.getTime() + offset * 24 * 60 * 60 * 1000)
+      const iso = formatDateISO(date)
       const existing = dayMap.get(iso)
       page.push(
         existing ?? {

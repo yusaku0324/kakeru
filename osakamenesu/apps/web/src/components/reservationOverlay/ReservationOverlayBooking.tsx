@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react'
+import { type ComponentProps, useEffect, useRef, useState } from 'react'
 
 import type ReservationFormComponent from '@/components/ReservationForm'
 import type { TherapistHit } from '@/components/staff/TherapistCard'
@@ -29,6 +29,8 @@ type ReservationOverlayBookingProps = {
   courseOptions: NonNullable<ComponentProps<typeof ReservationFormComponent>['courseOptions']>
   onOpenForm: () => void
   state: ReservationOverlayState
+  /** セラピストID（空き状況の再取得に使用） */
+  therapistId?: string | null
 }
 
 const bookingSteps = [
@@ -48,6 +50,7 @@ export default function ReservationOverlayBooking({
   courseOptions,
   onOpenForm,
   state,
+  therapistId,
 }: ReservationOverlayBookingProps) {
   const {
     dayFormatter,
@@ -64,7 +67,42 @@ export default function ReservationOverlayBooking({
     removeSlot,
     hasAvailability,
     availabilitySourceType,
+    updateAvailability,
+    isRefreshing,
   } = state
+
+  // サンプルデータを使用しているかどうか
+  const [isSampleData, setIsSampleData] = useState(false)
+
+  // 最新の空き状況データを取得（コンポーネントマウント時）
+  const hasFetchedRef = useRef(false)
+  useEffect(() => {
+    if (!therapistId || hasFetchedRef.current) return
+    hasFetchedRef.current = true
+
+    const fetchFreshAvailability = async () => {
+      try {
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+        const resp = await fetch(
+          `${baseUrl}/api/guest/therapists/${therapistId}/availability_slots`,
+          { cache: 'no-store' }
+        )
+        if (!resp.ok) return
+        const data = await resp.json()
+        if (Array.isArray(data?.days)) {
+          updateAvailability(data.days)
+        }
+        // サンプルデータフラグをチェック
+        if (data?.sample === true) {
+          setIsSampleData(true)
+        }
+      } catch (err) {
+        console.warn('[ReservationOverlayBooking] Failed to fetch fresh availability:', err)
+      }
+    }
+
+    fetchFreshAvailability()
+  }, [therapistId, updateAvailability])
 
   const canGoPrev = schedulePage === 0
   const canGoNext = schedulePage >= schedulePageCount - 1
@@ -76,6 +114,19 @@ export default function ReservationOverlayBooking({
   return (
     <>
       <div className="space-y-6 px-4 pb-6 text-sm text-neutral-text">
+        {isSampleData && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div className="flex items-start gap-2">
+              <span className="text-lg">⚠️</span>
+              <div>
+                <p className="font-medium">サンプルデータを表示中</p>
+                <p className="mt-0.5 text-xs text-amber-600">
+                  実際の空き状況とは異なる場合があります。正確な予約可否は店舗にお問い合わせください。
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="rounded-[32px] bg-gradient-to-br from-[#eef4ff] via-white to-white p-6 shadow-[0_24px_80px_rgba(37,99,235,0.18)] ring-1 ring-white/60">
           <ReservationScheduleHeader
             scheduleRangeLabel={scheduleRangeLabel}

@@ -8,7 +8,24 @@ import { CACHE_TAGS } from '@/lib/cache-tags'
 import { enqueueAsyncJobServer } from '@/lib/server/async-jobs'
 import type { ReservationNotificationJob } from '@/lib/async-jobs'
 
-type ReservationApiResponse = any
+type ReservationApiResponse = {
+  id: string
+  shop_id: string
+  shop_name?: string
+  shop?: { name?: string }
+  status: string
+  customer_name?: string
+  customer_phone?: string
+  customer_email?: string
+  customer?: {
+    name?: string
+    phone?: string
+    email?: string
+  }
+  desired_start: string
+  desired_end: string
+  notes?: string
+}
 
 type CreateReservationPayload = {
   shop_id: string
@@ -52,7 +69,7 @@ function formatDateKey(iso: string): string {
 }
 
 function buildNotificationJobPayload(
-  reservation: any,
+  reservation: ReservationApiResponse | null | undefined,
   fallback: { shopId: string; desiredStart: string; desiredEnd: string },
 ): ReservationNotificationJob | null {
   if (!reservation || typeof reservation !== 'object') return null
@@ -84,7 +101,7 @@ export async function createReservationAction(
   payload: CreateReservationPayload,
 ): Promise<CreateReservationResult> {
   const body = JSON.stringify(payload)
-  let lastError: { status?: number; body?: any } | null = null
+  let lastError: { status?: number; body?: unknown } | null = null
 
   const targets = ['/api', resolveInternalApiBase()]
   for (const base of targets) {
@@ -96,16 +113,21 @@ export async function createReservationAction(
         cache: 'no-store',
       })
       const text = await resp.text()
-      let json: any = null
+      let json: { reservation?: ReservationApiResponse; detail?: string | Array<{ msg?: string }> } | null = null
       if (text) {
         try {
-          json = JSON.parse(text)
+          json = JSON.parse(text) as typeof json
         } catch {
           json = { detail: text }
         }
       }
       if (resp.ok) {
-        const reservationRecord = json?.reservation ?? json
+        // Extract reservation from either { reservation: ... } or direct response
+        const reservationRecord: ReservationApiResponse | null = json?.reservation ?? (
+          json && 'id' in json && 'shop_id' in json && 'status' in json
+            ? (json as unknown as ReservationApiResponse)
+            : null
+        )
 
         if (payload.shop_id) {
           callRevalidateTag(CACHE_TAGS.store(payload.shop_id))
@@ -134,7 +156,7 @@ export async function createReservationAction(
 
         return {
           success: true,
-          reservation: reservationRecord,
+          reservation: reservationRecord!,
           asyncJob,
         }
       }
@@ -145,15 +167,19 @@ export async function createReservationAction(
   }
 
   const message = (() => {
-    if (typeof lastError?.body?.detail === 'string') return lastError.body.detail
-    if (Array.isArray(lastError?.body?.detail)) {
-      return lastError.body.detail
-        .map((item: any) => item?.msg)
-        .filter(Boolean)
-        .join('\n')
+    const body = lastError?.body
+    if (body && typeof body === 'object' && 'detail' in body) {
+      const detail = (body as { detail?: unknown }).detail
+      if (typeof detail === 'string') return detail
+      if (Array.isArray(detail)) {
+        return detail
+          .map((item: { msg?: string }) => item?.msg)
+          .filter(Boolean)
+          .join('\n')
+      }
     }
-    if (typeof lastError?.body === 'string') return lastError.body
-    if (lastError?.body instanceof Error) return lastError.body.message
+    if (typeof body === 'string') return body
+    if (body instanceof Error) return body.message
     return '予約の送信に失敗しました。しばらくしてから再度お試しください。'
   })()
 

@@ -38,6 +38,8 @@ export type ReservationOverlayProps = {
     is_today?: boolean | null
     slots: Array<{ start_at: string; end_at: string; status: 'open' | 'tentative' | 'blocked' }>
   }> | null
+  /** セラピストID（空き状況の再取得に使用） */
+  therapistId?: string | null
 }
 
 type OverlayTab = 'profile' | 'reviews' | 'booking'
@@ -57,6 +59,7 @@ export default function ReservationOverlay({
   profilePricing,
   profileOptions,
   availabilityDays,
+  therapistId,
 }: ReservationOverlayProps) {
   useBodyScrollLock(true)
 
@@ -324,6 +327,7 @@ export default function ReservationOverlay({
                       courseOptions={courseOptions}
                       onOpenForm={handleOpenForm}
                       state={reservationState}
+                      therapistId={therapistId ?? hit.therapistId ?? hit.staffId ?? null}
                     />
                   ) : null}
                 </section>

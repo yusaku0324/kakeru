@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 
@@ -14,6 +15,7 @@ import type { SelectedSlot } from '@/components/calendar/AvailabilityPickerDeskt
 import type { AvailabilityStatus } from '@/components/calendar/types'
 
 import { formatLocalDate, getJaFormatter, toIsoWithOffset } from '@/utils/date'
+import { parseJstDateAtMidnight } from '@/lib/jst'
 import type { ReservationOverlayProps } from '../ReservationOverlay'
 import {
   type DisplayAvailabilityDay,
@@ -48,6 +50,9 @@ export type AvailabilitySourceType = 'api' | 'fallback' | 'none'
 // フォールバック表示が有効かどうか（環境変数で制御）
 const ENABLE_AVAILABILITY_FALLBACK = process.env.NEXT_PUBLIC_ENABLE_AVAILABILITY_FALLBACK === 'true'
 
+// 空き状況データの型
+export type AvailabilityDay = NonNullable<ReservationOverlayProps['availabilityDays']>[number]
+
 type UseReservationOverlayStateParams = {
   availabilityDays?: ReservationOverlayProps['availabilityDays']
   fallbackAvailability?: AvailabilityTemplate
@@ -77,6 +82,9 @@ export type ReservationOverlayState = {
   openForm: () => void
   closeForm: () => void
   handleFormBackdrop: (event: MouseEvent<HTMLDivElement>) => void
+  // 空き状況データの更新機能
+  updateAvailability: (days: AvailabilityDay[]) => void
+  isRefreshing: boolean
 }
 
 export function useReservationOverlayState({
@@ -89,6 +97,12 @@ export function useReservationOverlayState({
   const [formTab, setFormTab] = useState<OverlayFormTab>('schedule')
   const [schedulePage, setSchedulePage] = useState(0)
   const [selectedSlots, setSelectedSlots] = useState<SelectedSlot[]>([])
+  // 更新された空き状況データ（リフレッシュ後のデータ）
+  const [freshAvailabilityDays, setFreshAvailabilityDays] = useState<AvailabilityDay[] | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // 実際に使用する空き状況データ（freshがあればそれを使用）
+  const effectiveAvailabilityDays = freshAvailabilityDays ?? availabilityDays
 
   const dayFormatter = getJaFormatter('day')
   const timeFormatter = getJaFormatter('time')
@@ -99,10 +113,10 @@ export function useReservationOverlayState({
   // 空き状況のソースと種別を計算
   const { availabilitySource, availabilitySourceType } = useMemo(() => {
     // APIからのデータを使用するのは、実際にスロットがある場合のみ
-    if (Array.isArray(availabilityDays) && availabilityDays.length) {
-      const hasAnySlots = availabilityDays.some((day) => Array.isArray(day.slots) && day.slots.length > 0)
+    if (Array.isArray(effectiveAvailabilityDays) && effectiveAvailabilityDays.length) {
+      const hasAnySlots = effectiveAvailabilityDays.some((day) => Array.isArray(day.slots) && day.slots.length > 0)
       if (hasAnySlots) {
-        return { availabilitySource: availabilityDays, availabilitySourceType: 'api' as const }
+        return { availabilitySource: effectiveAvailabilityDays, availabilitySourceType: 'api' as const }
       }
     }
 
@@ -135,7 +149,7 @@ export function useReservationOverlayState({
       }
     })
     return { availabilitySource: fallbackData, availabilitySourceType: 'fallback' as const }
-  }, [availabilityDays, fallbackAvailability])
+  }, [effectiveAvailabilityDays, fallbackAvailability])
 
   const normalizedAvailability = useMemo<NormalizedDay[]>(() => {
     const days = Array.isArray(availabilitySource) ? availabilitySource : []
@@ -180,7 +194,7 @@ export function useReservationOverlayState({
   const currentMonthLabel = useMemo(() => {
     const day = currentScheduleDays[0]
     if (!day) return ''
-    const date = new Date(`${day.date}T00:00:00`)
+    const date = parseJstDateAtMidnight(day.date)
     if (Number.isNaN(date.getTime())) return day.label
     return `${date.getFullYear()}年${date.getMonth() + 1}月`
   }, [currentScheduleDays])
@@ -289,6 +303,12 @@ export function useReservationOverlayState({
     setFormOpen(false)
   }, [])
 
+  // 空き状況データを更新する関数
+  const updateAvailability = useCallback((days: AvailabilityDay[]) => {
+    setFreshAvailabilityDays(days)
+    setIsRefreshing(false)
+  }, [])
+
   return {
     dayFormatter,
     timeFormatter,
@@ -311,5 +331,7 @@ export function useReservationOverlayState({
     openForm,
     closeForm,
     handleFormBackdrop,
+    updateAvailability,
+    isRefreshing,
   }
 }
