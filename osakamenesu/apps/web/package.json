@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev --turbo -p 3000 --hostname 0.0.0.0",
     "build": "next build --webpack",
+    "build:analyze": "ANALYZE=true next build --webpack",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^3.2.0",
+    "@next/bundle-analyzer": "^16.1.0",
     "@next/eslint-plugin-next": "^16.0.1",
     "@playwright/test": "^1.56.1",
     "@sentry/nextjs": "^10.27.0",

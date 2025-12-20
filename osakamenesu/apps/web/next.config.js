@@ -1,5 +1,8 @@
 const path = require('path')
 const { withSentryConfig } = require('@sentry/nextjs')
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+})
 
 /** @type {import('next').NextConfig} */
 const INTERNAL_API_BASE =
@@ -63,9 +66,12 @@ const sentryWebpackPluginOptions = {
   disableLogger: true,
 }
 
+// Apply bundle analyzer wrapper
+const configWithAnalyzer = withBundleAnalyzer(nextConfig)
+
 // Only wrap with Sentry if DSN is configured
 if (process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN) {
-  module.exports = withSentryConfig(nextConfig, sentryWebpackPluginOptions)
+  module.exports = withSentryConfig(configWithAnalyzer, sentryWebpackPluginOptions)
 } else {
-  module.exports = nextConfig
+  module.exports = configWithAnalyzer
 }
