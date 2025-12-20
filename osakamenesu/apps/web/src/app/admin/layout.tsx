@@ -4,6 +4,8 @@ import Link from 'next/link'
 
 import { getSessionByScope, DASHBOARD_SESSION_COOKIE_NAME } from '@/lib/session'
 import { resolveInternalApiBase } from '@/lib/server-config'
+import { AdminSidebar } from '@/components/admin/AdminSidebar'
+import { AdminBreadcrumb } from '@/components/admin/AdminBreadcrumb'
 
 type Props = {
   children: ReactNode
@@ -104,18 +106,30 @@ export default async function AdminLayout({ children }: Props) {
 
   return (
     <div className="min-h-screen bg-neutral-surface">
-      <div className="border-b border-neutral-200 bg-white px-4 py-2">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <span className="text-sm font-semibold text-neutral-700">管理画面</span>
-          <Link
-            href="/dashboard"
-            className="text-xs text-neutral-500 hover:text-neutral-700"
-          >
-            ダッシュボードに戻る
+      {/* Header */}
+      <header className="fixed left-0 right-0 top-0 z-50 border-b border-neutral-200 bg-white px-4 py-2">
+        <div className="flex items-center justify-between">
+          <Link href="/admin/reservations" className="text-sm font-semibold text-neutral-700 hover:text-brand-primary">
+            管理画面
           </Link>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-neutral-500">
+              {user.display_name || user.email}
+            </span>
+          </div>
         </div>
-      </div>
-      {children}
+      </header>
+
+      {/* Sidebar */}
+      <AdminSidebar />
+
+      {/* Main Content */}
+      <main className="ml-56 pt-[41px]">
+        <div className="p-6">
+          <AdminBreadcrumb />
+          {children}
+        </div>
+      </main>
     </div>
   )
 }
