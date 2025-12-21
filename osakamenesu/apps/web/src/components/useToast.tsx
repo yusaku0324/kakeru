@@ -73,8 +73,8 @@ export function ToastContainer({
           className={`max-w-xs rounded-lg px-4 py-3 shadow-lg text-sm border ${toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'}`}
         >
           <div className="flex items-start gap-2">
-            <span className="font-semibold text-xs uppercase tracking-wide">
-              {toast.type === 'success' ? 'Success' : 'Error'}
+            <span className="font-semibold text-xs tracking-wide">
+              {toast.type === 'success' ? '成功' : 'エラー'}
             </span>
             <button
               type="button"
