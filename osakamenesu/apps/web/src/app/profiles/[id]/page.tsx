@@ -744,6 +744,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         shopName={shop.store_name || shop.name}
         shopArea={shop.area}
         shopAreaName={shop.area_name}
+        menus={menus}
       />
 
       {availability.length ? (

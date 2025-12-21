@@ -22,7 +22,17 @@ export function parsePricingText(source?: string | null): PricingItem[] {
       if (price) title = title.replace(price, '').trim()
       if (duration) title = title.replace(duration, '').trim()
       title = title.replace(/[()（）]/g, '').trim()
-      if (!title) title = `コース ${index + 1}`
-      return { title, duration, price, durationMinutes }
+      // タイトルがない場合、時間があれば「〇〇分コース」、なければ「コース N」
+      let effectiveDuration = duration
+      if (!title) {
+        if (duration) {
+          title = `${duration}コース`
+          // ラベル生成時に重複しないよう、タイトルに時間を含めた場合は duration を null に
+          effectiveDuration = null
+        } else {
+          title = `コース ${index + 1}`
+        }
+      }
+      return { title, duration: effectiveDuration, price, durationMinutes }
     })
 }

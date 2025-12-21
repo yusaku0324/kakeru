@@ -24,6 +24,14 @@ type StaffMember = {
   talk_level?: string | null
 }
 
+type MenuOption = {
+  id: string
+  name: string
+  price: number
+  duration_minutes?: number | null
+  description?: string | null
+}
+
 type Props = {
   staff: StaffMember[]
   shopId: string
@@ -31,6 +39,7 @@ type Props = {
   shopName: string
   shopArea: string
   shopAreaName?: string | null
+  menus?: MenuOption[] | null
 }
 
 function staffMemberToTherapistHit(
@@ -83,7 +92,7 @@ function staffMemberToTherapistHit(
   }
 }
 
-export default function StaffSectionClient({ staff, shopId, shopSlug, shopName, shopArea, shopAreaName }: Props) {
+export default function StaffSectionClient({ staff, shopId, shopSlug, shopName, shopArea, shopAreaName, menus }: Props) {
   if (!staff.length) return null
 
   return (
@@ -106,7 +115,7 @@ export default function StaffSectionClient({ staff, shopId, shopSlug, shopName, 
             )
             return (
               <div key={member.id} id={`staff-${member.id}`} className="scroll-mt-20">
-                <TherapistCard hit={hit} useOverlay />
+                <TherapistCard hit={hit} useOverlay menus={menus} />
               </div>
             )
           })}

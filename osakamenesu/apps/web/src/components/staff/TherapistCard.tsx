@@ -120,15 +120,24 @@ function HeartIcon({ filled }: { filled: boolean }) {
   )
 }
 
+type MenuOption = {
+  id: string
+  name: string
+  price: number
+  duration_minutes?: number | null
+  description?: string | null
+}
+
 type TherapistCardProps = {
   hit: TherapistHit
   variant?: 'grid' | 'featured'
   onReserve?: (hit: TherapistHit) => void
   showReserveLink?: boolean
   useOverlay?: boolean
+  menus?: MenuOption[] | null
 }
 
-export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistCardProps) {
+export function TherapistCard({ hit, onReserve, useOverlay = false, menus }: TherapistCardProps) {
   const { isFavorite, toggleFavorite, isProcessing } = useTherapistFavorites()
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false)
   const staffHref = buildStaffHref(hit)
@@ -168,6 +177,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
         hit,
         defaultStart: nextSlotPayload?.start_at ?? null,
         availabilityDays,
+        menus: menus ?? undefined,
       })
       return
     }
@@ -180,6 +190,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
       openReservationOverlay({
         hit,
         defaultStart: nextSlotPayload?.start_at ?? null,
+        menus: menus ?? undefined,
       })
       return
     }
@@ -191,11 +202,12 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
         hit,
         defaultStart: nextSlotPayload?.start_at ?? null,
         availabilityDays: fetchedDays.length > 0 ? fetchedDays : undefined,
+        menus: menus ?? undefined,
       })
     } finally {
       setIsLoadingAvailability(false)
     }
-  }, [hit, nextSlotPayload, availabilityDays, therapistId])
+  }, [hit, nextSlotPayload, availabilityDays, therapistId, menus])
 
   // When useOverlay or onReserve is set, clicking anywhere on the card opens the overlay/calls onReserve
   const isClickableCard = useOverlay || !!onReserve
@@ -329,6 +341,25 @@ export function TherapistCard({ hit, onReserve, useOverlay = false }: TherapistC
           {hit.shopAreaName && (
             <p className="mt-0.5 text-[10px] text-neutral-textMuted truncate">
               {hit.shopAreaName}
+            </p>
+          )}
+          {/* 得意施術タグ */}
+          {hit.specialties && hit.specialties.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap justify-center gap-1">
+              {hit.specialties.slice(0, 3).map((specialty, idx) => (
+                <span
+                  key={idx}
+                  className="inline-block rounded-full bg-brand-primary/10 px-2 py-0.5 text-[10px] font-medium text-brand-primary"
+                >
+                  {specialty}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* 一言PR */}
+          {hit.headline && (
+            <p className="mt-1.5 text-[10px] text-neutral-textMuted line-clamp-2 leading-relaxed">
+              {hit.headline}
             </p>
           )}
           {hit.rating && (
