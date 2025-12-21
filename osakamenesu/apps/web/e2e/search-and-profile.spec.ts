@@ -1,5 +1,35 @@
 import { test, expect } from '@playwright/test'
 
+test('search with no results shows empty state', async ({ page, baseURL }) => {
+  // Search for a non-existent keyword
+  await page.goto(`${baseURL}/search?q=存在しないキーワード12345`)
+
+  // Wait for page to load
+  await page.waitForLoadState('domcontentloaded')
+
+  // Verify empty state message is displayed
+  await expect(page.getByText('条件に一致する結果が見つかりませんでした')).toBeVisible({
+    timeout: 15000,
+  })
+
+  // Verify helpful guidance is shown
+  await expect(
+    page.getByText('条件を変更するか、フィルターをリセットしてお試しください。')
+  ).toBeVisible()
+
+  // Verify action buttons are present
+  await expect(page.getByRole('link', { name: '条件をリセット' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'トップページへ' })).toBeVisible()
+
+  // Verify popular area suggestions are shown
+  await expect(page.getByText('人気のエリアで探す')).toBeVisible()
+  await expect(page.getByRole('link', { name: '難波' })).toBeVisible()
+
+  // Verify filter shows 0 results (use first() since text appears in multiple places)
+  await expect(page.getByText(/店舗 0件/).first()).toBeVisible()
+  await expect(page.getByText(/セラピスト 0名/).first()).toBeVisible()
+})
+
 test('search -> open profile -> has CTA links', async ({ page, baseURL }) => {
   const url = `${baseURL}/search?force_samples=1`
   await page.goto(url)
