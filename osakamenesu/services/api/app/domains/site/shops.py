@@ -74,11 +74,11 @@ SAMPLE_SHOPS: dict[str, dict] = {
                 "name": "葵",
                 "alias": None,
                 "avatar_url": "/images/demo-therapist-1.svg",
-                "headline": None,
-                "rating": None,
-                "review_count": None,
+                "headline": "丁寧なオイルトリートメントで人気のセラピスト",
+                "rating": 4.8,
+                "review_count": 42,
                 "next_shift": None,
-                "specialties": [],
+                "specialties": ["リンパ", "ホットストーン", "指名多数"],
                 "is_pickup": None,
                 "next_available_slot": None,
                 "recommended_score": 0.52,
@@ -88,11 +88,11 @@ SAMPLE_SHOPS: dict[str, dict] = {
                 "name": "凛",
                 "alias": None,
                 "avatar_url": "/images/demo-therapist-2.svg",
-                "headline": None,
-                "rating": None,
-                "review_count": None,
+                "headline": "ストレッチと指圧を組み合わせた独自施術が評判",
+                "rating": 4.6,
+                "review_count": 35,
                 "next_shift": None,
-                "specialties": [],
+                "specialties": ["ストレッチ", "指圧", "ディープリンパ"],
                 "is_pickup": None,
                 "next_available_slot": None,
                 "recommended_score": 0.52,
@@ -287,28 +287,38 @@ def _get_sample_therapists_response(shop_slug: str) -> dict | None:
     sample = SAMPLE_SHOPS.get(shop_slug)
     if not sample:
         return None
+    # Use staff data which has more complete information
+    staff = sample.get("staff", [])
     therapists = sample.get("therapists", [])
+    # Build a lookup for additional therapist info (age, photos, etc.)
+    therapist_lookup = {t["id"]: t for t in therapists}
     return {
         "shop_id": sample.get("id", "sample-shop-id"),
-        "total": len(therapists),
+        "total": len(staff),
         "items": [
             {
-                "id": t["id"],
-                "name": t["name"],
-                "alias": None,
-                "age": t.get("age"),
-                "headline": None,
-                "avatar_url": t["photos"][0] if t.get("photos") else None,
-                "photos": t.get("photos", []),
-                "specialties": [],
-                "tags": t.get("tags"),
-                "price_rank": t.get("price_rank"),
-                "today_available": t.get("available_today", False),
+                "id": s["id"],
+                "name": s["name"],
+                "alias": s.get("alias"),
+                "age": therapist_lookup.get(s["id"], {}).get("age"),
+                "headline": s.get("headline"),
+                "avatar_url": s.get("avatar_url"),
+                "photos": therapist_lookup.get(s["id"], {}).get(
+                    "photos", [s["avatar_url"]] if s.get("avatar_url") else []
+                ),
+                "specialties": s.get("specialties", []),
+                "tags": therapist_lookup.get(s["id"], {}).get("tags"),
+                "price_rank": therapist_lookup.get(s["id"], {}).get("price_rank"),
+                "today_available": therapist_lookup.get(s["id"], {}).get(
+                    "available_today", False
+                ),
                 "next_available_at": None,
                 "availability_slots": [],
-                "recommended_score": None,
+                "recommended_score": s.get("recommended_score"),
+                "rating": s.get("rating"),
+                "review_count": s.get("review_count"),
             }
-            for t in therapists
+            for s in staff
         ],
     }
 

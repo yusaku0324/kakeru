@@ -593,10 +593,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             <h1 className="text-3xl font-bold tracking-tight text-neutral-text sm:text-4xl lg:text-5xl">
               あなたにぴったりの
               <br className="sm:hidden" />
-              <span className="bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text text-transparent">
-                セラピスト
+              <span className="inline-block whitespace-nowrap">
+                <span className="bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text text-transparent">
+                  セラピスト
+                </span>
+                を見つけよう
               </span>
-              を見つけよう
             </h1>
             <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-neutral-textMuted sm:text-lg">
               今日の気分や好みを伝えるだけで、

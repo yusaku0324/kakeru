@@ -453,8 +453,21 @@ export default async function ProfilePage({ params, searchParams }: Props) {
           {photos.length > 0 ? (
             <Gallery photos={photos} altBase={shop.name} />
           ) : (
-            <div className="flex aspect-[4/3] items-center justify-center bg-neutral-surfaceAlt text-neutral-textMuted">
-              画像準備中
+            <div className="flex aspect-[4/3] flex-col items-center justify-center gap-3 bg-gradient-to-br from-neutral-100 to-neutral-50">
+              <svg
+                className="h-16 w-16 text-neutral-300"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1}
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
+                />
+              </svg>
+              <span className="text-sm font-medium text-neutral-400">画像準備中</span>
             </div>
           )}
         </Card>
