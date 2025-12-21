@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import SearchFilters, { SORT_SELECT_OPTIONS } from '@/components/SearchFilters'
+import { SlidersHorizontal } from 'lucide-react'
+import SearchFilters from '@/components/SearchFilters'
 import { FilterSummaryBar, type FilterBadgeData } from '@/components/filters/FilterSummaryBar'
 import { FilterToggleButton } from '@/components/filters/FilterToggleButton'
-import { MobileFilterCTA } from '@/components/filters/MobileFilterCTA'
+import { MobileFilterDrawer } from '@/components/filters/MobileFilterDrawer'
 
 type FacetValue = {
   value: string
@@ -68,6 +69,7 @@ export function SearchPageClientWrapper({
   children,
 }: Props) {
   const [isFilterOpen, setIsFilterOpen] = useState(true)
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -145,9 +147,9 @@ export function SearchPageClientWrapper({
         className="mb-4"
       />
 
-      {/* Filter Section (collapsible) */}
+      {/* Filter Section (collapsible) - Desktop only */}
       {isFilterOpen && (
-        <div className="mb-6 animate-in slide-in-from-top-2 duration-200">
+        <div className="mb-6 hidden animate-in slide-in-from-top-2 duration-200 md:block">
           <SearchFilters
             init={init}
             facets={facets}
@@ -157,7 +159,9 @@ export function SearchPageClientWrapper({
       )}
 
       {/* Search Results */}
-      {children}
+      <div id="search-results">
+        {children}
+      </div>
 
       {/* Bottom Filter Toggle Button (desktop) */}
       <div className="mt-8 hidden justify-center md:flex">
@@ -167,12 +171,37 @@ export function SearchPageClientWrapper({
         />
       </div>
 
-      {/* Mobile Bottom CTA */}
-      <MobileFilterCTA
-        onSubmit={handleMobileSearch}
+      {/* Mobile Filter FAB */}
+      <button
+        type="button"
+        onClick={() => setIsMobileDrawerOpen(true)}
+        className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-5 py-3 text-sm font-bold text-white shadow-[0_4px_20px_rgba(37,99,235,0.35)] transition-all duration-200 hover:shadow-[0_6px_24px_rgba(37,99,235,0.45)] active:scale-95 md:hidden"
+        aria-label="フィルターを開く"
+      >
+        <SlidersHorizontal className="h-4 w-4" />
+        絞り込み
+        {activeBadges.length > 0 && (
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 text-[10px] font-bold">
+            {activeBadges.length}
+          </span>
+        )}
+      </button>
+
+      {/* Mobile Filter Drawer */}
+      <MobileFilterDrawer
+        isOpen={isMobileDrawerOpen}
+        onClose={() => setIsMobileDrawerOpen(false)}
+        onApply={handleMobileSearch}
         resultCount={resultCount}
         resultUnit={resultUnit}
-      />
+        activeFilterCount={activeBadges.length}
+      >
+        <SearchFilters
+          init={init}
+          facets={facets}
+          resultSummaryLabel={resultSummaryLabel}
+        />
+      </MobileFilterDrawer>
     </>
   )
 }

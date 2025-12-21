@@ -688,7 +688,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                       API から検索結果を取得できなかったため、参考用のサンプル店舗を表示しています。
                     </div>
                   ) : null}
-                  <div className="grid gap-6 md:grid-cols-2">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {prioritizedShopHits.map((hit) => (
                       <div
                         key={hit.id}
@@ -696,7 +696,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                           'h-full',
                           heroShop &&
                             heroShop.id === hit.id &&
-                            'relative rounded-card ring-2 ring-brand-primary/40 md:col-span-2',
+                            'relative rounded-card ring-2 ring-brand-primary/40 sm:col-span-2 lg:col-span-3',
                         )}
                       >
                         {heroShop && heroShop.id === hit.id ? (
@@ -783,7 +783,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                         の検索結果にセラピスト情報が含まれていなかったため、参考用のサンプルセラピストを表示しています。
                       </div>
                     ) : null}
-                    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       {therapistHits.map((hit) => (
                         <TherapistCard key={hit.id} hit={hit} useOverlay />
                       ))}
