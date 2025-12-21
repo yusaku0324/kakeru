@@ -772,29 +772,62 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               ) : null}
 
               {!renderTherapistSection && !renderShopSection ? (
-                <div className="flex flex-col items-center justify-center gap-5 rounded-card border border-dashed border-neutral-borderLight/80 bg-neutral-surfaceAlt/70 p-10 text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-neutral-200/60">
-                    <svg className="h-8 w-8 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <div className="flex flex-col items-center justify-center gap-6 rounded-card border border-dashed border-neutral-borderLight/80 bg-gradient-to-b from-neutral-50 to-neutral-100/50 p-10 text-center">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm">
+                    <svg className="h-10 w-10 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-base font-medium text-neutral-text">
-                      一致するセラピスト・店舗が見つかりませんでした
+                    <p className="text-lg font-semibold text-neutral-text">
+                      {hasActiveFilters
+                        ? '条件に一致する結果が見つかりませんでした'
+                        : '検索結果がありません'}
                     </p>
                     <p className="text-sm leading-relaxed text-neutral-textMuted">
-                      キーワードや条件を調整すると候補が表示される場合があります。
+                      {hasActiveFilters
+                        ? '条件を変更するか、フィルターをリセットしてお試しください。'
+                        : 'キーワードを入力して検索してください。'}
                     </p>
                   </div>
-                  <Link
-                    href="/"
-                    className="inline-flex items-center gap-2 rounded-lg border border-neutral-borderLight bg-white px-4 py-2 text-sm font-medium text-neutral-text shadow-sm transition hover:bg-neutral-50"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                    </svg>
-                    トップページに戻る
-                  </Link>
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    {hasActiveFilters ? (
+                      <Link
+                        href="/search"
+                        className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-brand-primary/90"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        条件をリセット
+                      </Link>
+                    ) : null}
+                    <Link
+                      href="/"
+                      className="inline-flex items-center gap-2 rounded-full border border-neutral-borderLight bg-white px-5 py-2.5 text-sm font-medium text-neutral-text shadow-sm transition hover:bg-neutral-50"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                      </svg>
+                      トップページへ
+                    </Link>
+                  </div>
+                  {hasActiveFilters ? (
+                    <div className="mt-2 space-y-3">
+                      <p className="text-xs font-medium text-neutral-textMuted">人気のエリアで探す</p>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {['難波', '梅田', '心斎橋', '天王寺'].map((area) => (
+                          <Link
+                            key={area}
+                            href={`/search?area=${encodeURIComponent(area)}`}
+                            className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-neutral-text shadow-sm ring-1 ring-neutral-200 transition hover:bg-brand-primary/5 hover:ring-brand-primary/30"
+                          >
+                            {area}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>

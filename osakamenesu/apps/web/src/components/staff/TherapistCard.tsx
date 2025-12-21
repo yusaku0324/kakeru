@@ -101,14 +101,14 @@ function buildStaffHref(hit: TherapistHit) {
   return `/profiles/${base}/staff/${encodeURIComponent(hit.staffId)}`
 }
 
-function HeartIcon({ filled }: { filled: boolean }) {
+function HeartIcon({ filled, animate }: { filled: boolean; animate?: boolean }) {
   return (
     <svg
       viewBox="0 0 24 24"
       stroke="currentColor"
       strokeWidth={1.8}
       fill={filled ? '#ef4444' : 'none'}
-      className="h-4 w-4"
+      className={`h-4 w-4 transition-transform duration-200 ${animate ? 'scale-110' : 'scale-100'} ${filled ? 'drop-shadow-[0_0_3px_rgba(239,68,68,0.5)]' : ''}`}
       aria-hidden="true"
     >
       <path
@@ -140,6 +140,7 @@ type TherapistCardProps = {
 export function TherapistCard({ hit, onReserve, useOverlay = false, menus }: TherapistCardProps) {
   const { isFavorite, toggleFavorite, isProcessing } = useTherapistFavorites()
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false)
+  const [heartAnimate, setHeartAnimate] = useState(false)
   const staffHref = buildStaffHref(hit)
   const therapistId = useMemo(() => {
     const candidate = hit.therapistId?.trim()
@@ -223,7 +224,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus }: The
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-[0_8px_32px_rgba(37,99,235,0.12)] backdrop-blur-sm transition-all duration-300 hover:shadow-[0_16px_48px_rgba(37,99,235,0.22)] hover:border-brand-primary/30 ${isClickableCard ? 'cursor-pointer' : ''}`}
+      className={`group relative overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-[0_8px_32px_rgba(37,99,235,0.12)] backdrop-blur-sm transition-all duration-300 hover:shadow-[0_16px_48px_rgba(37,99,235,0.22)] hover:border-brand-primary/30 focus-within:ring-2 focus-within:ring-brand-primary/40 focus-within:ring-offset-2 ${isClickableCard ? 'cursor-pointer' : ''}`}
       data-testid="therapist-card"
       data-therapist-id={dataTherapistId ?? undefined}
       onClick={isClickableCard ? handleCardClick : undefined}
@@ -245,16 +246,18 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus }: The
           event.preventDefault()
           event.stopPropagation()
           if (therapistId) {
+            setHeartAnimate(true)
+            setTimeout(() => setHeartAnimate(false), 300)
             void toggleFavorite({ therapistId, shopId: hit.shopId })
           }
         }}
-        className={`absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/70 bg-white/90 shadow-[0_4px_12px_rgba(0,0,0,0.1)] backdrop-blur-sm transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary ${
+        className={`absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/70 bg-white/90 shadow-[0_4px_12px_rgba(0,0,0,0.1)] backdrop-blur-sm transition-all duration-200 hover:scale-110 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary focus-visible:ring-2 focus-visible:ring-brand-primary/30 ${
           favorite ? 'text-red-500 border-red-200 bg-red-50/90' : 'text-neutral-400 hover:text-red-400 hover:border-red-200'
         } ${processing ? 'opacity-60' : ''}`}
         data-testid="therapist-favorite-toggle"
         data-therapist-id={dataTherapistId ?? undefined}
       >
-        <HeartIcon filled={favorite} />
+        <HeartIcon filled={favorite} animate={heartAnimate} />
         <span className="sr-only">{favorite ? 'お気に入りから削除' : 'お気に入りに追加'}</span>
       </button>
 

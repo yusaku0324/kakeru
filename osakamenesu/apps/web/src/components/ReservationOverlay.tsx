@@ -246,11 +246,11 @@ export default function ReservationOverlay({
   return (
     <>
       <div className="fixed inset-0 z-[998] overflow-y-auto bg-neutral-950/45 backdrop-blur-sm">
-        <div className="relative flex min-h-full items-center justify-center px-4 py-8 sm:px-6 sm:py-14 lg:py-16">
-          <div className="absolute inset-0" onClick={handleClose} aria-hidden="true" />
+        <div className="relative flex min-h-full items-center justify-center px-0 py-0 sm:px-6 sm:py-14 lg:py-16">
+          <div className="absolute inset-0 hidden sm:block" onClick={handleClose} aria-hidden="true" />
           <div
             ref={dialogRef}
-            className="relative z-10 w-full max-w-5xl overflow-hidden rounded-[40px] border border-white/40 bg-white/55 shadow-[0_50px_150px_rgba(37,99,235,0.38)] backdrop-blur-[36px]"
+            className="relative z-10 flex h-full min-h-[100dvh] w-full flex-col overflow-hidden border-white/40 bg-white/55 shadow-[0_50px_150px_rgba(37,99,235,0.38)] backdrop-blur-[36px] sm:h-auto sm:min-h-0 sm:max-w-5xl sm:rounded-[40px] sm:border"
             role="dialog"
             aria-modal="true"
             aria-label={`${hit.name}の予約詳細`}
@@ -259,15 +259,15 @@ export default function ReservationOverlay({
             <button
               type="button"
               onClick={handleClose}
-              className="absolute right-5 top-5 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/80 bg-white/90 text-neutral-text shadow-sm shadow-brand-primary/10 transition hover:border-brand-primary hover:bg-brand-primary/10 hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary/40"
+              className="absolute right-3 top-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/80 bg-white/90 text-neutral-text shadow-sm shadow-brand-primary/10 transition hover:border-brand-primary hover:bg-brand-primary/10 hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary/40 sm:right-5 sm:top-5"
               aria-label="予約パネルを閉じる"
             >
               ✕
             </button>
             <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.22)_0%,rgba(37,99,235,0)_65%),radial-gradient(circle_at_bottom_left,rgba(96,165,250,0.18)_0%,rgba(96,165,250,0)_60%),linear-gradient(135deg,rgba(255,255,255,0.92)_0%,rgba(236,245,255,0.62)_45%,rgba(219,234,254,0.55)_100%)]" />
 
-            <div className="flex max-h-[calc(100vh-8rem)] flex-col overflow-y-auto">
-              <div className="w-full space-y-10 p-6 sm:p-8 lg:p-12">
+            <div className="flex max-h-[100dvh] flex-1 flex-col overflow-y-auto sm:max-h-[calc(100vh-8rem)]">
+              <div className="w-full space-y-6 p-4 pb-8 sm:space-y-10 sm:p-8 lg:p-12">
                 <section className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
                   <ReservationHeroCard
                     name={hit.name}

@@ -26,7 +26,7 @@ export function ActiveFilterBadges({ badges, className = '' }: Props) {
         <span
           key={badge.key}
           role="listitem"
-          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm transition-all duration-150 hover:bg-blue-100"
+          className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-brand-primary/10 px-3 py-1.5 text-xs font-medium text-brand-primaryDark shadow-sm ring-1 ring-brand-primary/20 transition-all duration-200 hover:bg-brand-primary/15 hover:shadow-md hover:ring-brand-primary/30"
         >
           {badge.label}
           <button
@@ -35,12 +35,10 @@ export function ActiveFilterBadges({ badges, className = '' }: Props) {
               e.stopPropagation()
               badge.onRemove()
             }}
-            className="relative -my-2 -mr-1 ml-0.5 inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-blue-500 transition-colors hover:text-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+            className="relative -my-1.5 -mr-1.5 ml-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-brand-primary/70 transition-all duration-150 hover:bg-brand-primary/20 hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-primary active:scale-90"
             aria-label={`${badge.label}を解除`}
           >
-            <span className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-blue-200">
-              <X className="h-3 w-3" aria-hidden="true" />
-            </span>
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </span>
       ))}
