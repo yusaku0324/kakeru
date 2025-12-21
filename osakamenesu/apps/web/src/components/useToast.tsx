@@ -60,7 +60,7 @@ export function ToastContainer({
 }) {
   return (
     <div
-      className="fixed bottom-4 right-4 z-50 space-y-3"
+      className="fixed bottom-4 right-4 z-[1050] space-y-3"
       role="region"
       aria-label="通知"
       aria-live="polite"
