@@ -1,7 +1,6 @@
 {
   "framework": "nextjs",
   "regions": ["hnd1"],
-  "rootDirectory": "apps/web",
   "buildCommand": "pnpm build",
   "installCommand": "cd ../.. && pnpm install && cd apps/web",
   "outputDirectory": ".next",
