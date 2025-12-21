@@ -470,14 +470,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const data = forceSampleMode ? buildSampleResponse() : await fetchProfiles(resolvedSearchParams)
   const { page, page_size: pageSize, total, results, facets, _error } = data
   const hits = results ?? []
-  const useSampleData = forceSampleMode || hits.length === 0
-  const displayHits = useSampleData ? SAMPLE_RESULTS : hits
-  const editorialSpots = buildEditorialSpots(total)
-  const displayEditorialSpots = useSampleData
-    ? buildEditorialSpots(SAMPLE_RESULTS.length)
-    : editorialSpots
-  const numberFormatter = new Intl.NumberFormat('ja-JP')
 
+  // Check if any search filters are active (excluding pagination and display options)
   const hasActiveFilters = Object.entries(resolvedSearchParams || {}).some(
     ([key, value]) =>
       value !== undefined &&
@@ -485,8 +479,22 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       value !== '' &&
       key !== 'page' &&
       key !== 'page_size' &&
-      key !== 'force_samples',
+      key !== 'force_samples' &&
+      key !== 'tab' &&
+      key !== 'sort',
   )
+
+  // Only use sample data when:
+  // 1. force_samples mode is enabled, OR
+  // 2. No results AND no active filters (to show a showcase on empty search page)
+  // When user has active filters but no results, show empty state instead
+  const useSampleData = forceSampleMode || (hits.length === 0 && !hasActiveFilters)
+  const displayHits = useSampleData ? SAMPLE_RESULTS : hits
+  const editorialSpots = buildEditorialSpots(total)
+  const displayEditorialSpots = useSampleData
+    ? buildEditorialSpots(SAMPLE_RESULTS.length)
+    : editorialSpots
+  const numberFormatter = new Intl.NumberFormat('ja-JP')
 
   const therapistHitsFromResults = buildTherapistHits(displayHits)
   const usingSampleTherapists = !hasActiveFilters && therapistHitsFromResults.length === 0
