@@ -40,6 +40,8 @@ type Props = {
   shopArea: string
   shopAreaName?: string | null
   menus?: MenuOption[] | null
+  /** デモ店舗でも予約送信を許可する（force_demo_submit=1 用） */
+  allowDemoSubmission?: boolean
 }
 
 function staffMemberToTherapistHit(
@@ -92,7 +94,7 @@ function staffMemberToTherapistHit(
   }
 }
 
-export default function StaffSectionClient({ staff, shopId, shopSlug, shopName, shopArea, shopAreaName, menus }: Props) {
+export default function StaffSectionClient({ staff, shopId, shopSlug, shopName, shopArea, shopAreaName, menus, allowDemoSubmission }: Props) {
   if (!staff.length) return null
 
   return (
@@ -115,7 +117,7 @@ export default function StaffSectionClient({ staff, shopId, shopSlug, shopName, 
             )
             return (
               <div key={member.id} id={`staff-${member.id}`} className="scroll-mt-20">
-                <TherapistCard hit={hit} useOverlay menus={menus} />
+                <TherapistCard hit={hit} useOverlay menus={menus} allowDemoSubmission={allowDemoSubmission} />
               </div>
             )
           })}

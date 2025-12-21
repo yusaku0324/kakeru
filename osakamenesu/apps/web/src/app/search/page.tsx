@@ -257,6 +257,7 @@ type Params = {
   page?: string
   page_size?: string
   force_samples?: string
+  force_demo_submit?: string
   tab?: string
 }
 
@@ -466,6 +467,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     Array.isArray(resolvedSearchParams.force_samples)
       ? resolvedSearchParams.force_samples[0]
       : resolvedSearchParams.force_samples,
+  )
+  const allowDemoSubmission = parseBoolParam(
+    Array.isArray(resolvedSearchParams.force_demo_submit)
+      ? resolvedSearchParams.force_demo_submit[0]
+      : resolvedSearchParams.force_demo_submit,
   )
   const data = forceSampleMode ? buildSampleResponse() : await fetchProfiles(resolvedSearchParams)
   const { page, page_size: pageSize, total, results, facets, _error } = data
@@ -793,7 +799,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                     ) : null}
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       {therapistHits.map((hit) => (
-                        <TherapistCard key={hit.id} hit={hit} useOverlay />
+                        <TherapistCard key={hit.id} hit={hit} useOverlay allowDemoSubmission={allowDemoSubmission} />
                       ))}
                     </div>
                   </Section>

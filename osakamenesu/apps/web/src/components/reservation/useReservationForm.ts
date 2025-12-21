@@ -466,7 +466,12 @@ export function useReservationForm({
           body: JSON.stringify(payload),
         })
         const text = await resp.text()
-        let data: { id?: string; detail?: string | Array<{ msg?: string }> | { msg?: string } } | null = null
+        let data: {
+          id?: string
+          status?: string
+          detail?: string | Array<{ msg?: string }> | { msg?: string }
+          debug?: { rejected_reasons?: string[] }
+        } | null = null
         if (text) {
           try {
             data = JSON.parse(text) as typeof data
@@ -489,6 +494,23 @@ export function useReservationForm({
             return '予約の送信に失敗しました。しばらくしてから再度お試しください。'
           })()
           push('error', errorMessage)
+          return
+        }
+
+        // Check for rejected status (backend returns 200 OK but status: "rejected")
+        if (data?.status === 'rejected') {
+          const reasons = data?.debug?.rejected_reasons ?? []
+          const reasonMessages: Record<string, string> = {
+            deadline_over: '予約締め切り時間を過ぎています（1時間以上前にご予約ください）',
+            outside_business_hours: '営業時間外です',
+            no_available_therapist: '選択した時間帯に対応可能なセラピストがいません',
+            room_full: '満室のため予約できません',
+            therapist_unavailable: 'セラピストがその時間は対応できません',
+            overlap_existing_reservation: 'その時間帯は既に予約が入っています',
+            internal_error: 'システムエラーが発生しました。しばらくしてから再度お試しください。',
+          }
+          const friendlyReasons = reasons.map((r) => reasonMessages[r] ?? r).join('\n')
+          push('error', friendlyReasons || '予約を受け付けられませんでした。別の時間帯をお試しください。')
           return
         }
 

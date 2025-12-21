@@ -100,6 +100,7 @@ export async function POST(req: Request) {
             desired_start: json.start_at,
             desired_end: json.end_at,
             notes: json.notes,
+            debug: json.debug,
           }
           return NextResponse.json(legacyResponse, { status: resp.status })
         }

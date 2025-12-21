@@ -839,6 +839,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         shopArea={shop.area}
         shopAreaName={shop.area_name}
         menus={menus}
+        allowDemoSubmission={allowDemoSubmission}
       />
 
       {availability.length ? (

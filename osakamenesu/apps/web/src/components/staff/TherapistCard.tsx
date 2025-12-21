@@ -135,9 +135,11 @@ type TherapistCardProps = {
   showReserveLink?: boolean
   useOverlay?: boolean
   menus?: MenuOption[] | null
+  /** デモ店舗でも予約送信を許可する（force_demo_submit=1 用） */
+  allowDemoSubmission?: boolean
 }
 
-export function TherapistCard({ hit, onReserve, useOverlay = false, menus }: TherapistCardProps) {
+export function TherapistCard({ hit, onReserve, useOverlay = false, menus, allowDemoSubmission }: TherapistCardProps) {
   const { isFavorite, toggleFavorite, isProcessing } = useTherapistFavorites()
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false)
   const [heartAnimate, setHeartAnimate] = useState(false)
@@ -179,6 +181,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus }: The
         defaultStart: nextSlotPayload?.start_at ?? null,
         availabilityDays,
         menus: menus ?? undefined,
+        allowDemoSubmission,
       })
       return
     }
@@ -192,6 +195,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus }: The
         hit,
         defaultStart: nextSlotPayload?.start_at ?? null,
         menus: menus ?? undefined,
+        allowDemoSubmission,
       })
       return
     }
@@ -204,11 +208,12 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus }: The
         defaultStart: nextSlotPayload?.start_at ?? null,
         availabilityDays: fetchedDays.length > 0 ? fetchedDays : undefined,
         menus: menus ?? undefined,
+        allowDemoSubmission,
       })
     } finally {
       setIsLoadingAvailability(false)
     }
-  }, [hit, nextSlotPayload, availabilityDays, therapistId, menus])
+  }, [hit, nextSlotPayload, availabilityDays, therapistId, menus, allowDemoSubmission])
 
   // When useOverlay or onReserve is set, clicking anywhere on the card opens the overlay/calls onReserve
   const isClickableCard = useOverlay || !!onReserve
