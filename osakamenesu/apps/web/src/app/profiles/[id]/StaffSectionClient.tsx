@@ -98,7 +98,7 @@ export default function StaffSectionClient({ staff, shopId, shopSlug, shopName, 
   return (
     <TherapistFavoritesProvider>
       <Section
-        id="staff-section"
+        id="staff"
         title={`セラピスト (${staff.length}名)`}
         subtitle="人気のセラピストを一部ご紹介"
         className="shadow-none border border-neutral-borderLight bg-neutral-surface"

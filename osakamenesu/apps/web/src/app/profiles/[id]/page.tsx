@@ -23,6 +23,8 @@ import { sampleShopToDetail } from '@/lib/sampleShopAdapters'
 import { TOKYO_TZ, formatDatetimeLocal, formatZonedIso, toZonedDayjs, toZonedDate } from '@/lib/timezone'
 import { getJaFormatter } from '@/utils/date'
 import ShopReservationCardClient from './ShopReservationCardClient'
+import ShopSectionNav from './ShopSectionNav'
+import StickyReservationCTA from './StickyReservationCTA'
 import StaffSectionClient from './StaffSectionClient'
 
 type Props = {
@@ -138,6 +140,8 @@ export type ShopDetail = {
   diary_count?: number | null
   has_diaries?: boolean | null
   diaries?: DiaryEntry[] | null
+  business_hours?: string | null
+  address?: string | null
 }
 
 async function fetchShop(id: string, preferApi = false): Promise<ShopDetail> {
@@ -437,9 +441,20 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     { label: shop.name },
   ]
 
+  // Build navigation sections based on available data
+  const navSections = [
+    { id: 'overview', label: '概要' },
+    shop.description || shop.catch_copy ? { id: 'about', label: '店舗紹介' } : null,
+    shop.reviews ? { id: 'reviews', label: '口コミ' } : null,
+    menus.length ? { id: 'menus', label: 'メニュー' } : null,
+    staff.length ? { id: 'staff', label: 'セラピスト' } : null,
+    availability.length ? { id: 'availability', label: '空き状況' } : null,
+  ].filter((s): s is { id: string; label: string } => s !== null)
+
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 pb-24">
       <Breadcrumb items={breadcrumbItems} className="pt-4" />
+      <ShopSectionNav sections={navSections} />
       <ReservationOverlayRoot />
       <RecentlyViewedRecorder
         shopId={shop.id}
@@ -448,7 +463,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         area={shop.area_name ?? shop.area ?? null}
         imageUrl={photos[0] ?? null}
       />
-      <section className="grid items-start gap-6 lg:grid-cols-[3fr_2fr]">
+      <section id="overview" className="grid items-start gap-6 lg:grid-cols-[3fr_2fr]">
         <Card className="overflow-hidden p-0">
           {photos.length > 0 ? (
             <Gallery photos={photos} altBase={shop.name} />
@@ -577,6 +592,69 @@ export default async function ProfilePage({ params, searchParams }: Props) {
             ) : null}
           </Card>
 
+          {shop.business_hours || shop.address ? (
+            <Card className="space-y-4 p-4">
+              {shop.business_hours ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-neutral-text">
+                    <svg
+                      className="h-4 w-4 text-neutral-textMuted"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                      />
+                    </svg>
+                    営業時間
+                  </div>
+                  <p className="text-sm text-neutral-text">{shop.business_hours}</p>
+                </div>
+              ) : null}
+              {shop.address ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-neutral-text">
+                    <svg
+                      className="h-4 w-4 text-neutral-textMuted"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
+                      />
+                    </svg>
+                    アクセス
+                  </div>
+                  <p className="text-sm text-neutral-text">{shop.address}</p>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shop.address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-brand-primaryDark hover:underline"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                    </svg>
+                    Google Mapで見る
+                  </a>
+                </div>
+              ) : null}
+            </Card>
+          ) : null}
+
           {Array.isArray(shop.promotions) && shop.promotions.length ? (
             <Card className="space-y-3 p-4">
               <div className="text-sm font-semibold text-neutral-text">キャンペーン / 特典</div>
@@ -675,6 +753,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 
       {shop.description || shop.catch_copy ? (
         <Section
+          id="about"
           title="店舗紹介"
           subtitle={shop.catch_copy && shop.description ? shop.catch_copy : undefined}
           className="shadow-none border border-neutral-borderLight bg-neutral-surface"
@@ -691,6 +770,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 
       {shop.reviews ? (
         <Section
+          id="reviews"
           title="口コミ"
           subtitle={
             shop.reviews.review_count ? `公開件数 ${shop.reviews.review_count}件` : undefined
@@ -712,6 +792,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 
       {menus.length ? (
         <Section
+          id="menus"
           title="メニュー"
           subtitle="編集部が確認した代表的なコースと料金"
           className="shadow-none border border-neutral-borderLight bg-neutral-surface"
@@ -762,6 +843,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 
       {availability.length ? (
         <Section
+          id="availability"
           title="出勤・空き状況"
           subtitle={
             availabilityUpdatedLabel
@@ -842,6 +924,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
           </div>
         </Section>
       ) : null}
+
+      <StickyReservationCTA overlay={reservationOverlayConfig} tel={phone} />
     </main>
   )
 }
