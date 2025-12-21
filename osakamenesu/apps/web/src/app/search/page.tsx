@@ -713,33 +713,55 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                     className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-borderLight/70 pt-5 text-sm"
                     aria-label="検索結果ページネーション"
                   >
-                    <div className="text-neutral-textMuted" aria-live="polite">
-                      {shopPage} / {shopLastPage}ページ（
-                      {Intl.NumberFormat('ja-JP').format(shopTotal)}件）
-                    </div>
-                    <div className="flex items-center gap-2">
+                    <p className="text-neutral-textMuted" aria-live="polite" aria-atomic="true">
+                      <span className="font-medium text-neutral-text">{shopPage}</span>
+                      <span className="mx-1">/</span>
+                      <span>{shopLastPage}ページ</span>
+                      <span className="ml-1">（{Intl.NumberFormat('ja-JP').format(shopTotal)}件）</span>
+                    </p>
+                    <div className="flex items-center gap-2" role="group" aria-label="ページ移動">
                       {shopPage > 1 ? (
                         <a
                           href={qp(shopPage - 1)}
-                          className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary"
+                          className="inline-flex items-center gap-1 rounded-full border border-neutral-borderLight bg-white px-4 py-1.5 font-medium shadow-sm transition-all hover:border-brand-primary hover:text-brand-primary hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
+                          aria-label={`前のページへ（${shopPage - 1}ページ目）`}
                         >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                          </svg>
                           前へ
                         </a>
                       ) : (
-                        <span className="rounded-badge border border-neutral-borderLight/70 px-3 py-1 text-neutral-textMuted/60">
+                        <span
+                          className="inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-4 py-1.5 text-neutral-400"
+                          aria-disabled="true"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                          </svg>
                           前へ
                         </span>
                       )}
                       {shopPage < shopLastPage ? (
                         <a
                           href={qp(shopPage + 1)}
-                          className="rounded-badge border border-neutral-borderLight px-3 py-1 transition hover:border-brand-primary hover:text-brand-primary"
+                          className="inline-flex items-center gap-1 rounded-full border border-neutral-borderLight bg-white px-4 py-1.5 font-medium shadow-sm transition-all hover:border-brand-primary hover:text-brand-primary hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
+                          aria-label={`次のページへ（${shopPage + 1}ページ目）`}
                         >
                           次へ
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                          </svg>
                         </a>
                       ) : (
-                        <span className="rounded-badge border border-neutral-borderLight/70 px-3 py-1 text-neutral-textMuted/60">
+                        <span
+                          className="inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-4 py-1.5 text-neutral-400"
+                          aria-disabled="true"
+                        >
                           次へ
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                          </svg>
                         </span>
                       )}
                     </div>

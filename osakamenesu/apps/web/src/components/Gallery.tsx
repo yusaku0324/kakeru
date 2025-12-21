@@ -174,7 +174,9 @@ export default function Gallery({ photos, altBase, id }: Props) {
               data-index={i}
               className="shrink-0 w-full snap-center"
             >
-              <div className="relative aspect-[4/3] bg-gray-100">
+              <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-neutral-100 to-neutral-200/80">
+                {/* Skeleton shimmer effect while loading */}
+                <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/40 to-transparent" />
                 <SafeImage
                   src={src}
                   alt={`${altBase} ${i + 1}`}
