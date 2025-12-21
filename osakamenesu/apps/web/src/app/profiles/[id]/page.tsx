@@ -171,7 +171,8 @@ function uuidFromString(input: string): string {
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`
 }
 
-const formatYen = (n: number) => `¥${Number(n).toLocaleString('ja-JP')}`
+const formatYen = (n: number | null | undefined) =>
+  n != null && !Number.isNaN(n) ? `¥${Number(n).toLocaleString('ja-JP')}` : null
 const dayFormatter = getJaFormatter('day')
 const timeFormatter = getJaFormatter('time')
 
@@ -369,7 +370,14 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const overlaySchedule = availabilityUpdatedLabel
     ? `空き状況更新: ${availabilityUpdatedLabel}`
     : null
-  const overlayPricingLabel = `${formatYen(shop.min_price)}〜${formatYen(shop.max_price)}`
+  const overlayPricingLabel = (() => {
+    const min = formatYen(shop.min_price)
+    const max = formatYen(shop.max_price)
+    if (min && max) return `${min}〜${max}`
+    if (min) return `${min}〜`
+    if (max) return `〜${max}`
+    return null
+  })()
 
   const reservationOverlayConfig = {
     hit: reservationHit,
@@ -492,8 +500,16 @@ export default async function ProfilePage({ params, searchParams }: Props) {
               料金目安 (60分)
             </div>
             <div className="text-2xl font-semibold text-brand-primaryDark">
-              {formatYen(shop.min_price)}{' '}
-              <span className="text-sm text-neutral-textMuted">〜 {formatYen(shop.max_price)}</span>
+              {formatYen(shop.min_price) || formatYen(shop.max_price) ? (
+                <>
+                  {formatYen(shop.min_price) ?? '−'}{' '}
+                  <span className="text-sm text-neutral-textMuted">
+                    〜 {formatYen(shop.max_price) ?? '−'}
+                  </span>
+                </>
+              ) : (
+                <span className="text-neutral-textMuted">料金は店舗にお問い合わせください</span>
+              )}
             </div>
             <p className="text-xs leading-relaxed text-neutral-textMuted">
               表示料金は掲載時点の目安です。最新の割引や延長料金は直接店舗へお問い合わせください。
@@ -820,7 +836,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const shop = await fetchShop(id, false)
   const title = `${shop.name} - 大阪メンエス.com`
-  const descParts = [shop.area, `${formatYen(shop.min_price)}〜${formatYen(shop.max_price)}`]
+  const priceRange = (() => {
+    const min = formatYen(shop.min_price)
+    const max = formatYen(shop.max_price)
+    if (min && max) return `${min}〜${max}`
+    if (min) return `${min}〜`
+    if (max) return `〜${max}`
+    return null
+  })()
+  const descParts = [shop.area, priceRange].filter(Boolean) as string[]
   if (shop.catch_copy) descParts.unshift(shop.catch_copy)
   if (shop.store_name) descParts.unshift(shop.store_name)
   if (shop.description) descParts.push(shorten(shop.description, 120) || '')
