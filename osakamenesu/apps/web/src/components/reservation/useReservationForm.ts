@@ -71,6 +71,16 @@ export type UseReservationFormProps = {
 const PROFILE_STORAGE_KEY = 'reservation.profile.v1'
 const MINUTES_OPTIONS = [60, 90, 120, 150, 180]
 
+/**
+ * Format phone number as user types (Japanese mobile: 090-1234-5678)
+ */
+function formatPhoneNumber(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  if (digits.length <= 3) return digits
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`
+}
+
 function nextHourIsoLocal(minutesAhead = 120) {
   const candidate = toZonedDayjs().add(minutesAhead, 'minute').second(0).millisecond(0)
   const formatted = formatDatetimeLocal(candidate)
@@ -255,7 +265,9 @@ export function useReservationForm({
   }, [rememberProfile, form.name, form.phone, form.email])
 
   function handleChange<K extends keyof ReservationFormState>(key: K, value: ReservationFormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
+    // Auto-format phone number as user types
+    const processedValue = key === 'phone' && typeof value === 'string' ? formatPhoneNumber(value) : value
+    setForm((prev) => ({ ...prev, [key]: processedValue }))
     const errorKey = key as keyof ReservationFormErrors
     if (errorKeys.includes(errorKey)) {
       setErrors((prev) => {

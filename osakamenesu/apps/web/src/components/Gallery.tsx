@@ -135,6 +135,8 @@ export default function Gallery({ photos, altBase, id }: Props) {
           <button
             key={i}
             onClick={() => goTo(i)}
+            aria-label={`${i + 1}枚目を表示`}
+            aria-current={i === index ? 'true' : undefined}
             data-testid="gallery-thumb"
             data-active={i === index}
             className={`relative w-24 aspect-[4/3] shrink-0 rounded overflow-hidden ring-1 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary ${i === index ? 'ring-slate-900 ring-2' : 'ring-slate-200 hover:ring-brand-primary/50 hover:shadow-md'}`}
@@ -193,6 +195,7 @@ export default function Gallery({ photos, altBase, id }: Props) {
             <button
               key={i}
               aria-label={`${i + 1}枚目に移動`}
+              aria-current={i === index ? 'true' : undefined}
               onClick={() => goTo(i)}
               data-testid="gallery-dot"
               data-active={i === index}
@@ -207,6 +210,8 @@ export default function Gallery({ photos, altBase, id }: Props) {
             <button
               key={i}
               onClick={() => goTo(i)}
+              aria-label={`${i + 1}枚目を表示`}
+              aria-current={i === index ? 'true' : undefined}
               data-testid="gallery-thumb"
               data-active={i === index}
               className={`relative h-16 w-20 shrink-0 rounded overflow-hidden ring-1 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary ${i === index ? 'ring-slate-900 ring-2' : 'ring-slate-200 hover:ring-brand-primary/50 hover:shadow-md'}`}
