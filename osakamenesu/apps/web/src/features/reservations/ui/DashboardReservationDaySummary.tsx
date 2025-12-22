@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import clsx from 'clsx'
 
 import {
@@ -9,14 +9,18 @@ import {
 } from '@/components/reservations/status'
 import { Card } from '@/components/ui/Card'
 import type { DashboardReservationItem } from '@/lib/dashboard-reservations'
+import { fetchDashboardReservations } from '@/lib/dashboard-reservations'
 import {
   loadShopReservationsForDay,
   type ReservationDayMode,
 } from '@/features/reservations/usecases'
 
-const DAY_TABS: Array<{ mode: ReservationDayMode; label: string }> = [
+type DateMode = ReservationDayMode | 'custom'
+
+const DAY_TABS: Array<{ mode: DateMode; label: string }> = [
   { mode: 'today', label: '今日' },
   { mode: 'tomorrow', label: '明日' },
+  { mode: 'custom', label: '日付指定' },
 ]
 
 const CANCELLED_STATUSES: Array<DashboardReservationItem['status']> = [
@@ -42,71 +46,109 @@ type DayState = {
   reservations: DashboardReservationItem[]
 }
 
-const INITIAL_STATE = DAY_TABS.reduce<Record<ReservationDayMode, DayState>>(
-  (acc, tab) => {
-    acc[tab.mode] = { loading: true, error: null, reservations: [] }
-    return acc
-  },
-  {} as Record<ReservationDayMode, DayState>,
-)
+function getTodayString() {
+  const today = new Date()
+  return today.toISOString().split('T')[0]
+}
+
+function formatDateForDisplay(dateStr: string) {
+  const date = new Date(dateStr + 'T00:00:00')
+  return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
+}
 
 export default function DashboardReservationDaySummary({ profileId }: { profileId: string }) {
-  const [mode, setMode] = useState<ReservationDayMode>('today')
-  const [state, setState] = useState(INITIAL_STATE)
+  const [mode, setMode] = useState<DateMode>('today')
+  const [customDate, setCustomDate] = useState<string>(getTodayString())
+  const [todayState, setTodayState] = useState<DayState>({ loading: true, error: null, reservations: [] })
+  const [tomorrowState, setTomorrowState] = useState<DayState>({ loading: true, error: null, reservations: [] })
+  const [customState, setCustomState] = useState<DayState>({ loading: false, error: null, reservations: [] })
 
+  // Load today and tomorrow on mount
   useEffect(() => {
     let cancelled = false
-    const controllers = DAY_TABS.reduce<Record<ReservationDayMode, AbortController>>(
-      (acc, tab) => {
-        acc[tab.mode] = new AbortController()
-        return acc
-      },
-      {} as Record<ReservationDayMode, AbortController>,
-    )
+    const todayController = new AbortController()
+    const tomorrowController = new AbortController()
 
-    async function loadDay(day: ReservationDayMode) {
-      setState((prev) => ({
-        ...prev,
-        [day]: { ...prev[day], loading: true, error: null },
-      }))
+    async function loadPreset(day: ReservationDayMode, setState: React.Dispatch<React.SetStateAction<DayState>>) {
+      setState(prev => ({ ...prev, loading: true, error: null }))
       try {
         const reservations = await loadShopReservationsForDay(profileId, day, {
-          signal: controllers[day].signal,
+          signal: day === 'today' ? todayController.signal : tomorrowController.signal,
         })
         if (cancelled) return
-        setState((prev) => ({ ...prev, [day]: { loading: false, error: null, reservations } }))
+        setState({ loading: false, error: null, reservations })
       } catch (error) {
         if (cancelled) return
         if ((error as Error).name === 'AbortError') return
-        setState((prev) => ({
-          ...prev,
-          [day]: {
-            loading: false,
-            error: '予約の取得に失敗しました',
-            reservations: prev[day].reservations,
-          },
+        setState(prev => ({
+          loading: false,
+          error: '予約の取得に失敗しました',
+          reservations: prev.reservations,
         }))
       }
     }
 
-    DAY_TABS.forEach((tab) => loadDay(tab.mode))
+    loadPreset('today', setTodayState)
+    loadPreset('tomorrow', setTomorrowState)
 
     return () => {
       cancelled = true
-      DAY_TABS.forEach((tab) => controllers[tab.mode].abort())
+      todayController.abort()
+      tomorrowController.abort()
     }
   }, [profileId])
 
+  // Load custom date reservations
+  const loadCustomDate = useCallback(async (date: string) => {
+    setCustomState(prev => ({ ...prev, loading: true, error: null }))
+    try {
+      // Use JST timezone explicitly to avoid timezone issues
+      const startOfDay = new Date(date + 'T00:00:00+09:00')
+      const endOfDay = new Date(date + 'T23:59:59+09:00')
+      const data = await fetchDashboardReservations(profileId, {
+        limit: 100,
+        sort: 'date',
+        direction: 'asc',
+        start: startOfDay.toISOString(),
+        end: endOfDay.toISOString(),
+      })
+      setCustomState({ loading: false, error: null, reservations: data.reservations as DashboardReservationItem[] })
+    } catch (error) {
+      setCustomState(prev => ({
+        loading: false,
+        error: '予約の取得に失敗しました',
+        reservations: prev.reservations,
+      }))
+    }
+  }, [profileId])
+
+  // Load custom date when switching to custom mode or changing date
+  useEffect(() => {
+    if (mode === 'custom' && customDate) {
+      loadCustomDate(customDate)
+    }
+  }, [mode, customDate, loadCustomDate])
+
+  const currentState = useMemo(() => {
+    if (mode === 'today') return todayState
+    if (mode === 'tomorrow') return tomorrowState
+    return customState
+  }, [mode, todayState, tomorrowState, customState])
+
   const summary = useMemo(() => {
-    const list = state[mode].reservations
+    const list = currentState.reservations
     const total = list.length
     const active = list.filter((item) => !CANCELLED_STATUSES.includes(item.status)).length
     const cancelledCount = total - active
     return { total, active, cancelled: cancelledCount }
-  }, [mode, state])
+  }, [currentState])
 
-  const currentState = state[mode]
-  const currentLabel = useMemo(() => DAY_TABS.find((tab) => tab.mode === mode)?.label ?? '', [mode])
+  const currentLabel = useMemo(() => {
+    if (mode === 'custom' && customDate) {
+      return formatDateForDisplay(customDate)
+    }
+    return DAY_TABS.find((tab) => tab.mode === mode)?.label ?? ''
+  }, [mode, customDate])
 
   return (
     <Card className="space-y-4 border border-brand-primary/20 bg-white/80 p-4 shadow-sm">
@@ -115,22 +157,32 @@ export default function DashboardReservationDaySummary({ profileId }: { profileI
           <p className="text-xs text-neutral-textMuted">直近の予約状況</p>
           <h2 className="text-lg font-semibold text-neutral-text">今日は誰が来店しますか？</h2>
         </div>
-        <div className="inline-flex rounded-full border border-brand-primary/30 bg-white p-0.5 text-sm font-semibold">
-          {DAY_TABS.map((tab) => (
-            <button
-              key={tab.mode}
-              type="button"
-              onClick={() => setMode(tab.mode)}
-              className={clsx(
-                'rounded-full px-3 py-1 transition',
-                mode === tab.mode
-                  ? 'bg-brand-primary text-white'
-                  : 'text-brand-primary hover:bg-brand-primary/10',
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-full border border-brand-primary/30 bg-white p-0.5 text-sm font-semibold">
+            {DAY_TABS.map((tab) => (
+              <button
+                key={tab.mode}
+                type="button"
+                onClick={() => setMode(tab.mode)}
+                className={clsx(
+                  'rounded-full px-3 py-1 transition',
+                  mode === tab.mode
+                    ? 'bg-brand-primary text-white'
+                    : 'text-brand-primary hover:bg-brand-primary/10',
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {mode === 'custom' && (
+            <input
+              type="date"
+              value={customDate}
+              onChange={(e) => setCustomDate(e.target.value)}
+              className="rounded-lg border border-brand-primary/30 bg-white px-3 py-1 text-sm focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+            />
+          )}
         </div>
       </div>
 

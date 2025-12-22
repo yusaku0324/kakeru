@@ -96,10 +96,14 @@ function buildSlotKey(day: AvailabilityDay, slot: AvailabilitySlot) {
   return `${day.date}-${key}`
 }
 
+// 予約締め切り: 開始1時間前まで
+const BOOKING_DEADLINE_MINUTES = 60
+
 function getCellState(
   timeKey: string,
   slot: AvailabilitySlot | undefined,
-  _slotDurationMinutes: number
+  _slotDurationMinutes: number,
+  isToday: boolean
 ): CellState {
   // スロットが存在しない場合は NOT_APPLICABLE
   if (!slot) {
@@ -109,6 +113,16 @@ function getCellState(
   // blocked ステータスの場合は UNAVAILABLE
   if (slot.status === 'blocked') {
     return CellState.UNAVAILABLE
+  }
+
+  // 今日の場合、開始時刻の30分前を過ぎたスロットは UNAVAILABLE
+  if (isToday) {
+    const slotTime = new Date(slot.start_at)
+    const now = new Date()
+    const deadlineMs = BOOKING_DEADLINE_MINUTES * 60 * 1000
+    if (slotTime.getTime() - now.getTime() <= deadlineMs) {
+      return CellState.UNAVAILABLE
+    }
   }
 
   // スロットが存在し、open または tentative なら AVAILABLE
@@ -251,7 +265,7 @@ export function WeekAvailabilityGrid({
             <div className={timeCellClass}>{time.label}</div>
             {days.map((day) => {
               const slot = slotMap.get(`${day.date}-${time.key}`)
-              const cellState = getCellState(time.key, slot, slotDurationMinutes)
+              const cellState = getCellState(time.key, slot, slotDurationMinutes, day.isToday)
 
               // Compare using timestamp to handle format differences (selectedMap uses camelCase startAt, slot uses snake_case start_at)
               const selectedNow = slot && cellState === CellState.AVAILABLE
