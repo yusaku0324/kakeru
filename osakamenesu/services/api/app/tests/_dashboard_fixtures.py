@@ -78,6 +78,7 @@ class DummyUser:
     def __init__(self, user_id: uuid.UUID | None = None) -> None:
         self.id = user_id or uuid.uuid4()
         self.email = "shop@example.com"
+        self.display_name: str | None = None
         self.role = "dashboard"
 
 

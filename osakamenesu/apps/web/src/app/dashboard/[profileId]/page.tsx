@@ -167,6 +167,21 @@ export default async function DashboardHomePage({
             </Link>
           </div>
         </Card>
+
+        <Card className="p-6">
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-neutral-900">スタッフ管理</h2>
+            <p className="text-sm text-neutral-600">
+              ダッシュボードにアクセスできるスタッフを追加・削除できます。オーナーのみ操作可能です。
+            </p>
+            <Link
+              href={`/dashboard/${data.id}/staff`}
+              className="inline-flex items-center justify-center rounded-md border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-100"
+            >
+              スタッフ管理へ進む
+            </Link>
+          </div>
+        </Card>
       </section>
 
       <DashboardReservationAvailabilityPreview

@@ -15,6 +15,7 @@ from .domains.admin import (
 from .domains.async_tasks.router import router as async_tasks_router
 from .domains.auth import router as auth_router
 from .domains.dashboard import (
+    managers_router as dashboard_managers_router,
     notifications_router as dashboard_notifications_router,
     reservations_router as dashboard_reservations_router,
     reviews_router as dashboard_reviews_router,
@@ -175,6 +176,7 @@ app.include_router(favorites_router)
 app.include_router(async_tasks_router)
 app.include_router(line_router)
 app.include_router(ops_router)
+app.include_router(dashboard_managers_router)
 app.include_router(dashboard_notifications_router)
 app.include_router(dashboard_reservations_router)
 app.include_router(dashboard_reviews_router)
