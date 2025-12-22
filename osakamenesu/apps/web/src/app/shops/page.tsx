@@ -171,7 +171,7 @@ async function fetchProfiles(params: Params): Promise<SearchResponse> {
 
   for (const base of targets) {
     try {
-      const res = await fetch(buildApiUrl(base, endpoint), { cache: 'no-store' })
+      const res = await fetch(buildApiUrl(base, endpoint), { next: { revalidate: 30 } })
       if (res.ok) {
         const data = await res.json()
         const results = (data.results ?? data.hits ?? []) as ShopHit[]
