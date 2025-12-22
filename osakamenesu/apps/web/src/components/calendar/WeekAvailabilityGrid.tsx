@@ -1,7 +1,7 @@
 'use client'
 
 import clsx from 'clsx'
-import { Fragment, useMemo } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 
 import { getJaFormatter } from '@/utils/date'
 import { normalizeTimeToMinutes } from '@/lib/time-normalize'
@@ -154,7 +154,17 @@ export function WeekAvailabilityGrid({
     [selectedInput],
   )
 
+  // 1分ごとに現在時刻を更新して、締め切り時間を過ぎたスロットを自動的に非表示にする
+  const [currentMinute, setCurrentMinute] = useState(() => Math.floor(Date.now() / 60000))
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentMinute(Math.floor(Date.now() / 60000))
+    }, 60000) // 1分ごと
+    return () => clearInterval(interval)
+  }, [])
+
   // Note: selectedMap was removed - now using timestamp comparison to handle format differences
+  // currentMinute is used to trigger re-renders for deadline checks
 
   const slotMap = useMemo(() => {
     const map = new Map<string, AvailabilitySlot>()
