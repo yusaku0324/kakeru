@@ -44,10 +44,21 @@ function buildDateTime(date: string, time: string) {
   return `${date}T${time}:00` // assume local ISO
 }
 
+// JST基準で今日の日付を取得
+function getTodayJST() {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  return formatter.format(new Date())
+}
+
 export default function AdminTherapistShiftsPage() {
   const params = useParams<{ therapistId: string }>()
   const therapistId = params.therapistId
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => getTodayJST())
   const [shifts, setShifts] = useState<TherapistShift[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<Message | null>(null)

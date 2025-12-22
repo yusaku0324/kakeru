@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/Badge'
 import { Calendar, Clock, AlertCircle } from 'lucide-react'
 import { verifySlot, createConflictErrorMessage } from '@/lib/verify-slot'
+import { formatDateISO, formatTimeHM, today as getToday } from '@/lib/jst'
 
 interface ReservationPayload {
   shop_id: string
@@ -52,9 +53,9 @@ export default function ReservationForm({
   preSelectedSlot,
   onComplete
 }: ReservationFormProps) {
-  // Initialize form values based on pre-selected slot
-  const initDate = preSelectedSlot ? new Date(preSelectedSlot.starts_at).toISOString().split('T')[0] : ''
-  const initStart = preSelectedSlot ? new Date(preSelectedSlot.starts_at).toTimeString().slice(0, 5) : ''
+  // Initialize form values based on pre-selected slot (JST基準)
+  const initDate = preSelectedSlot ? formatDateISO(new Date(preSelectedSlot.starts_at)) : ''
+  const initStart = preSelectedSlot ? formatTimeHM(new Date(preSelectedSlot.starts_at)) : ''
   const initDuration = preSelectedSlot
     ? Math.round((new Date(preSelectedSlot.ends_at).getTime() - new Date(preSelectedSlot.starts_at).getTime()) / 60000)
     : 60
@@ -185,7 +186,7 @@ export default function ReservationForm({
             onChange={(e) => setDate(e.target.value)}
             required
             className="mt-1"
-            min={new Date().toISOString().split('T')[0]}
+            min={getToday()}
           />
         </div>
 

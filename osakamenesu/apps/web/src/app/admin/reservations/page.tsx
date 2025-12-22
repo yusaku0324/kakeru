@@ -48,7 +48,12 @@ type GuestReservationListResponse = {
 function formatDate(iso: string) {
   try {
     const date = new Date(iso)
-    return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })
+    return date.toLocaleDateString('ja-JP', {
+      month: 'short',
+      day: 'numeric',
+      weekday: 'short',
+      timeZone: 'Asia/Tokyo',
+    })
   } catch {
     return iso
   }
@@ -57,7 +62,11 @@ function formatDate(iso: string) {
 function formatTime(iso: string) {
   try {
     const date = new Date(iso)
-    return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+    return date.toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Tokyo',
+    })
   } catch {
     return iso
   }
@@ -70,7 +79,8 @@ function formatDateTime(iso: string) {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'Asia/Tokyo',
     })
   } catch {
     return iso
@@ -245,8 +255,9 @@ export default function AdminReservationsPage() {
       const params = new URLSearchParams()
       params.set('page', String(currentPage))
       params.set('limit', '50')
-      if (dateFrom) params.set('date_from', new Date(dateFrom).toISOString())
-      if (dateTo) params.set('date_to', new Date(dateTo + 'T23:59:59').toISOString())
+      // JST基準で日付フィルタを設定
+      if (dateFrom) params.set('date_from', new Date(dateFrom + 'T00:00:00+09:00').toISOString())
+      if (dateTo) params.set('date_to', new Date(dateTo + 'T23:59:59+09:00').toISOString())
 
       const resp = await fetch(`/api/admin/guest_reservations?${params.toString()}`, {
         cache: 'no-store',
