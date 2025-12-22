@@ -14,7 +14,7 @@ const sampleTherapist: TherapistHit = {
   avatarUrl: null,
   rating: 4.8,
   reviewCount: 120,
-  shopId: 'sample-namba-resort',
+  shopId: '00000001-0000-0000-0000-000000000001',
   shopSlug: 'sample-namba-resort',
   shopName: 'アロマリゾート 難波本店',
   shopArea: '京橋',

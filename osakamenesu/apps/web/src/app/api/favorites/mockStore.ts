@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const COOKIE_NAME = 'osakamenesu_favorites_mock'
-const DEFAULT_SHOP_ID = 'sample-namba-resort'
+const DEFAULT_SHOP_ID = '00000001-0000-0000-0000-000000000001'
 
 type FavoriteRecord = {
   therapistId: string

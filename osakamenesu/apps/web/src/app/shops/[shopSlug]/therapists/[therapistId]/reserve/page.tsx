@@ -33,9 +33,9 @@ const SAMPLE_THERAPISTS: Record<string, { name: string; photos: string[] }> = {
 }
 
 const SAMPLE_SHOPS: Record<string, { id: string; name: string; area: string }> = {
-  'sample-namba-resort': { id: 'sample-shop-id', name: 'アロマリゾート 難波本店', area: '難波/日本橋' },
-  'sample-umeda-suite': { id: 'sample-umeda-id', name: 'リラクゼーションSUITE 梅田', area: '梅田' },
-  'sample-shinsaibashi-lounge': { id: 'sample-shinsaibashi-id', name: 'メンズアロマ Lounge 心斎橋', area: '心斎橋' },
+  'sample-namba-resort': { id: '00000001-0000-0000-0000-000000000001', name: 'アロマリゾート 難波本店', area: '難波/日本橋' },
+  'sample-umeda-suite': { id: '00000003-0000-0000-0000-000000000003', name: 'リラクゼーションSUITE 梅田', area: '梅田' },
+  'sample-shinsaibashi-lounge': { id: '00000002-0000-0000-0000-000000000002', name: 'メンズアロマ Lounge 心斎橋', area: '心斎橋' },
 }
 
 export default function ShopReservePage() {

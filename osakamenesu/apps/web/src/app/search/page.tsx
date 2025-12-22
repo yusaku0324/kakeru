@@ -40,7 +40,7 @@ function nextSlotAlignedTime(hours: number): string {
 
 const SAMPLE_RESULTS: ShopHit[] = [
   {
-    id: 'sample-namba-resort',
+    id: '00000001-0000-0000-0000-000000000001',
     slug: 'sample-namba-resort',
     name: 'アロマリゾート 難波本店プレミアム',
     store_name: 'アロマリゾート 難波本店',
@@ -133,7 +133,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     ],
   },
   {
-    id: 'sample-shinsaibashi-lounge',
+    id: '00000002-0000-0000-0000-000000000002',
     slug: 'sample-shinsaibashi-lounge',
     name: 'メンズアロマ Lounge 心斎橋',
     store_name: 'メンズアロマ Lounge 心斎橋',

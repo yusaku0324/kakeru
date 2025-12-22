@@ -155,7 +155,7 @@ export type SampleShop = {
 function createSampleShops(): SampleShop[] {
   return [
   {
-    id: 'sample-namba-resort',
+    id: '00000001-0000-0000-0000-000000000001',
     slug: 'sample-namba-resort',
     name: 'アロマリゾート 難波本店',
     store_name: 'アロマリゾート 難波本店',
@@ -281,7 +281,7 @@ function createSampleShops(): SampleShop[] {
     // Dynamic availability calendar - uses nextSlotAlignedTime for 30-min grid alignment
     // Each staff member's first available slot matches their next_available_slot.start_at
     availability_calendar: {
-      shop_id: 'sample-namba-resort',
+      shop_id: '00000001-0000-0000-0000-000000000001',
       generated_at: new Date().toISOString(),
       days: [
         {
@@ -536,7 +536,7 @@ function createSampleShops(): SampleShop[] {
     has_diaries: true,
   },
   {
-    id: 'sample-shinsaibashi-lounge',
+    id: '00000002-0000-0000-0000-000000000002',
     slug: 'sample-shinsaibashi-lounge',
     name: 'メンズアロマLounge 心斎橋',
     store_name: 'メンズアロマLounge 心斎橋',
@@ -585,7 +585,7 @@ function createSampleShops(): SampleShop[] {
       },
     ],
     availability_calendar: {
-      shop_id: 'sample-shinsaibashi-lounge',
+      shop_id: '00000002-0000-0000-0000-000000000002',
       generated_at: new Date().toISOString(),
       days: [
         {

@@ -6,7 +6,7 @@ const SAMPLE_THERAPISTS = [
   {
     therapist_id: '11111111-1111-1111-8888-111111111111',
     therapist_name: '葵',
-    shop_id: 'sample-namba-resort',
+    shop_id: '00000001-0000-0000-0000-000000000001',
     shop_name: 'アロマリゾート 難波本店',
     score: 0.85,
     recommended_score: 0.85,
@@ -19,7 +19,7 @@ const SAMPLE_THERAPISTS = [
   {
     therapist_id: '22222222-2222-2222-8888-222222222222',
     therapist_name: '凛',
-    shop_id: 'sample-namba-resort',
+    shop_id: '00000001-0000-0000-0000-000000000001',
     shop_name: 'アロマリゾート 難波本店',
     score: 0.78,
     recommended_score: 0.78,

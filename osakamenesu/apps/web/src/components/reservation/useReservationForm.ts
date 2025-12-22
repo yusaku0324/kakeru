@@ -170,6 +170,9 @@ export function useReservationForm({
   const staffUuid = staffId && uuidPattern.test(staffId) ? staffId : undefined
   const isDemoEnvironment = !shopUuid
   const canSubmit = allowDemoSubmission || Boolean(shopUuid)
+  // Demo UUID for testing - used when allowDemoSubmission is true but shopId is not a UUID
+  const DEMO_SHOP_UUID = '00000000-0000-0000-0000-000000000000'
+  const effectiveShopUuid = shopUuid ?? (allowDemoSubmission ? DEMO_SHOP_UUID : null)
   const hasContactChannels = Boolean(tel || lineId)
   const errorKeys: Array<keyof ReservationFormErrors> = ['name', 'phone', 'email', 'desiredStart']
 
@@ -445,7 +448,7 @@ export function useReservationForm({
           : null
 
         const payload = {
-          shop_id: shopUuid,
+          shop_id: effectiveShopUuid,
           staff_id: staffUuid,
           desired_start: startIso,
           desired_end: endIso,
