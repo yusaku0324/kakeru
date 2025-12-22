@@ -65,7 +65,7 @@ async def resync_all_availability() -> None:
         # Get all shop IDs (profiles)
         result = await db.execute(
             select(models.Profile.id, models.Profile.name).where(
-                models.Profile.is_published == True
+                models.Profile.status == "published"
             )
         )
         shops = result.fetchall()
