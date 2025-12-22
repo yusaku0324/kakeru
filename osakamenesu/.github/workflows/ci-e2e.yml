@@ -12,7 +12,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  e2e:
+  # Public page tests (no authentication required)
+  e2e-public:
+    name: E2E Public Pages
     runs-on: ubuntu-latest
     environment: Preview
     steps:
@@ -40,10 +42,55 @@ jobs:
       - name: Install Playwright browsers
         working-directory: apps/web
         run: pnpm exec playwright install --with-deps
-      - name: Run Playwright (shift sync + no-results)
+      - name: Run Playwright (shift sync + consistency)
         working-directory: apps/web
         env:
           E2E_BASE_URL: https://osakamenesu.com
           E2E_API_BASE: https://api.osakamenesu.com
           E2E_SEED_TOKEN: ${{ secrets.E2E_SEED_TOKEN }}
         run: pnpm exec playwright test e2e/shift-to-availability-sync.spec.ts e2e/search-card-availability-consistency.spec.ts e2e/shift-to-public-ui-consistency.spec.ts e2e/jst-date-consistency.spec.ts --reporter=line --timeout=120000
+
+  # Dashboard/Lifecycle tests (authentication required)
+  e2e-lifecycle:
+    name: E2E Lifecycle (Dashboard)
+    runs-on: ubuntu-latest
+    environment: Preview
+    # Only run if E2E_TEST_AUTH_SECRET is configured
+    if: ${{ vars.E2E_LIFECYCLE_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install root deps
+        run: pnpm install --frozen-lockfile
+      - name: Install web deps
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps
+      - name: Run Playwright (complete UI flow)
+        working-directory: apps/web
+        env:
+          E2E_BASE_URL: https://osakamenesu.com
+          E2E_API_BASE: https://api.osakamenesu.com
+          E2E_TEST_AUTH_SECRET: ${{ secrets.E2E_TEST_AUTH_SECRET }}
+        run: |
+          pnpm exec playwright test \
+            e2e/complete-ui-flow.spec.ts \
+            e2e/full-reservation-lifecycle.spec.ts \
+            --reporter=line --timeout=180000
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-lifecycle-artifacts
+          path: |
+            apps/web/test-results/
+            /tmp/e2e-*.png
+          retention-days: 7

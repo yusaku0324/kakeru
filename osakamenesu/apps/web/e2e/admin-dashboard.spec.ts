@@ -1,9 +1,13 @@
 import { test, expect, Page } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { ensureDashboardAuthenticated, resolveApiBase, SkipTestError } from './utils/dashboard-auth'
 import { resolveAdminExtraHeaders } from './utils/admin-headers'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const dashboardStoragePath =
   process.env.PLAYWRIGHT_DASHBOARD_STORAGE ?? path.resolve(__dirname, 'storage', 'dashboard.json')

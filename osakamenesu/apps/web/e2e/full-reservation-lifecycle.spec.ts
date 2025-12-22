@@ -1,8 +1,12 @@
 import { test, expect, Page, BrowserContext } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { ensureDashboardAuthenticated, resolveApiBase, SkipTestError } from './utils/dashboard-auth'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 /**
  * Full Reservation Lifecycle E2E Test
