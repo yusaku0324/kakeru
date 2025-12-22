@@ -6,6 +6,13 @@ import {
   RESERVATION_STATUS_BADGES,
   RESERVATION_STATUS_ICONS,
 } from '@/components/reservations/status'
+import {
+  formatDateISO,
+  formatTimeHM,
+  today as getToday,
+  addDays,
+  parseJstDateAtMidnight,
+} from '@/lib/jst'
 
 export type ReservationListProps = {
   items: DashboardReservationItem[]
@@ -13,34 +20,24 @@ export type ReservationListProps = {
   onSelect: (reservation: DashboardReservationItem) => void
 }
 
-function formatDateParts(date: Date) {
-  const month = date.getMonth() + 1
-  const day = date.getDate()
-  const weekday = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()]
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'] as const
+
+function formatDatePartsJST(date: Date) {
+  // JST基準で日付パーツを取得
+  const dateStr = formatDateISO(date)
+  const jstDate = parseJstDateAtMidnight(dateStr)
+  const month = jstDate.getMonth() + 1
+  const day = jstDate.getDate()
+  const weekday = WEEKDAYS[jstDate.getDay()]
   return { month, day, weekday }
 }
 
-function formatTime(date: Date) {
-  return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
+function isTodayJST(date: Date) {
+  return formatDateISO(date) === getToday()
 }
 
-function isToday(date: Date) {
-  const today = new Date()
-  return (
-    date.getFullYear() === today.getFullYear() &&
-    date.getMonth() === today.getMonth() &&
-    date.getDate() === today.getDate()
-  )
-}
-
-function isTomorrow(date: Date) {
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  return (
-    date.getFullYear() === tomorrow.getFullYear() &&
-    date.getMonth() === tomorrow.getMonth() &&
-    date.getDate() === tomorrow.getDate()
-  )
+function isTomorrowJST(date: Date) {
+  return formatDateISO(date) === addDays(getToday(), 1)
 }
 
 export function ReservationList({ items, conflictIds, onSelect }: ReservationListProps) {
@@ -56,11 +53,11 @@ export function ReservationList({ items, conflictIds, onSelect }: ReservationLis
         const hasConflict = conflictIds.has(reservation.id)
         const startDate = new Date(reservation.desired_start)
         const endDate = new Date(reservation.desired_end)
-        const { month, day, weekday } = formatDateParts(startDate)
-        const startTime = formatTime(startDate)
-        const endTime = formatTime(endDate)
-        const isTodayReservation = isToday(startDate)
-        const isTomorrowReservation = isTomorrow(startDate)
+        const { month, day, weekday } = formatDatePartsJST(startDate)
+        const startTime = formatTimeHM(startDate)
+        const endTime = formatTimeHM(endDate)
+        const isTodayReservation = isTodayJST(startDate)
+        const isTomorrowReservation = isTomorrowJST(startDate)
         const isPending = reservation.status === 'pending'
 
         return (

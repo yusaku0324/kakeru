@@ -47,13 +47,25 @@ type DayState = {
 }
 
 function getTodayString() {
-  const today = new Date()
-  return today.toISOString().split('T')[0]
+  // JST基準で今日の日付を取得
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  return formatter.format(new Date())
 }
 
 function formatDateForDisplay(dateStr: string) {
-  const date = new Date(dateStr + 'T00:00:00')
-  return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
+  // JSTとして解釈して表示
+  const date = new Date(dateStr + 'T00:00:00+09:00')
+  return date.toLocaleDateString('ja-JP', {
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+    timeZone: 'Asia/Tokyo',
+  })
 }
 
 export default function DashboardReservationDaySummary({ profileId }: { profileId: string }) {
