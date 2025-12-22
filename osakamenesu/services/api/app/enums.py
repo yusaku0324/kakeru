@@ -77,9 +77,12 @@ TherapistStatusLiteral = Literal["draft", "published", "archived"]
 
 # ============================================================================
 # Service Type
+# - store: 店舗型（固定の店舗で施術）
+# - dispatch: 出張型（お客様の場所へ出張）
+# - freelance: フリーランス（店舗に所属しない個人セラピスト）
 # ============================================================================
-SERVICE_TYPE_VALUES: Tuple[str, ...] = ("store", "dispatch")
-ServiceTypeLiteral = Literal["store", "dispatch"]
+SERVICE_TYPE_VALUES: Tuple[str, ...] = ("store", "dispatch", "freelance")
+ServiceTypeLiteral = Literal["store", "dispatch", "freelance"]
 
 
 # ============================================================================
