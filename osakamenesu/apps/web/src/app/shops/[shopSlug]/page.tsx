@@ -1,50 +1,17 @@
-"use client"
+import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
+import Image from 'next/image'
 
-import { useParams } from "next/navigation"
-import { useEffect, useState, useCallback, useRef } from "react"
-import Link from "next/link"
-import Image from "next/image"
-import { openReservationOverlay } from '@/components/reservationOverlayBus'
+import { resolveInternalApiBase } from '@/lib/server-config'
+import { ShopStaffGrid, type StaffMember } from './ShopStaffGrid'
 import { ShopReviewList } from './ShopReviewList'
 
-type AvailabilitySlot = {
-  start_at: string
-  end_at: string
-  status: 'open' | 'tentative' | 'blocked'
-}
-
-type AvailabilityDay = {
-  date: string
-  is_today?: boolean | null
-  slots: AvailabilitySlot[]
-}
-
-type StaffMember = {
-  id: string
-  name: string
-  alias?: string | null
-  avatar_url?: string | null
-  headline?: string | null
-  specialties?: string[]
-  today_available?: boolean
-  next_available_at?: string | null
-}
+// ISR: Revalidate every 60 seconds for fresh data while still caching
+export const revalidate = 60
 
 type ReviewSummary = {
   average_score: number
   review_count: number
-}
-
-type ReviewItem = {
-  id: string
-  profile_id: string
-  status: string
-  score: number
-  title: string | null
-  body: string
-  author_alias: string | null
-  visited_at: string | null
-  created_at: string
 }
 
 type ShopDetail = {
@@ -76,94 +43,64 @@ type ShopDetail = {
   } | null
 }
 
-function formatNextAvailableLabel(dateStr: string | null | undefined): string | null {
-  if (!dateStr) return null
-  const nextDate = new Date(dateStr)
-  if (Number.isNaN(nextDate.getTime())) return null
-  const now = new Date()
-  const isToday =
-    nextDate.getFullYear() === now.getFullYear() &&
-    nextDate.getMonth() === now.getMonth() &&
-    nextDate.getDate() === now.getDate()
-  const hours = nextDate.getHours()
-  const minutes = nextDate.getMinutes()
-  const timeStr = minutes === 0 ? `${hours}時` : `${hours}時${minutes}分`
-  if (isToday) {
-    return `次回 ${timeStr}から`
-  }
-  const month = nextDate.getMonth() + 1
-  const day = nextDate.getDate()
-  return `${month}月${day}日 ${timeStr}から`
-}
+async function fetchShop(shopSlug: string): Promise<ShopDetail | null> {
+  const internalBase = resolveInternalApiBase()
+  const url = `${internalBase}/api/v1/shops/${encodeURIComponent(shopSlug)}`
 
-async function fetchTherapistAvailability(therapistId: string): Promise<AvailabilityDay[]> {
   try {
-    const resp = await fetch(`/api/guest/therapists/${therapistId}/availability_slots`)
-    if (!resp.ok) return []
-    const data = await resp.json()
-    // The API returns { days: AvailabilityDay[] }
-    return Array.isArray(data?.days) ? data.days : []
-  } catch {
-    return []
+    const response = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' },
+      next: { revalidate: 60 },
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null
+      }
+      console.error(`Failed to fetch shop: ${response.status}`)
+      return null
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Failed to fetch shop:', error)
+    return null
   }
 }
 
-export default function ShopDetailPage() {
-  const params = useParams<{ shopSlug: string }>()
-  const shopSlug = params.shopSlug
-  const [shop, setShop] = useState<ShopDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [loadingTherapistId, setLoadingTherapistId] = useState<string | null>(null)
+type PageProps = {
+  params: Promise<{ shopSlug: string }>
+}
 
-  useEffect(() => {
-    async function fetchShop() {
-      try {
-        setLoading(true)
-        const resp = await fetch(`/api/v1/shops/${shopSlug}`)
-        if (!resp.ok) {
-          if (resp.status === 404) {
-            setError("店舗が見つかりませんでした")
-          } else {
-            setError("店舗情報の取得に失敗しました")
-          }
-          return
-        }
-        const data = await resp.json()
-        setShop(data)
-      } catch (e) {
-        console.error("Failed to fetch shop", e)
-        setError("店舗情報の取得に失敗しました")
-      } finally {
-        setLoading(false)
-      }
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { shopSlug } = await params
+  const shop = await fetchShop(shopSlug)
+
+  if (!shop) {
+    return {
+      title: '店舗が見つかりません',
     }
-    void fetchShop()
-  }, [shopSlug])
-
-  if (loading) {
-    return (
-      <main className="mx-auto max-w-4xl p-4">
-        <div className="animate-pulse space-y-4">
-          <div className="h-48 bg-neutral-100 rounded-lg" />
-          <div className="h-8 bg-neutral-100 rounded w-1/2" />
-          <div className="h-4 bg-neutral-100 rounded w-3/4" />
-        </div>
-      </main>
-    )
   }
 
-  if (error || !shop) {
-    return (
-      <main className="mx-auto max-w-4xl p-4">
-        <div className="rounded border border-red-200 bg-red-50 p-4 text-red-800">
-          {error || "店舗情報を取得できませんでした"}
-        </div>
-        <Link href="/guest/search" className="mt-4 inline-block text-brand-primary underline">
-          検索に戻る
-        </Link>
-      </main>
-    )
+  const description = shop.catch_copy || shop.description?.slice(0, 120) || `${shop.name}の店舗情報`
+
+  return {
+    title: `${shop.name} | ${shop.area_name || 'メンズエステ'}`,
+    description,
+    openGraph: {
+      title: shop.name,
+      description,
+      images: shop.lead_image_url ? [shop.lead_image_url] : undefined,
+    },
+  }
+}
+
+export default async function ShopDetailPage({ params }: PageProps) {
+  const { shopSlug } = await params
+  const shop = await fetchShop(shopSlug)
+
+  if (!shop) {
+    notFound()
   }
 
   const priceRange =
@@ -253,109 +190,16 @@ export default function ShopDetailPage() {
         </section>
       )}
 
-      {/* Staff list */}
+      {/* Staff list - Client Component for interactivity */}
       {shop.staff && shop.staff.length > 0 && (
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-neutral-text">
-            在籍セラピスト ({shop.staff.length}人)
-          </h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {shop.staff.map((member) => {
-              const availabilityLabel = member.today_available
-                ? '本日空きあり'
-                : formatNextAvailableLabel(member.next_available_at)
-              return (
-                <div
-                  key={member.id}
-                  className="group rounded-xl bg-white overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <Link
-                    href={`/shops/${shopSlug}/therapists/${member.id}`}
-                    className="block"
-                  >
-                    {/* Image - square aspect ratio */}
-                    <div className="relative aspect-square overflow-hidden bg-neutral-100">
-                      {member.avatar_url ? (
-                        <Image
-                          src={member.avatar_url}
-                          alt={member.name}
-                          fill
-                          className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-4xl font-semibold text-neutral-textMuted">
-                          {member.name.slice(0, 1)}
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                  {/* Info & Button */}
-                  <div className="p-2.5 space-y-2">
-                    <div className="text-center">
-                      <Link
-                        href={`/shops/${shopSlug}/therapists/${member.id}`}
-                        className="text-sm font-semibold text-neutral-text hover:text-brand-primary transition"
-                      >
-                        {member.name}
-                      </Link>
-                      {availabilityLabel && (
-                        <p className={`mt-1 text-[11px] font-medium ${
-                          member.today_available
-                            ? 'text-green-600'
-                            : 'text-amber-600'
-                        }`}>
-                          {availabilityLabel}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      disabled={loadingTherapistId === member.id}
-                      onClick={async (e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setLoadingTherapistId(member.id)
-                        try {
-                          const availabilityDays = await fetchTherapistAvailability(member.id)
-                          openReservationOverlay({
-                            hit: {
-                              id: member.id,
-                              therapistId: member.id,
-                              staffId: member.id,
-                              name: member.name,
-                              alias: member.alias ?? null,
-                              headline: member.headline ?? null,
-                              specialties: member.specialties ?? [],
-                              avatarUrl: member.avatar_url ?? null,
-                              rating: null,
-                              reviewCount: null,
-                              shopId: shop.id,
-                              shopSlug: shopSlug,
-                              shopName: shop.name,
-                              shopArea: shop.area ?? '',
-                              shopAreaName: shop.area_name ?? null,
-                              todayAvailable: member.today_available ?? null,
-                              nextAvailableSlot: member.next_available_at
-                                ? { start_at: member.next_available_at, status: 'ok' }
-                                : null,
-                            },
-                            defaultStart: member.next_available_at ?? null,
-                            availabilityDays: availabilityDays.length > 0 ? availabilityDays : undefined,
-                          })
-                        } finally {
-                          setLoadingTherapistId(null)
-                        }
-                      }}
-                      className="w-full rounded-lg bg-brand-primary py-2 text-xs font-semibold text-white transition hover:bg-brand-primary/90 active:scale-[0.98] disabled:opacity-50"
-                    >
-                      {loadingTherapistId === member.id ? '読み込み中...' : '予約する'}
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </section>
+        <ShopStaffGrid
+          staff={shop.staff}
+          shopId={shop.id}
+          shopSlug={shopSlug}
+          shopName={shop.name}
+          shopArea={shop.area}
+          shopAreaName={shop.area_name}
+        />
       )}
 
       {/* Photos gallery */}
@@ -416,7 +260,7 @@ export default function ShopDetailPage() {
         </section>
       )}
 
-      {/* Reviews */}
+      {/* Reviews - Client Component */}
       <ShopReviewList
         shopId={shop.id}
         initialReviewCount={shop.reviews?.review_count ?? 0}
@@ -435,7 +279,6 @@ export default function ShopDetailPage() {
           )}
         </section>
       )}
-
     </main>
   )
 }
