@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 
 import { formatDatetimeLocal, toZonedDayjs } from '@/lib/timezone'
 import { verifySlot, createConflictErrorMessage } from '@/lib/verify-slot'
@@ -137,6 +138,7 @@ export function useReservationForm({
   onRefreshCalendar,
   onClearSelectedSlots,
 }: UseReservationFormProps) {
+  const router = useRouter()
   const initialStart = defaultStart || nextHourIsoLocal(180)
   const initialDuration =
     defaultDurationMinutes && defaultDurationMinutes > 0 ? defaultDurationMinutes : 60
@@ -538,6 +540,11 @@ export function useReservationForm({
             email: normalizedEmail || undefined,
           })
         }
+
+        // Redirect to thank-you page after successful submission
+        const reservationId = data?.id ?? ''
+        const thankYouUrl = `/thank-you?reservation=${encodeURIComponent(reservationId)}&shop=${encodeURIComponent(effectiveShopUuid ?? '')}`
+        router.push(thankYouUrl)
       } catch (err) {
         push('error', 'ネットワークエラーが発生しました。再度お試しください。')
       }
