@@ -94,7 +94,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
     ],
   },
   {
-    id: 'sample-umeda-suite',
+    id: '00000003-0000-0000-0000-000000000003',
     slug: 'sample-umeda-suite',
     name: 'リラクゼーションSUITE 梅田',
     store_name: 'リラクゼーションSUITE 梅田',

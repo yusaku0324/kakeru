@@ -200,7 +200,7 @@ const SAMPLE_RESULTS_BASE: ShopHit[] = [
     ],
   },
   {
-    id: 'sample-umeda-suite',
+    id: '00000003-0000-0000-0000-000000000003',
     slug: 'sample-umeda-suite',
     name: 'リラクゼーションSUITE 梅田',
     store_name: 'リラクゼーションSUITE 梅田',
@@ -310,7 +310,7 @@ const SAMPLE_RESULTS_BASE: ShopHit[] = [
     ],
   },
   {
-    id: 'sample-tennoji-garden',
+    id: '00000004-0000-0000-0000-000000000004',
     slug: 'sample-tennoji-garden',
     name: 'リラクゼーションGarden 天王寺',
     store_name: 'リラクゼーションGarden',
@@ -359,7 +359,7 @@ const SAMPLE_RESULTS_BASE: ShopHit[] = [
     ],
   },
   {
-    id: 'sample-kyobashi-luxe',
+    id: '00000005-0000-0000-0000-000000000005',
     slug: 'sample-kyobashi-luxe',
     name: 'Luxury Spa 京橋',
     store_name: 'Luxury Spa 京橋',
@@ -405,7 +405,7 @@ const SAMPLE_RESULTS_BASE: ShopHit[] = [
     ],
   },
   {
-    id: 'sample-kitashinchi-bloom',
+    id: '00000006-0000-0000-0000-000000000006',
     slug: 'sample-kitashinchi-bloom',
     name: 'Bloom 北新地',
     store_name: 'Bloom 北新地',
