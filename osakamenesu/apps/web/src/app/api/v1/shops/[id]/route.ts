@@ -12,6 +12,11 @@ export async function GET(_request: NextRequest, context: Params) {
   const internalBase = resolveInternalApiBase()
   const targetUrl = `${internalBase}/api/v1/shops/${encodeURIComponent(identifier)}`
 
+  // Cache headers for edge caching
+  const cacheHeaders = {
+    'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+  }
+
   try {
     const response = await fetch(targetUrl, {
       headers: {
@@ -31,7 +36,7 @@ export async function GET(_request: NextRequest, context: Params) {
     }
 
     const data = await response.json()
-    return NextResponse.json(data)
+    return NextResponse.json(data, { headers: cacheHeaders })
   } catch (error) {
     console.error('Failed to proxy shop request:', error)
     return NextResponse.json(

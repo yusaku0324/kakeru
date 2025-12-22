@@ -168,13 +168,18 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const params = url.searchParams
 
+  // Cache headers for edge caching
+  const cacheHeaders = {
+    'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+  }
+
   // First, try to fetch from backend
   const backendResponse = await fetchFromBackend(params)
   if (backendResponse) {
     try {
       const data = await backendResponse.json()
       // Add sample: false to indicate real data
-      return NextResponse.json({ ...data, sample: false })
+      return NextResponse.json({ ...data, sample: false }, { headers: cacheHeaders })
     } catch (error) {
       console.warn('Failed to parse backend response, falling back to sample data:', error)
     }
@@ -292,5 +297,7 @@ export async function GET(request: Request) {
     results: paginated,
     facets,
     sample: true,
+  }, {
+    headers: cacheHeaders,
   })
 }

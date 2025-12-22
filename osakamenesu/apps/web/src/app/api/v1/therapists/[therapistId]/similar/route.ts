@@ -17,6 +17,11 @@ export async function GET(request: NextRequest, context: Context) {
   const queryString = searchParams.toString()
   const url = `${API_BASE}/api/v1/therapists/${therapistId}/similar${queryString ? `?${queryString}` : ''}`
 
+  // Cache headers for edge caching
+  const cacheHeaders = {
+    'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+  }
+
   try {
     const response = await fetch(url, {
       headers: {
@@ -31,7 +36,7 @@ export async function GET(request: NextRequest, context: Context) {
       return NextResponse.json(data, { status: response.status })
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json(data, { headers: cacheHeaders })
   } catch (error) {
     console.error('Error fetching similar therapists:', error)
     return NextResponse.json(
