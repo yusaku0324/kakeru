@@ -9,6 +9,7 @@ COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini
 COPY seed_dev.py ./seed_dev.py
+COPY scripts ./scripts
 COPY start.sh ./start.sh
 RUN chmod +x start.sh
 EXPOSE 8000
