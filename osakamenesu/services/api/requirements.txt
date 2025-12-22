@@ -16,13 +16,13 @@ urllib3>=2.6.0  # Security fix for CVE-2025-50229, CVE-2025-50230
 boto3>=1.35.49
 
 # Security updates for transitive dependencies
-cryptography>=44.0.1  # CVE-2024-12797
-requests>=2.32.4  # CVE-2024-35195, CVE-2024-47081
+cryptography>=46.0.3  # CVE-2024-12797, CVE-2025-4423
+requests>=2.32.5  # CVE-2024-35195, CVE-2024-47081
 h11>=0.16.0  # CVE-2025-43859
 werkzeug>=3.1.4  # CVE-2025-66221
 starlette>=0.47.0  # CVE-2025-24257, CVE-2025-24258
-black>=24.3.0  # PYSEC-2024-48
-flask-cors>=6.0.0  # CVE-2024-1681, CVE-2024-6844, CVE-2024-6866, CVE-2024-6839
+black>=25.12.0  # PYSEC-2024-48, ReDoS fix
+flask-cors>=6.0.2  # CVE-2024-1681, CVE-2024-6844, CVE-2024-6866, CVE-2024-6839
 protobuf>=5.29.5  # CVE-2025-4565
 setuptools>=78.1.1  # PYSEC-2022-43012, PYSEC-2025-49, CVE-2024-6345
 strawberry-graphql>=0.257.0  # CVE-2025-22151
