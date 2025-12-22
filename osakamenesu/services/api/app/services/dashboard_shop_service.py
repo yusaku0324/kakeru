@@ -199,12 +199,12 @@ class DashboardShopService:
         db: AsyncSession,
     ) -> DashboardShopProfileResponse:
         from ..domains.site.services.shop.availability import fetch_availability
-        from datetime import date, timedelta
+        from datetime import datetime, timedelta
 
         profile = await self.get_profile(db=db, profile_id=profile_id)
 
-        # Fetch availability calendar for the next 7 days
-        today = date.today()
+        # Fetch availability calendar for the next 7 days (using JST)
+        today = datetime.now(JST).date()
         end_date = today + timedelta(days=7)
         availability_calendar = await fetch_availability(
             db=db, shop_id=profile_id, start_date=today, end_date=end_date
