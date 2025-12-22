@@ -298,7 +298,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus, allow
           )}
         </div>
       ) : (
-        <Link href={staffHref} className="block">
+        <Link href={staffHref} className="block" prefetch>
           <div className="relative aspect-[4/5] overflow-hidden bg-gradient-to-br from-neutral-100 to-neutral-50">
             {hit.avatarUrl ? (
               <SafeImage
@@ -341,6 +341,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus, allow
           ) : (
             <Link
               href={staffHref}
+              prefetch
               className="block text-sm font-bold text-neutral-text tracking-wide transition-colors hover:text-brand-primary truncate"
             >
               {hit.name}

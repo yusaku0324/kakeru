@@ -23,6 +23,8 @@ const enableReactCompiler = process.env.NEXT_DISABLE_REACT_COMPILER === '1' ? fa
 const nextConfig = {
   output: 'standalone',
   images: {
+    // Prefer modern formats for smaller file sizes
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       { protocol: 'https', hostname: 'picsum.photos' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
