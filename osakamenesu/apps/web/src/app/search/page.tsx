@@ -18,6 +18,10 @@ import { SearchAvailableToday, type SpotlightItem } from './_components/SearchHe
 import { SearchTabs, type SearchTabValue } from './_components/SearchTabs'
 import { SearchPageClientWrapper } from './_components/SearchPageClientWrapper'
 
+// Cache search results for 30 seconds to improve performance
+// This allows Next.js to serve cached SSR results for subsequent requests
+export const revalidate = 30
+
 // Helper to get next 30-minute aligned slot time (for canonicalization)
 // e.g., 09:28 → 09:30, 09:00 → 09:00, 09:31 → 10:00
 function nextSlotAlignedTime(hours: number): string {
