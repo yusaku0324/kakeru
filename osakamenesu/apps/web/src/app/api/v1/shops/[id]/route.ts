@@ -2,6 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 import { resolveInternalApiBase } from '@/lib/server-config'
 
+// Enable ISR caching for this API route (60 seconds)
+export const revalidate = 60
+
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_request: NextRequest, context: Params) {
@@ -14,7 +17,7 @@ export async function GET(_request: NextRequest, context: Params) {
       headers: {
         'Content-Type': 'application/json',
       },
-      cache: 'no-store',
+      next: { revalidate: 60 },
     })
 
     if (!response.ok) {

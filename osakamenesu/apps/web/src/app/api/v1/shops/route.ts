@@ -5,6 +5,9 @@ import { getSampleShops } from '@/lib/sampleShops'
 import { sampleShopToHit } from '@/lib/sampleShopAdapters'
 import { resolveInternalApiBase } from '@/lib/server-config'
 
+// Enable ISR caching for this API route (30 seconds)
+export const revalidate = 30
+
 type FacetValue = {
   value: string
   label?: string | null
