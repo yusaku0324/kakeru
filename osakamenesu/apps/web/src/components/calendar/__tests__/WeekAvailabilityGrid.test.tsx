@@ -17,19 +17,23 @@ const mockTimeFormatter = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
 })
 
+// Use a far future date to avoid booking deadline filtering
+const FUTURE_DATE = '2099-12-15'
+const FUTURE_DATE_LABEL = '12/15(月)'
+
 const createMockDays = (statuses: AvailabilityStatus[]): AvailabilityDay[] => {
   const slots = statuses.map((status, index) => ({
-    start_at: `2024-12-15T${10 + index}:00:00+09:00`,
-    end_at: `2024-12-15T${11 + index}:00:00+09:00`,
+    start_at: `${FUTURE_DATE}T${10 + index}:00:00+09:00`,
+    end_at: `${FUTURE_DATE}T${11 + index}:00:00+09:00`,
     status,
     timeKey: `${10 + index}:00`,
   }))
 
   return [
     {
-      date: '2024-12-15',
-      label: '12/15(日)',
-      isToday: true,
+      date: FUTURE_DATE,
+      label: FUTURE_DATE_LABEL,
+      isToday: false,
       slots,
     },
   ]
