@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections import defaultdict
 from typing import Any, Optional
 
@@ -9,6 +11,7 @@ __all__ = [
     "_build_staff_preview",
     "_collect_staff_specialties",
     "_normalize_text",
+    "_normalize_name_for_matching",
     "_safe_float",
     "_safe_int",
 ]
@@ -22,6 +25,22 @@ def _normalize_text(value: Any) -> Optional[str]:
         return None
     candidate = str(value).strip()
     return candidate or None
+
+
+def _normalize_name_for_matching(name: Optional[str]) -> str:
+    """Normalize name for fuzzy matching.
+
+    - NFKC normalization (full-width → half-width, etc.)
+    - Remove all whitespace
+    - Convert to lowercase
+    """
+    if not name:
+        return ""
+    # NFKC: 全角→半角、濁点分離文字の統合など
+    normalized = unicodedata.normalize("NFKC", name)
+    # 全ての空白を除去
+    normalized = re.sub(r"\s+", "", normalized)
+    return normalized.casefold()
 
 
 def _collect_staff_specialties(raw: Any) -> list[str]:
@@ -71,7 +90,7 @@ def _build_staff_preview(
     therapist_by_id: dict[str, models.Therapist] = {str(t.id): t for t in published}
     therapist_by_name: dict[str, list[models.Therapist]] = defaultdict(list)
     for therapist in published:
-        key = (_normalize_text(therapist.name) or "").casefold()
+        key = _normalize_name_for_matching(therapist.name)
         if key:
             therapist_by_name[key].append(therapist)
 
@@ -111,7 +130,7 @@ def _build_staff_preview(
         if therapist_id and therapist_id in therapist_by_id:
             matched = therapist_by_id[therapist_id]
         else:
-            key = name.casefold()
+            key = _normalize_name_for_matching(name)
             candidates = therapist_by_name.get(key, [])
             matched = next(
                 (

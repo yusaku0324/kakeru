@@ -41,6 +41,19 @@ def test_collect_staff_specialties_filters_invalid_entries():
     assert staff_preview._collect_staff_specialties(raw) == ["oil", "stretch"]
 
 
+def test_normalize_name_for_matching():
+    # Basic normalization
+    assert staff_preview._normalize_name_for_matching("Alice") == "alice"
+    # Remove whitespace
+    assert staff_preview._normalize_name_for_matching("山田 太郎") == "山田太郎"
+    assert staff_preview._normalize_name_for_matching("  Alice  ") == "alice"
+    # Full-width to half-width (NFKC)
+    assert staff_preview._normalize_name_for_matching("Ａｌｉｃｅ") == "alice"
+    # Empty/None handling
+    assert staff_preview._normalize_name_for_matching("") == ""
+    assert staff_preview._normalize_name_for_matching(None) == ""
+
+
 def test_build_staff_preview_matches_existing_therapists():
     therapist_one = DummyTherapist(
         id=uuid.uuid4(),
@@ -86,3 +99,26 @@ def test_build_staff_preview_matches_existing_therapists():
     assert preview[1]["id"] == str(therapist_two.id)
     assert preview[1]["avatar_url"] == "https://example.com/bea.jpg"
     assert any(entry["id"] == str(therapist_three.id) for entry in preview)
+
+
+def test_build_staff_preview_matches_with_whitespace_differences():
+    """Test that names with whitespace differences still match."""
+    therapist = DummyTherapist(
+        id=uuid.uuid4(),
+        name="山田太郎",  # No space
+    )
+    profile = DummyProfile([therapist])
+
+    preview = staff_preview._build_staff_preview(
+        profile,
+        {
+            "staff": [
+                {
+                    "name": "山田 太郎",  # With space
+                },
+            ]
+        },
+    )
+
+    # Should match despite whitespace difference
+    assert preview[0]["id"] == str(therapist.id)
