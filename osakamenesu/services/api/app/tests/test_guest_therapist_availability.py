@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timedelta, timezone
 
 from app.utils.datetime import JST
@@ -12,6 +13,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.domains.site import therapist_availability as domain
 from app.db import get_session
+from app.utils.cache import availability_cache
 
 THERAPIST_ID = uuid4()
 
@@ -32,6 +34,8 @@ class DummySession:
 
 def setup_function() -> None:
     app.dependency_overrides[get_session] = lambda: DummySession()
+    # Clear availability cache before each test to avoid cross-test pollution
+    asyncio.get_event_loop().run_until_complete(availability_cache.clear())
 
 
 def teardown_function() -> None:
@@ -161,6 +165,9 @@ def test_slots_reopen_after_cancel(monkeypatch: pytest.MonkeyPatch) -> None:
     assert blocked.json()["slots"] == []
 
     # Then: after cancel (reservations list empty), slot reappears.
+    # Clear cache to simulate what happens when a reservation is cancelled
+    asyncio.get_event_loop().run_until_complete(availability_cache.clear())
+
     async def no_reservations(db, therapist_id, start_at, end_at):
         return []
 

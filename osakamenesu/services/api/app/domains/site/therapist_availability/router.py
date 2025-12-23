@@ -1,5 +1,6 @@
 """API router for therapist availability endpoints."""
 
+import logging
 from datetime import date, datetime
 from uuid import UUID
 
@@ -7,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....db import get_session
+from ....utils.cache import availability_cache
 from ....utils.datetime import JST
 from .helpers import determine_slot_status
 from .schemas import (
@@ -18,6 +20,8 @@ from .schemas import (
 
 # Import parent package for testability (allows monkeypatching via domain.*)
 from .. import therapist_availability as _pkg
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(
@@ -63,7 +67,19 @@ async def get_availability_slots_api(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="therapist_not_found",
         )
-    slots = await _pkg._list_daily_slots(db, resolved_id, date)
+
+    # Check cache first (TTL: 60 seconds)
+    cache_key = f"availability_slots:{resolved_id}:{date.isoformat()}"
+    hit, cached_slots = await availability_cache.get(cache_key)
+
+    if hit:
+        logger.debug("Cache hit for %s", cache_key)
+        slots = cached_slots
+    else:
+        logger.debug("Cache miss for %s", cache_key)
+        slots = await _pkg._list_daily_slots(db, resolved_id, date)
+        await availability_cache.set(cache_key, slots)
+
     now = datetime.now(JST)
     return AvailabilitySlotsResponse(
         therapist_id=resolved_id,

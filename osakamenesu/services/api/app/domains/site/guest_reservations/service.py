@@ -15,6 +15,7 @@ from ....services.business_hours import (
     load_business_hours_from_profile,
     is_within_business_hours,
 )
+from ....utils.cache import availability_cache
 from ....utils.datetime import ensure_jst_datetime
 from ..therapist_availability import is_available as _is_available_impl
 
@@ -304,6 +305,15 @@ async def create_guest_reservation(
         db.add(reservation)
         await db.commit()
         await db.refresh(reservation)
+
+        # Invalidate availability cache for this therapist's date
+        if therapist_id and start_at:
+            cache_key = (
+                f"availability_slots:{therapist_id}:{start_at.date().isoformat()}"
+            )
+            await availability_cache.invalidate(cache_key)
+            logger.debug("Invalidated cache: %s", cache_key)
+
         return reservation, {}
     except Exception as exc:  # pragma: no cover - fail-soft
         logger.warning("guest_reservation_create_failed: %s", exc)
@@ -505,6 +515,15 @@ async def create_guest_reservation_hold(
         db.add(reservation)
         await db.commit()
         await db.refresh(reservation)
+
+        # Invalidate availability cache for this therapist's date
+        if therapist_id and start_at:
+            cache_key = (
+                f"availability_slots:{therapist_id}:{start_at.date().isoformat()}"
+            )
+            await availability_cache.invalidate(cache_key)
+            logger.debug("Invalidated cache (hold): %s", cache_key)
+
         return reservation, {}, None
     except IntegrityError:
         try:
