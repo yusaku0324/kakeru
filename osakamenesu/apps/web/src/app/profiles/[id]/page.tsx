@@ -399,9 +399,23 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     availabilityDays: availability,
   } satisfies Omit<ReservationOverlayProps, 'onClose'>
   const todayIso = formatZonedIso().slice(0, 10)
-  const todayAvailability = availability.find((day) => day.date === todayIso) || null
+  const now = toZonedDayjs()
+  const BOOKING_DEADLINE_MINUTES = 60
+
+  // Filter availability to only include today and future dates
+  const filteredAvailability = availability.filter((day) => day.date >= todayIso)
+
+  // Filter slots to exclude those past the booking deadline (1 hour before start)
+  const isSlotBookable = (slot: AvailabilitySlot) => {
+    if (slot.status !== 'open') return true // Keep non-open slots for display
+    const slotStart = toZonedDayjs(slot.start_at)
+    const deadline = slotStart.subtract(BOOKING_DEADLINE_MINUTES, 'minute')
+    return now.isBefore(deadline)
+  }
+
+  const todayAvailability = filteredAvailability.find((day) => day.date === todayIso) || null
   const todaySlots = todayAvailability?.slots || []
-  const upcomingOpenToday = todaySlots.filter((slot) => slot.status === 'open')
+  const upcomingOpenToday = todaySlots.filter((slot) => slot.status === 'open' && isSlotBookable(slot))
   const reservedToday = todaySlots.filter((slot) => slot.status === 'blocked')
 
   const contactLinks = [
@@ -448,7 +462,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     shop.reviews ? { id: 'reviews', label: '口コミ' } : null,
     menus.length ? { id: 'menus', label: 'メニュー' } : null,
     staff.length ? { id: 'staff', label: 'セラピスト' } : null,
-    availability.length ? { id: 'availability', label: '空き状況' } : null,
+    filteredAvailability.length ? { id: 'availability', label: '空き状況' } : null,
   ].filter((s): s is { id: string; label: string } => s !== null)
 
   return (
@@ -842,7 +856,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         allowDemoSubmission={allowDemoSubmission}
       />
 
-      {availability.length ? (
+      {filteredAvailability.length ? (
         <Section
           id="availability"
           title="出勤・空き状況"
@@ -880,48 +894,52 @@ export default async function ProfilePage({ params, searchParams }: Props) {
             </Card>
           ) : null}
           <div className="grid gap-4 md:grid-cols-2">
-            {availability.slice(0, 6).map((day) => (
-              <Card key={day.date} className="space-y-3 p-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-neutral-text">
-                    {formatDayLabel(day.date)}
+            {filteredAvailability.slice(0, 6).map((day) => {
+              // Filter slots to only show bookable ones (or blocked for display)
+              const bookableSlots = (day.slots || []).filter(isSlotBookable)
+              return (
+                <Card key={day.date} className="space-y-3 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-neutral-text">
+                      {formatDayLabel(day.date)}
+                    </div>
+                    {day.is_today ? <Badge variant="brand">本日</Badge> : null}
                   </div>
-                  {day.is_today ? <Badge variant="brand">本日</Badge> : null}
-                </div>
-                {day.slots?.length ? (
-                  <div className="space-y-2 text-sm text-neutral-text">
-                    {day.slots.slice(0, 6).map((slot, idx) => {
-                      const display = slotStatusMap[slot.status]
-                      const waitLabel =
-                        slot.status !== 'blocked' ? formatWaitLabel(slot.start_at) : null
-                      return (
-                        <div
-                          key={`${slot.start_at}-${idx}`}
-                          className="flex items-center gap-3 rounded-card border border-neutral-borderLight/70 bg-neutral-surfaceAlt px-3 py-2"
-                        >
-                          <span className="font-medium text-neutral-text">
-                            {toTimeLabel(slot.start_at)}〜{toTimeLabel(slot.end_at)}
-                          </span>
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${display.badgeClass}`}
+                  {bookableSlots.length ? (
+                    <div className="space-y-2 text-sm text-neutral-text">
+                      {bookableSlots.slice(0, 6).map((slot, idx) => {
+                        const display = slotStatusMap[slot.status]
+                        const waitLabel =
+                          slot.status !== 'blocked' ? formatWaitLabel(slot.start_at) : null
+                        return (
+                          <div
+                            key={`${slot.start_at}-${idx}`}
+                            className="flex items-center gap-3 rounded-card border border-neutral-borderLight/70 bg-neutral-surfaceAlt px-3 py-2"
                           >
-                            {display.icon ? <span aria-hidden>{display.icon}</span> : null}
-                            {display.label}
-                          </span>
-                          {waitLabel ? (
-                            <span className="text-[11px] font-medium text-brand-primary">
-                              {waitLabel}
+                            <span className="font-medium text-neutral-text">
+                              {toTimeLabel(slot.start_at)}〜{toTimeLabel(slot.end_at)}
                             </span>
-                          ) : null}
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-xs text-neutral-textMuted">公開された枠はありません</p>
-                )}
-              </Card>
-            ))}
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${display.badgeClass}`}
+                            >
+                              {display.icon ? <span aria-hidden>{display.icon}</span> : null}
+                              {display.label}
+                            </span>
+                            {waitLabel ? (
+                              <span className="text-[11px] font-medium text-brand-primary">
+                                {waitLabel}
+                              </span>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-neutral-textMuted">公開された枠はありません</p>
+                  )}
+                </Card>
+              )
+            })}
           </div>
         </Section>
       ) : null}
