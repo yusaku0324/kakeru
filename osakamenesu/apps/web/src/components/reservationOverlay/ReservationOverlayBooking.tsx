@@ -31,6 +31,12 @@ type ReservationOverlayBookingProps = {
   state: ReservationOverlayState
   /** セラピストID（空き状況の再取得に使用） */
   therapistId?: string | null
+  /** ポーリングによる更新中フラグ */
+  isPolling?: boolean
+  /** 最終更新時刻 (Unix timestamp in ms) */
+  lastRefreshAt?: number | null
+  /** 手動更新を実行するコールバック */
+  onRefresh?: () => Promise<void>
 }
 
 const bookingSteps = [
@@ -51,6 +57,9 @@ export default function ReservationOverlayBooking({
   onOpenForm,
   state,
   therapistId,
+  isPolling = false,
+  lastRefreshAt,
+  onRefresh,
 }: ReservationOverlayBookingProps) {
   const {
     dayFormatter,
@@ -139,7 +148,9 @@ export default function ReservationOverlayBooking({
             onNext={handleNextPage}
             onReset={handleResetPage}
             hasAvailability={hasAvailability}
-            isRefreshing={isRefreshing}
+            isRefreshing={isRefreshing || isPolling}
+            lastRefreshAt={lastRefreshAt}
+            onRefresh={onRefresh}
           />
 
           <ReservationAvailabilitySection

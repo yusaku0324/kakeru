@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { useEffect, useState } from 'react'
 
 type ReservationScheduleHeaderProps = {
   scheduleRangeLabel: string
@@ -13,6 +14,10 @@ type ReservationScheduleHeaderProps = {
   hasAvailability: boolean
   /** Whether availability data is being refreshed */
   isRefreshing?: boolean
+  /** Last refresh timestamp (Unix ms) */
+  lastRefreshAt?: number | null
+  /** Callback to manually refresh availability */
+  onRefresh?: () => Promise<void>
 }
 
 export function ReservationScheduleHeader({
@@ -27,7 +32,36 @@ export function ReservationScheduleHeader({
   onReset,
   hasAvailability,
   isRefreshing = false,
+  lastRefreshAt,
+  onRefresh,
 }: ReservationScheduleHeaderProps) {
+  // Calculate relative time string and update it every 10 seconds
+  const [relativeTime, setRelativeTime] = useState<string>('')
+
+  useEffect(() => {
+    const calcRelativeTime = (): string => {
+      if (!lastRefreshAt) return ''
+      const now = Date.now()
+      const diffMs = now - lastRefreshAt
+      const diffSec = Math.floor(diffMs / 1000)
+      if (diffSec < 10) return 'たった今'
+      if (diffSec < 60) return `${diffSec}秒前`
+      const diffMin = Math.floor(diffSec / 60)
+      if (diffMin < 60) return `${diffMin}分前`
+      return '1時間以上前'
+    }
+
+    // Update immediately
+    setRelativeTime(calcRelativeTime())
+
+    // Update every 10 seconds
+    const intervalId = setInterval(() => {
+      setRelativeTime(calcRelativeTime())
+    }, 10000)
+
+    return () => clearInterval(intervalId)
+  }, [lastRefreshAt])
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -42,7 +76,7 @@ export function ReservationScheduleHeader({
           <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-1 text-[11px] font-semibold text-brand-primary">
             ⭐️ {hasAvailability ? '公開枠あり' : 'お問い合わせで調整'}
           </span>
-          {isRefreshing && (
+          {isRefreshing ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-medium text-blue-600">
               <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -50,6 +84,20 @@ export function ReservationScheduleHeader({
               </svg>
               更新中
             </span>
+          ) : (
+            onRefresh && (
+              <button
+                type="button"
+                onClick={() => void onRefresh()}
+                className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[10px] font-medium text-blue-600 transition hover:bg-blue-100"
+                aria-label="空き状況を更新"
+              >
+                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {relativeTime || '更新'}
+              </button>
+            )
           )}
         </div>
       </div>

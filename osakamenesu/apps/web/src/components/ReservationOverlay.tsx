@@ -92,10 +92,10 @@ export default function ReservationOverlay({
   })
   const { ensureSelection, openForm, closeForm, formOpen, updateAvailability } = reservationState
 
-  // Poll for availability updates every 30 seconds
-  const { isRefreshing: isPolling } = useAvailabilityPolling({
+  // Poll for availability updates every 15 seconds
+  const { isRefreshing: isPolling, lastRefreshAt, refresh: manualRefresh } = useAvailabilityPolling({
     therapistId,
-    intervalMs: 30000,
+    intervalMs: 15000,
     enabled: Boolean(therapistId),
     onUpdate: updateAvailability,
   })
@@ -403,6 +403,9 @@ export default function ReservationOverlay({
                       onOpenForm={handleOpenForm}
                       state={reservationState}
                       therapistId={therapistId ?? hit.therapistId ?? hit.staffId ?? null}
+                      isPolling={isPolling}
+                      lastRefreshAt={lastRefreshAt}
+                      onRefresh={manualRefresh}
                     />
                   ) : null}
                 </section>
