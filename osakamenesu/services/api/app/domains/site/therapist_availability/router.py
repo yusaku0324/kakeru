@@ -81,17 +81,33 @@ async def get_availability_slots_api(
         await availability_cache.set(cache_key, slots)
 
     now = datetime.now(JST)
+
+    # Filter and adjust slots based on current time
+    filtered_slots = []
+    for start, end in slots:
+        # Ensure timezone-aware comparison
+        start_aware = start if start.tzinfo else start.replace(tzinfo=JST)
+        end_aware = end if end.tzinfo else end.replace(tzinfo=JST)
+
+        # Skip completely past slots
+        if end_aware <= now:
+            continue
+
+        # Adjust start time for partially past slots
+        effective_start = max(start_aware, now)
+
+        filtered_slots.append(
+            AvailabilitySlot(
+                start_at=effective_start,
+                end_at=end_aware,
+                status=determine_slot_status(effective_start, end_aware, now),
+            )
+        )
+
     return AvailabilitySlotsResponse(
         therapist_id=resolved_id,
         date=date,
-        slots=[
-            AvailabilitySlot(
-                start_at=start,
-                end_at=end,
-                status=determine_slot_status(start, end, now),
-            )
-            for start, end in slots
-        ],
+        slots=filtered_slots,
     )
 
 

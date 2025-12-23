@@ -251,7 +251,7 @@ def test_search_shops_staff_preview_derives_next_available_at_from_sot(
                 "id": str(therapist_id),
                 "name": "ももな",
                 "today_available": False,
-                "next_available_at": "2025-01-01T00:00:00+00:00",  # stale / must be overwritten
+                "next_available_at": "2030-01-01T00:00:00+00:00",  # stale / must be overwritten
             }
         ],
     )
@@ -289,7 +289,7 @@ def test_search_shops_next_available_at_matches_guest_availability_sot(
 ) -> None:
     """Invariant: next_available_at must imply has_available and match earliest slot start."""
     therapist_id = uuid4()
-    target_day = date(2025, 1, 10)
+    target_day = date(2030, 1, 10)
     shift_start = datetime.combine(
         target_day, datetime.min.time(), tzinfo=JST
     ) + timedelta(hours=10)
@@ -344,7 +344,7 @@ def test_search_shops_next_available_at_matches_guest_availability_sot(
                 "id": str(therapist_id),
                 "name": "ももな",
                 "today_available": False,
-                "next_available_at": "2025-01-01T00:00:00+00:00",  # stale / must be overwritten
+                "next_available_at": "2030-01-01T00:00:00+00:00",  # stale / must be overwritten
             }
         ],
     )
