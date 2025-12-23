@@ -93,14 +93,20 @@ async def fetch_availability(
     shop_id: UUID,
     start_date: date | None = None,
     end_date: date | None = None,
+    booking_deadline_minutes: int = 60,
 ) -> AvailabilityCalendar | None:
+    now = now_jst()
+    today = now.date()
+
+    # Always filter to today or later (never include past dates)
+    effective_start = start_date if start_date and start_date >= today else today
+
     stmt = (
         select(models.Availability)
         .where(models.Availability.profile_id == shop_id)
+        .where(models.Availability.date >= effective_start)
         .order_by(models.Availability.date.asc())
     )
-    if start_date:
-        stmt = stmt.where(models.Availability.date >= start_date)
     if end_date:
         stmt = stmt.where(models.Availability.date <= end_date)
 
@@ -109,20 +115,37 @@ async def fetch_availability(
     if not records:
         return None
 
+    # Calculate booking deadline threshold
+    deadline_threshold = now + timedelta(minutes=booking_deadline_minutes)
+
     days: List[AvailabilityDay] = []
-    today = now_jst().date()
     for record in records:
         slots = convert_slots(record.slots_json)
-        days.append(
-            AvailabilityDay(
-                date=record.date,
-                is_today=record.date == today,
-                slots=slots,
+
+        # Filter out slots past the booking deadline
+        # Only apply to "open" slots - keep "blocked" slots for display
+        filtered_slots = [
+            slot
+            for slot in slots
+            if slot.status != "open" or slot.start_at >= deadline_threshold
+        ]
+
+        # Only include days that have at least one slot
+        if filtered_slots:
+            days.append(
+                AvailabilityDay(
+                    date=record.date,
+                    is_today=record.date == today,
+                    slots=filtered_slots,
+                )
             )
-        )
+
+    if not days:
+        return None
+
     return AvailabilityCalendar(
         shop_id=shop_id,
-        generated_at=now_jst(),
+        generated_at=now,
         days=days,
     )
 
