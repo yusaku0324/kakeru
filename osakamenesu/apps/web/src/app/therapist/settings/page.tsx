@@ -1,26 +1,50 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { LineLoginButton } from '@/components/auth/LineLoginButton'
 
 type LineConnectionStatus = 'connected' | 'not_connected' | 'loading'
 
+interface LineStatusResponse {
+  connected: boolean
+  line_user_id: string | null
+  display_name: string | null
+}
+
 /**
  * セラピスト設定ページ - LINE連携UI
  *
  * セラピストがLINE連携状態を確認・管理するためのページ。
- *
- * TODO:
- * - バックエンドAPIから連携状態を取得
- * - 連携解除APIの実装
- * - 認証状態の確認とリダイレクト
  */
 export default function TherapistSettingsPage() {
-  // TODO: 実際のAPIから取得
-  const [connectionStatus] = useState<LineConnectionStatus>('not_connected')
-  const [lineDisplayName] = useState<string | null>(null)
+  const [connectionStatus, setConnectionStatus] = useState<LineConnectionStatus>('loading')
+  const [lineDisplayName, setLineDisplayName] = useState<string | null>(null)
   const [isUnlinking, setIsUnlinking] = useState(false)
+
+  useEffect(() => {
+    async function fetchLineStatus() {
+      try {
+        const response = await fetch('/api/auth/line/status', {
+          credentials: 'include',
+        })
+        if (response.ok) {
+          const data: LineStatusResponse = await response.json()
+          setConnectionStatus(data.connected ? 'connected' : 'not_connected')
+          setLineDisplayName(data.display_name)
+        } else if (response.status === 401) {
+          // 未認証の場合はログインページへリダイレクト
+          window.location.href = '/therapist'
+        } else {
+          setConnectionStatus('not_connected')
+        }
+      } catch (error) {
+        console.error('Failed to fetch LINE status:', error)
+        setConnectionStatus('not_connected')
+      }
+    }
+    fetchLineStatus()
+  }, [])
 
   const handleUnlinkLine = async () => {
     if (!confirm('LINE連携を解除しますか？\n解除すると、LINEでのログインや通知が利用できなくなります。')) {
@@ -29,10 +53,19 @@ export default function TherapistSettingsPage() {
 
     setIsUnlinking(true)
     try {
-      // TODO: バックエンドAPI実装後に置き換え
-      // await fetch('/api/v1/auth/line/unlink', { method: 'POST' })
-      alert('LINE連携を解除しました（デモ）')
-      // 実際にはページをリロードまたは状態を更新
+      const response = await fetch('/api/auth/line/unlink', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (response.ok) {
+        setConnectionStatus('not_connected')
+        setLineDisplayName(null)
+      } else if (response.status === 404) {
+        // API未実装の場合
+        alert('この機能は現在準備中です')
+      } else {
+        alert('LINE連携の解除に失敗しました')
+      }
     } catch (error) {
       console.error('Failed to unlink LINE:', error)
       alert('LINE連携の解除に失敗しました')
