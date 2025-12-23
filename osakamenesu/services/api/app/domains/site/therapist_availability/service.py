@@ -8,7 +8,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -188,11 +188,30 @@ async def _fetch_shifts(
     date_from: date,
     date_to: date,
 ) -> list[TherapistShift]:
+    """Fetch shifts for the given date range, including overnight shifts from the previous day.
+
+    Overnight shifts (e.g., 19:00-07:00 next day) are stored with `date` as the start date.
+    To properly show the morning portion (00:00-07:00) on the next day's availability,
+    we also fetch shifts from the previous day that extend into date_from.
+    """
+    # Calculate the start of date_from to check for overnight shifts
+    day_start = datetime.combine(date_from, time.min).replace(tzinfo=JST)
+
     stmt = select(TherapistShift).where(
         TherapistShift.therapist_id == therapist_id,
         TherapistShift.availability_status == "available",
-        TherapistShift.date >= date_from,
-        TherapistShift.date <= date_to,
+        or_(
+            # Shifts that start within the date range
+            and_(
+                TherapistShift.date >= date_from,
+                TherapistShift.date <= date_to,
+            ),
+            # Overnight shifts from previous day that extend into date_from
+            and_(
+                TherapistShift.date == date_from - timedelta(days=1),
+                TherapistShift.end_at > day_start,
+            ),
+        ),
     )
     res = await db.execute(stmt)
     return list(res.scalars().all())

@@ -554,3 +554,82 @@ def test_status_mapping_busy_to_blocked() -> None:
     result = convert_slots(slots_json)
     assert len(result) == 1
     assert result[0].status == "blocked"  # API status
+
+
+def _overnight_shift(
+    start_day: date, start_hour: int, end_hour: int
+) -> SimpleNamespace:
+    """Create an overnight shift (e.g., 19:00-07:00 next day) in JST timezone."""
+    start = datetime.combine(start_day, datetime.min.time(), tzinfo=JST) + timedelta(
+        hours=start_hour
+    )
+    # end_hour > 24 means next day (e.g., 31 = 07:00 next day)
+    end = datetime.combine(start_day, datetime.min.time(), tzinfo=JST) + timedelta(
+        hours=end_hour
+    )
+    return SimpleNamespace(
+        therapist_id=THERAPIST_ID,
+        date=start_day,  # date column is the start date
+        start_at=start,
+        end_at=end,
+        break_slots=[],
+        availability_status="available",
+    )
+
+
+def test_overnight_shift_shows_on_next_day(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Test that overnight shifts (e.g., 19:00-07:00 next day) appear correctly
+    on both the start day and the next day's availability.
+
+    Scenario:
+    - Shift on Jan 15: 19:00 JST - 07:00 JST (Jan 16)
+    - Query for Jan 16 should show 00:00-07:00 JST as available
+    """
+    day_15 = date(2030, 1, 15)
+    day_16 = date(2030, 1, 16)
+
+    # Overnight shift: starts Jan 15 19:00, ends Jan 16 07:00 (31 hours from midnight)
+    overnight_shift = _overnight_shift(day_15, 19, 31)  # 31 = 24 + 7
+
+    async def fake_fetch_shifts(db, therapist_id, date_from, date_to):
+        # Simulate the fixed query that includes overnight shifts
+        shifts = []
+        # If querying for Jan 16, include Jan 15's overnight shift
+        if date_from <= day_16 <= date_to or date_from == day_16:
+            if overnight_shift.end_at.date() >= date_from:
+                shifts.append(overnight_shift)
+        # If querying for Jan 15, include the shift
+        if date_from <= day_15 <= date_to:
+            shifts.append(overnight_shift)
+        return shifts
+
+    async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
+        return []
+
+    monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
+    monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
+
+    # Query for Jan 16 - should show 00:00-07:00 from overnight shift
+    res = client.get(
+        f"/api/guest/therapists/{THERAPIST_ID}/availability_slots",
+        params={"date": str(day_16)},
+    )
+    assert res.status_code == 200
+    slots = res.json()["slots"]
+
+    # Should have at least one slot for the morning portion
+    assert len(slots) >= 1
+
+    # First slot should start at 00:00 JST (15:00 UTC previous day)
+    first_slot = slots[0]
+    start_dt = datetime.fromisoformat(first_slot["start_at"].replace("Z", "+00:00"))
+    start_jst = start_dt.astimezone(JST)
+    assert start_jst.hour == 0
+    assert start_jst.day == 16
+
+    # Should end at 07:00 JST
+    end_dt = datetime.fromisoformat(first_slot["end_at"].replace("Z", "+00:00"))
+    end_jst = end_dt.astimezone(JST)
+    assert end_jst.hour == 7
+    assert end_jst.day == 16
