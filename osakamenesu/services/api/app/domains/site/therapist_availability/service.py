@@ -350,6 +350,8 @@ async def list_availability_summary(
         ]
 
     # 5. 日ごとにスロットを計算
+    now = datetime.now(JST)
+    today = now.date()
     items: list[AvailabilitySummaryItem] = []
     current = date_from
     while current <= date_to:
@@ -360,6 +362,14 @@ async def list_availability_summary(
 
         # 日付範囲でフィルタリング
         filtered_slots = _filter_slots_by_date(slots, current) if slots else []
+
+        # 今日の日付の場合、過去スロットを除外
+        if current == today and filtered_slots:
+            filtered_slots = [
+                (start, end)
+                for start, end in filtered_slots
+                if _ensure_aware(end) > now
+            ]
 
         items.append(
             AvailabilitySummaryItem(date=current, has_available=bool(filtered_slots))

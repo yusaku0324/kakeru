@@ -382,21 +382,29 @@ def test_verify_slot_returns_409_when_unavailable(
     """
     Test that verify_slot API returns 409 when slot is no longer available.
     """
-    day = date(2025, 1, 21)
+    day = date(2030, 1, 21)  # Use future date to avoid past slot filtering
     shift = _shift(day, 10, 14)
     resv = _reservation(day, 10, 12, status="confirmed")
 
-    async def fake_fetch_shifts(db, therapist_id, date_from, date_to):
-        return [shift]
+    async def fake_resolve_therapist_id(db, therapist_id_or_name):
+        return THERAPIST_ID
 
-    async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
-        return [resv]  # Slot is blocked by reservation
+    async def fake_list_daily_slots(db, therapist_id, target_date):
+        # Return slots after reservation subtraction - the 10-12 slot is blocked
+        # Only 12-14 is available
+        slot_start = datetime.combine(day, datetime.min.time(), tzinfo=JST) + timedelta(
+            hours=12
+        )
+        slot_end = datetime.combine(day, datetime.min.time(), tzinfo=JST) + timedelta(
+            hours=14
+        )
+        return [(slot_start, slot_end)]
 
-    monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
-    monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
+    monkeypatch.setattr(domain, "_resolve_therapist_id", fake_resolve_therapist_id)
+    monkeypatch.setattr(domain, "_list_daily_slots", fake_list_daily_slots)
 
-    # Query for slot at 10:00 JST (which is now reserved)
-    start_at = datetime(2025, 1, 21, 10, 0, 0, tzinfo=JST)
+    # Query for slot at 10:00 JST (which is now reserved and not in available slots)
+    start_at = datetime(2030, 1, 21, 10, 0, 0, tzinfo=JST)
     res = client.get(
         f"/api/guest/therapists/{THERAPIST_ID}/verify_slot",
         params={"start_at": start_at.isoformat()},
@@ -748,3 +756,122 @@ def test_future_slots_are_not_filtered(monkeypatch: pytest.MonkeyPatch) -> None:
     end_dt = datetime.fromisoformat(slot["end_at"].replace("Z", "+00:00"))
     end_jst = end_dt.astimezone(JST)
     assert end_jst.hour == 14
+
+
+def test_availability_summary_today_filters_past_slots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Test that availability_summary for today's date filters out past slots.
+
+    Scenario:
+    - Query availability_summary for today
+    - All slots are in the past (earlier today)
+    - has_available should be False
+    """
+    from datetime import datetime as dt
+
+    now = dt.now(JST)
+    today = now.date()
+
+    # Create a shift that ended earlier today
+    past_hour = max(0, now.hour - 2)
+    past_end_hour = max(1, now.hour - 1)
+    if past_hour >= past_end_hour:
+        # If we're at the beginning of the day, create a past shift anyway
+        past_hour = 0
+        past_end_hour = 1
+
+    # Only run this test if we can create a past slot today
+    if now.hour < 2:
+        pytest.skip("Cannot create past slots early in the day")
+
+    shift = _shift(today, past_hour, past_end_hour)
+
+    async def fake_fetch_therapist_with_buffer(db, therapist_id):
+        return None, 0, None
+
+    async def fake_fetch_shifts(db, therapist_id, date_from, date_to):
+        if date_from <= today <= date_to:
+            return [shift]
+        return []
+
+    async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
+        return []
+
+    monkeypatch.setattr(
+        domain, "_fetch_therapist_with_buffer", fake_fetch_therapist_with_buffer
+    )
+    monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
+    monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
+
+    res = client.get(
+        f"/api/guest/therapists/{THERAPIST_ID}/availability_summary",
+        params={"date_from": str(today), "date_to": str(today)},
+    )
+    assert res.status_code == 200
+    items = res.json()["items"]
+    assert len(items) == 1
+    # Past slots should be filtered, so has_available should be False
+    assert items[0]["has_available"] is False
+
+
+def test_verify_slot_rejects_past_start_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Test that verify_slot returns 409 for start_at times in the past.
+    """
+    from datetime import datetime as dt
+
+    now = dt.now(JST)
+    # Create a start_at that is 1 hour in the past
+    past_start = now - timedelta(hours=1)
+
+    async def fake_resolve_therapist_id(db, therapist_id_or_name):
+        return THERAPIST_ID
+
+    monkeypatch.setattr(domain, "_resolve_therapist_id", fake_resolve_therapist_id)
+
+    res = client.get(
+        f"/api/guest/therapists/{THERAPIST_ID}/verify_slot",
+        params={"start_at": past_start.isoformat()},
+    )
+    assert res.status_code == 409
+    detail = res.json()["detail"]
+    assert detail["detail"] == "slot_unavailable"
+    assert detail["status"] == "past"
+
+
+def test_verify_slot_accepts_future_start_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Test that verify_slot accepts start_at times in the future.
+    """
+    from datetime import datetime as dt
+
+    # Use a future date to avoid issues
+    future_day = date(2030, 6, 15)
+    future_start = datetime.combine(
+        future_day, datetime.min.time(), tzinfo=JST
+    ) + timedelta(hours=10)
+    future_end = future_start + timedelta(hours=2)
+
+    shift = _shift(future_day, 10, 14)
+
+    async def fake_resolve_therapist_id(db, therapist_id_or_name):
+        return THERAPIST_ID
+
+    async def fake_list_daily_slots(db, therapist_id, target_date):
+        if target_date == future_day:
+            return [(future_start, future_end)]
+        return []
+
+    monkeypatch.setattr(domain, "_resolve_therapist_id", fake_resolve_therapist_id)
+    monkeypatch.setattr(domain, "_list_daily_slots", fake_list_daily_slots)
+
+    res = client.get(
+        f"/api/guest/therapists/{THERAPIST_ID}/verify_slot",
+        params={"start_at": future_start.isoformat()},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_available"] is True
+    assert data["status"] == "open"

@@ -149,16 +149,25 @@ async def verify_slot_api(
         )
 
     now = datetime.now(JST)
+    start_at_aware = start_at if start_at.tzinfo else start_at.replace(tzinfo=JST)
+
+    # 過去の開始時刻は即座に拒否
+    if start_at_aware <= now:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "detail": "slot_unavailable",
+                "status": "past",
+                "conflicted_at": now.isoformat(),
+            },
+        )
 
     # start_at から日付を取得してスロット一覧を取得
-    target_date = (
-        start_at.date() if start_at.tzinfo else start_at.replace(tzinfo=JST).date()
-    )
+    target_date = start_at_aware.date()
     slots = await _pkg._list_daily_slots(db, resolved_id, target_date)
 
     # 指定された start_at に一致するスロットを検索
     matching_slot = None
-    start_at_aware = start_at if start_at.tzinfo else start_at.replace(tzinfo=JST)
 
     for slot_start, slot_end in slots:
         slot_start_aware = (
