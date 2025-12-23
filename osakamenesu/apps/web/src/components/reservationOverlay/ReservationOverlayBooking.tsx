@@ -139,6 +139,7 @@ export default function ReservationOverlayBooking({
             onNext={handleNextPage}
             onReset={handleResetPage}
             hasAvailability={hasAvailability}
+            isRefreshing={isRefreshing}
           />
 
           <ReservationAvailabilitySection

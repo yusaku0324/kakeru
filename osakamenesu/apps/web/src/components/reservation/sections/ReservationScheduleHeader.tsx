@@ -11,6 +11,8 @@ type ReservationScheduleHeaderProps = {
   onNext: () => void
   onReset: () => void
   hasAvailability: boolean
+  /** Whether availability data is being refreshed */
+  isRefreshing?: boolean
 }
 
 export function ReservationScheduleHeader({
@@ -24,6 +26,7 @@ export function ReservationScheduleHeader({
   onNext,
   onReset,
   hasAvailability,
+  isRefreshing = false,
 }: ReservationScheduleHeaderProps) {
   return (
     <>
@@ -39,6 +42,15 @@ export function ReservationScheduleHeader({
           <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-1 text-[11px] font-semibold text-brand-primary">
             ⭐️ {hasAvailability ? '公開枠あり' : 'お問い合わせで調整'}
           </span>
+          {isRefreshing && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-medium text-blue-600">
+              <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              更新中
+            </span>
+          )}
         </div>
       </div>
 

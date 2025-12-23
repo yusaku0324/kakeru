@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import { useHeroImages } from '@/hooks/useHeroImages'
+import { useAvailabilityPolling } from '@/hooks/useAvailabilityPolling'
 import { ReservationHeroCard } from '@/components/reservation'
 import { type TherapistHit } from '@/components/staff/TherapistCard'
 import { parsePricingText } from '@/utils/pricing'
@@ -89,7 +90,15 @@ export default function ReservationOverlay({
     fallbackAvailability,
     defaultStart,
   })
-  const { ensureSelection, openForm, closeForm, formOpen } = reservationState
+  const { ensureSelection, openForm, closeForm, formOpen, updateAvailability } = reservationState
+
+  // Poll for availability updates every 30 seconds
+  const { isRefreshing: isPolling } = useAvailabilityPolling({
+    therapistId,
+    intervalMs: 30000,
+    enabled: Boolean(therapistId),
+    onUpdate: updateAvailability,
+  })
 
   const { heroImages, heroIndex, showNextHero, showPrevHero } = useHeroImages({
     gallery,
