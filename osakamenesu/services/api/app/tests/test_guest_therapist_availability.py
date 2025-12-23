@@ -633,3 +633,49 @@ def test_overnight_shift_shows_on_next_day(monkeypatch: pytest.MonkeyPatch) -> N
     end_jst = end_dt.astimezone(JST)
     assert end_jst.hour == 7
     assert end_jst.day == 16
+
+
+def test_overnight_shift_summary_shows_both_days(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Test that availability_summary correctly shows overnight shifts on both days.
+
+    Scenario:
+    - Shift on Jan 15: 19:00 JST - 07:00 JST (Jan 16)
+    - Query for Jan 15-16 should show both days as having availability
+    """
+    day_15 = date(2030, 1, 15)
+    day_16 = date(2030, 1, 16)
+
+    # Overnight shift: starts Jan 15 19:00, ends Jan 16 07:00
+    overnight_shift = _overnight_shift(day_15, 19, 31)  # 31 = 24 + 7
+
+    async def fake_fetch_shifts(db, therapist_id, date_from, date_to):
+        # Return the overnight shift for the range
+        return [overnight_shift]
+
+    async def fake_fetch_reservations(db, therapist_id, start_at, end_at):
+        return []
+
+    monkeypatch.setattr(domain, "_fetch_shifts", fake_fetch_shifts)
+    monkeypatch.setattr(domain, "_fetch_reservations", fake_fetch_reservations)
+
+    # Query for Jan 15-16 summary
+    res = client.get(
+        f"/api/guest/therapists/{THERAPIST_ID}/availability_summary",
+        params={"date_from": str(day_15), "date_to": str(day_16)},
+    )
+    assert res.status_code == 200
+    items = res.json()["items"]
+
+    # Both days should show as having availability
+    assert len(items) == 2
+
+    # Jan 15 should have availability (19:00-00:00)
+    jan_15_item = next(item for item in items if item["date"] == str(day_15))
+    assert jan_15_item["has_available"] is True
+
+    # Jan 16 should also have availability (00:00-07:00 from overnight shift)
+    jan_16_item = next(item for item in items if item["date"] == str(day_16))
+    assert jan_16_item["has_available"] is True

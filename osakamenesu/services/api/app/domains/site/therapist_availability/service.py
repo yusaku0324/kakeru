@@ -331,10 +331,16 @@ async def list_availability_summary(
         db, therapist_id, range_start, range_end
     )
 
-    # 3. シフトを日付ごとにグループ化
+    # 3. シフトを日付ごとにグループ化（深夜シフトは翌日にも追加）
     shifts_by_date: dict[date, list[TherapistShift]] = defaultdict(list)
     for shift in shifts:
         shifts_by_date[shift.date].append(shift)
+        # Check if this is an overnight shift that extends into the next day
+        shift_end_date = _ensure_aware(shift.end_at).astimezone(JST).date()
+        if shift_end_date > shift.date and shift_end_date <= date_to:
+            # Add to the next day's shifts as well (avoid duplicates)
+            if shift not in shifts_by_date[shift_end_date]:
+                shifts_by_date[shift_end_date].append(shift)
 
     # 4. 予約を日付ごとにフィルタリングするヘルパー
     def get_reservations_for_date(target_date: date) -> list[GuestReservation]:
