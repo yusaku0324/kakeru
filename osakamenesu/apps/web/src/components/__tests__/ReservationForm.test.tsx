@@ -97,61 +97,39 @@ describe('ReservationForm payload', () => {
     expect(payload.notes).toContain('第2候補')
   })
 
-  it('shows submission memo and supports copying summary content', async () => {
-    const clipboardMock = vi.fn().mockResolvedValue(undefined)
-    const originalClipboard = navigator.clipboard
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: clipboardMock },
+  it('shows success message after submission', async () => {
+    render(
+      <ReservationForm
+        shopId={uuidShopId}
+        selectedSlots={[
+          {
+            startAt: '2025-11-06T10:00:00+09:00',
+            endAt: '2025-11-06T11:00:00+09:00',
+            date: '2025-11-06',
+            status: 'open',
+          },
+        ]}
+        courseOptions={[
+          { id: 'course-60', label: '60分コース', durationMinutes: 60, priceLabel: '¥8,000' },
+        ]}
+      />,
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('例: 山田 太郎'), {
+      target: { value: '山田 太郎' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('090-1234-5678'), {
+      target: { value: '090-3333-4444' },
     })
 
-    try {
-      render(
-        <ReservationForm
-          shopId={uuidShopId}
-          selectedSlots={[
-            {
-              startAt: '2025-11-06T10:00:00+09:00',
-              endAt: '2025-11-06T11:00:00+09:00',
-              date: '2025-11-06',
-              status: 'open',
-            },
-          ]}
-          courseOptions={[
-            { id: 'course-60', label: '60分コース', durationMinutes: 60, priceLabel: '¥8,000' },
-          ]}
-        />,
-      )
+    fireEvent.click(screen.getByRole('button', { name: '予約リクエストを送信' }))
 
-      fireEvent.change(screen.getByPlaceholderText('例: 山田 太郎'), {
-        target: { value: '山田 太郎' },
-      })
-      fireEvent.change(screen.getByPlaceholderText('090-1234-5678'), {
-        target: { value: '090-3333-4444' },
-      })
+    // Wait for success message to appear
+    expect(await screen.findByText('予約リクエスト完了', {}, { timeout: 3000 })).toBeInTheDocument()
+    expect(screen.getByText('担当者から折り返しご連絡いたします')).toBeInTheDocument()
+    expect(screen.getByText('このウィンドウは閉じても大丈夫です')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole('button', { name: '予約リクエストを送信' }))
-
-      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-      expect(await screen.findByText('送信内容メモ')).toBeInTheDocument()
-
-      const copyButton = screen.getByRole('button', { name: 'コピーする' })
-      fireEvent.click(copyButton)
-
-      await waitFor(() => expect(clipboardMock).toHaveBeenCalled())
-      const copiedText = clipboardMock.mock.calls[0]?.[0]
-      expect(copiedText).toContain('希望コース')
-
-      await screen.findByRole('button', { name: 'コピーしました' })
-    } finally {
-      if (originalClipboard) {
-        Object.defineProperty(navigator, 'clipboard', {
-          configurable: true,
-          value: originalClipboard,
-        })
-      } else {
-        delete (navigator as any).clipboard
-      }
-    }
+    // Verify API was called
+    expect(fetchMock).toHaveBeenCalled()
   })
 })
