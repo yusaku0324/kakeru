@@ -33,6 +33,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date()
 
   const urls: MetadataRoute.Sitemap = [
+    // Top pages
     {
       url: `${base}/`,
       lastModified: now,
@@ -43,6 +44,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${base}/search`,
       lastModified: now,
       changeFrequency: 'daily',
+      priority: 0.9,
+    },
+    {
+      url: `${base}/shops`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.8,
+    },
+    {
+      url: `${base}/therapists`,
+      lastModified: now,
+      changeFrequency: 'daily',
       priority: 0.8,
     },
     {
@@ -51,6 +64,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'daily',
       priority: 0.7,
     },
+    // Individual shop pages
     ...profiles.map((shop) => ({
       url: `${base}/profiles/${shop.slug ?? shop.id}`,
       lastModified: shop.updated_at ? new Date(shop.updated_at) : now,

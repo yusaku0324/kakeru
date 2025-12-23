@@ -5,6 +5,7 @@ import { createHash } from 'crypto'
 import SafeImage from '@/components/SafeImage'
 import Gallery from '@/components/Gallery'
 import RecentlyViewedRecorder from '@/components/RecentlyViewedRecorder'
+import { LocalBusinessJsonLd, BreadcrumbJsonLd } from '@/components/seo/JsonLd'
 import type { ReservationOverlayProps } from '@/components/ReservationOverlay'
 import ReservationOverlayRoot from '@/components/ReservationOverlayRoot'
 import ShopReviews from '@/components/ShopReviews'
@@ -465,8 +466,40 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     filteredAvailability.length ? { id: 'availability', label: '空き状況' } : null,
   ].filter((s): s is { id: string; label: string } => s !== null)
 
+  // Build site URL for JSON-LD
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://osakamenesu.com'
+  const shopUrl = `${siteUrl}/profiles/${shop.slug || shop.id}`
+
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 pb-24">
+      {/* JSON-LD Structured Data for SEO */}
+      <LocalBusinessJsonLd
+        name={shop.name}
+        description={shop.catch_copy || shop.description}
+        url={shopUrl}
+        image={photos.slice(0, 3)}
+        telephone={phone}
+        address={shop.address}
+        areaServed={shop.area_name || shop.area}
+        priceRange={overlayPricingLabel}
+        openingHours={shop.business_hours}
+        aggregateRating={
+          shop.reviews?.average_score && shop.reviews?.review_count
+            ? {
+                ratingValue: shop.reviews.average_score,
+                reviewCount: shop.reviews.review_count,
+              }
+            : null
+        }
+      />
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'ホーム', url: siteUrl },
+          { name: '検索', url: `${siteUrl}/search` },
+          { name: shop.name, url: shopUrl },
+        ]}
+      />
+
       <Breadcrumb items={breadcrumbItems} className="pt-4" />
       <ShopSectionNav sections={navSections} />
       <ReservationOverlayRoot />
@@ -952,6 +985,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const shop = await fetchShop(id, false)
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://osakamenesu.com'
+  const canonicalUrl = `${siteUrl}/profiles/${shop.slug || shop.id}`
   const title = `${shop.name} - 大阪メンエス.com`
   const priceRange = (() => {
     const min = formatYen(shop.min_price)
@@ -970,11 +1005,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title,
     description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
       title,
       description,
       images,
       type: 'article',
+      url: canonicalUrl,
     },
     twitter: {
       card: 'summary_large_image',
