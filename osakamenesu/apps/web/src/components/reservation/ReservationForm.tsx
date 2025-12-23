@@ -1,12 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
+import clsx from 'clsx'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/Badge'
-import { Calendar, Clock, AlertCircle } from 'lucide-react'
+import { Calendar, Clock, AlertCircle, Check } from 'lucide-react'
 import { verifySlot, createConflictErrorMessage } from '@/lib/verify-slot'
 import { formatDateISO, formatTimeHM, today as getToday } from '@/lib/jst'
+
+type FormStep = {
+  key: string
+  label: string
+  description: string
+}
+
+const FORM_STEPS: FormStep[] = [
+  { key: 'datetime', label: '日時選択', description: '予約日と時間を選択' },
+  { key: 'contact', label: '連絡先入力', description: '電話番号またはLINE ID' },
+  { key: 'confirm', label: '確認・送信', description: '内容を確認して送信' },
+]
 
 interface ReservationPayload {
   shop_id: string
@@ -110,6 +123,25 @@ export default function ReservationForm({
     }
   }, [computedEnd, date, duration, guestToken, lineId, notes, phone, shopId, start, therapistId])
 
+  // Calculate step completion for progress indicator
+  const isDateTimeComplete = Boolean(date && start && duration)
+  const isContactComplete = Boolean(phone || lineId)
+  const isReadyToSubmit = isDateTimeComplete && isContactComplete
+
+  const getStepStatus = (stepKey: string): 'complete' | 'active' | 'pending' => {
+    if (stepKey === 'datetime') {
+      return isDateTimeComplete ? 'complete' : 'active'
+    }
+    if (stepKey === 'contact') {
+      if (isContactComplete) return 'complete'
+      return isDateTimeComplete ? 'active' : 'pending'
+    }
+    if (stepKey === 'confirm') {
+      return isReadyToSubmit ? 'active' : 'pending'
+    }
+    return 'pending'
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
@@ -160,6 +192,63 @@ export default function ReservationForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Progress Indicator */}
+      <nav aria-label="予約フォームの進捗" className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
+        <ol className="flex items-center justify-between gap-2">
+          {FORM_STEPS.map((step, index) => {
+            const status = getStepStatus(step.key)
+            const isComplete = status === 'complete'
+            const isActive = status === 'active'
+            return (
+              <li key={step.key} className="relative flex flex-1 flex-col items-center">
+                {/* Connector line */}
+                {index > 0 && (
+                  <div
+                    className={clsx(
+                      'absolute right-1/2 top-4 -z-10 h-0.5 w-full -translate-y-1/2',
+                      isComplete || isActive ? 'bg-blue-500' : 'bg-gray-200'
+                    )}
+                    aria-hidden="true"
+                  />
+                )}
+                {/* Step circle */}
+                <div
+                  className={clsx(
+                    'relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition-all duration-300',
+                    isComplete && 'bg-emerald-500 text-white shadow-md shadow-emerald-200',
+                    isActive && 'bg-blue-500 text-white shadow-md shadow-blue-200 ring-4 ring-blue-100',
+                    !isComplete && !isActive && 'border-2 border-gray-200 bg-white text-gray-400'
+                  )}
+                  aria-current={isActive ? 'step' : undefined}
+                >
+                  {isComplete ? (
+                    <Check className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <span>{index + 1}</span>
+                  )}
+                </div>
+                {/* Step label */}
+                <div className="mt-2 text-center">
+                  <p
+                    className={clsx(
+                      'text-xs font-semibold',
+                      isComplete && 'text-emerald-600',
+                      isActive && 'text-blue-600',
+                      !isComplete && !isActive && 'text-gray-400'
+                    )}
+                  >
+                    {step.label}
+                  </p>
+                  <p className="mt-0.5 hidden text-[10px] text-gray-500 sm:block">
+                    {step.description}
+                  </p>
+                </div>
+              </li>
+            )
+          })}
+        </ol>
+      </nav>
+
       {error && (
         <div role="alert" aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 p-4">
           <div className="flex">

@@ -57,6 +57,12 @@ export function ReservationBookingModal({
     availabilitySourceType,
   } = state
 
+  // Calculate step completion status based on actual data
+  // Step 1: Complete when at least one slot is selected
+  const isScheduleComplete = selectedSlots.length > 0
+  // Step 2: Course is auto-selected by default, so complete when on info tab with schedule done
+  // Step 3: Active when on info tab (personal info being filled)
+
   if (!formOpen) return null
 
   return (
@@ -109,9 +115,30 @@ export function ReservationBookingModal({
             <div className="rounded-[28px] border border-white/60 bg-gradient-to-r from-brand-primary/5 via-white to-brand-secondary/5 p-5 shadow-[0_8px_32px_rgba(37,99,235,0.08)]">
               <ol className="flex flex-wrap items-center justify-between gap-4 text-xs font-semibold">
                 {bookingSteps.map((step, index) => {
-                  const isActive = (formTab === 'schedule' && step.key === 'schedule') ||
-                    (formTab === 'info' && step.key !== 'schedule')
-                  const isPast = formTab === 'info' && step.key === 'schedule'
+                  // Determine step status based on actual completion state
+                  const getStepStatus = (): 'active' | 'complete' | 'pending' => {
+                    if (step.key === 'schedule') {
+                      // Schedule is complete when slots are selected, active when on schedule tab
+                      if (isScheduleComplete) return 'complete'
+                      if (formTab === 'schedule') return 'active'
+                      return 'pending'
+                    }
+                    if (step.key === 'course') {
+                      // Course is complete when on info tab (course auto-selected by default)
+                      if (formTab === 'info') return 'complete'
+                      if (isScheduleComplete) return 'active'
+                      return 'pending'
+                    }
+                    if (step.key === 'info') {
+                      // Personal info is active when on info tab
+                      if (formTab === 'info') return 'active'
+                      return 'pending'
+                    }
+                    return 'pending'
+                  }
+                  const stepStatus = getStepStatus()
+                  const isActive = stepStatus === 'active'
+                  const isPast = stepStatus === 'complete'
                   return (
                     <li key={step.key} className="relative flex flex-1 items-center gap-3">
                       {index > 0 && (
