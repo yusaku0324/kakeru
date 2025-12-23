@@ -557,6 +557,16 @@ async def cancel_guest_reservation(
     db.add(reservation)
     await db.commit()
     await db.refresh(reservation)
+
+    # Invalidate availability cache for this therapist's date
+    if reservation.therapist_id and reservation.start_at:
+        cache_key = (
+            f"availability_slots:{reservation.therapist_id}:"
+            f"{reservation.start_at.date().isoformat()}"
+        )
+        await availability_cache.invalidate(cache_key)
+        logger.debug("Invalidated cache (cancel): %s", cache_key)
+
     return reservation
 
 

@@ -14,6 +14,7 @@ from .... import models
 from ....db import get_session
 from ....deps import require_dashboard_user, verify_shop_manager
 from ....services.availability_sync import sync_availability_for_date
+from ....utils.cache import availability_cache
 
 logger = logging.getLogger(__name__)
 
@@ -332,6 +333,11 @@ async def create_shift(
     await sync_availability_for_date(db, profile_id, payload.date)
     await db.commit()
 
+    # Invalidate availability cache for this therapist's date
+    cache_key = f"availability_slots:{payload.therapist_id}:{payload.date.isoformat()}"
+    await availability_cache.invalidate(cache_key)
+    logger.debug("Invalidated cache (shift create): %s", cache_key)
+
     return _serialize(shift)
 
 
@@ -414,6 +420,11 @@ async def update_shift(
     await sync_availability_for_date(db, profile_id, shift.date)
     await db.commit()
 
+    # Invalidate availability cache for this therapist's date
+    cache_key = f"availability_slots:{shift.therapist_id}:{shift.date.isoformat()}"
+    await availability_cache.invalidate(cache_key)
+    logger.debug("Invalidated cache (shift update): %s", cache_key)
+
     return _serialize(shift)
 
 
@@ -445,9 +456,15 @@ async def delete_shift(
 
     shift_date = shift.date
     shop_id = shift.shop_id
+    therapist_id = shift.therapist_id
     await db.delete(shift)
     await db.commit()
 
     # Availabilityテーブルを同期（シフト削除後）
     await sync_availability_for_date(db, shop_id, shift_date)
     await db.commit()
+
+    # Invalidate availability cache for this therapist's date
+    cache_key = f"availability_slots:{therapist_id}:{shift_date.isoformat()}"
+    await availability_cache.invalidate(cache_key)
+    logger.debug("Invalidated cache (shift delete): %s", cache_key)
