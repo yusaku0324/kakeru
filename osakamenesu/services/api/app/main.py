@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 import logging
+import sentry_sdk
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -8,6 +9,15 @@ from fastapi.staticfiles import StaticFiles
 from .admin_htmx.router import router as admin_htmx_router
 from .meili import ensure_indexes
 from .settings import settings
+
+# Initialize Sentry for error monitoring
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.sentry_environment or "production",
+        traces_sample_rate=settings.sentry_traces_sample_rate or 0.1,
+        send_default_pii=False,
+    )
 from .domains.admin import (
     admin_router,
     admin_profiles_router,

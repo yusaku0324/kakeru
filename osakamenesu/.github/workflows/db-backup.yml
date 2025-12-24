@@ -1,0 +1,90 @@
+name: Database Backup
+
+on:
+  schedule:
+    # Run daily at 4:00 AM JST (19:00 UTC previous day)
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: 'Number of days to retain backups'
+        required: false
+        default: '30'
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Create backup
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          # Get current timestamp for backup filename
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          BACKUP_FILE="backup_${TIMESTAMP}.sql.gz"
+
+          # Connect to Fly.io database and create backup
+          flyctl proxy 5432:5432 -a osakamenesu-db &
+          PROXY_PID=$!
+          sleep 5
+
+          # Create backup using pg_dump
+          PGPASSWORD="${{ secrets.DB_PASSWORD }}" pg_dump \
+            -h localhost \
+            -p 5432 \
+            -U postgres \
+            -d osaka_menesu \
+            --no-owner \
+            --no-acl \
+            | gzip > "${BACKUP_FILE}"
+
+          # Kill proxy
+          kill $PROXY_PID 2>/dev/null || true
+
+          # Upload to R2/S3 (if configured)
+          if [ -n "${{ secrets.BACKUP_S3_BUCKET }}" ]; then
+            aws s3 cp "${BACKUP_FILE}" "s3://${{ secrets.BACKUP_S3_BUCKET }}/db-backups/${BACKUP_FILE}" \
+              --endpoint-url "${{ secrets.BACKUP_S3_ENDPOINT }}"
+            echo "✅ Backup uploaded to S3: ${BACKUP_FILE}"
+          else
+            echo "⚠️ No S3 bucket configured, backup saved locally only"
+          fi
+
+          # Cleanup old backups (keep last N days)
+          RETENTION_DAYS="${{ github.event.inputs.retention_days || '30' }}"
+          if [ -n "${{ secrets.BACKUP_S3_BUCKET }}" ]; then
+            echo "Cleaning up backups older than ${RETENTION_DAYS} days..."
+            CUTOFF_DATE=$(date -d "-${RETENTION_DAYS} days" +%Y%m%d)
+            aws s3 ls "s3://${{ secrets.BACKUP_S3_BUCKET }}/db-backups/" \
+              --endpoint-url "${{ secrets.BACKUP_S3_ENDPOINT }}" \
+              | while read -r line; do
+                FILENAME=$(echo "$line" | awk '{print $4}')
+                FILE_DATE=$(echo "$FILENAME" | grep -oP '\d{8}' | head -1)
+                if [ -n "$FILE_DATE" ] && [ "$FILE_DATE" -lt "$CUTOFF_DATE" ]; then
+                  aws s3 rm "s3://${{ secrets.BACKUP_S3_BUCKET }}/db-backups/${FILENAME}" \
+                    --endpoint-url "${{ secrets.BACKUP_S3_ENDPOINT }}"
+                  echo "Deleted old backup: ${FILENAME}"
+                fi
+              done
+          fi
+
+          echo "Backup size: $(ls -lh ${BACKUP_FILE} | awk '{print $5}')"
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{"text":"⚠️ Database backup failed! Check GitHub Actions for details."}' \
+              "$SLACK_WEBHOOK"
+          fi

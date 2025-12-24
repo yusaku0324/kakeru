@@ -148,11 +148,19 @@ class Settings(BaseSettings):
             "MEDIA_S3_SECRET_ACCESS_KEY", "MEDIA_SECRET_KEY", "R2_SECRET_ACCESS_KEY"
         ),
     )
+    sentry_dsn: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SENTRY_DSN", "SENTRY_API_DSN"),
+    )
     sentry_traces_sample_rate: float | None = Field(
         default=None,
         validation_alias=AliasChoices(
             "SENTRY_TRACES_SAMPLE_RATE", "NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE"
         ),
+    )
+    sentry_environment: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SENTRY_ENVIRONMENT", "ENVIRONMENT"),
     )
     test_auth_secret: str | None = Field(
         default=None,  # 本番環境でテストログインを無効化（環境変数で明示的に設定が必要）
