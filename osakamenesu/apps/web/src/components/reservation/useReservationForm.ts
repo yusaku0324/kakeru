@@ -511,6 +511,7 @@ export function useReservationForm({
             therapist_unavailable: 'セラピストがその時間は対応できません',
             overlap_existing_reservation: 'その時間帯は既に予約が入っています',
             internal_error: 'システムエラーが発生しました。しばらくしてから再度お試しください。',
+            shop_not_found: 'この店舗は現在予約を受け付けていません。',
           }
           const friendlyReasons = reasons.map((r) => reasonMessages[r] ?? r).join('\n')
           push('error', friendlyReasons || '予約を受け付けられませんでした。別の時間帯をお試しください。')

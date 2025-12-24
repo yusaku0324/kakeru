@@ -17,6 +17,12 @@ def _ts(hour: int, minute: int = 0) -> datetime:
     return datetime(2025, 1, 1, hour, minute, tzinfo=timezone.utc)
 
 
+class MockProfile:
+    """Mock profile for testing."""
+
+    room_count = 1
+
+
 class DummyResult:
     def __init__(self, value):
         self.value = value
@@ -88,7 +94,11 @@ async def test_create_cancel_and_recreate(monkeypatch: pytest.MonkeyPatch):
                 return False, {"rejected_reasons": ["overlap_existing_reservation"]}
         return True, {"rejected_reasons": []}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "is_available", fake_is_available)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
 
     payload = {
         "shop_id": uuid4(),

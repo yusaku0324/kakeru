@@ -39,12 +39,22 @@ async def stub_session():
     return StubSession()
 
 
+class MockProfile:
+    """Mock profile for testing."""
+
+    room_count = 1
+
+
 @pytest.mark.asyncio
 async def test_is_available_ok(monkeypatch, stub_session):
     async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "is_available", _avail)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
     payload = {
         "shop_id": str(uuid4()),
         "therapist_id": str(uuid4()),
@@ -61,7 +71,11 @@ async def test_is_available_no_shift(monkeypatch, stub_session):
     async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return False, {"rejected_reasons": ["no_shift"]}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "is_available", _avail)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
     payload = {
         "shop_id": str(uuid4()),
         "therapist_id": str(uuid4()),
@@ -78,7 +92,11 @@ async def test_is_available_on_break(monkeypatch, stub_session):
     async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return False, {"rejected_reasons": ["on_break"]}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "is_available", _avail)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
     payload = {
         "shop_id": str(uuid4()),
         "therapist_id": str(uuid4()),
@@ -95,7 +113,11 @@ async def test_is_available_overlap(monkeypatch, stub_session):
     async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return False, {"rejected_reasons": ["overlap_existing_reservation"]}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "is_available", _avail)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
     payload = {
         "shop_id": str(uuid4()),
         "therapist_id": str(uuid4()),
@@ -112,8 +134,12 @@ async def test_is_available_internal_error(monkeypatch, stub_session):
     async def _avail(db, therapist_id, start_at, end_at, lock=False):
         raise RuntimeError("boom")
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     # simulate fail-soft: wrap to return internal_error
     monkeypatch.setattr(domain, "is_available", _avail)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
     payload = {
         "shop_id": str(uuid4()),
         "therapist_id": str(uuid4()),

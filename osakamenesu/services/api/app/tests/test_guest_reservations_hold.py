@@ -81,6 +81,12 @@ class StubSession:
         return None
 
 
+class MockProfile:
+    """Mock profile for testing."""
+
+    room_count = 1
+
+
 @pytest.mark.asyncio
 async def test_hold_idempotency_returns_same_reservation(
     monkeypatch: pytest.MonkeyPatch,
@@ -88,7 +94,11 @@ async def test_hold_idempotency_returns_same_reservation(
     async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "is_available", _avail)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
 
     session = StubSession()
     now = _ts(12)
@@ -124,7 +134,11 @@ async def test_hold_idempotency_conflict(monkeypatch: pytest.MonkeyPatch):
     async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "is_available", _avail)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
 
     session = StubSession()
     now = _ts(12)

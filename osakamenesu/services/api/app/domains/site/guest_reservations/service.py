@@ -181,6 +181,10 @@ async def create_guest_reservation(
     profile: Profile | None = None
     if shop_id:
         profile = await try_fetch_profile(db, shop_id)
+        # Reject if shop doesn't exist in database
+        if profile is None:
+            rejected.append("shop_not_found")
+            return None, {"rejected_reasons": rejected}
 
     (
         service_duration_minutes,
@@ -394,6 +398,10 @@ async def create_guest_reservation_hold(
     profile: Profile | None = None
     if shop_id:
         profile = await try_fetch_profile(db, shop_id)
+        # Reject if shop doesn't exist in database
+        if profile is None:
+            rejected.append("shop_not_found")
+            return None, {"rejected_reasons": rejected}, None
 
     (
         service_duration_minutes,

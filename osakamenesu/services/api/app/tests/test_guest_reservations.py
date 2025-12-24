@@ -67,12 +67,22 @@ async def stub_session():
     return StubSession()
 
 
+class MockProfile:
+    """Mock profile for testing."""
+
+    room_count = 1
+
+
 @pytest.mark.asyncio
 async def test_create_guest_reservation_success(monkeypatch, stub_session: StubSession):
     async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "is_available", _avail)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
 
     payload = {
         "shop_id": str(uuid4()),
@@ -93,7 +103,11 @@ async def test_create_guest_reservation_deadline_over(
     async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "is_available", _avail)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
 
     payload = {
         "shop_id": str(uuid4()),
@@ -113,7 +127,11 @@ async def test_create_guest_reservation_double_booking(
     async def _avail_ok(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "is_available", _avail_ok)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
 
     payload = {
         "shop_id": str(uuid4()),
@@ -141,7 +159,11 @@ async def test_create_guest_reservation_free_assign_failed(
     async def _no_assign(db, shop_id, start_at, end_at, base_staff_id=None):
         return None, {"rejected_reasons": ["no_available_therapist"]}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "assign_for_free", _no_assign)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
     # is_available は therapist_id None の場合はスキップされる前提なので未設定
 
     payload = {
@@ -156,13 +178,39 @@ async def test_create_guest_reservation_free_assign_failed(
 
 
 @pytest.mark.asyncio
+async def test_create_guest_reservation_shop_not_found(
+    monkeypatch, stub_session: StubSession
+):
+    """Test that reservation is rejected when shop doesn't exist in database."""
+
+    async def _fetch_profile(db, shop_id):
+        return None  # Shop not found
+
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
+
+    payload = {
+        "shop_id": str(uuid4()),
+        "therapist_id": str(uuid4()),
+        "start_at": _ts(14),
+        "end_at": _ts(15),
+    }
+    res, debug = await create_guest_reservation(stub_session, payload, now=_ts(10))
+    assert res is None
+    assert "shop_not_found" in debug["rejected_reasons"]
+
+
+@pytest.mark.asyncio
 async def test_cancel_guest_reservation_idempotent(
     monkeypatch, stub_session: StubSession
 ):
     async def _avail(db, therapist_id, start_at, end_at, lock=False):
         return True, {"rejected_reasons": []}
 
+    async def _fetch_profile(db, shop_id):
+        return MockProfile()
+
     monkeypatch.setattr(domain, "is_available", _avail)
+    monkeypatch.setattr(domain, "_try_fetch_profile", _fetch_profile)
 
     payload = {
         "shop_id": str(uuid4()),
