@@ -9,6 +9,9 @@ on:
     paths:
       - 'apps/web/**'
       - '.github/workflows/ci-e2e.yml'
+  schedule:
+    # Run daily at 9:00 AM JST (0:00 UTC)
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 jobs:
@@ -107,12 +110,11 @@ jobs:
           retention-days: 7
 
   # Dashboard/Lifecycle tests (authentication required)
+  # Tests: Shift creation → Reservation form → Admin confirmation
   e2e-lifecycle:
     name: E2E Lifecycle (Dashboard)
     runs-on: ubuntu-latest
     environment: Preview
-    # Only run if E2E_TEST_AUTH_SECRET is configured
-    if: ${{ vars.E2E_LIFECYCLE_ENABLED == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
