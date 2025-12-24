@@ -194,7 +194,7 @@ jobs:
               sys.exit(1)
 
           try:
-              from app.domains.site.guest_matching import guest_matching_search
+              from app.domains.site.guest_matching import router as guest_matching_router
               print('✅ guest_matching imports successfully')
           except ImportError as e:
               print(f'❌ Import error in guest_matching: {e}')
