@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime, timedelta
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,136 +31,124 @@ for key in [
     os.environ.pop(key, None)
     os.environ.pop(key.lower(), None)
 
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+
 from app import models
-from app.db import SessionLocal
+from app.settings import settings
 from app.domains.site.guest_reservations import (
     create_guest_reservation,
     create_guest_reservation_hold,
 )
 from app.utils.datetime import JST
 
+
+def _create_session_factory():
+    """Create a fresh session factory for each test."""
+    engine = create_async_engine(
+        settings.database_url,
+        echo=False,
+        future=True,
+        pool_pre_ping=True,
+    )
+    return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
 os.environ.setdefault("ANYIO_BACKEND", "asyncio")
 
-pytestmark = [pytest.mark.integration]
-
-# Skip if integration DB not available
-if not os.getenv("OSAKAMENESU_INTEGRATION_DB"):
-    pytestmark.append(pytest.mark.skip(reason="requires OSAKAMENESU_INTEGRATION_DB=1"))
-
-
-def _ensure_local_db_available() -> None:
-    async def _ping() -> None:
-        try:
-            async with SessionLocal() as session:
-                await session.execute(text("SELECT 1"))
-        except Exception as e:
-            pytest.skip(f"PostgreSQL not available: {e}")
-
-    asyncio.get_event_loop().run_until_complete(_ping())
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not os.getenv("OSAKAMENESU_INTEGRATION_DB"),
+        reason="requires OSAKAMENESU_INTEGRATION_DB=1",
+    ),
+]
 
 
-_ensure_local_db_available()
-
-
-@pytest.fixture
-async def db_session():
-    """Provide a database session for tests."""
-    async with SessionLocal() as session:
-        yield session
-        await session.rollback()
-
-
-@pytest.fixture
-async def test_profile(db_session: AsyncSession):
-    """Create a test profile (shop)."""
+async def _setup_test_data(session_factory):
+    """Create test data and return IDs for cleanup."""
     profile_id = uuid.uuid4()
-    profile = models.Profile(
-        id=profile_id,
-        name="Test Shop",
-        room_count=1,  # Single room for testing
-        buffer_minutes=0,
-    )
-    db_session.add(profile)
-    await db_session.commit()
-    await db_session.refresh(profile)
-    yield profile
-    # Cleanup
-    await db_session.execute(
-        delete(models.Profile).where(models.Profile.id == profile_id)
-    )
-    await db_session.commit()
-
-
-@pytest.fixture
-async def test_therapist(db_session: AsyncSession, test_profile):
-    """Create a test therapist."""
     therapist_id = uuid.uuid4()
-    therapist = models.Therapist(
-        id=therapist_id,
-        profile_id=test_profile.id,
-        name="Test Therapist",
-        status="published",
-    )
-    db_session.add(therapist)
-    await db_session.commit()
-    await db_session.refresh(therapist)
-    yield therapist
-    # Cleanup
-    await db_session.execute(
-        delete(models.Therapist).where(models.Therapist.id == therapist_id)
-    )
-    await db_session.commit()
+    shift_id = uuid.uuid4()
 
-
-@pytest.fixture
-async def test_shift(db_session: AsyncSession, test_therapist):
-    """Create a test shift for tomorrow."""
     tomorrow = (datetime.now(JST) + timedelta(days=1)).date()
     shift_start = datetime.combine(
         tomorrow, datetime.min.time(), tzinfo=JST
     ) + timedelta(hours=10)
     shift_end = shift_start + timedelta(hours=8)
 
-    shift = models.TherapistShift(
-        id=uuid.uuid4(),
-        therapist_id=test_therapist.id,
-        date=tomorrow,
-        start_at=shift_start,
-        end_at=shift_end,
-        availability_status="available",
-        break_slots=[],
-    )
-    db_session.add(shift)
-    await db_session.commit()
-    await db_session.refresh(shift)
-    yield shift
-    # Cleanup
-    await db_session.execute(
-        delete(models.TherapistShift).where(models.TherapistShift.id == shift.id)
-    )
-    await db_session.commit()
+    try:
+        async with session_factory() as session:
+            profile = models.Profile(
+                id=profile_id,
+                name="Test Shop",
+                room_count=1,
+                buffer_minutes=0,
+            )
+            session.add(profile)
 
+            therapist = models.Therapist(
+                id=therapist_id,
+                profile_id=profile_id,
+                name="Test Therapist",
+                status="published",
+            )
+            session.add(therapist)
 
-@pytest.fixture
-def reservation_payload(test_profile, test_therapist, test_shift):
-    """Create a base reservation payload."""
-    tomorrow = (datetime.now(JST) + timedelta(days=1)).date()
-    start_at = datetime.combine(tomorrow, datetime.min.time(), tzinfo=JST) + timedelta(
-        hours=12
-    )
+            shift = models.TherapistShift(
+                id=shift_id,
+                therapist_id=therapist_id,
+                shop_id=profile_id,
+                date=tomorrow,
+                start_at=shift_start,
+                end_at=shift_end,
+                availability_status="available",
+                break_slots=[],
+            )
+            session.add(shift)
+            await session.commit()
+    except Exception as e:
+        pytest.skip(f"Database not available: {e}")
 
     return {
-        "shop_id": str(test_profile.id),
-        "therapist_id": str(test_therapist.id),
-        "start_at": start_at.isoformat(),
-        "duration_minutes": 60,
-        "contact_info": {"name": "Test User", "phone": "090-1234-5678"},
+        "profile_id": profile_id,
+        "therapist_id": therapist_id,
+        "shift_id": shift_id,
+        "tomorrow": tomorrow,
     }
 
 
-async def _create_reservation_task(payload: dict, task_id: int):
+async def _cleanup_test_data(
+    session_factory, data: dict, reservation_ids: list[uuid.UUID] = None
+):
+    """Clean up test data."""
+    async with session_factory() as session:
+        # Clean up reservations first
+        if reservation_ids:
+            for rid in reservation_ids:
+                await session.execute(
+                    delete(models.GuestReservation).where(
+                        models.GuestReservation.id == rid
+                    )
+                )
+
+        # Clean up in reverse order of creation
+        await session.execute(
+            delete(models.TherapistShift).where(
+                models.TherapistShift.id == data["shift_id"]
+            )
+        )
+        await session.execute(
+            delete(models.Therapist).where(models.Therapist.id == data["therapist_id"])
+        )
+        await session.execute(
+            delete(models.Profile).where(models.Profile.id == data["profile_id"])
+        )
+        await session.commit()
+
+
+async def _create_reservation_task(session_factory, payload: dict, task_id: int):
     """Helper to create a reservation in a separate session."""
-    async with SessionLocal() as session:
+    async with session_factory() as session:
         result, debug = await create_guest_reservation(session, payload)
         return {
             "task_id": task_id,
@@ -169,117 +158,11 @@ async def _create_reservation_task(payload: dict, task_id: int):
         }
 
 
-@pytest.mark.asyncio
-async def test_concurrent_same_slot_only_one_succeeds(
-    db_session: AsyncSession,
-    reservation_payload: dict,
+async def _create_hold_task(
+    session_factory, payload: dict, idempotency_key: str, task_id: int
 ):
-    """
-    Test that when two concurrent requests try to book the same slot,
-    exactly one succeeds and the other fails with overlap_existing_reservation.
-
-    This is the critical race condition test for double booking prevention.
-    """
-    # Create two concurrent reservation attempts for the same slot
-    tasks = [_create_reservation_task(reservation_payload.copy(), i) for i in range(2)]
-
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    # Filter out exceptions
-    successful_results = [r for r in results if isinstance(r, dict)]
-
-    # Count successes and failures
-    successes = [r for r in successful_results if r["success"]]
-    failures = [r for r in successful_results if not r["success"]]
-
-    # Exactly one should succeed
-    assert len(successes) == 1, (
-        f"Expected exactly 1 success, got {len(successes)}: {successes}"
-    )
-
-    # The other should fail with overlap_existing_reservation
-    assert len(failures) == 1, (
-        f"Expected exactly 1 failure, got {len(failures)}: {failures}"
-    )
-    assert "overlap_existing_reservation" in failures[0]["rejected_reasons"], (
-        f"Expected overlap_existing_reservation, got {failures[0]['rejected_reasons']}"
-    )
-
-    # Cleanup: delete the created reservation
-    if successes:
-        await db_session.execute(
-            delete(models.GuestReservation).where(
-                models.GuestReservation.id == uuid.UUID(successes[0]["reservation_id"])
-            )
-        )
-        await db_session.commit()
-
-
-@pytest.mark.asyncio
-async def test_concurrent_different_slots_both_succeed(
-    db_session: AsyncSession,
-    test_profile,
-    test_therapist,
-    test_shift,
-):
-    """
-    Test that two concurrent requests for different slots both succeed.
-    This verifies that locking is granular and doesn't block unrelated bookings.
-    """
-    tomorrow = (datetime.now(JST) + timedelta(days=1)).date()
-
-    # Two different time slots
-    slot1_start = datetime.combine(
-        tomorrow, datetime.min.time(), tzinfo=JST
-    ) + timedelta(hours=11)
-    slot2_start = datetime.combine(
-        tomorrow, datetime.min.time(), tzinfo=JST
-    ) + timedelta(hours=14)
-
-    payload1 = {
-        "shop_id": str(test_profile.id),
-        "therapist_id": str(test_therapist.id),
-        "start_at": slot1_start.isoformat(),
-        "duration_minutes": 60,
-        "contact_info": {"name": "User 1", "phone": "090-1111-1111"},
-    }
-
-    payload2 = {
-        "shop_id": str(test_profile.id),
-        "therapist_id": str(test_therapist.id),
-        "start_at": slot2_start.isoformat(),
-        "duration_minutes": 60,
-        "contact_info": {"name": "User 2", "phone": "090-2222-2222"},
-    }
-
-    # Run concurrently
-    results = await asyncio.gather(
-        _create_reservation_task(payload1, 1),
-        _create_reservation_task(payload2, 2),
-        return_exceptions=True,
-    )
-
-    successful_results = [r for r in results if isinstance(r, dict)]
-    successes = [r for r in successful_results if r["success"]]
-
-    # Both should succeed
-    assert len(successes) == 2, (
-        f"Expected 2 successes, got {len(successes)}: {successful_results}"
-    )
-
-    # Cleanup
-    for s in successes:
-        await db_session.execute(
-            delete(models.GuestReservation).where(
-                models.GuestReservation.id == uuid.UUID(s["reservation_id"])
-            )
-        )
-    await db_session.commit()
-
-
-async def _create_hold_task(payload: dict, idempotency_key: str, task_id: int):
     """Helper to create a hold in a separate session."""
-    async with SessionLocal() as session:
+    async with session_factory() as session:
         result, debug, error = await create_guest_reservation_hold(
             session, payload, idempotency_key=idempotency_key
         )
@@ -293,91 +176,250 @@ async def _create_hold_task(payload: dict, idempotency_key: str, task_id: int):
 
 
 @pytest.mark.asyncio
-async def test_concurrent_holds_only_one_succeeds(
-    db_session: AsyncSession,
-    reservation_payload: dict,
-):
+async def test_concurrent_same_slot_only_one_succeeds():
+    """
+    Test that when two concurrent requests try to book the same slot,
+    exactly one succeeds and the other fails with overlap_existing_reservation.
+
+    This is the critical race condition test for double booking prevention.
+    """
+    # Create a fresh session factory for this test
+    session_factory = _create_session_factory()
+
+    # Setup
+    data = await _setup_test_data(session_factory)
+    reservation_ids = []
+
+    try:
+        start_at = datetime.combine(
+            data["tomorrow"], datetime.min.time(), tzinfo=JST
+        ) + timedelta(hours=12)
+
+        payload = {
+            "shop_id": str(data["profile_id"]),
+            "therapist_id": str(data["therapist_id"]),
+            "start_at": start_at.isoformat(),
+            "duration_minutes": 60,
+            "contact_info": {"name": "Test User", "phone": "090-1234-5678"},
+        }
+
+        # Create two concurrent reservation attempts for the same slot
+        tasks = [
+            _create_reservation_task(session_factory, payload.copy(), i)
+            for i in range(2)
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Filter out exceptions
+        successful_results = [r for r in results if isinstance(r, dict)]
+
+        # Count successes and failures
+        successes = [r for r in successful_results if r["success"]]
+        failures = [r for r in successful_results if not r["success"]]
+
+        # Track reservation IDs for cleanup
+        for s in successes:
+            if s["reservation_id"]:
+                reservation_ids.append(uuid.UUID(s["reservation_id"]))
+
+        # Exactly one should succeed
+        assert len(successes) == 1, (
+            f"Expected exactly 1 success, got {len(successes)}: {successes}"
+        )
+
+        # The other should fail with overlap_existing_reservation
+        assert len(failures) == 1, (
+            f"Expected exactly 1 failure, got {len(failures)}: {failures}"
+        )
+        assert "overlap_existing_reservation" in failures[0]["rejected_reasons"], (
+            f"Expected overlap_existing_reservation, got {failures[0]['rejected_reasons']}"
+        )
+
+    finally:
+        await _cleanup_test_data(session_factory, data, reservation_ids)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_different_slots_both_succeed():
+    """
+    Test that two concurrent requests for different slots both succeed.
+    This verifies that locking is granular and doesn't block unrelated bookings.
+    """
+    # Create a fresh session factory for this test
+    session_factory = _create_session_factory()
+
+    # Setup
+    data = await _setup_test_data(session_factory)
+    reservation_ids = []
+
+    try:
+        # Two different time slots
+        slot1_start = datetime.combine(
+            data["tomorrow"], datetime.min.time(), tzinfo=JST
+        ) + timedelta(hours=11)
+        slot2_start = datetime.combine(
+            data["tomorrow"], datetime.min.time(), tzinfo=JST
+        ) + timedelta(hours=14)
+
+        payload1 = {
+            "shop_id": str(data["profile_id"]),
+            "therapist_id": str(data["therapist_id"]),
+            "start_at": slot1_start.isoformat(),
+            "duration_minutes": 60,
+            "contact_info": {"name": "User 1", "phone": "090-1111-1111"},
+        }
+
+        payload2 = {
+            "shop_id": str(data["profile_id"]),
+            "therapist_id": str(data["therapist_id"]),
+            "start_at": slot2_start.isoformat(),
+            "duration_minutes": 60,
+            "contact_info": {"name": "User 2", "phone": "090-2222-2222"},
+        }
+
+        # Run concurrently
+        results = await asyncio.gather(
+            _create_reservation_task(session_factory, payload1, 1),
+            _create_reservation_task(session_factory, payload2, 2),
+            return_exceptions=True,
+        )
+
+        successful_results = [r for r in results if isinstance(r, dict)]
+        successes = [r for r in successful_results if r["success"]]
+
+        # Track reservation IDs for cleanup
+        for s in successes:
+            if s["reservation_id"]:
+                reservation_ids.append(uuid.UUID(s["reservation_id"]))
+
+        # Both should succeed
+        assert len(successes) == 2, (
+            f"Expected 2 successes, got {len(successes)}: {successful_results}"
+        )
+
+    finally:
+        await _cleanup_test_data(session_factory, data, reservation_ids)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_holds_only_one_succeeds():
     """
     Test that when two concurrent hold requests target the same slot,
     exactly one succeeds.
     """
-    # Different idempotency keys for different users
-    tasks = [
-        _create_hold_task(
-            reservation_payload.copy(),
-            idempotency_key=f"test-hold-{i}-{uuid.uuid4()}",
-            task_id=i,
-        )
-        for i in range(2)
-    ]
+    # Create a fresh session factory for this test
+    session_factory = _create_session_factory()
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    # Setup
+    data = await _setup_test_data(session_factory)
+    reservation_ids = []
 
-    successful_results = [r for r in results if isinstance(r, dict)]
-    successes = [r for r in successful_results if r["success"]]
-    failures = [r for r in successful_results if not r["success"]]
+    try:
+        start_at = datetime.combine(
+            data["tomorrow"], datetime.min.time(), tzinfo=JST
+        ) + timedelta(hours=12)
 
-    # Exactly one should succeed
-    assert len(successes) == 1, (
-        f"Expected exactly 1 success, got {len(successes)}: {successes}"
-    )
-    assert len(failures) == 1, (
-        f"Expected exactly 1 failure, got {len(failures)}: {failures}"
-    )
+        payload = {
+            "shop_id": str(data["profile_id"]),
+            "therapist_id": str(data["therapist_id"]),
+            "start_at": start_at.isoformat(),
+            "duration_minutes": 60,
+            "contact_info": {"name": "Test User", "phone": "090-1234-5678"},
+        }
 
-    # Cleanup
-    for s in successes:
-        await db_session.execute(
-            delete(models.GuestReservation).where(
-                models.GuestReservation.id == uuid.UUID(s["reservation_id"])
+        # Different idempotency keys for different users
+        tasks = [
+            _create_hold_task(
+                session_factory,
+                payload.copy(),
+                idempotency_key=f"test-hold-{i}-{uuid.uuid4()}",
+                task_id=i,
             )
+            for i in range(2)
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        successful_results = [r for r in results if isinstance(r, dict)]
+        successes = [r for r in successful_results if r["success"]]
+        failures = [r for r in successful_results if not r["success"]]
+
+        # Track reservation IDs for cleanup
+        for s in successes:
+            if s["reservation_id"]:
+                reservation_ids.append(uuid.UUID(s["reservation_id"]))
+
+        # Exactly one should succeed
+        assert len(successes) == 1, (
+            f"Expected exactly 1 success, got {len(successes)}: {successes}"
         )
-    await db_session.commit()
+        assert len(failures) == 1, (
+            f"Expected exactly 1 failure, got {len(failures)}: {failures}"
+        )
+
+    finally:
+        await _cleanup_test_data(session_factory, data, reservation_ids)
 
 
 @pytest.mark.asyncio
-async def test_high_concurrency_stress(
-    db_session: AsyncSession,
-    reservation_payload: dict,
-):
+async def test_high_concurrency_stress():
     """
     Stress test: 10 concurrent requests for the same slot.
     Exactly one should succeed.
     """
-    num_concurrent = 10
+    # Create a fresh session factory for this test
+    session_factory = _create_session_factory()
 
-    tasks = [
-        _create_reservation_task(reservation_payload.copy(), i)
-        for i in range(num_concurrent)
-    ]
+    # Setup
+    data = await _setup_test_data(session_factory)
+    reservation_ids = []
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        num_concurrent = 10
 
-    successful_results = [r for r in results if isinstance(r, dict)]
-    successes = [r for r in successful_results if r["success"]]
-    failures = [r for r in successful_results if not r["success"]]
+        start_at = datetime.combine(
+            data["tomorrow"], datetime.min.time(), tzinfo=JST
+        ) + timedelta(hours=12)
 
-    # Exactly one should succeed
-    assert len(successes) == 1, (
-        f"CRITICAL: Expected exactly 1 success under high concurrency, got {len(successes)}"
-    )
+        payload = {
+            "shop_id": str(data["profile_id"]),
+            "therapist_id": str(data["therapist_id"]),
+            "start_at": start_at.isoformat(),
+            "duration_minutes": 60,
+            "contact_info": {"name": "Test User", "phone": "090-1234-5678"},
+        }
 
-    # All others should fail
-    assert len(failures) == num_concurrent - 1, (
-        f"Expected {num_concurrent - 1} failures, got {len(failures)}"
-    )
+        tasks = [
+            _create_reservation_task(session_factory, payload.copy(), i)
+            for i in range(num_concurrent)
+        ]
 
-    # All failures should be overlap_existing_reservation
-    for f in failures:
-        assert "overlap_existing_reservation" in f["rejected_reasons"], (
-            f"Unexpected rejection reason: {f['rejected_reasons']}"
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        successful_results = [r for r in results if isinstance(r, dict)]
+        successes = [r for r in successful_results if r["success"]]
+        failures = [r for r in successful_results if not r["success"]]
+
+        # Track reservation IDs for cleanup
+        for s in successes:
+            if s["reservation_id"]:
+                reservation_ids.append(uuid.UUID(s["reservation_id"]))
+
+        # Exactly one should succeed
+        assert len(successes) == 1, (
+            f"CRITICAL: Expected exactly 1 success under high concurrency, got {len(successes)}"
         )
 
-    # Cleanup
-    for s in successes:
-        await db_session.execute(
-            delete(models.GuestReservation).where(
-                models.GuestReservation.id == uuid.UUID(s["reservation_id"])
+        # All others should fail
+        assert len(failures) == num_concurrent - 1, (
+            f"Expected {num_concurrent - 1} failures, got {len(failures)}"
+        )
+
+        # All failures should be overlap_existing_reservation
+        for f in failures:
+            assert "overlap_existing_reservation" in f["rejected_reasons"], (
+                f"Unexpected rejection reason: {f['rejected_reasons']}"
             )
-        )
-    await db_session.commit()
+
+    finally:
+        await _cleanup_test_data(session_factory, data, reservation_ids)
