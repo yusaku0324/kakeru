@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import date, datetime, timedelta, timezone
 
 from app.utils.datetime import JST
@@ -35,7 +34,8 @@ class DummySession:
 def setup_function() -> None:
     app.dependency_overrides[get_session] = lambda: DummySession()
     # Clear availability cache before each test to avoid cross-test pollution
-    asyncio.get_event_loop().run_until_complete(availability_cache.clear())
+    # Use synchronous approach (clear internal dict directly) for Python 3.10+ compatibility
+    availability_cache._cache.clear()
 
 
 def teardown_function() -> None:
@@ -166,7 +166,7 @@ def test_slots_reopen_after_cancel(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Then: after cancel (reservations list empty), slot reappears.
     # Clear cache to simulate what happens when a reservation is cancelled
-    asyncio.get_event_loop().run_until_complete(availability_cache.clear())
+    availability_cache._cache.clear()
 
     async def no_reservations(db, therapist_id, start_at, end_at):
         return []
