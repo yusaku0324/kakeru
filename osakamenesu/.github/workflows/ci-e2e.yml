@@ -50,6 +50,62 @@ jobs:
           E2E_SEED_TOKEN: ${{ secrets.E2E_SEED_TOKEN }}
         run: pnpm exec playwright test e2e/shift-to-availability-sync.spec.ts e2e/search-card-availability-consistency.spec.ts e2e/shift-to-public-ui-consistency.spec.ts e2e/jst-date-consistency.spec.ts --reporter=line --timeout=120000
 
+  # Full reservation flow test (STG only - creates/cancels reservations)
+  e2e-reservation-flow:
+    name: E2E Reservation Flow (STG)
+    runs-on: ubuntu-latest
+    environment: Preview
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required secrets
+        env:
+          E2E_ADMIN_KEY: ${{ secrets.E2E_ADMIN_KEY }}
+        run: |
+          if [ -z "$E2E_ADMIN_KEY" ]; then
+            echo "E2E_ADMIN_KEY is not set. Skipping reservation flow test."
+            echo "SKIP_TEST=true" >> $GITHUB_ENV
+          fi
+      - uses: pnpm/action-setup@v3
+        if: env.SKIP_TEST != 'true'
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        if: env.SKIP_TEST != 'true'
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install root deps
+        if: env.SKIP_TEST != 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Install web deps
+        if: env.SKIP_TEST != 'true'
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        if: env.SKIP_TEST != 'true'
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps
+      - name: Run Playwright (shift → reservation → dashboard flow)
+        if: env.SKIP_TEST != 'true'
+        working-directory: apps/web
+        env:
+          E2E_WEB_BASE: https://stg.osakamenesu.com
+          E2E_API_BASE: https://osakamenesu-api-stg.fly.dev
+          E2E_ADMIN_BASE: https://osakamenesu-api-stg.fly.dev
+          E2E_ADMIN_KEY: ${{ secrets.E2E_ADMIN_KEY }}
+        run: |
+          pnpm exec playwright test \
+            e2e/shift_reservation_flow.spec.ts \
+            --reporter=line --timeout=180000
+      - name: Upload test artifacts
+        if: failure() && env.SKIP_TEST != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-reservation-flow-artifacts
+          path: |
+            apps/web/test-results/
+          retention-days: 7
+
   # Dashboard/Lifecycle tests (authentication required)
   e2e-lifecycle:
     name: E2E Lifecycle (Dashboard)
