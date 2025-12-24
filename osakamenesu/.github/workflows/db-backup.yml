@@ -20,34 +20,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Fly CLI
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
       - name: Create backup
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          DATABASE_URL: ${{ secrets.RAILWAY_DATABASE_URL }}
         run: |
           # Get current timestamp for backup filename
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           BACKUP_FILE="backup_${TIMESTAMP}.sql.gz"
 
-          # Connect to Fly.io database and create backup
-          flyctl proxy 5432:5432 -a osakamenesu-db &
-          PROXY_PID=$!
-          sleep 5
-
-          # Create backup using pg_dump
-          PGPASSWORD="${{ secrets.DB_PASSWORD }}" pg_dump \
-            -h localhost \
-            -p 5432 \
-            -U postgres \
-            -d osaka_menesu \
+          # Create backup using pg_dump with DATABASE_URL
+          pg_dump "${DATABASE_URL}" \
             --no-owner \
             --no-acl \
             | gzip > "${BACKUP_FILE}"
-
-          # Kill proxy
-          kill $PROXY_PID 2>/dev/null || true
 
           # Upload to R2/S3 (if configured)
           if [ -n "${{ secrets.BACKUP_S3_BUCKET }}" ]; then
