@@ -64,15 +64,51 @@ jobs:
               enum_values[name] = set(values)
               print(f'Found {name}: {values}')
 
-          models_path = Path('app/models.py')
-          models_content = models_path.read_text()
-          if 'from .enums import' not in models_content and 'from app.enums import' not in models_content:
-              errors.append('models.py should import enum values from enums.py')
+          # Check models directory (models is a package, not a single file)
+          models_dir = Path('app/models')
+          if models_dir.is_dir():
+              models_init = models_dir / '__init__.py'
+              if models_init.exists():
+                  models_content = models_init.read_text()
+                  if 'from ..enums import' not in models_content and 'from app.enums import' not in models_content:
+                      # Check if any file in models imports from enums
+                      has_enum_import = False
+                      for py_file in models_dir.glob('*.py'):
+                          content = py_file.read_text()
+                          if 'from ..enums import' in content or 'from app.enums import' in content:
+                              has_enum_import = True
+                              break
+                      if not has_enum_import:
+                          errors.append('models package should import enum values from enums.py')
+          else:
+              models_path = Path('app/models.py')
+              if models_path.exists():
+                  models_content = models_path.read_text()
+                  if 'from .enums import' not in models_content and 'from app.enums import' not in models_content:
+                      errors.append('models.py should import enum values from enums.py')
 
-          schemas_path = Path('app/schemas.py')
-          schemas_content = schemas_path.read_text()
-          if 'from .enums import' not in schemas_content and 'from app.enums import' not in schemas_content:
-              errors.append('schemas.py should import enum Literals from enums.py')
+          # Check schemas directory (schemas is a package, not a single file)
+          schemas_dir = Path('app/schemas')
+          if schemas_dir.is_dir():
+              schemas_init = schemas_dir / '__init__.py'
+              if schemas_init.exists():
+                  schemas_content = schemas_init.read_text()
+                  if 'from ..enums import' not in schemas_content and 'from app.enums import' not in schemas_content:
+                      # Check if any file in schemas imports from enums
+                      has_enum_import = False
+                      for py_file in schemas_dir.glob('*.py'):
+                          content = py_file.read_text()
+                          if 'from ..enums import' in content or 'from app.enums import' in content:
+                              has_enum_import = True
+                              break
+                      if not has_enum_import:
+                          errors.append('schemas package should import enum Literals from enums.py')
+          else:
+              schemas_path = Path('app/schemas.py')
+              if schemas_path.exists():
+                  schemas_content = schemas_path.read_text()
+                  if 'from .enums import' not in schemas_content and 'from app.enums import' not in schemas_content:
+                      errors.append('schemas.py should import enum Literals from enums.py')
 
           api_dir = Path('app')
           for py_file in api_dir.rglob('*.py'):
