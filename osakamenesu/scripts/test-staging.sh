@@ -40,7 +40,7 @@ echo "-------------"
 test_endpoint "API Health" "https://osakamenesu-api-stg.fly.dev/healthz" "200"
 test_endpoint "API Docs" "https://osakamenesu-api-stg.fly.dev/docs" "200"
 test_endpoint "API OpenAPI" "https://osakamenesu-api-stg.fly.dev/openapi.json" "200"
-test_endpoint "API Shops" "https://osakamenesu-api-stg.fly.dev/api/shops" "200"
+test_endpoint "API Shops" "https://osakamenesu-api-stg.fly.dev/api/v1/shops" "200"
 
 echo ""
 echo "🌐 Web テスト"
@@ -58,9 +58,9 @@ echo "---------------"
 
 # API詳細チェック
 echo -n "API Shops response check... "
-response=$(curl -s https://osakamenesu-api-stg.fly.dev/api/shops)
-if echo "$response" | jq -e '.shops' > /dev/null 2>&1; then
-    shop_count=$(echo "$response" | jq '.shops | length')
+response=$(curl -s https://osakamenesu-api-stg.fly.dev/api/v1/shops)
+if echo "$response" | jq -e '.results' > /dev/null 2>&1; then
+    shop_count=$(echo "$response" | jq '.results | length')
     echo -e "${GREEN}✓ PASSED${NC} (Shops count: $shop_count)"
     ((PASSED++))
 else
