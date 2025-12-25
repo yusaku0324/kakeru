@@ -8083,6 +8083,158 @@
           }
         }
       }
+    },
+    "/api/push/subscribe": {
+      "post": {
+        "tags": [
+          "push"
+        ],
+        "summary": "Subscribe To Push",
+        "description": "Subscribe to push notifications.\n\nArgs:\n    subscription: Push subscription information from browser\n    current_user: Current authenticated user\n    db: Database session\n\nReturns:\n    Success response",
+        "operationId": "subscribe_to_push_api_push_subscribe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushSubscriptionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/push/unsubscribe": {
+      "post": {
+        "tags": [
+          "push"
+        ],
+        "summary": "Unsubscribe From Push",
+        "description": "Unsubscribe from push notifications.\n\nArgs:\n    subscription: Push subscription information\n    current_user: Current authenticated user\n    db: Database session\n\nReturns:\n    Success response",
+        "operationId": "unsubscribe_from_push_api_push_unsubscribe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushSubscriptionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/push/test": {
+      "post": {
+        "tags": [
+          "push"
+        ],
+        "summary": "Send Test Notification",
+        "description": "Send a test push notification.\n\nArgs:\n    request: Test notification details\n    current_user: Current authenticated user\n    db: Database session\n\nReturns:\n    Success response",
+        "operationId": "send_test_notification_api_push_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestNotificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushSubscriptionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/push/vapid-key": {
+      "get": {
+        "tags": [
+          "push"
+        ],
+        "summary": "Get Vapid Public Key",
+        "description": "Get VAPID public key for push notifications.\n\nReturns:\n    VAPID public key",
+        "operationId": "get_vapid_public_key_api_push_vapid_key_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Get Vapid Public Key Api Push Vapid Key Get"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13346,6 +13498,58 @@
         "type": "object",
         "title": "ProfileMarketingUpdate"
       },
+      "PushSubscriptionRequest": {
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "title": "Endpoint"
+          },
+          "keys": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Keys"
+          },
+          "expirationTime": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expirationtime"
+          }
+        },
+        "type": "object",
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "title": "PushSubscriptionRequest",
+        "description": "Push subscription request model."
+      },
+      "PushSubscriptionResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "title": "PushSubscriptionResponse",
+        "description": "Push subscription response model."
+      },
       "ReviewCreateRequest": {
         "properties": {
           "score": {
@@ -14935,6 +15139,34 @@
         },
         "type": "object",
         "title": "StampRequest"
+      },
+      "TestNotificationRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": "テスト通知"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body",
+            "default": "これはテスト通知です"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "title": "TestNotificationRequest",
+        "description": "Test notification request model."
       },
       "TherapistDetailResponse": {
         "properties": {

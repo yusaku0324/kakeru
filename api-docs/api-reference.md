@@ -2017,6 +2017,90 @@ Shop Dashboard
 - `422`: Validation Error
 
 
+### PUSH
+
+#### POST /api/push/subscribe
+Subscribe To Push
+
+Subscribe to push notifications.
+
+Args:
+    subscription: Push subscription information from browser
+    current_user: Current authenticated user
+    db: Database session
+
+Returns:
+    Success response
+
+**Request Body:**
+
+See schema: #/components/schemas/PushSubscriptionRequest
+
+**Responses:**
+
+- `200`: Successful Response
+- `422`: Validation Error
+
+
+#### POST /api/push/unsubscribe
+Unsubscribe From Push
+
+Unsubscribe from push notifications.
+
+Args:
+    subscription: Push subscription information
+    current_user: Current authenticated user
+    db: Database session
+
+Returns:
+    Success response
+
+**Request Body:**
+
+See schema: #/components/schemas/PushSubscriptionRequest
+
+**Responses:**
+
+- `200`: Successful Response
+- `422`: Validation Error
+
+
+#### POST /api/push/test
+Send Test Notification
+
+Send a test push notification.
+
+Args:
+    request: Test notification details
+    current_user: Current authenticated user
+    db: Database session
+
+Returns:
+    Success response
+
+**Request Body:**
+
+See schema: #/components/schemas/TestNotificationRequest
+
+**Responses:**
+
+- `200`: Successful Response
+- `422`: Validation Error
+
+
+#### GET /api/push/vapid-key
+Get Vapid Public Key
+
+Get VAPID public key for push notifications.
+
+Returns:
+    VAPID public key
+
+**Responses:**
+
+- `200`: Successful Response
+
+
 ### SHOPS
 店舗関連のエンドポイント
 
