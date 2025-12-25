@@ -9,6 +9,7 @@ apps/web/test-results/
 .env*.local
 .env.development
 .env.production
+.env.staging
 *.pem
 
 # Python

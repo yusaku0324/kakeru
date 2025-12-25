@@ -145,10 +145,61 @@ doppler run --project osakamenesu --config dev_api -- \
 
 詳細なスタック/ディレクトリ構成や Docker ベースの手順は `docs/README.md` を参照してください。
 
+## 主な機能と改善
+
+### パフォーマンス最適化
+
+包括的なパフォーマンス最適化により、優れたユーザー体験を実現：
+
+- **Core Web Vitals モニタリング**: LCP、FID、CLS、FCP、TTFBの自動計測とレポート
+- **画像最適化**: 遅延読み込み、WebP/AVIF対応、レスポンシブ画像 (`OptimizedImage` コンポーネント)
+- **バンドル最適化**: 動的インポート、コード分割、Tree shaking (分析: `npm run build:analyze`)
+- **フォント最適化**: WOFF2、日本語サブセット化、アダプティブローディング
+- **キャッシュ戦略**: Stale-while-revalidate、メモリ/IndexedDBキャッシュ (`CacheManager`)
+- **レンダリング最適化**: 仮想リスト、Progressive Hydration、バッチ状態更新
+
+詳細は [`docs/features/performance-optimization-summary.md`](docs/features/performance-optimization-summary.md) を参照。
+
+### モニタリングとアラート
+
+- **Sentry統合**: エラー追跡、パフォーマンスモニタリング、カスタムコンテキスト
+- **Prometheusメトリクス**: API、DB、キャッシュ操作の詳細メトリクス
+- **ヘルスチェック**: 包括的な依存関係チェック (`/health/*` エンドポイント)
+
+詳細は [`docs/features/monitoring-alerts-summary.md`](docs/features/monitoring-alerts-summary.md) を参照。
+
+### PWA対応
+
+- **オフライン対応**: Service Worker、キャッシュ戦略、オフラインページ
+- **プッシュ通知**: VAPID認証、予約確認通知
+- **インストール可能**: ホーム画面追加、スタンドアロン動作
+- **バックグラウンド同期**: オフライン時のデータ同期
+
+詳細は [`docs/features/pwa-implementation-summary.md`](docs/features/pwa-implementation-summary.md) を参照。
+
+### E2Eテスト拡張
+
+- **包括的テストスイート**: プッシュ通知、予約フロー、ダッシュボード、モバイル体験
+- **マルチデバイス対応**: デスクトップ・モバイルブラウザ、実デバイスサイズ
+- **実API統合**: モックを使わない本物のエンドツーエンドテスト
+
+詳細は [`docs/features/e2e-test-expansion-summary.md`](docs/features/e2e-test-expansion-summary.md) を参照。
+
+### SEO最適化
+
+- **メタタグ最適化**: 動的なtitle/description生成、OGP、Twitter Card
+- **構造化データ**: Organization、LocalBusiness、Service、BreadcrumbListスキーマ
+- **サイトマップ**: 動的生成、優先度自動計算、店舗・セラピスト対応
+- **パンくずリスト**: 視覚的ナビゲーションと構造化データ
+- **画像最適化**: alt属性自動生成、SEO対応画像コンポーネント
+
+詳細は [`docs/features/seo-optimization-summary.md`](docs/features/seo-optimization-summary.md) を参照。
+
 ## 共通 UI Hooks / Utils
 
 - `apps/web/src/hooks/useBodyScrollLock.ts` にスクロール固定用の React フックを用意しています。モーダルや全画面オーバーレイを実装するときは `useBodyScrollLock(isOpen)` を呼び出し、`body` の `overflow` を自動的に復旧させてください。
 - 日付フォーマット (`pad`, `formatLocalDate`, `toIsoWithOffset`) は `apps/web/src/utils/date.ts`、料金テキストのパースは `apps/web/src/utils/pricing.ts` に集約しています。同じユーティリティを使うことで UI 間での表記揺れを防げます。
+- パフォーマンス最適化フック (`useDebounce`, `useThrottle`, `useVirtualScroll` など) は `apps/web/src/hooks/use-performance.ts` に集約しています。
 
 ## アーキテクチャ健全性チェック
 
