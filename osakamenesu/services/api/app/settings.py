@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     async_worker_token: str | None = Field(
         default=None, validation_alias=AliasChoices("ASYNC_WORKER_TOKEN")
     )
+    redis_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("REDIS_URL", "CACHE_REDIS_URL"),
+        description="Redis URL for caching (defaults to rate_limit_redis_url if not set)",
+    )
     rate_limit_redis_url: str | None = None
     rate_limit_namespace: str = "osakamenesu_outlinks"
     rate_limit_redis_error_cooldown: float = 5.0

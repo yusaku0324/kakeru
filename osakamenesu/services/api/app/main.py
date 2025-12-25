@@ -76,6 +76,16 @@ async def lifespan(app: FastAPI):
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.warning("Meili init error: %s", exc)
 
+    # Initialize Redis cache
+    try:
+        from .utils.redis_cache import get_redis_cache
+
+        redis_cache = await get_redis_cache()
+        if redis_cache:
+            logger.info("Redis cache initialized")
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning("Redis cache init error: %s", exc)
+
     logger.info(
         "Notifications worker runs outside the API process. Start it via `python -m app.scripts.notifications_worker`.",
     )
@@ -86,6 +96,16 @@ async def lifespan(app: FastAPI):
     from .rate_limiters import shutdown_all_rate_limiters
 
     await shutdown_all_rate_limiters()
+
+    # Shutdown Redis cache
+    try:
+        from .utils.redis_cache import _redis_cache
+
+        if _redis_cache and _redis_cache._connected:
+            await _redis_cache.disconnect()
+            logger.info("Redis cache disconnected")
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning("Redis cache shutdown error: %s", exc)
 
 
 app = FastAPI(title="Osaka Men-Esu API", version="0.1.0", lifespan=lifespan)
@@ -121,6 +141,11 @@ app.add_middleware(
         "Cookie",
     ],
 )
+
+# Add cache headers middleware
+from .middleware.cache_headers import CacheHeadersMiddleware
+
+app.add_middleware(CacheHeadersMiddleware)
 
 media_backend = getattr(settings, "media_storage_backend", "memory")
 if media_backend and media_backend.lower() == "local":

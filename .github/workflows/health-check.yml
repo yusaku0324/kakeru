@@ -1,0 +1,68 @@
+name: Health Check Monitor
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx rich
+
+      - name: Run health checks
+        run: |
+          python osakamenesu/scripts/health-check.py
+        env:
+          MONITORING_WEBHOOK_URL: ${{ secrets.MONITORING_WEBHOOK_URL }}
+
+      - name: Create issue if services are down
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 Service Health Check Failed';
+            const body = `
+            One or more services are down. Please check immediately:
+
+            - [Production API](https://osakamenesu-api.fly.dev/healthz)
+            - [Staging API](https://osakamenesu-api-stg.fly.dev/healthz)
+            - [Web Application](https://osakamenesu.com)
+
+            Time: ${new Date().toISOString()}
+            `;
+
+            // Check if issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['monitoring', 'automated']
+            });
+
+            const existingIssue = issues.data.find(issue =>
+              issue.title === title
+            );
+
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['monitoring', 'automated', 'urgent']
+              });
+            }

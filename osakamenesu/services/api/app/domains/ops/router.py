@@ -14,6 +14,7 @@ from ... import models, schemas
 from ...db import get_session
 from ...settings import settings
 from ...services.reservation_holds import expire_reserved_holds
+from .cache_metrics import router as cache_router
 
 logger = logging.getLogger(__name__)
 
@@ -249,3 +250,7 @@ async def run_migrations(
             success=False,
             message=f"Migration error: {str(e)}",
         )
+
+
+# Include cache metrics sub-router
+router.include_router(cache_router, tags=["ops"])
