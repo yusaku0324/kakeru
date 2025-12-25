@@ -90,17 +90,16 @@ export async function initWebVitals() {
   if (typeof window === 'undefined') return
 
   try {
-    const { onLCP, onFID, onCLS, onFCP, onTTFB, onINP } = await import('web-vitals')
+    const { onLCP, onCLS, onFCP, onTTFB, onINP } = await import('web-vitals')
 
-    // Core Web Vitals
+    // Core Web Vitals (INP replaced FID in web-vitals v4+)
     onLCP(sendToAnalytics)
-    onFID(sendToAnalytics)
+    onINP(sendToAnalytics)
     onCLS(sendToAnalytics)
 
     // Other metrics
     onFCP(sendToAnalytics)
     onTTFB(sendToAnalytics)
-    onINP(sendToAnalytics) // Interaction to Next Paint (replacing FID)
 
     // Custom performance monitoring
     initCustomMetrics()
