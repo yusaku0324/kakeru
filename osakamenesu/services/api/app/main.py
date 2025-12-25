@@ -173,6 +173,45 @@ async def healthz():
     return {"ok": True}
 
 
+@app.get("/health")
+async def health(db: AsyncSession = Depends(get_session)):
+    """Health check endpoint with DB connectivity check."""
+    from datetime import datetime, timezone
+
+    checks = {
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": API_METADATA["version"],
+        "checks": {},
+    }
+
+    # Database check
+    try:
+        result = await db.execute(select(1))
+        result.scalar()
+        checks["checks"]["database"] = "ok"
+    except Exception as e:
+        checks["checks"]["database"] = f"error: {str(e)}"
+        checks["status"] = "unhealthy"
+
+    # Redis check (optional)
+    try:
+        from .utils.redis_cache import get_redis_cache
+
+        redis_cache = await get_redis_cache()
+        if redis_cache and redis_cache._connected:
+            checks["checks"]["redis"] = "ok"
+        else:
+            checks["checks"]["redis"] = "not connected"
+    except Exception:
+        checks["checks"]["redis"] = "not configured"
+
+    if checks["status"] == "unhealthy":
+        raise HTTPException(status_code=503, detail=checks)
+
+    return checks
+
+
 @app.get("/api/out/{token}")
 async def out_redirect(
     token: str, request: Request, db: AsyncSession = Depends(get_session)

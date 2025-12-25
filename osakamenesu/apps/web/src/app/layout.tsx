@@ -2,13 +2,14 @@ import './globals.css'
 import type { ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import Link from 'next/link'
-import localFont from 'next/font/local'
+import { Noto_Sans_JP } from 'next/font/google'
 
 import SiteHeaderNav from '@/components/SiteHeaderNav'
 import AnalyticsProvider from '@/components/AnalyticsProvider'
 import ReservationOverlayRoot from '@/components/ReservationOverlayRoot'
 import SkipLinks from '@/components/SkipLinks'
 import PerformanceInitializer from '@/components/PerformanceInitializer'
+import PWAProvider from '@/components/PWAProvider'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -35,18 +36,14 @@ export const metadata: Metadata = {
   },
 }
 
-const brandFont = localFont({
-  src: [
-    { path: '../../public/fonts/NotoSansJP-400.woff2', weight: '400', style: 'normal' },
-    { path: '../../public/fonts/NotoSansJP-500.woff2', weight: '500', style: 'normal' },
-    { path: '../../public/fonts/NotoSansJP-600.woff2', weight: '600', style: 'normal' },
-    { path: '../../public/fonts/NotoSansJP-700.woff2', weight: '700', style: 'normal' },
-  ],
+// Use Google Fonts for optimized font loading with automatic subsetting
+const brandFont = Noto_Sans_JP({
+  weight: ['400', '500', '600', '700'],
+  subsets: ['latin'],
   variable: '--font-sans',
   display: 'swap',
-  fallback: ['Hiragino Kaku Gothic ProN', 'Meiryo', 'sans-serif'],
-  adjustFontFallback: false,
   preload: true,
+  fallback: ['Hiragino Kaku Gothic ProN', 'Meiryo', 'sans-serif'],
 })
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -58,6 +55,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <SkipLinks />
         <AnalyticsProvider />
         <PerformanceInitializer />
+        <PWAProvider />
         <header className="sticky top-0 z-30 border-b border-white/30 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 lg:px-6">
             <Link href="/" className="group inline-flex items-center gap-3">
