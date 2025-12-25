@@ -35,6 +35,7 @@ from .domains.dashboard import (
 )
 from .domains.line import router as line_router
 from .domains.ops import router as ops_router
+from .domains.push.router import router as push_router
 from .domains.site import (
     favorites_router,
     guest_matching_router,
@@ -229,6 +230,7 @@ app.include_router(dashboard_shifts_router)
 app.include_router(dashboard_shops_router)
 app.include_router(dashboard_therapists_router)
 app.include_router(therapists_router)
+app.include_router(push_router)
 app.include_router(test_router)
 
 

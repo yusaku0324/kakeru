@@ -15,6 +15,7 @@ email-validator>=2.1.0.post1
 httpx>=0.27.2
 urllib3>=2.6.0  # Security fix for CVE-2025-50229, CVE-2025-50230
 boto3>=1.35.49
+pywebpush>=2.0.0
 
 # Security updates for transitive dependencies
 cryptography>=46.0.3  # CVE-2024-12797, CVE-2025-4423
