@@ -1,0 +1,229 @@
+name: Staging Deployment
+
+on:
+  push:
+    branches: [staging]
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          cd services/api
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run Web Tests
+        run: |
+          cd services/web
+          pnpm test
+
+      - name: Run API Tests
+        run: |
+          cd services/api
+          pytest
+
+      - name: Run Linting
+        run: |
+          pnpm lint
+          cd services/api
+          ruff check .
+
+  deploy-preview:
+    name: Deploy Preview to Vercel
+    needs: test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: preview
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Vercel Preview
+        id: deploy
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ env.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ env.VERCEL_PROJECT_ID }}
+          vercel-args: '--build-env NEXT_PUBLIC_API_URL=https://osakamenesu-api-stg.fly.dev'
+          working-directory: ./services/web
+          scope: ${{ secrets.VERCEL_SCOPE }}
+
+      - name: Comment PR with Preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Preview deployed!**\n\n🔗 Preview URL: ${{ steps.deploy.outputs.url }}\n📝 Inspect: https://vercel.com/${{ secrets.VERCEL_SCOPE }}/${{ secrets.VERCEL_PROJECT_NAME }}/${{ steps.deploy.outputs.deployment-id }}`
+            })
+
+  deploy-staging-api:
+    name: Deploy API to Fly.io Staging
+    needs: test
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://osakamenesu-api-stg.fly.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io Staging
+        run: |
+          cd services/api
+          flyctl deploy --config fly.stg.toml --remote-only
+
+      - name: Health Check
+        run: |
+          sleep 30
+          curl -f https://osakamenesu-api-stg.fly.dev/health || exit 1
+
+  deploy-staging-web:
+    name: Deploy Web to Vercel Staging
+    needs: test
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging-osakamenesu.vercel.app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Vercel Staging
+        id: deploy
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ env.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ env.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod --build-env NEXT_PUBLIC_API_URL=https://osakamenesu-api-stg.fly.dev --build-env NEXT_PUBLIC_ENVIRONMENT=staging'
+          working-directory: ./services/web
+          scope: ${{ secrets.VERCEL_SCOPE }}
+          alias-domains: staging-osakamenesu.vercel.app
+
+  e2e-staging:
+    name: E2E Tests on Staging
+    needs: [deploy-staging-api, deploy-staging-web]
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: |
+          cd services/web
+          pnpm exec playwright install chromium
+
+      - name: Run E2E tests
+        run: |
+          cd services/web
+          NEXT_PUBLIC_API_URL=https://osakamenesu-api-stg.fly.dev pnpm e2e:headless
+        env:
+          PLAYWRIGHT_BASE_URL: https://staging-osakamenesu.vercel.app
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-test-results
+          path: services/web/test-results/
+          retention-days: 7
+
+  notify-deployment:
+    name: Notify Deployment Status
+    needs: [deploy-staging-api, deploy-staging-web, e2e-staging]
+    if: always() && github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Success
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: deployment } = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: 'staging',
+              description: 'Staging deployment',
+              auto_merge: false,
+              required_contexts: []
+            });
+
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.id,
+              state: 'success',
+              environment_url: 'https://staging-osakamenesu.vercel.app',
+              description: 'Deployment completed successfully'
+            });
+
+      - name: Notify Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: deployment } = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: 'staging',
+              description: 'Staging deployment',
+              auto_merge: false,
+              required_contexts: []
+            });
+
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.id,
+              state: 'failure',
+              description: 'Deployment failed'
+            });

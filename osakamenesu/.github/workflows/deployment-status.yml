@@ -1,0 +1,164 @@
+name: Deployment Status Monitor
+
+on:
+  workflow_run:
+    workflows: ["Production Deployment", "Staging Deployment"]
+    types:
+      - completed
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+
+jobs:
+  check-deployment-health:
+    name: Check Deployment Health
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Production Health
+        id: prod_health
+        continue-on-error: true
+        run: |
+          # API Health
+          API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.osakamenesu.com/health)
+          if [ "$API_STATUS" != "200" ]; then
+            echo "api_healthy=false" >> $GITHUB_OUTPUT
+            echo "Production API is unhealthy (HTTP $API_STATUS)"
+          else
+            echo "api_healthy=true" >> $GITHUB_OUTPUT
+            echo "Production API is healthy"
+          fi
+
+          # Web Health
+          WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://osakamenesu.com/api/health)
+          if [ "$WEB_STATUS" != "200" ]; then
+            echo "web_healthy=false" >> $GITHUB_OUTPUT
+            echo "Production Web is unhealthy (HTTP $WEB_STATUS)"
+          else
+            echo "web_healthy=true" >> $GITHUB_OUTPUT
+            echo "Production Web is healthy"
+          fi
+
+      - name: Check Staging Health
+        id: staging_health
+        continue-on-error: true
+        run: |
+          # API Health
+          API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://osakamenesu-api-stg.fly.dev/health)
+          if [ "$API_STATUS" != "200" ]; then
+            echo "api_healthy=false" >> $GITHUB_OUTPUT
+            echo "Staging API is unhealthy (HTTP $API_STATUS)"
+          else
+            echo "api_healthy=true" >> $GITHUB_OUTPUT
+            echo "Staging API is healthy"
+          fi
+
+          # Web Health
+          WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://staging-osakamenesu.vercel.app/api/health)
+          if [ "$WEB_STATUS" != "200" ]; then
+            echo "web_healthy=false" >> $GITHUB_OUTPUT
+            echo "Staging Web is unhealthy (HTTP $WEB_STATUS)"
+          else
+            echo "web_healthy=true" >> $GITHUB_OUTPUT
+            echo "Staging Web is healthy"
+          fi
+
+      - name: Performance Check
+        id: performance
+        run: |
+          # Production API response time
+          PROD_API_TIME=$(curl -o /dev/null -s -w "%{time_total}" https://api.osakamenesu.com/health)
+          echo "prod_api_time=$PROD_API_TIME" >> $GITHUB_OUTPUT
+
+          # Production Web response time
+          PROD_WEB_TIME=$(curl -o /dev/null -s -w "%{time_total}" https://osakamenesu.com/)
+          echo "prod_web_time=$PROD_WEB_TIME" >> $GITHUB_OUTPUT
+
+          # Check if response times are acceptable (< 2 seconds)
+          if (( $(echo "$PROD_API_TIME > 2" | bc -l) )); then
+            echo "⚠️ Production API response time is slow: ${PROD_API_TIME}s"
+          fi
+
+          if (( $(echo "$PROD_WEB_TIME > 2" | bc -l) )); then
+            echo "⚠️ Production Web response time is slow: ${PROD_WEB_TIME}s"
+          fi
+
+      - name: SSL Certificate Check
+        run: |
+          # Check SSL certificate expiration
+          check_ssl() {
+            local domain=$1
+            local days_until_expiry=$(echo | openssl s_client -servername $domain -connect $domain:443 2>/dev/null | openssl x509 -noout -dates | grep notAfter | cut -d= -f2 | xargs -I {} date -d {} +%s | xargs -I {} expr {} - $(date +%s) | xargs -I {} expr {} / 86400)
+
+            if [ "$days_until_expiry" -lt 30 ]; then
+              echo "⚠️ SSL certificate for $domain expires in $days_until_expiry days"
+              return 1
+            else
+              echo "✅ SSL certificate for $domain is valid for $days_until_expiry more days"
+              return 0
+            fi
+          }
+
+          check_ssl "api.osakamenesu.com" || true
+          check_ssl "osakamenesu.com" || true
+
+      - name: Create Status Report
+        if: failure() || github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prod_api_healthy = '${{ steps.prod_health.outputs.api_healthy }}' === 'true';
+            const prod_web_healthy = '${{ steps.prod_health.outputs.web_healthy }}' === 'true';
+            const staging_api_healthy = '${{ steps.staging_health.outputs.api_healthy }}' === 'true';
+            const staging_web_healthy = '${{ steps.staging_health.outputs.web_healthy }}' === 'true';
+
+            const prod_api_time = parseFloat('${{ steps.performance.outputs.prod_api_time }}');
+            const prod_web_time = parseFloat('${{ steps.performance.outputs.prod_web_time }}');
+
+            let issues = [];
+
+            if (!prod_api_healthy) issues.push('❌ Production API is down');
+            if (!prod_web_healthy) issues.push('❌ Production Web is down');
+            if (!staging_api_healthy) issues.push('⚠️ Staging API is down');
+            if (!staging_web_healthy) issues.push('⚠️ Staging Web is down');
+            if (prod_api_time > 2) issues.push(`⚠️ Production API slow response: ${prod_api_time.toFixed(2)}s`);
+            if (prod_web_time > 2) issues.push(`⚠️ Production Web slow response: ${prod_web_time.toFixed(2)}s`);
+
+            if (issues.length > 0) {
+              // Create an issue if there are problems
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `🚨 Deployment Health Issues Detected`,
+                body: `## Health Check Report
+
+                **Date**: ${new Date().toISOString()}
+                **Triggered by**: ${context.eventName}
+
+                ### Issues Found:
+                ${issues.map(issue => `- ${issue}`).join('\n')}
+
+                ### Status Summary:
+                | Environment | Component | Status | Response Time |
+                |------------|-----------|--------|---------------|
+                | Production | API | ${prod_api_healthy ? '✅' : '❌'} | ${prod_api_time.toFixed(2)}s |
+                | Production | Web | ${prod_web_healthy ? '✅' : '❌'} | ${prod_web_time.toFixed(2)}s |
+                | Staging | API | ${staging_api_healthy ? '✅' : '❌'} | - |
+                | Staging | Web | ${staging_web_healthy ? '✅' : '❌'} | - |
+
+                Please investigate immediately.`,
+                labels: ['deployment', 'monitoring', 'urgent']
+              });
+            }
+
+  update-status-badge:
+    name: Update Status Badge
+    runs-on: ubuntu-latest
+    needs: check-deployment-health
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update README Status
+        run: |
+          # This could update a status badge in README or send to a status page
+          echo "Status check completed at $(date)"
