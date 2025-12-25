@@ -1,0 +1,48 @@
+# CODEOWNERS for Osakamenesu Project
+# This file defines who should review pull requests for specific parts of the codebase
+
+# Default owners for everything in the repo
+# Replace with actual GitHub usernames
+* @osakamenesu-team
+
+# API / Backend code
+/services/api/ @osakamenesu-team
+/tools/api-client/ @osakamenesu-team
+*.py @osakamenesu-team
+
+# Frontend / Web code
+/services/web/ @osakamenesu-team
+/apps/web/ @osakamenesu-team
+*.tsx @osakamenesu-team
+*.ts @osakamenesu-team
+*.jsx @osakamenesu-team
+*.js @osakamenesu-team
+
+# Infrastructure and DevOps
+/.github/ @osakamenesu-team
+/docker/ @osakamenesu-team
+/scripts/ @osakamenesu-team
+docker-compose*.yml @osakamenesu-team
+Dockerfile* @osakamenesu-team
+fly*.toml @osakamenesu-team
+vercel.json @osakamenesu-team
+
+# Documentation
+/docs/ @osakamenesu-team
+README.md @osakamenesu-team
+*.md @osakamenesu-team
+
+# Configuration files
+.env.example @osakamenesu-team
+.env.*.example @osakamenesu-team
+**/config/ @osakamenesu-team
+
+# Database and migrations
+/services/api/alembic/ @osakamenesu-team
+/services/api/app/models/ @osakamenesu-team
+
+# Security-sensitive files
+/services/api/app/auth/ @osakamenesu-team
+/services/api/app/middleware/ @osakamenesu-team
+*.pem @osakamenesu-team
+*.key @osakamenesu-team

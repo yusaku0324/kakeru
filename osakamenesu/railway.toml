@@ -1,0 +1,18 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/api/Dockerfile"
+
+[deploy]
+startCommand = "cd services/api && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 4"
+healthcheckPath = "/health/live"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[environments.production]
+  [environments.production.build]
+  dockerfilePath = "services/api/Dockerfile"
+
+[environments.staging]
+  [environments.staging.build]
+  dockerfilePath = "services/api/Dockerfile"
