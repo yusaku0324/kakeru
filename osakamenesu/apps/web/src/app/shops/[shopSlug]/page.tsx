@@ -5,6 +5,10 @@ import Image from 'next/image'
 import { resolveInternalApiBase } from '@/lib/server-config'
 import { ShopStaffGrid, type StaffMember } from './ShopStaffGrid'
 import { ShopReviewList } from './ShopReviewList'
+import { generateShopMetadata } from '@/lib/seo/metadata'
+import { generateLocalBusinessData } from '@/lib/seo/structured-data'
+import SchemaMarkup from '@/components/seo/SchemaMarkup'
+import Breadcrumb from '@/components/seo/Breadcrumb'
 
 // ISR: Revalidate every 60 seconds for fresh data while still caching
 export const revalidate = 60
@@ -79,20 +83,19 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!shop) {
     return {
       title: '店舗が見つかりません',
+      robots: { index: false },
     }
   }
 
-  const description = shop.catch_copy || shop.description?.slice(0, 120) || `${shop.name}の店舗情報`
-
-  return {
-    title: `${shop.name} | ${shop.area_name || 'メンズエステ'}`,
-    description,
-    openGraph: {
-      title: shop.name,
-      description,
-      images: shop.lead_image_url ? [shop.lead_image_url] : undefined,
-    },
-  }
+  return generateShopMetadata({
+    name: shop.name,
+    description: shop.description || shop.catch_copy || undefined,
+    area: shop.area_name || shop.area || undefined,
+    services: shop.service_tags,
+    images: shop.lead_image_url ? [shop.lead_image_url] : undefined,
+    slug: shop.slug || undefined,
+    id: shop.id,
+  })
 }
 
 export default async function ShopDetailPage({ params }: PageProps) {
@@ -110,10 +113,37 @@ export default async function ShopDetailPage({ params }: PageProps) {
         ? `¥${shop.min_price.toLocaleString()}~`
         : null
 
+  // Generate structured data
+  const structuredData = generateLocalBusinessData(
+    {
+      id: shop.id,
+      name: shop.name,
+      slug: shop.slug || undefined,
+      description: shop.description || undefined,
+      images: shop.photos?.map(p => p.url) || (shop.lead_image_url ? [shop.lead_image_url] : undefined),
+      phone: shop.contact?.phone || undefined,
+      address: shop.address || undefined,
+      area: shop.area_name || shop.area || undefined,
+      price_range: shop.min_price && shop.max_price ? { min: shop.min_price, max: shop.max_price } : undefined,
+      rating: shop.reviews ? { average: shop.reviews.average_score, count: shop.reviews.review_count } : undefined,
+    },
+    process.env.NEXT_PUBLIC_SITE_URL || 'https://osakamenesu.com'
+  )
+
+  const breadcrumbItems = [
+    { name: '店舗一覧', url: '/shops' },
+    { name: shop.name },
+  ]
+
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-4">
-      {/* Header with lead image */}
-      {shop.lead_image_url && (
+    <>
+      <SchemaMarkup data={structuredData} />
+      <main className="mx-auto max-w-4xl space-y-6 p-4">
+        {/* Breadcrumb */}
+        <Breadcrumb items={breadcrumbItems} className="mb-4" />
+
+        {/* Header with lead image */}
+        {shop.lead_image_url && (
         <div className="relative h-48 w-full overflow-hidden rounded-lg bg-neutral-100 sm:h-64">
           <Image
             src={shop.lead_image_url}
@@ -279,6 +309,7 @@ export default async function ShopDetailPage({ params }: PageProps) {
           )}
         </section>
       )}
-    </main>
+      </main>
+    </>
   )
 }

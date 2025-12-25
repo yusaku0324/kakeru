@@ -7,10 +7,26 @@ import SiteHeaderNav from '@/components/SiteHeaderNav'
 import AnalyticsProvider from '@/components/AnalyticsProvider'
 import ReservationOverlayRoot from '@/components/ReservationOverlayRoot'
 import SkipLinks from '@/components/SkipLinks'
+import PerformanceInitializer from '@/components/PerformanceInitializer'
 
 export const metadata = {
   title: '大阪メンエス.com',
   description: '探しやすい・誤解しない・速い',
+  openGraph: {
+    title: '大阪メンエス.com - 大阪エリアのメンズエステ検索',
+    description: '探しやすい・誤解しない・速い。大阪エリアのメンズエステ・セラピスト検索ポータルサイト',
+    url: 'https://osakamenesu.com',
+    siteName: '大阪メンエス.com',
+    locale: 'ja_JP',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: '大阪メンエス.com',
+    description: '探しやすい・誤解しない・速い。大阪エリアのメンズエステ検索',
+  },
+  viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
+  themeColor: '#FF6B6B',
 }
 
 const brandFont = localFont({
@@ -23,6 +39,8 @@ const brandFont = localFont({
   variable: '--font-sans',
   display: 'swap',
   fallback: ['Hiragino Kaku Gothic ProN', 'Meiryo', 'sans-serif'],
+  adjustFontFallback: false,
+  preload: true,
 })
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -33,6 +51,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       >
         <SkipLinks />
         <AnalyticsProvider />
+        <PerformanceInitializer />
         <header className="sticky top-0 z-30 border-b border-white/30 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 lg:px-6">
             <Link href="/" className="group inline-flex items-center gap-3">
