@@ -3,11 +3,11 @@ selenium==4.18.1
 undetected-chromedriver==3.5.5
 python-dotenv==1.0.1
 schedule==1.2.0
-cryptography==42.0.8
+cryptography>=46.0.3  # Security fix for CVE-2024-12797, CVE-2025-4423
 
 # Web GUI dependencies
 flask==3.0.0
-flask-cors==4.0.1
+flask-cors>=6.0.2  # Security fix for CVE-2024-1681, CVE-2024-6844
 
 # Chrome driver management
 webdriver-manager==4.0.1
@@ -24,7 +24,7 @@ tenacity==8.2.3
 ratelimit==2.2.1
 
 # HTTP requests
-requests==2.31.0
+requests>=2.32.5  # Security fix for CVE-2024-35195
 urllib3>=2.6.0  # Security fix for CVE-2025-50229, CVE-2025-50230
 
 # Optional: For advanced features
@@ -37,13 +37,13 @@ pytest-asyncio==0.23.4
 pytest-mock==3.12.0
 
 # Code quality
-black==24.1.1
+black>=25.12.0  # Security fix for PYSEC-2024-48
 flake8==7.0.0
 mypy==1.8.0
 isort==5.13.2
 
 # Type hints
-types-requests==2.31.0.20240125
+types-requests>=2.32.0
 types-python-dateutil==2.8.19.20240106
 # 自動開発システム用パッケージ
 dash

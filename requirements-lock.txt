@@ -66,7 +66,7 @@ python-dotenv==1.1.0
     #   webdriver-manager
 pyyaml==6.0.2
     # via kakeru (pyproject.toml)
-requests==2.32.3
+requests==2.32.5  # Security fix for CVE-2024-35195
     # via
     #   requests-oauthlib
     #   tweepy
