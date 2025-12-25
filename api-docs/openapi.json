@@ -30,6 +30,23 @@
         }
       }
     },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Health check endpoint with DB connectivity check.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/out/{token}": {
       "get": {
         "summary": "Out Redirect",
@@ -13788,7 +13805,7 @@
           },
           "break_slots": {
             "items": {
-              "$ref": "#/components/schemas/app__domains__dashboard__shifts__router__BreakSlot"
+              "$ref": "#/components/schemas/app__domains__admin__therapist_shifts_api__BreakSlot"
             },
             "type": "array",
             "title": "Break Slots"
@@ -13945,7 +13962,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/app__domains__dashboard__shifts__router__BreakSlot"
+                  "$ref": "#/components/schemas/app__domains__admin__therapist_shifts_api__BreakSlot"
                 },
                 "type": "array"
               },
@@ -15517,7 +15534,7 @@
           },
           "break_slots": {
             "items": {
-              "$ref": "#/components/schemas/app__domains__dashboard__shifts__router__BreakSlot"
+              "$ref": "#/components/schemas/app__domains__admin__therapist_shifts_api__BreakSlot"
             },
             "type": "array",
             "title": "Break Slots"
@@ -15987,7 +16004,7 @@
         ],
         "title": "ValidationError"
       },
-      "app__domains__dashboard__shifts__router__BreakSlot": {
+      "app__domains__admin__therapist_shifts_api__BreakSlot": {
         "properties": {
           "start_at": {
             "type": "string",

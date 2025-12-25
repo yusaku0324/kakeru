@@ -1380,6 +1380,16 @@ Healthz
 - `200`: Successful Response
 
 
+#### GET /health
+Health
+
+Health check endpoint with DB connectivity check.
+
+**Responses:**
+
+- `200`: Successful Response
+
+
 #### GET /api/out/{token}
 Out Redirect
 
