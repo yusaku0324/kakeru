@@ -1,11 +1,11 @@
-name: Deploy API to Fly.io
+name: Deploy Osakamenesu API to Fly.io
 
 on:
   push:
     branches: [main]
     paths:
-      - 'services/api/**'
-      - '.github/workflows/deploy-api-fly.yml'
+      - 'osakamenesu/services/api/**'
+      - '.github/workflows/deploy-api-fly-osakamenesu.yml'
   workflow_dispatch:
     inputs:
       environment:
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: services/api
+        working-directory: osakamenesu/services/api
 
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +58,7 @@ jobs:
     environment: production
     defaults:
       run:
-        working-directory: services/api
+        working-directory: osakamenesu/services/api
 
     steps:
       - uses: actions/checkout@v4
@@ -68,7 +68,7 @@ jobs:
 
       - name: Deploy to Fly.io Production
         run: |
-          flyctl deploy --app osakamenesu-api --config fly.toml
+          flyctl deploy --app osakamenesu-api
 
       - name: Check deployment health
         run: |
@@ -98,7 +98,7 @@ jobs:
     environment: staging
     defaults:
       run:
-        working-directory: services/api
+        working-directory: osakamenesu/services/api
 
     steps:
       - uses: actions/checkout@v4
