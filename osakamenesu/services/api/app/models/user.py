@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .favorite import UserFavorite, UserTherapistFavorite
     from .notification import DashboardNotificationSetting
     from .profile import Profile
+    from .push_subscription import PushSubscription
 
 
 class User(Base):
@@ -58,6 +59,9 @@ class User(Base):
         relationship(back_populates="updated_by_user")
     )
     managed_shops: Mapped[list["ShopManager"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    push_subscriptions: Mapped[list["PushSubscription"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 

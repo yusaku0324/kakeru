@@ -204,6 +204,18 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("GOOGLE_CALLBACK_URL", "GOOGLE_REDIRECT_URI"),
     )
 
+    # Push Notification Settings (PWA)
+    vapid_public_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "VAPID_PUBLIC_KEY", "NEXT_PUBLIC_VAPID_PUBLIC_KEY"
+        ),
+    )
+    vapid_private_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("VAPID_PRIVATE_KEY"),
+    )
+
     @property
     def auth_session_cookie_name(self) -> str:
         """Backward compatibility accessor for dashboard session cookie name."""

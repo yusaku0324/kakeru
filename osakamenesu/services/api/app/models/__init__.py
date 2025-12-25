@@ -62,6 +62,9 @@ from .reservation import GuestReservation
 # Matching
 from .matching import GuestMatchLog
 
+# Push Notification
+from .push_subscription import PushSubscription
+
 __all__ = [
     # Base
     "Base",
@@ -108,4 +111,6 @@ __all__ = [
     "GuestReservation",
     # Matching
     "GuestMatchLog",
+    # Push Notification
+    "PushSubscription",
 ]

@@ -15,6 +15,7 @@ from ....services.business_hours import (
     load_business_hours_from_profile,
     is_within_business_hours,
 )
+from ....services.push_notification import push_notification_service
 from ....utils.cache import availability_cache
 from ....utils.datetime import ensure_jst_datetime
 from ..therapist_availability import is_available as _is_available_impl
@@ -615,6 +616,62 @@ async def update_guest_reservation_status(
         db.add(reservation)
         await db.commit()
         await db.refresh(reservation)
+
+        # Send push notification for reservation confirmation
+        try:
+            # Get user ID from reservation (if linked to a user)
+            user_id = None
+            if hasattr(reservation, "user_id") and reservation.user_id:
+                user_id = reservation.user_id
+            elif reservation.customer_email:
+                # Try to find user by email
+                from ....models import User
+
+                user_res = await db.execute(
+                    select(User).where(User.email == reservation.customer_email)
+                )
+                user = user_res.scalar_one_or_none()
+                if user:
+                    user_id = user.id
+
+            # If we have a user, send push notification
+            if user_id:
+                # Get shop and therapist info
+                shop_res = await db.execute(
+                    select(Profile).where(Profile.id == reservation.shop_id)
+                )
+                shop = shop_res.scalar_one_or_none()
+
+                therapist_res = await db.execute(
+                    select(Therapist).where(Therapist.id == reservation.therapist_id)
+                )
+                therapist = therapist_res.scalar_one_or_none()
+
+                if shop and therapist:
+                    # Format date and time for notification
+                    start_jst = ensure_jst_datetime(reservation.start_at)
+                    date_str = start_jst.strftime("%Y/%m/%d")
+                    time_str = start_jst.strftime("%H:%M")
+
+                    await push_notification_service.notify_reservation_confirmation(
+                        user_id=user_id,
+                        reservation_id=reservation.id,
+                        shop_name=shop.name,
+                        therapist_name=therapist.name,
+                        date=date_str,
+                        time=time_str,
+                        db=db,
+                    )
+                    logger.info(
+                        f"Sent reservation confirmation notification for {reservation.id}"
+                    )
+
+        except Exception as e:
+            # Don't fail the reservation confirmation if push notification fails
+            logger.error(
+                f"Failed to send push notification for reservation {reservation.id}: {e}"
+            )
+
         return reservation, None
 
     if current_status in {"pending", "confirmed"} and next_status == "cancelled":
