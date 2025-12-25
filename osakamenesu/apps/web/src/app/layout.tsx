@@ -1,5 +1,6 @@
 import './globals.css'
 import type { ReactNode } from 'react'
+import type { Metadata, Viewport } from 'next'
 import Link from 'next/link'
 import localFont from 'next/font/local'
 
@@ -9,7 +10,14 @@ import ReservationOverlayRoot from '@/components/ReservationOverlayRoot'
 import SkipLinks from '@/components/SkipLinks'
 import PerformanceInitializer from '@/components/PerformanceInitializer'
 
-export const metadata = {
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#FF6B6B',
+}
+
+export const metadata: Metadata = {
   title: '大阪メンエス.com',
   description: '探しやすい・誤解しない・速い',
   openGraph: {
@@ -25,8 +33,6 @@ export const metadata = {
     title: '大阪メンエス.com',
     description: '探しやすい・誤解しない・速い。大阪エリアのメンズエステ検索',
   },
-  viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
-  themeColor: '#FF6B6B',
 }
 
 const brandFont = localFont({

@@ -213,18 +213,17 @@ export function useDeferredValue<T>(value: T, delay = 200): T {
 export function useStableCallback<T extends (...args: any[]) => any>(
   callback: T
 ): T {
-  const callbackRef = useRef(callback)
+  const callbackRef = useRef<T>(callback)
 
   useEffect(() => {
     callbackRef.current = callback
   })
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   return useCallback(
-    function stableFn(...args: Parameters<T>) {
-      return callbackRef.current(...args)
-    },
+    ((...args: any[]) => callbackRef.current(...args)) as T,
     []
-  ) as T
+  )
 }
 
 /**
