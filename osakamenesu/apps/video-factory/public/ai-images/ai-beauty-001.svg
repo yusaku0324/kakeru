@@ -1,0 +1,9 @@
+<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1080" height="1920" fill="#2a1a3e"/>
+  <text x="540" y="960" font-family="Arial, sans-serif" font-size="48" fill="#fff" text-anchor="middle">
+    AI Scout Image
+  </text>
+  <text x="540" y="1020" font-family="Arial, sans-serif" font-size="32" fill="#aaa" text-anchor="middle">
+    Replace with AI-generated image
+  </text>
+</svg>

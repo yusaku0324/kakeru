@@ -1,5 +1,6 @@
 import React from "react";
 import { Composition, Sequence, useCurrentFrame, AbsoluteFill } from "remotion";
+import { ScoutJudge } from "./ScoutJudge";
 
 // Props の型定義
 export interface VideoProps {
@@ -76,7 +77,7 @@ export const VideoContent: React.FC<VideoProps> = ({ title = "タイトル", lin
 // Remotion Composition の定義
 export const Main: React.FC = () => {
   return (
-    <>
+    <React.Fragment>
       <Composition
         id="VideoFactory"
         component={VideoContent}
@@ -89,6 +90,7 @@ export const Main: React.FC = () => {
           lines: ["最初のテキスト", "次のテキスト", "最後のテキスト"],
         }}
       />
-    </>
+      <ScoutJudge />
+    </React.Fragment>
   );
 };
