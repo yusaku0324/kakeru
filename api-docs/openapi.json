@@ -5925,6 +5925,56 @@
         }
       }
     },
+    "/api/ops/health/backup": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Backup Health Check",
+        "description": "Check the health of database backups.\n\nReturns unhealthy if:\n- No backups found\n- Latest backup is older than 48 hours\n- Cannot access backup storage",
+        "operationId": "backup_health_check_api_ops_health_backup_get",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupHealthResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ops/cache/metrics": {
       "get": {
         "tags": [
@@ -8781,6 +8831,63 @@
           "slot_granularity_minutes"
         ],
         "title": "AvailabilityWindow"
+      },
+      "BackupHealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "last_backup": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Backup"
+          },
+          "backup_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backup Count"
+          },
+          "latest_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "BackupHealthResponse"
       },
       "BatchEmbeddingRequest": {
         "properties": {

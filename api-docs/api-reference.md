@@ -1244,6 +1244,26 @@ Protected by the ops_api_token.
 - `422`: Validation Error
 
 
+#### GET /api/ops/health/backup
+Backup Health Check
+
+Check the health of database backups.
+
+Returns unhealthy if:
+- No backups found
+- Latest backup is older than 48 hours
+- Cannot access backup storage
+
+**Parameters:**
+
+- `Authorization` (header, optional): No description
+
+**Responses:**
+
+- `200`: Successful Response
+- `422`: Validation Error
+
+
 #### GET /api/ops/cache/metrics
 Get Cache Metrics
 
