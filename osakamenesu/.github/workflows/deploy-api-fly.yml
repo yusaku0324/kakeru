@@ -1,0 +1,115 @@
+name: Deploy API to Fly.io
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/api/**'
+      - '.github/workflows/deploy-api-fly.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install
+
+      - name: Run tests
+        run: |
+          poetry run pytest -v --cov=app --cov-report=term-missing
+
+      - name: Check code quality
+        run: |
+          poetry run black --check .
+          poetry run isort --check-only .
+          poetry run mypy .
+
+  deploy-production:
+    needs: test
+    if: github.event_name == 'push' || github.event.inputs.environment == 'production'
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: services/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Fly.io
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io Production
+        run: |
+          flyctl deploy --app osakamenesu-api --config fly.toml
+
+      - name: Check deployment health
+        run: |
+          flyctl status --app osakamenesu-api
+
+      - name: Notify deployment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ job.status }}' === 'success' ? '✅' : '❌';
+            const message = `${status} API deployment to production: ${{ job.status }}`;
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: '${{ job.status }}' === 'success' ? 'success' : 'failure',
+              description: message,
+              context: 'fly.io/production'
+            });
+
+  deploy-staging:
+    needs: test
+    if: github.event.inputs.environment == 'staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    defaults:
+      run:
+        working-directory: services/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Fly.io
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io Staging
+        run: |
+          flyctl deploy --app osakamenesu-api-stg --config fly.stg.toml
+
+      - name: Check deployment health
+        run: |
+          flyctl status --app osakamenesu-api-stg
