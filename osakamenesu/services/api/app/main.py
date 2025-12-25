@@ -108,7 +108,17 @@ async def lifespan(app: FastAPI):
         logger.warning("Redis cache shutdown error: %s", exc)
 
 
-app = FastAPI(title="Osaka Men-Esu API", version="0.1.0", lifespan=lifespan)
+from .openapi_config import API_METADATA, OPENAPI_TAGS, custom_openapi
+
+app = FastAPI(
+    title=API_METADATA["title"],
+    version=API_METADATA["version"],
+    description=API_METADATA["description"],
+    lifespan=lifespan,
+    openapi_tags=OPENAPI_TAGS,
+    contact=API_METADATA.get("contact"),
+    license_info=API_METADATA.get("license"),
+)
 
 # Import rate limiters after app is created to avoid circular imports
 from .rate_limiters import outlink_rate as _outlink_rate
@@ -220,3 +230,11 @@ app.include_router(dashboard_shops_router)
 app.include_router(dashboard_therapists_router)
 app.include_router(therapists_router)
 app.include_router(test_router)
+
+
+# Custom OpenAPI schema
+def get_openapi_schema():
+    return custom_openapi(app)
+
+
+app.openapi = get_openapi_schema

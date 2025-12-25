@@ -1,0 +1,57 @@
+name: Generate API Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'osakamenesu/services/api/**'
+      - '.github/workflows/api-docs.yml'
+  workflow_dispatch:
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('osakamenesu/services/api/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          cd osakamenesu/services/api
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate API documentation
+        run: |
+          cd osakamenesu/services/api
+          python scripts/generate-api-docs.py
+
+      - name: Upload documentation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-docs
+          path: osakamenesu/services/api/api-docs/
+          retention-days: 30
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./osakamenesu/services/api/api-docs
+          destination_dir: api-docs
+          commit_message: 'Deploy API documentation'
+          enable_jekyll: false
