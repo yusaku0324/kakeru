@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Service Worker for Osakamenesu PWA
  * Handles offline functionality, caching, and background sync

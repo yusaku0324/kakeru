@@ -230,7 +230,8 @@ export function preloadRoute(path: string): void {
   // 3. Next.js automatically prefetches visible links
 
   // This function is now a no-op as prefetching should be handled by Next.js
-  console.log(`Route prefetch requested for: ${path}`)
+  // Route prefetch is handled by Next.js Link component with prefetch={true}
+  void path // Acknowledge unused parameter
 }
 
 /**

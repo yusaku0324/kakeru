@@ -98,6 +98,7 @@ export async function registerServiceWorker() {
       scope: '/',
     })
 
+    // eslint-disable-next-line no-console
     console.log('Service Worker registered:', registration.scope)
 
     // Check for updates
@@ -108,6 +109,7 @@ export async function registerServiceWorker() {
       newWorker.addEventListener('statechange', () => {
         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
           // New service worker available
+          // eslint-disable-next-line no-console
           console.log('New service worker available')
 
           // Notify user about update
@@ -190,6 +192,7 @@ export async function subscribeToPushNotifications(
       applicationServerKey: applicationServerKey as any,
     })
 
+    // eslint-disable-next-line no-console
     console.log('Push subscription:', subscription)
     return subscription
   } catch (error) {

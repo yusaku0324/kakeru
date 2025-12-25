@@ -219,11 +219,11 @@ export function useStableCallback<T extends (...args: any[]) => any>(
     callbackRef.current = callback
   })
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useCallback(
-    ((...args: any[]) => callbackRef.current(...args)) as T,
-    []
-  )
+  const stableCallback = useCallback(function stable(...args: any[]) {
+    return callbackRef.current(...args)
+  }, [])
+
+  return stableCallback as T
 }
 
 /**
