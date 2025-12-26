@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   testDir: './e2e',
@@ -57,5 +61,5 @@ export default defineConfig({
     },
   ],
   // Global setup for seeding data
-  globalSetup: require.resolve('./e2e/global-setup.cjs'),
+  globalSetup: resolve(__dirname, './e2e/global-setup.cjs'),
 })
