@@ -45,3 +45,14 @@ export {
   isMockFavoritesMode,
   COOKIE_NAME,
 } from './domain/mock-store'
+
+// Components
+export {
+  TherapistFavoritesProvider,
+  useTherapistFavorites,
+} from './components/TherapistFavoritesProvider'
+
+export {
+  ShopFavoritesProvider,
+  useShopFavorites,
+} from './components/ShopFavoritesProvider'
