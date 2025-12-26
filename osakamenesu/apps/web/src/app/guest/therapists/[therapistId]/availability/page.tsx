@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 
-import { formatReservationRange, toLocalDateISO } from '@/lib/date'
+import { formatReservationRange } from '@/lib/date'
+import { formatDateISO, extractDate } from '@/lib/jst'
 
 type SummaryItem = { date: string; has_available: boolean }
 type SummaryResponse = { therapist_id: string; items: SummaryItem[] }
@@ -18,7 +19,7 @@ function buildReserveLink(slot: Slot, therapistId: string, shopId?: string | nul
   if (shopId) params.set('shop_id', shopId)
   if (slot.start_at) params.set('start_at', slot.start_at)
   if (slot.end_at) params.set('end_at', slot.end_at)
-  const dateIso = toLocalDateISO(slot.start_at)
+  const dateIso = extractDate(slot.start_at)
   if (dateIso) params.set('date', dateIso)
   params.set('therapist_id', therapistId)
   return `/guest/therapists/${therapistId}/reserve?${params.toString()}`
@@ -44,7 +45,7 @@ export default function TherapistAvailabilityPage() {
     for (let i = 0; i < DAY_COUNT; i++) {
       const d = new Date(today)
       d.setDate(today.getDate() + i)
-      list.push(toLocalDateISO(d))
+      list.push(formatDateISO(d))
     }
     return list
   }, [])

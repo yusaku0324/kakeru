@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import { toLocalDateISO } from '@/lib/date'
+import { formatDateISO } from '@/lib/jst'
 import { getJaFormatter } from '@/utils/date'
 import { formatSlotJp, getNextAvailableSlot, type ScheduleSlot } from '@/lib/schedule'
 
@@ -99,8 +99,8 @@ export function TherapistSchedule({
   const previewDays = useMemo(() => (days.length ? days : sourceDays), [days, sourceDays])
   const now = useMemo(() => new Date(), [])
   const allSlots = useMemo(() => flattenScheduleDays(sourceDays), [sourceDays])
-  const todayIso = toLocalDateISO(now)
-  const tomorrowIso = toLocalDateISO(new Date(now.getTime() + 24 * 60 * 60 * 1000))
+  const todayIso = formatDateISO(now)
+  const tomorrowIso = formatDateISO(new Date(now.getTime() + 24 * 60 * 60 * 1000))
   const todayDisplayLabel = dayFormatter.format(now)
 
   const normalizedDays = useMemo(() => {

@@ -2,7 +2,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import TherapistAvailabilityPage from '@/app/guest/therapists/[therapistId]/availability/page'
-import { toLocalDateISO } from '@/lib/date'
+import { formatDateISO } from '@/lib/jst'
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
@@ -12,11 +12,11 @@ vi.mock('next/navigation', () => ({
 describe('Therapist availability page', () => {
   const therapistId = 'thera-1'
   const today = new Date()
-  const todayIso = toLocalDateISO(today)
+  const todayIso = formatDateISO(today)
   const tomorrowIso = (() => {
     const t = new Date(today)
     t.setDate(t.getDate() + 1)
-    return toLocalDateISO(t)
+    return formatDateISO(t)
   })()
   const tomorrowLabel = (() => {
     const d = new Date(tomorrowIso)
