@@ -2,7 +2,6 @@
   "name": "osakamenesu-web",
   "private": true,
   "version": "0.1.0",
-  "type": "module",
   "engines": {
     "node": ">=20.9.0"
   },
@@ -54,6 +53,7 @@
     "@storybook/nextjs": "^8.6.15",
     "@storybook/react-webpack5": "^8.6.15",
     "@storybook/test": "^8.6.15",
+    "@tailwindcss/postcss": "^4.1.18",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@testing-library/user-event": "^14.6.1",
