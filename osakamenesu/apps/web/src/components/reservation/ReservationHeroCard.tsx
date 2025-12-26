@@ -2,6 +2,7 @@
 
 import clsx from 'clsx'
 import Image from 'next/image'
+import { useMemo } from 'react'
 
 export type ReservationHeroCardProps = {
   name: string
@@ -25,8 +26,19 @@ export function ReservationHeroCard({
   const showNavigation = images.length > 1
   const activeImage = images[activeIndex] ?? null
 
+  // Preload adjacent images for smoother carousel navigation
+  const adjacentImages = useMemo(() => {
+    if (images.length <= 1) return []
+    const prevIndex = (activeIndex - 1 + images.length) % images.length
+    const nextIndex = (activeIndex + 1) % images.length
+    return [images[prevIndex], images[nextIndex]].filter((img): img is string => Boolean(img))
+  }, [images, activeIndex])
+
   return (
-    <div className="relative overflow-hidden rounded-[36px] border border-white/45 bg-white/25 shadow-[0_28px_90px_rgba(21,93,252,0.28)] backdrop-blur-[28px]">
+    <div
+      className="relative overflow-hidden rounded-[36px] border border-white/45 bg-white/90 shadow-[0_28px_90px_rgba(21,93,252,0.28)] sm:bg-white/25 sm:backdrop-blur-lg"
+      style={{ contain: 'layout paint' }}
+    >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(147,197,253,0.24)_0%,rgba(147,197,253,0)_60%),linear-gradient(200deg,rgba(255,255,255,0.75)_0%,rgba(240,248,255,0.35)_55%,rgba(227,233,255,0.25)_100%),url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cpath d=%22M0 39h1v1H0zM39 0h1v1h-1z%22 fill=%22%23ffffff33%22/%3E%3C/svg%3E')]" />
       <div className="relative aspect-[4/3] overflow-hidden sm:aspect-[5/4] lg:aspect-square">
         {activeImage ? (
@@ -35,7 +47,8 @@ export function ReservationHeroCard({
             src={activeImage}
             alt={`${name}の写真`}
             fill
-            className="object-cover transition duration-500"
+            className="object-cover transition-opacity duration-300"
+            style={{ willChange: 'opacity' }}
             sizes="(max-width: 768px) 80vw, 480px"
             priority
           />
@@ -106,6 +119,11 @@ export function ReservationHeroCard({
             </span>
           ) : null}
         </div>
+
+        {/* Preload adjacent carousel images for smoother navigation */}
+        {adjacentImages.map((src) => (
+          <link key={src} rel="preload" as="image" href={src} />
+        ))}
       </div>
     </div>
   )

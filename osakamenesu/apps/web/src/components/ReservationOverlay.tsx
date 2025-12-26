@@ -254,12 +254,13 @@ export default function ReservationOverlay({
 
   return (
     <>
-      <div className="fixed inset-0 z-[998] overflow-y-auto bg-neutral-950/45 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[998] overflow-y-auto bg-neutral-950/50 sm:backdrop-blur-sm">
         <div className="relative flex min-h-full items-center justify-center px-0 py-0 sm:px-6 sm:py-14 lg:py-16">
           <div className="absolute inset-0 hidden sm:block" onClick={handleClose} aria-hidden="true" />
           <div
             ref={dialogRef}
-            className="relative z-10 flex h-full min-h-[100dvh] w-full flex-col overflow-hidden border-white/40 bg-white/55 shadow-[0_50px_150px_rgba(37,99,235,0.38)] backdrop-blur-[36px] sm:h-auto sm:min-h-0 sm:max-w-5xl sm:rounded-[40px] sm:border"
+            className="relative z-10 flex h-full min-h-[100dvh] w-full flex-col overflow-hidden border-white/40 bg-white/90 shadow-[0_50px_150px_rgba(37,99,235,0.38)] sm:h-auto sm:min-h-0 sm:max-w-5xl sm:rounded-[40px] sm:border sm:bg-white/55 sm:backdrop-blur-xl"
+            style={{ contain: 'layout paint' }}
             role="dialog"
             aria-modal="true"
             aria-label={`${hit.name}の予約詳細`}
@@ -288,7 +289,7 @@ export default function ReservationOverlay({
                     reviewCount={hit.reviewCount}
                   />
 
-                  <div className="relative flex flex-col gap-5 overflow-hidden rounded-[36px] border border-white/50 bg-white/28 p-6 shadow-[0_32px_90px_rgba(21,93,252,0.28)] backdrop-blur-[26px]">
+                  <div className="relative flex flex-col gap-5 overflow-hidden rounded-[36px] border border-white/50 bg-white/85 p-6 shadow-[0_32px_90px_rgba(21,93,252,0.28)] sm:bg-white/28 sm:backdrop-blur-lg">
                     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.22),transparent_58%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.2),transparent_55%),url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22 viewBox=%220 0 48 48%22%3E%3Cpath d=%22M0 47h1v1H0zM47 0h1v1h-1z%22 fill=%22%23ffffff29%22/%3E%3C/svg%3E')]" />
                     <div className="relative flex flex-col gap-5">
                       <div className="flex flex-col gap-2">
