@@ -13805,7 +13805,7 @@
           },
           "break_slots": {
             "items": {
-              "$ref": "#/components/schemas/app__domains__admin__therapist_shifts_api__BreakSlot"
+              "$ref": "#/components/schemas/app__domains__dashboard__shifts__router__BreakSlot"
             },
             "type": "array",
             "title": "Break Slots"
@@ -13962,7 +13962,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/app__domains__admin__therapist_shifts_api__BreakSlot"
+                  "$ref": "#/components/schemas/app__domains__dashboard__shifts__router__BreakSlot"
                 },
                 "type": "array"
               },
@@ -15534,7 +15534,7 @@
           },
           "break_slots": {
             "items": {
-              "$ref": "#/components/schemas/app__domains__admin__therapist_shifts_api__BreakSlot"
+              "$ref": "#/components/schemas/app__domains__dashboard__shifts__router__BreakSlot"
             },
             "type": "array",
             "title": "Break Slots"
@@ -16004,7 +16004,7 @@
         ],
         "title": "ValidationError"
       },
-      "app__domains__admin__therapist_shifts_api__BreakSlot": {
+      "app__domains__dashboard__shifts__router__BreakSlot": {
         "properties": {
           "start_at": {
             "type": "string",
