@@ -1007,7 +1007,3 @@ export function TherapistManager({ profileId, initialItems, initialError, onToas
     </>
   )
 }
-
-// Keep exports for backwards compatibility
-export type { TherapistPhotoFieldProps } from './TherapistManager-legacy'
-export { TherapistPhotoField } from './TherapistManager-legacy'
