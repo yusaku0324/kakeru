@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
 import { ReservationStatusBadge } from '@/components/ReservationStatusBadge'
-import { formatReservationRange } from '@/lib/date'
+import { formatReservationRange } from '@/lib/jst'
 
 type Reservation = {
   id: string

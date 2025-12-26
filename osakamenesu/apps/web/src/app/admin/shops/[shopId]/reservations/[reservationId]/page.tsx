@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ReservationStatusBadge } from '@/components/ReservationStatusBadge'
-import { formatReservationRange } from '@/lib/date'
+import { formatReservationRange } from '@/lib/jst'
 
 type AdminGuestReservationDetail = {
   id: string

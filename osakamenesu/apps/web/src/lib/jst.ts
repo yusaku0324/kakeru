@@ -227,3 +227,39 @@ export function extractTime(isoString: string): string {
 export function isSameDate(a: string, b: string): boolean {
   return extractDate(a) === extractDate(b)
 }
+
+// ============================================================================
+// 予約用フォーマット
+// ============================================================================
+
+/**
+ * 予約時間帯を「YYYY/MM/DD HH:mm〜HH:mm」形式で表示
+ *
+ * @example
+ * formatReservationRange('2024-12-17T18:00:00+09:00', '2024-12-17T19:30:00+09:00')
+ * // '2024/12/17 18:00〜19:30'
+ */
+export function formatReservationRange(start: string, end: string): string {
+  const startDate = new Date(start)
+  const endDate = new Date(end)
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return `${start}〜${end}`
+  }
+
+  // JST 基準でフォーマット
+  const startDateStr = extractDate(formatDateISO(startDate))
+  const endDateStr = extractDate(formatDateISO(endDate))
+  const startTimeStr = formatTimeHM(startDate)
+  const endTimeStr = formatTimeHM(endDate)
+
+  // YYYY-MM-DD → YYYY/MM/DD に変換
+  const startDateLabel = startDateStr.replace(/-/g, '/')
+  const endDateLabel = endDateStr.replace(/-/g, '/')
+
+  if (isSameDate(startDateStr, endDateStr)) {
+    return `${startDateLabel} ${startTimeStr}〜${endTimeStr}`
+  }
+
+  return `${startDateLabel} ${startTimeStr}〜${endDateLabel} ${endTimeStr}`
+}

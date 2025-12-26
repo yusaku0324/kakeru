@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 
 import { ReservationStatusBadge } from '@/components/ReservationStatusBadge'
-import { formatReservationRange } from '@/lib/date'
+import { formatReservationRange } from '@/lib/jst'
 
 type ReservationDetail = {
   id: string
