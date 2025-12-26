@@ -7,7 +7,7 @@ import {
   validateCsrfToken,
 } from '@/lib/csrf'
 import { resolveInternalApiBase } from '@/lib/server-config'
-import { SESSION_COOKIE_NAME } from '@/lib/session'
+import { DASHBOARD_SESSION_COOKIE_NAME } from '@/lib/session'
 
 const BASIC_REALM = 'Admin'
 
@@ -205,7 +205,7 @@ async function handleProxy(request: NextRequest): Promise<NextResponse | null> {
   const { pathname, search } = request.nextUrl
 
   if (pathname.startsWith('/dashboard')) {
-    if (request.cookies.has(SESSION_COOKIE_NAME) || isPublicDashboardPath(pathname)) {
+    if (request.cookies.has(DASHBOARD_SESSION_COOKIE_NAME) || isPublicDashboardPath(pathname)) {
       return applySecurityHeaders(NextResponse.next())
     }
 

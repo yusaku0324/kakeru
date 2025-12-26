@@ -1,18 +1,29 @@
 import { NextResponse } from 'next/server'
 
 import { clearCsrfCookie } from '@/lib/csrf.server'
-import { SESSION_COOKIE_NAME, sessionCookieOptions } from '@/lib/session'
+import { DASHBOARD_SESSION_COOKIE_NAME, SITE_SESSION_COOKIE_NAME, sessionCookieOptions } from '@/lib/session'
 import { withErrorReporting } from '@/lib/monitoring'
 
 async function postHandler() {
   const response = NextResponse.json({ ok: true })
 
-  response.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: '',
+  // Clear both dashboard and site session cookies
+  const cookieOptions = {
     ...sessionCookieOptions(),
     maxAge: 0,
     expires: new Date(0),
+  }
+
+  response.cookies.set({
+    name: DASHBOARD_SESSION_COOKIE_NAME,
+    value: '',
+    ...cookieOptions,
+  })
+
+  response.cookies.set({
+    name: SITE_SESSION_COOKIE_NAME,
+    value: '',
+    ...cookieOptions,
   })
 
   clearCsrfCookie(response)

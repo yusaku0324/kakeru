@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { CSRF_HEADER_NAME } from '@/lib/csrf'
 import { generateCsrfToken, setCsrfCookie } from '@/lib/csrf.server'
 import { resolveInternalApiBase } from '@/lib/server-config'
-import { SESSION_COOKIE_NAME, sessionCookieOptions } from '@/lib/session'
+import { DASHBOARD_SESSION_COOKIE_NAME, sessionCookieOptions } from '@/lib/session'
 
 function buildBackendUrl(path: string): string {
   const base = resolveInternalApiBase().replace(/\/+$/, '')
@@ -15,7 +15,7 @@ function extractSessionCookie(headerValue: string | null): string | null {
   if (!headerValue) {
     return null
   }
-  const marker = `${SESSION_COOKIE_NAME}=`
+  const marker = `${DASHBOARD_SESSION_COOKIE_NAME}=`
   const start = headerValue.indexOf(marker)
   if (start === -1) {
     return null
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     cookieOptions.domain = request.nextUrl.hostname
   }
   response.cookies.set({
-    name: SESSION_COOKIE_NAME,
+    name: DASHBOARD_SESSION_COOKIE_NAME,
     value: sessionToken,
     ...cookieOptions,
   })

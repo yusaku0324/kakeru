@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { CSRF_HEADER_NAME } from '@/lib/csrf'
 import { generateCsrfToken, setCsrfCookie } from '@/lib/csrf.server'
-import { SESSION_COOKIE_NAME, sessionCookieOptions } from '@/lib/session'
+import { DASHBOARD_SESSION_COOKIE_NAME, sessionCookieOptions } from '@/lib/session'
 import { withErrorReporting } from '@/lib/monitoring'
 
 type LoginBody = {
@@ -19,7 +19,7 @@ async function postHandler(request: Request) {
 
   const response = NextResponse.json({ ok: true })
   response.cookies.set({
-    name: SESSION_COOKIE_NAME,
+    name: DASHBOARD_SESSION_COOKIE_NAME,
     value: token,
     ...sessionCookieOptions(),
   })

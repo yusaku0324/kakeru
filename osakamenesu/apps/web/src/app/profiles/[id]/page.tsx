@@ -23,6 +23,7 @@ import { getSampleShops, type SampleShop } from '@/lib/sampleShops'
 import { sampleShopToDetail } from '@/lib/sampleShopAdapters'
 import { TOKYO_TZ, formatDatetimeLocal, formatZonedIso, toZonedDayjs, toZonedDate } from '@/lib/timezone'
 import { getJaFormatter } from '@/utils/date'
+import { SITE_SESSION_COOKIE_NAME } from '@/lib/session'
 import ShopReservationCardClient from './ShopReservationCardClient'
 import ShopSectionNav from './ShopSectionNav'
 import StickyReservationCTA from './StickyReservationCTA'
@@ -32,8 +33,6 @@ type Props = {
   params: Promise<{ id: string }>
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
-
-const SITE_SESSION_COOKIE = process.env.SITE_SESSION_COOKIE_NAME || 'osakamenesu_session'
 
 type MediaImage = { url: string; kind?: string | null; caption?: string | null }
 type Contact = {
@@ -254,7 +253,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     searchParams ?? Promise.resolve(undefined),
   ])
   const cookieStore = await cookies()
-  const sessionCookie = cookieStore.get(SITE_SESSION_COOKIE)
+  const sessionCookie = cookieStore.get(SITE_SESSION_COOKIE_NAME)
   const shop = await fetchShop(resolvedParams.id, Boolean(sessionCookie))
   const photos = uniquePhotos(shop.photos)
   const badges = shop.badges || []
