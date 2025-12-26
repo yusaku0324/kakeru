@@ -119,8 +119,7 @@ describe('schedule', () => {
         status: 'open',
       }
       const result = formatSlotJp(slot, { now: mockNow })
-      expect(result).toContain('本日')
-      expect(result).toContain('14:00')
+      expect(result).toBe('本日 14:00〜')
     })
 
     it('formats tomorrow slot with 明日 prefix', () => {
@@ -130,7 +129,7 @@ describe('schedule', () => {
         status: 'open',
       }
       const result = formatSlotJp(slot, { now: mockNow })
-      expect(result).toContain('明日')
+      expect(result).toBe('明日 14:00〜')
     })
 
     it('formats future slot with date', () => {
@@ -140,7 +139,17 @@ describe('schedule', () => {
         status: 'open',
       }
       const result = formatSlotJp(slot, { now: mockNow })
-      expect(result).toContain('12/25')
+      expect(result).toBe('12/25(水) 14:00〜')
+    })
+
+    it('formats morning slot correctly', () => {
+      const slot: ScheduleSlot = {
+        start_at: '2024-12-17T09:30:00+09:00',
+        end_at: '2024-12-17T10:30:00+09:00',
+        status: 'open',
+      }
+      const result = formatSlotJp(slot, { now: '2024-12-17T08:00:00+09:00' })
+      expect(result).toBe('本日 09:30〜')
     })
   })
 

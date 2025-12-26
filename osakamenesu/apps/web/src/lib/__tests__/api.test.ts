@@ -78,6 +78,16 @@ describe('api', () => {
         const result = buildApiUrl('/api', '/api')
         expect(result).toBe('https://example.com/api')
       })
+
+      it('preserves query parameters in path', () => {
+        const result = buildApiUrl('https://api.example.com', '/v1/shops?limit=10&offset=0')
+        expect(result).toBe('https://api.example.com/v1/shops?limit=10&offset=0')
+      })
+
+      it('handles path with hash fragment', () => {
+        const result = buildApiUrl('https://api.example.com', '/docs#section')
+        expect(result).toBe('https://api.example.com/docs#section')
+      })
     })
   })
 
@@ -98,9 +108,15 @@ describe('api', () => {
         const bases = resolveApiBases()
         expect(bases.length).toBeGreaterThanOrEqual(1)
       })
+
+      it('does not include duplicate bases', () => {
+        const bases = resolveApiBases()
+        const uniqueBases = [...new Set(bases)]
+        expect(bases.length).toBe(uniqueBases.length)
+      })
     })
 
-    // Note: Server environment tests are skipped because they require
-    // server-only modules (./server-config) that can't be resolved in Vitest
+    // Note: Server environment tests are skipped because api.ts uses
+    // dynamic require() for server-config which cannot be mocked in Vitest
   })
 })
