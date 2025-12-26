@@ -64,7 +64,6 @@
     "autoprefixer": "10.4.23",
     "babel-plugin-react-compiler": "^1.0.0",
     "chromatic": "^13.3.4",
-    "critters": "^0.0.25",
     "cross-env": "^10.1.0",
     "dotenv": "^17.2.3",
     "dotenv-cli": "^11.0.0",
