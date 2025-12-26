@@ -1,13 +1,21 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { LineLoginButton } from '@/components/auth/LineLoginButton'
+import { getSessionByScope } from '@/lib/session'
 
 /**
  * セラピストポータル - ログインページ
  *
  * セラピストがLINEでログインするためのページ。
- * ログイン済みの場合はダッシュボードにリダイレクト（TODO）。
+ * ログイン済みの場合はダッシュボードにリダイレクトする。
  */
-export default function TherapistLoginPage() {
+export default async function TherapistLoginPage() {
+  // Check if already logged in
+  const session = await getSessionByScope('dashboard')
+  if (session) {
+    redirect('/therapist/settings')
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-neutral-50 to-neutral-100 px-4">
       <div className="w-full max-w-sm space-y-8">

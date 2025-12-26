@@ -312,44 +312,35 @@ export function useLazyRender(
 
 /**
  * Component for progressive hydration
+ * Delays hydration until browser is idle to improve initial load performance
  */
-// TODO: Fix TypeScript error with React fragments
-// export function ProgressiveHydration({
-//   children,
-//   fallback,
-//   ssrOnly = false,
-// }: {
-//   children: React.ReactNode
-//   fallback?: React.ReactNode
-//   ssrOnly?: boolean
-// }) {
-//   const [isHydrated, setIsHydrated] = useState(ssrOnly)
-
-//   useEffect(() => {
-//     if (!ssrOnly) {
-//       // Hydrate after initial render
-//       requestIdleCallback(
-//         () => {
-//           setIsHydrated(true)
-//         },
-//         { timeout: 1000 }
-//       )
-//     }
-//   }, [ssrOnly])
-
-//   const content = !isHydrated ? (fallback || children) : children
-//   return <>{content}</>
-// }
-
-// Temporary replacement until TypeScript issue is fixed
 export function ProgressiveHydration({
   children,
+  fallback,
+  ssrOnly = false,
 }: {
   children: React.ReactNode
   fallback?: React.ReactNode
   ssrOnly?: boolean
-}) {
-  return children as React.ReactElement
+}): React.ReactNode {
+  const [isHydrated, setIsHydrated] = useState(ssrOnly)
+
+  useEffect(() => {
+    if (!ssrOnly) {
+      // Hydrate after initial render using requestIdleCallback if available
+      const callback = () => setIsHydrated(true)
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        const id = window.requestIdleCallback(callback, { timeout: 1000 })
+        return () => window.cancelIdleCallback(id)
+      } else {
+        // Fallback for browsers without requestIdleCallback
+        const id = setTimeout(callback, 0)
+        return () => clearTimeout(id)
+      }
+    }
+  }, [ssrOnly])
+
+  return isHydrated ? children : (fallback ?? children)
 }
 
 /**
