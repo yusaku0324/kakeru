@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 
 import SearchFilters from '@/components/SearchFilters'
 import ShopCard, { type ShopHit } from '@/components/shop/ShopCard'
-import { ShopFavoritesProvider } from '@/components/shop/ShopFavoritesProvider'
+import { ShopFavoritesProvider } from '@/features/favorites'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { Section } from '@/components/ui/Section'

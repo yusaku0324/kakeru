@@ -1,4 +1,4 @@
-import { ShopFavoritesProvider } from '@/components/shop/ShopFavoritesProvider'
+import { ShopFavoritesProvider } from '@/features/favorites'
 import ShopCardNavigateToTherapists from '@/components/shop/ShopCardNavigateToTherapists'
 import { TherapistShopTabs } from '@/components/search/TherapistShopTabs'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'

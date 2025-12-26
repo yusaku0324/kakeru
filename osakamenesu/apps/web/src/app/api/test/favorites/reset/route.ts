@@ -3,7 +3,7 @@ import {
   readMockFavorites,
   writeMockFavorites,
   isMockFavoritesMode,
-} from '../../../favorites/mockStore'
+} from '@/features/favorites'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!isMockFavoritesMode()) {

@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ShopFavoritesProvider, useShopFavorites } from '../ShopFavoritesProvider'
+import { ShopFavoritesProvider, useShopFavorites } from '@/features/favorites'
 
 const originalFetch = global.fetch
 

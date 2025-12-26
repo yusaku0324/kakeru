@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReviewStats as ReviewStatsType } from '@/lib/dashboard-reviews'
+import type { ReviewStats as ReviewStatsType } from '@/features/reviews'
 
 type Props = {
   stats: ReviewStatsType

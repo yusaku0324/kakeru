@@ -7,7 +7,7 @@ import {
   readMockFavorites,
   isMockFavoritesMode,
   writeMockFavorites,
-} from '../mockStore'
+} from '@/features/favorites'
 
 const API_BASE = resolveInternalApiBase().replace(/\/+$/, '')
 

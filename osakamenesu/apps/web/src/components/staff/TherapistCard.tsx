@@ -8,7 +8,7 @@ import { openReservationOverlay } from '@/components/reservationOverlayBus'
 import { normalizeAvailabilityDays, hasTodayAvailability } from '@/lib/availability'
 import { type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { formatSlotJp, type ScheduleSlot } from '@/lib/schedule'
-import { useTherapistFavorites } from './TherapistFavoritesProvider'
+import { useTherapistFavorites } from '@/features/favorites'
 
 type AvailabilityDay = {
   date: string

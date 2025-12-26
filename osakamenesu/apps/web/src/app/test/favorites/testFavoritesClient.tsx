@@ -1,7 +1,7 @@
 'use client'
 
 import TherapistCard, { type TherapistHit } from '@/components/staff/TherapistCard'
-import { TherapistFavoritesProvider } from '@/components/staff/TherapistFavoritesProvider'
+import { TherapistFavoritesProvider } from '@/features/favorites'
 
 const sampleTherapist: TherapistHit = {
   id: 'sample-card',

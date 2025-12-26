@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, beforeEach, afterEach, it, vi } from 'vitest'
 
-import { TherapistFavoritesProvider, useTherapistFavorites } from '../TherapistFavoritesProvider'
+import { TherapistFavoritesProvider, useTherapistFavorites } from '@/features/favorites'
 
 const originalFetch = global.fetch
 const originalInternalBase = process.env.OSAKAMENESU_API_INTERNAL_BASE

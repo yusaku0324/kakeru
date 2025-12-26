@@ -10,7 +10,7 @@ const toggleFavoriteMock = vi.fn()
 const isFavoriteMock = vi.fn()
 const isProcessingMock = vi.fn()
 
-vi.mock('../TherapistFavoritesProvider', () => ({
+vi.mock('@/features/favorites', () => ({
   useTherapistFavorites: () => ({
     favorites: new Map<string, unknown>(),
     isAuthenticated: true,

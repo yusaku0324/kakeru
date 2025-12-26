@@ -4,8 +4,8 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import clsx from 'clsx'
 
-import type { ReviewItem, ReviewStatus } from '@/lib/dashboard-reviews'
-import { updateDashboardReviewStatus } from '@/lib/dashboard-reviews'
+import type { ReviewItem, ReviewStatus } from '@/features/reviews'
+import { updateDashboardReviewStatus } from '@/features/reviews'
 
 type Props = {
   profileId: string

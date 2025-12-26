@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import type { FormEvent } from 'react'
-import { ASPECT_LABELS, starLabel } from './shopReviewsUtils'
-import type { ReviewAspectKey, ReviewFormState, AuthState } from './shopReviewsTypes'
+import { ASPECT_LABELS, starLabel } from '@/features/reviews'
+import type { ReviewAspectKey, ReviewFormState, AuthState } from '@/features/reviews'
 
 type Props = {
   form: ReviewFormState

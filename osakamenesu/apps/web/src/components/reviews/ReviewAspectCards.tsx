@@ -1,8 +1,8 @@
 'use client'
 
 import { Card } from '@/components/ui/Card'
-import { ASPECT_LABELS, starLabel } from './shopReviewsUtils'
-import type { ReviewAspectKey } from './shopReviewsTypes'
+import { ASPECT_LABELS, starLabel } from '@/features/reviews'
+import type { ReviewAspectKey } from '@/features/reviews'
 
 type AspectEntry = {
   key: ReviewAspectKey

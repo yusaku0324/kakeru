@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 
 import { ReviewList } from './ReviewList'
 import { ReviewStats } from './ReviewStats'
-import { fetchDashboardReviews, fetchDashboardReviewStats } from '@/lib/dashboard-reviews'
+import { fetchDashboardReviews, fetchDashboardReviewStats } from '@/features/reviews'
 
 async function cookieHeaderFromStore(): Promise<string | undefined> {
   const store = await cookies()

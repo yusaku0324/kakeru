@@ -6,7 +6,7 @@ import Link from 'next/link'
 
 import { rerankMatchingCandidates } from '@/features/matching/recommendedRanking'
 import { TherapistCard, type TherapistHit } from '@/components/staff/TherapistCard'
-import { TherapistFavoritesProvider } from '@/components/staff/TherapistFavoritesProvider'
+import { TherapistFavoritesProvider } from '@/features/favorites'
 import { isToday as jstIsToday } from '@/lib/jst'
 import { normalizeSlotStatus } from '@/lib/availability'
 

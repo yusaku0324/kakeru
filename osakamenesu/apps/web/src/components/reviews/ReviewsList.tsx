@@ -2,8 +2,8 @@
 
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
-import { ASPECT_LABELS, normaliseAspectEntries, formatVisitedLabel } from './shopReviewsUtils'
-import type { ReviewDisplay } from './shopReviewsTypes'
+import { ASPECT_LABELS, normaliseAspectEntries, formatVisitedLabel } from '@/features/reviews'
+import type { ReviewDisplay } from '@/features/reviews'
 
 type Props = {
   reviews: ReviewDisplay[]

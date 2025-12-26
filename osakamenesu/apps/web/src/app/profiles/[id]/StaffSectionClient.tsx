@@ -2,7 +2,7 @@
 
 import { Section } from '@/components/ui/Section'
 import { TherapistCard, type TherapistHit } from '@/components/staff/TherapistCard'
-import { TherapistFavoritesProvider } from '@/components/staff/TherapistFavoritesProvider'
+import { TherapistFavoritesProvider } from '@/features/favorites'
 import { type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 
 type StaffMember = {

@@ -5,7 +5,7 @@ import {
   removeMockFavorite,
   isMockFavoritesMode,
   writeMockFavorites,
-} from '../../../favorites/mockStore'
+} from '@/features/favorites'
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!isMockFavoritesMode()) {

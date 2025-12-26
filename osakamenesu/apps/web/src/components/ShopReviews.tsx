@@ -11,7 +11,7 @@ import {
   transformReviewItem,
   transformHighlight,
   buildInitialForm,
-} from '@/components/reviews/shopReviewsUtils'
+} from '@/features/reviews'
 import type {
   ReviewAspectKey,
   ReviewSummary,
@@ -20,7 +20,7 @@ import type {
   ReviewDisplay,
   ReviewFormState,
   AuthState,
-} from '@/components/reviews/shopReviewsTypes'
+} from '@/features/reviews'
 
 type ShopReviewsProps = {
   shopId: string

@@ -1,5 +1,5 @@
 import TherapistCard, { type TherapistHit } from '@/components/staff/TherapistCard'
-import { TherapistFavoritesProvider } from '@/components/staff/TherapistFavoritesProvider'
+import { TherapistFavoritesProvider } from '@/features/favorites'
 import { TherapistShopTabs } from '@/components/search/TherapistShopTabs'
 import { ShopFilterHeader } from '@/components/search/ShopFilterHeader'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
