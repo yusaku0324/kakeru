@@ -3,3 +3,6 @@
 
 # Test coverage
 coverage/
+
+# Storybook build output
+storybook-static/
