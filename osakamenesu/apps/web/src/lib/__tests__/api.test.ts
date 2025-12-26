@@ -1,0 +1,106 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { buildApiUrl, resolveApiBases } from '../api'
+
+describe('api', () => {
+  const originalWindow = global.window
+
+  afterEach(() => {
+    global.window = originalWindow
+    vi.unstubAllEnvs()
+  })
+
+  describe('buildApiUrl', () => {
+    describe('with absolute URLs', () => {
+      it('builds URL with http base', () => {
+        const result = buildApiUrl('http://api.example.com', '/v1/shops')
+        expect(result).toBe('http://api.example.com/v1/shops')
+      })
+
+      it('builds URL with https base', () => {
+        const result = buildApiUrl('https://api.example.com', '/v1/shops')
+        expect(result).toBe('https://api.example.com/v1/shops')
+      })
+
+      it('handles trailing slash in base', () => {
+        const result = buildApiUrl('https://api.example.com/', '/v1/shops')
+        expect(result).toBe('https://api.example.com/v1/shops')
+      })
+
+      it('handles path without leading slash', () => {
+        const result = buildApiUrl('https://api.example.com', 'v1/shops')
+        expect(result).toBe('https://api.example.com/v1/shops')
+      })
+    })
+
+    describe('with protocol-relative URLs', () => {
+      it('converts // to https://', () => {
+        const result = buildApiUrl('//api.example.com', '/v1/shops')
+        expect(result).toBe('https://api.example.com/v1/shops')
+      })
+    })
+
+    describe('with relative base', () => {
+      beforeEach(() => {
+        global.window = {
+          location: { origin: 'http://localhost:3000' }
+        } as typeof globalThis.window
+      })
+
+      it('builds URL with /api base', () => {
+        const result = buildApiUrl('/api', '/v1/shops')
+        expect(result).toBe('http://localhost:3000/api/v1/shops')
+      })
+
+      it('handles empty base', () => {
+        const result = buildApiUrl('', '/v1/shops')
+        expect(result).toBe('http://localhost:3000/v1/shops')
+      })
+
+      it('avoids duplicate path segments', () => {
+        const result = buildApiUrl('/api', '/api/v1/shops')
+        expect(result).toBe('http://localhost:3000/api/v1/shops')
+      })
+    })
+
+    describe('edge cases', () => {
+      beforeEach(() => {
+        global.window = {
+          location: { origin: 'https://example.com' }
+        } as typeof globalThis.window
+      })
+
+      it('handles multiple trailing slashes in base', () => {
+        const result = buildApiUrl('https://api.example.com///', '/v1/shops')
+        expect(result).toBe('https://api.example.com/v1/shops')
+      })
+
+      it('handles base that equals path prefix', () => {
+        const result = buildApiUrl('/api', '/api')
+        expect(result).toBe('https://example.com/api')
+      })
+    })
+  })
+
+  describe('resolveApiBases', () => {
+    describe('in browser environment', () => {
+      beforeEach(() => {
+        global.window = {
+          location: { origin: 'http://localhost:3000' }
+        } as typeof globalThis.window
+      })
+
+      it('returns /api as first base', () => {
+        const bases = resolveApiBases()
+        expect(bases[0]).toBe('/api')
+      })
+
+      it('returns array with at least one base', () => {
+        const bases = resolveApiBases()
+        expect(bases.length).toBeGreaterThanOrEqual(1)
+      })
+    })
+
+    // Note: Server environment tests are skipped because they require
+    // server-only modules (./server-config) that can't be resolved in Vitest
+  })
+})

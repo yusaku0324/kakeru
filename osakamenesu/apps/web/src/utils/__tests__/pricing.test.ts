@@ -130,4 +130,22 @@ describe('parsePricingText', () => {
     const result = parsePricingText('コース 120分 ¥10,000')
     expect(result[0].durationMinutes).toBe(120)
   })
+
+  it('generates indexed fallback title when no title or duration', () => {
+    // Price only - no title, no duration
+    const result = parsePricingText('¥5,000 / ¥8,000')
+    expect(result).toHaveLength(2)
+    expect(result[0]).toEqual({
+      title: 'コース 1',
+      duration: null,
+      price: '¥5,000',
+      durationMinutes: null,
+    })
+    expect(result[1]).toEqual({
+      title: 'コース 2',
+      duration: null,
+      price: '¥8,000',
+      durationMinutes: null,
+    })
+  })
 })
