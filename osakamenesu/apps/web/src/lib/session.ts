@@ -4,8 +4,6 @@ import { cookies } from 'next/headers'
 export const DASHBOARD_SESSION_COOKIE_NAME = 'osakamenesu_dashboard_session'
 /** Cookie name for site (guest/user) sessions */
 export const SITE_SESSION_COOKIE_NAME = 'osakamenesu_site_session'
-/** @deprecated Use DASHBOARD_SESSION_COOKIE_NAME or SITE_SESSION_COOKIE_NAME */
-export const SESSION_COOKIE_NAME = DASHBOARD_SESSION_COOKIE_NAME
 
 const ONE_WEEK_SECONDS = 60 * 60 * 24 * 7
 
