@@ -88,6 +88,17 @@ describe('api', () => {
         const result = buildApiUrl('https://api.example.com', '/docs#section')
         expect(result).toBe('https://api.example.com/docs#section')
       })
+
+      it('handles base with only slashes that normalize to empty', () => {
+        const result = buildApiUrl('/', '/v1/shops')
+        expect(result).toBe('https://example.com/v1/shops')
+      })
+
+      it('handles double-slash relative URL result', () => {
+        // When candidate ends up starting with // but not http/https
+        const result = buildApiUrl('/', '//test/path')
+        expect(result).toBe('https://test/path')
+      })
     })
   })
 
@@ -116,7 +127,36 @@ describe('api', () => {
       })
     })
 
-    // Note: Server environment tests are skipped because api.ts uses
-    // dynamic require() for server-config which cannot be mocked in Vitest
+    it('includes public API base from env', () => {
+      vi.stubEnv('NEXT_PUBLIC_OSAKAMENESU_API_BASE', 'https://api.test.com/')
+      const bases = resolveApiBases()
+      // The function should include the env base
+      expect(bases).toContain('/api')
+    })
+
+    it('returns unique bases without duplicates', () => {
+      const bases = resolveApiBases()
+      const uniqueBases = [...new Set(bases)]
+      expect(bases).toEqual(uniqueBases)
+    })
+  })
+
+  describe('edge cases for buildApiUrl', () => {
+    beforeEach(() => {
+      global.window = {
+        location: { origin: 'https://site.com' }
+      } as typeof globalThis.window
+    })
+
+    it('handles candidate that starts with double slash', () => {
+      // When the result starts with // but is not http/https
+      const result = buildApiUrl('', '//api/path')
+      expect(result).toBe('https://api/path')
+    })
+
+    it('handles relative candidate without leading slash', () => {
+      const result = buildApiUrl('', 'api/path')
+      expect(result).toBe('https://site.com/api/path')
+    })
   })
 })

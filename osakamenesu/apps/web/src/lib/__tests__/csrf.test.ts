@@ -165,4 +165,45 @@ describe('validateCsrfToken', () => {
     })
     expect(validateCsrfToken(request)).toBe(false)
   })
+
+  it('returns false when cookies.get returns undefined (NextRequest)', () => {
+    const headers = new Headers()
+    headers.set(CSRF_HEADER_NAME, 'token123')
+    const request = {
+      method: 'POST',
+      headers,
+      cookies: {
+        get: () => undefined,
+      },
+    } as unknown as Request
+    expect(validateCsrfToken(request)).toBe(false)
+  })
+
+  it('validates token from cookies.get (NextRequest)', () => {
+    const headers = new Headers()
+    headers.set(CSRF_HEADER_NAME, 'token123')
+    const request = {
+      method: 'POST',
+      headers,
+      cookies: {
+        get: (name: string) =>
+          name === CSRF_COOKIE_NAME ? { value: 'token123' } : undefined,
+      },
+    } as unknown as Request
+    expect(validateCsrfToken(request)).toBe(true)
+  })
+
+  it('returns false for mismatched tokens with cookies.get (NextRequest)', () => {
+    const headers = new Headers()
+    headers.set(CSRF_HEADER_NAME, 'token123')
+    const request = {
+      method: 'POST',
+      headers,
+      cookies: {
+        get: (name: string) =>
+          name === CSRF_COOKIE_NAME ? { value: 'different' } : undefined,
+      },
+    } as unknown as Request
+    expect(validateCsrfToken(request)).toBe(false)
+  })
 })

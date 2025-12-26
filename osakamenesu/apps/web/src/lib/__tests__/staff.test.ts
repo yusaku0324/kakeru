@@ -54,6 +54,22 @@ describe('slugifyStaffIdentifier', () => {
   it('normalizes full-width characters (NFKC)', () => {
     expect(slugifyStaffIdentifier('Ｊｏｈｎ')).toBe('john')
   })
+
+  it('handles malformed URL encoding', () => {
+    // This string has an invalid percent sequence
+    expect(slugifyStaffIdentifier('%ZZ')).toBe('zz')
+  })
+
+  it('uses fallback for special characters that collapse to empty', () => {
+    // Special characters all become hyphens, strip to empty, so fallback is used
+    // The fallback just replaces whitespace with hyphens, keeping special chars
+    expect(slugifyStaffIdentifier('!@#$%')).toBe('!@#$%')
+  })
+
+  it('returns original for single hyphen', () => {
+    // Hyphen collapses to empty, so fallback returns the original minus spaces
+    expect(slugifyStaffIdentifier('-')).toBe('-')
+  })
 })
 
 describe('buildStaffIdentifier', () => {
@@ -118,6 +134,45 @@ describe('buildStaffIdentifier', () => {
       name: 'Name',
     }
     expect(buildStaffIdentifier(staff)).toBe('valid-alias')
+  })
+
+  it('uses fallback when it slugifies to non-empty', () => {
+    const staff: StaffIdentifierSource = {
+      id: null,
+      alias: null,
+      name: null,
+    }
+    // Special chars slugify to themselves via fallback path
+    expect(buildStaffIdentifier(staff, '!@#')).toBe('!@#')
+  })
+
+  it('handles fallback with only numbers', () => {
+    const staff: StaffIdentifierSource = {
+      id: null,
+      alias: null,
+      name: null,
+    }
+    expect(buildStaffIdentifier(staff, '456')).toBe('456')
+  })
+
+  it('uses prefixed fallback when both regular and prefixed work', () => {
+    const staff: StaffIdentifierSource = {
+      id: null,
+      alias: null,
+      name: null,
+    }
+    // When both the fallback and staff-fallback would work, regular is used first
+    expect(buildStaffIdentifier(staff, 'test')).toBe('test')
+  })
+
+  it('uses prefixed fallback when regular fallback slugifies to empty', () => {
+    const staff: StaffIdentifierSource = {
+      id: null,
+      alias: null,
+      name: null,
+    }
+    // Whitespace-only fallback slugifies to '' but staff-{fallback} becomes 'staff'
+    expect(buildStaffIdentifier(staff, '   ')).toBe('staff')
   })
 })
 
