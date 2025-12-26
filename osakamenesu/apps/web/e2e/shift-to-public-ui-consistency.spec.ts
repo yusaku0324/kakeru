@@ -95,11 +95,22 @@ async function waitForSlotCount(date: string, predicate: (n: number) => boolean)
 }
 
 test.describe.serial('勤怠→公開UI 整合性', () => {
+  // この describe 内のテストはシードトークンが必要
+  test.beforeEach(() => {
+    if (!E2E_SEED_TOKEN) {
+      test.skip(true, 'E2E_SEED_TOKEN が未設定のためスキップ（本番環境では実行不可）')
+    }
+  })
+
   const targetDate = jstDate(1) // 明日を固定
   const slotStart = `${targetDate}T10:00:00+09:00`
   const slotEnd = `${targetDate}T12:00:00+09:00`
 
   test.beforeAll(async () => {
+    if (!E2E_SEED_TOKEN) {
+      // beforeEach でスキップされるため、ここでは何もしない
+      return
+    }
     await seedOnce()
   })
 
