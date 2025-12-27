@@ -186,6 +186,83 @@ export const dashboardClient = {
   delete<T>(path: string, options?: Omit<ApiRequestOptions, 'method' | 'body'>) {
     return apiRequest<T>(`api/dashboard/${path}`, { ...options, method: 'DELETE' })
   },
+  /**
+   * Upload file using FormData (multipart/form-data)
+   * Does not set Content-Type header to let browser set it with boundary
+   */
+  async uploadFormData<T>(
+    path: string,
+    formData: FormData,
+    options?: Omit<ApiRequestOptions, 'method' | 'body'>,
+  ): Promise<ApiResult<T>> {
+    const { signal, cache = 'no-store', cookieHeader } = options ?? {}
+
+    const headers: Record<string, string> = {}
+    if (cookieHeader) {
+      headers.cookie = cookieHeader
+    }
+
+    // Attach CSRF token for browser requests
+    if (typeof window !== 'undefined') {
+      const pattern = new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=([^;]*)`)
+      const match = document.cookie.match(pattern)
+      if (match) {
+        headers[CSRF_HEADER_NAME] = decodeURIComponent(match[1])
+      }
+    }
+
+    const init: RequestInit = {
+      method: 'POST',
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
+      credentials: cookieHeader ? 'omit' : 'include',
+      cache,
+      signal,
+      body: formData,
+    }
+
+    let lastError: string = 'Request failed'
+
+    for (const base of resolveApiBases()) {
+      try {
+        const url = buildApiUrl(base, `api/dashboard/${path}`)
+        const response = await fetch(url, init)
+
+        if (response.ok) {
+          const contentType = response.headers.get('content-type')
+          if (response.status === 204 || !contentType?.includes('json')) {
+            return { ok: true, status: response.status, data: undefined as T }
+          }
+          const data = (await response.json()) as T
+          return { ok: true, status: response.status, data }
+        }
+
+        // Handle error responses
+        let detail: unknown
+        try {
+          detail = await response.json()
+        } catch {
+          detail = undefined
+        }
+
+        const errorMessage =
+          typeof detail === 'object' && detail !== null
+            ? (detail as Record<string, unknown>).detail ?? (detail as Record<string, unknown>).message
+            : undefined
+
+        return {
+          ok: false,
+          status: response.status,
+          error: typeof errorMessage === 'string' ? errorMessage : `HTTP ${response.status}`,
+          detail,
+        }
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : 'Network error'
+        // Try next base
+      }
+    }
+
+    return { ok: false, status: 0, error: lastError }
+  },
 }
 
 /**

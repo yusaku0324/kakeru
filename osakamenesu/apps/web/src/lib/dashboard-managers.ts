@@ -1,4 +1,10 @@
 import { dashboardClient, type ApiErrorResult } from '@/lib/http-clients'
+import {
+  type DashboardRequestOptions,
+  handleCommonError,
+  createErrorResult,
+  extractDetailString,
+} from '@/lib/dashboard-common'
 
 export type ShopManagerRole = 'owner' | 'manager' | 'staff'
 
@@ -34,11 +40,8 @@ export type UpdateShopManagerPayload = {
   role: ShopManagerRole
 }
 
-export type DashboardManagerRequestOptions = {
-  cookieHeader?: string
-  signal?: AbortSignal
-  cache?: RequestCache
-}
+// Re-export shared type for backward compatibility
+export type DashboardManagerRequestOptions = DashboardRequestOptions
 
 export type ShopManagerListResult =
   | { status: 'success'; data: ShopManager[] }
@@ -90,25 +93,12 @@ export async function fetchShopManagers(
   }
 
   const err = result as ApiErrorResult
-  switch (err.status) {
-    case 401:
-      return { status: 'unauthorized' }
-    case 403:
-      return {
-        status: 'forbidden',
-        detail:
-          typeof err.detail === 'object' && err.detail !== null
-            ? (err.detail as { detail?: string }).detail
-            : undefined,
-      }
-    case 404:
-      return { status: 'not_found' }
-    default:
-      return {
-        status: 'error',
-        message: err.error || `スタッフ情報の取得に失敗しました (status=${err.status})`,
-      }
+  const commonResult = handleCommonError(err, 'スタッフ情報の取得に失敗しました')
+  if (commonResult) {
+    return commonResult
   }
+
+  return createErrorResult(err, 'スタッフ情報の取得に失敗しました')
 }
 
 export async function addShopManager(
@@ -131,31 +121,31 @@ export async function addShopManager(
   }
 
   const err = result as ApiErrorResult
-  switch (err.status) {
-    case 401:
-      return { status: 'unauthorized' }
-    case 403:
+
+  // Handle common errors (401, 403, 404)
+  const commonResult = handleCommonError(err, 'スタッフの追加に失敗しました')
+  if (commonResult) {
+    // For 403, extract detail using both string and object formats
+    if (err.status === 403) {
       return {
         status: 'forbidden',
-        detail:
-          typeof err.detail === 'string'
-            ? err.detail
-            : typeof err.detail === 'object' && err.detail !== null
-              ? (err.detail as { detail?: string }).detail
-              : undefined,
+        detail: extractDetailString(err.detail),
       }
-    case 404:
-      return { status: 'not_found' }
-    case 409:
-      return { status: 'conflict', message: 'このユーザーは既にスタッフとして登録されています' }
-    case 422:
-      return { status: 'validation_error', detail: err.detail }
-    default:
-      return {
-        status: 'error',
-        message: err.error || `スタッフの追加に失敗しました (status=${err.status})`,
-      }
+    }
+    return commonResult
   }
+
+  // Handle conflict (409)
+  if (err.status === 409) {
+    return { status: 'conflict', message: 'このユーザーは既にスタッフとして登録されています' }
+  }
+
+  // Handle validation error (422)
+  if (err.status === 422) {
+    return { status: 'validation_error', detail: err.detail }
+  }
+
+  return createErrorResult(err, 'スタッフの追加に失敗しました')
 }
 
 export async function updateShopManager(
@@ -179,29 +169,25 @@ export async function updateShopManager(
   }
 
   const err = result as ApiErrorResult
-  switch (err.status) {
-    case 401:
-      return { status: 'unauthorized' }
-    case 403:
+
+  // Handle common errors (401, 403, 404)
+  const commonResult = handleCommonError(err, 'スタッフ情報の更新に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
       return {
         status: 'forbidden',
-        detail:
-          typeof err.detail === 'string'
-            ? err.detail
-            : typeof err.detail === 'object' && err.detail !== null
-              ? (err.detail as { detail?: string }).detail
-              : undefined,
+        detail: extractDetailString(err.detail),
       }
-    case 404:
-      return { status: 'not_found' }
-    case 422:
-      return { status: 'validation_error', detail: err.detail }
-    default:
-      return {
-        status: 'error',
-        message: err.error || `スタッフ情報の更新に失敗しました (status=${err.status})`,
-      }
+    }
+    return commonResult
   }
+
+  // Handle validation error (422)
+  if (err.status === 422) {
+    return { status: 'validation_error', detail: err.detail }
+  }
+
+  return createErrorResult(err, 'スタッフ情報の更新に失敗しました')
 }
 
 export async function deleteShopManager(
@@ -223,30 +209,26 @@ export async function deleteShopManager(
   }
 
   const err = result as ApiErrorResult
-  switch (err.status) {
-    case 400:
-      if (err.detail === 'cannot_remove_last_owner') {
-        return { status: 'cannot_remove_last_owner' }
-      }
-      return { status: 'error', message: '削除に失敗しました' }
-    case 401:
-      return { status: 'unauthorized' }
-    case 403:
+
+  // Handle special 400 case for last owner
+  if (err.status === 400) {
+    if (err.detail === 'cannot_remove_last_owner') {
+      return { status: 'cannot_remove_last_owner' }
+    }
+    return { status: 'error', message: '削除に失敗しました' }
+  }
+
+  // Handle common errors (401, 403, 404)
+  const commonResult = handleCommonError(err, 'スタッフの削除に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
       return {
         status: 'forbidden',
-        detail:
-          typeof err.detail === 'string'
-            ? err.detail
-            : typeof err.detail === 'object' && err.detail !== null
-              ? (err.detail as { detail?: string }).detail
-              : undefined,
+        detail: extractDetailString(err.detail),
       }
-    case 404:
-      return { status: 'not_found' }
-    default:
-      return {
-        status: 'error',
-        message: err.error || `スタッフの削除に失敗しました (status=${err.status})`,
-      }
+    }
+    return commonResult
   }
+
+  return createErrorResult(err, 'スタッフの削除に失敗しました')
 }

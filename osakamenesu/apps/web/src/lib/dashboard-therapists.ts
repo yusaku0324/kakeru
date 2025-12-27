@@ -1,5 +1,12 @@
-import { buildApiUrl, resolveApiBases } from '@/lib/api'
-import type { DashboardShopRequestOptions } from './dashboard-shops'
+import { dashboardClient, type ApiErrorResult } from '@/lib/http-clients'
+import {
+  type DashboardRequestOptions,
+  handleCommonError,
+  createErrorResult,
+} from '@/lib/dashboard-common'
+
+// Re-export for backward compatibility
+export type DashboardTherapistRequestOptions = DashboardRequestOptions
 
 export type DashboardTherapistStatus = 'draft' | 'published' | 'archived'
 
@@ -97,96 +104,6 @@ export type DashboardTherapistPhotoUploadResult =
   | { status: 'not_found' }
   | { status: 'error'; message: string }
 
-function createRequestInit(
-  method: string,
-  options?: DashboardShopRequestOptions,
-  body?: unknown,
-): RequestInit {
-  const headers: Record<string, string> = {}
-  if (options?.cookieHeader) {
-    headers.cookie = options.cookieHeader
-  }
-
-  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
-  if (body !== undefined && !isFormData) {
-    headers['Content-Type'] = 'application/json'
-  }
-
-  const init: RequestInit = {
-    method,
-    cache: options?.cache ?? 'no-store',
-    signal: options?.signal,
-    credentials: options?.cookieHeader ? 'omit' : 'include',
-  }
-
-  if (Object.keys(headers).length) {
-    init.headers = headers
-  }
-
-  if (body !== undefined) {
-    if (isFormData) {
-      init.body = body as FormData
-    } else {
-      init.body = JSON.stringify(body)
-    }
-  }
-
-  return init
-}
-
-async function requestJson<T>(
-  path: string,
-  init: RequestInit,
-  successStatuses: number[],
-): Promise<{ response: Response; data?: T }> {
-  let lastError: { status: string; message?: string } | null = null
-
-  for (const base of resolveApiBases()) {
-    try {
-      const res = await fetch(buildApiUrl(base, path), init)
-
-      if (successStatuses.includes(res.status)) {
-        let data: T | undefined
-        const shouldParseJson =
-          res.status !== 204 && (res.headers.get('content-type')?.includes('json') ?? false)
-        if (shouldParseJson) {
-          data = (await res.json()) as T
-        }
-        return { response: res, data }
-      }
-
-      if ([401, 403, 404, 409, 413, 415, 422].includes(res.status)) {
-        let data: T | undefined
-        const shouldParseJson =
-          res.headers.get('content-type')?.includes('json') ||
-          res.status === 413 ||
-          res.status === 415
-        if (shouldParseJson) {
-          data = (await res.json()) as T
-        }
-        return { response: res, data }
-      }
-
-      lastError = {
-        status: 'error',
-        message: `リクエストに失敗しました (status=${res.status})`,
-      }
-    } catch (error) {
-      lastError = {
-        status: 'error',
-        message: error instanceof Error ? error.message : 'リクエスト中にエラーが発生しました',
-      }
-    }
-  }
-
-  throw (
-    lastError ?? {
-      status: 'error',
-      message: 'API リクエストが完了しませんでした',
-    }
-  )
-}
-
 function toSummary(detail: DashboardTherapistDetail): DashboardTherapistSummary {
   return {
     id: detail.id,
@@ -206,301 +123,321 @@ export function summarizeTherapist(detail: DashboardTherapistDetail): DashboardT
   return toSummary(detail)
 }
 
+function extractDetailString(detail: unknown): string | undefined {
+  if (typeof detail === 'string') return detail
+  if (typeof detail === 'object' && detail !== null) {
+    const obj = detail as Record<string, unknown>
+    if (typeof obj.detail === 'string') return obj.detail
+  }
+  return undefined
+}
+
 export async function fetchDashboardTherapists(
   profileId: string,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardTherapistListResult> {
-  try {
-    const { response, data } = await requestJson<DashboardTherapistSummary[]>(
-      `api/dashboard/shops/${profileId}/therapists`,
-      createRequestInit('GET', options),
-      [200],
-    )
+  const result = await dashboardClient.get<DashboardTherapistSummary[]>(
+    `shops/${profileId}/therapists`,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 200:
-        return { status: 'success', data: data ?? [] }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 404:
-        return { status: 'not_found' }
-      default:
-        return {
-          status: 'error',
-          message: `セラピスト情報の取得に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardTherapistListResult
-    }
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'セラピスト情報の取得に失敗しました',
-    }
+  if (result.ok) {
+    return { status: 'success', data: result.data ?? [] }
   }
+
+  const err = result as ApiErrorResult
+  const commonResult = handleCommonError(err, 'セラピスト情報の取得に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
+      return {
+        status: 'forbidden',
+        detail: extractDetailString(err.detail),
+      }
+    }
+    return commonResult
+  }
+
+  return createErrorResult(err, 'セラピスト情報の取得に失敗しました')
 }
 
 export async function fetchDashboardTherapist(
   profileId: string,
   therapistId: string,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardTherapistMutationResult> {
-  try {
-    const { response, data } = await requestJson<DashboardTherapistDetail>(
-      `api/dashboard/shops/${profileId}/therapists/${therapistId}`,
-      createRequestInit('GET', options),
-      [200],
-    )
+  const result = await dashboardClient.get<DashboardTherapistDetail>(
+    `shops/${profileId}/therapists/${therapistId}`,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 200:
-        return { status: 'success', data: data! }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 404:
-        return { status: 'not_found' }
-      default:
-        return {
-          status: 'error',
-          message: `セラピスト情報の取得に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardTherapistMutationResult
-    }
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'セラピスト情報の取得に失敗しました',
-    }
+  if (result.ok) {
+    return { status: 'success', data: result.data }
   }
+
+  const err = result as ApiErrorResult
+  const commonResult = handleCommonError(err, 'セラピスト情報の取得に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
+      return {
+        status: 'forbidden',
+        detail: extractDetailString(err.detail),
+      }
+    }
+    return commonResult
+  }
+
+  return createErrorResult(err, 'セラピスト情報の取得に失敗しました')
 }
 
 export async function createDashboardTherapist(
   profileId: string,
   payload: DashboardTherapistCreatePayload,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardTherapistMutationResult> {
-  try {
-    const { response, data } = await requestJson<DashboardTherapistDetail>(
-      `api/dashboard/shops/${profileId}/therapists`,
-      createRequestInit('POST', options, payload),
-      [201],
-    )
+  const result = await dashboardClient.post<DashboardTherapistDetail>(
+    `shops/${profileId}/therapists`,
+    payload,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 201:
-        return { status: 'success', data: data! }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 422:
-        return { status: 'validation_error', detail: data }
-      default:
-        return {
-          status: 'error',
-          message: `セラピストの作成に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardTherapistMutationResult
-    }
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'セラピストの作成に失敗しました',
-    }
+  if (result.ok) {
+    return { status: 'success', data: result.data }
   }
+
+  const err = result as ApiErrorResult
+
+  // Handle common errors (401, 403, 404)
+  const commonResult = handleCommonError(err, 'セラピストの作成に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
+      return {
+        status: 'forbidden',
+        detail: extractDetailString(err.detail),
+      }
+    }
+    return commonResult
+  }
+
+  // Handle validation error (422)
+  if (err.status === 422) {
+    return { status: 'validation_error', detail: err.detail }
+  }
+
+  return createErrorResult(err, 'セラピストの作成に失敗しました')
 }
 
 export async function updateDashboardTherapist(
   profileId: string,
   therapistId: string,
   payload: DashboardTherapistUpdatePayload,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardTherapistMutationResult> {
-  try {
-    const { response, data } = await requestJson<DashboardTherapistDetail>(
-      `api/dashboard/shops/${profileId}/therapists/${therapistId}`,
-      createRequestInit('PATCH', options, payload),
-      [200],
-    )
+  const result = await dashboardClient.patch<DashboardTherapistDetail>(
+    `shops/${profileId}/therapists/${therapistId}`,
+    payload,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 200:
-        return { status: 'success', data: data! }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 404:
-        return { status: 'not_found' }
-      case 409:
-        return { status: 'conflict', current: data! }
-      case 422:
-        return { status: 'validation_error', detail: data }
-      default:
-        return {
-          status: 'error',
-          message: `セラピストの更新に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardTherapistMutationResult
-    }
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'セラピストの更新に失敗しました',
-    }
+  if (result.ok) {
+    return { status: 'success', data: result.data }
   }
+
+  const err = result as ApiErrorResult
+
+  // Handle common errors (401, 403, 404)
+  const commonResult = handleCommonError(err, 'セラピストの更新に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
+      return {
+        status: 'forbidden',
+        detail: extractDetailString(err.detail),
+      }
+    }
+    return commonResult
+  }
+
+  // Handle conflict (409)
+  if (err.status === 409) {
+    // Try to get current data from error detail
+    const conflictDetail = err.detail as
+      | { detail?: { current?: DashboardTherapistDetail }; current?: DashboardTherapistDetail }
+      | DashboardTherapistDetail
+      | undefined
+
+    // Check if current is directly in detail
+    if (conflictDetail && 'id' in conflictDetail && 'name' in conflictDetail) {
+      return { status: 'conflict', current: conflictDetail as DashboardTherapistDetail }
+    }
+
+    // Check nested structure
+    const nested = conflictDetail as { detail?: { current?: DashboardTherapistDetail }; current?: DashboardTherapistDetail } | undefined
+    if (nested?.detail?.current) {
+      return { status: 'conflict', current: nested.detail.current }
+    }
+    if (nested?.current) {
+      return { status: 'conflict', current: nested.current }
+    }
+
+    // Fetch fresh data as fallback
+    const refreshed = await fetchDashboardTherapist(profileId, therapistId, options)
+    if (refreshed.status === 'success') {
+      return { status: 'conflict', current: refreshed.data }
+    }
+
+    return createErrorResult(err, 'セラピストの更新に失敗しました（競合）')
+  }
+
+  // Handle validation error (422)
+  if (err.status === 422) {
+    return { status: 'validation_error', detail: err.detail }
+  }
+
+  return createErrorResult(err, 'セラピストの更新に失敗しました')
 }
 
 export async function deleteDashboardTherapist(
   profileId: string,
   therapistId: string,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardTherapistDeleteResult> {
-  try {
-    const { response } = await requestJson<undefined>(
-      `api/dashboard/shops/${profileId}/therapists/${therapistId}`,
-      createRequestInit('DELETE', options),
-      [204],
-    )
+  const result = await dashboardClient.delete<undefined>(
+    `shops/${profileId}/therapists/${therapistId}`,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 204:
-        return { status: 'success' }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return { status: 'forbidden' }
-      case 404:
-        return { status: 'not_found' }
-      default:
-        return {
-          status: 'error',
-          message: `セラピストの削除に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardTherapistDeleteResult
-    }
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'セラピストの削除に失敗しました',
-    }
+  if (result.ok) {
+    return { status: 'success' }
   }
+
+  const err = result as ApiErrorResult
+  const commonResult = handleCommonError(err, 'セラピストの削除に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
+      return {
+        status: 'forbidden',
+        detail: extractDetailString(err.detail),
+      }
+    }
+    return commonResult
+  }
+
+  return createErrorResult(err, 'セラピストの削除に失敗しました')
 }
 
 export async function uploadDashboardTherapistPhoto(
   profileId: string,
   file: File,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardTherapistPhotoUploadResult> {
   const formData = new FormData()
   formData.append('file', file)
 
-  try {
-    const { response, data } = await requestJson<DashboardTherapistPhotoUploadResponse>(
-      `api/dashboard/shops/${profileId}/therapists/photos/upload`,
-      createRequestInit('POST', options, formData),
-      [201],
-    )
+  const result = await dashboardClient.uploadFormData<DashboardTherapistPhotoUploadResponse>(
+    `shops/${profileId}/therapists/photos/upload`,
+    formData,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 201:
-        return { status: 'success', data: data as DashboardTherapistPhotoUploadResponse }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return { status: 'forbidden', detail: (data as { detail?: string } | undefined)?.detail }
-      case 404:
-        return { status: 'not_found' }
-      case 413: {
-        const json = data as { limit_bytes?: number } | undefined
-        return { status: 'too_large', limitBytes: json?.limit_bytes }
-      }
-      case 415:
-        return {
-          status: 'unsupported_media_type',
-          message: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 422:
-        return {
-          status: 'validation_error',
-          message: (data as { message?: string } | undefined)?.message,
-        }
-      default:
-        return {
-          status: 'error',
-          message: `写真のアップロードに失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
+  if (result.ok) {
+    return { status: 'success', data: result.data }
+  }
+
+  const err = result as ApiErrorResult
+
+  // Handle common errors (401, 403, 404)
+  if (err.status === 401) {
+    return { status: 'unauthorized' }
+  }
+  if (err.status === 403) {
     return {
-      status: 'error',
-      message: error instanceof Error ? error.message : '写真のアップロードに失敗しました',
+      status: 'forbidden',
+      detail: extractDetailString(err.detail),
     }
   }
+  if (err.status === 404) {
+    return { status: 'not_found' }
+  }
+
+  // Handle too large (413)
+  if (err.status === 413) {
+    const json = err.detail as { limit_bytes?: number } | undefined
+    return { status: 'too_large', limitBytes: json?.limit_bytes }
+  }
+
+  // Handle unsupported media type (415)
+  if (err.status === 415) {
+    return {
+      status: 'unsupported_media_type',
+      message: extractDetailString(err.detail),
+    }
+  }
+
+  // Handle validation error (422)
+  if (err.status === 422) {
+    const validationDetail = err.detail as { message?: string } | undefined
+    return {
+      status: 'validation_error',
+      message: validationDetail?.message,
+    }
+  }
+
+  return createErrorResult(err, '写真のアップロードに失敗しました')
 }
 
 export async function reorderDashboardTherapists(
   profileId: string,
   payload: DashboardTherapistReorderPayload,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardTherapistListResult> {
-  try {
-    const { response, data } = await requestJson<DashboardTherapistSummary[]>(
-      `api/dashboard/shops/${profileId}/therapists:reorder`,
-      createRequestInit('POST', options, payload),
-      [200],
-    )
+  const result = await dashboardClient.post<DashboardTherapistSummary[]>(
+    `shops/${profileId}/therapists:reorder`,
+    payload,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 200:
-        return { status: 'success', data: data ?? [] }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 404:
-        return { status: 'not_found' }
-      default:
-        return {
-          status: 'error',
-          message: `セラピストの並び替えに失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardTherapistListResult
-    }
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'セラピストの並び替えに失敗しました',
-    }
+  if (result.ok) {
+    return { status: 'success', data: result.data ?? [] }
   }
+
+  const err = result as ApiErrorResult
+  const commonResult = handleCommonError(err, 'セラピストの並び替えに失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
+      return {
+        status: 'forbidden',
+        detail: extractDetailString(err.detail),
+      }
+    }
+    return commonResult
+  }
+
+  return createErrorResult(err, 'セラピストの並び替えに失敗しました')
 }

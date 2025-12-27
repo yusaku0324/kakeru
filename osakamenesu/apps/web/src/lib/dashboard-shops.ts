@@ -1,5 +1,11 @@
 import { dashboardClient, type ApiErrorResult } from '@/lib/http-clients'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
+import {
+  type DashboardRequestOptions,
+  handleCommonError,
+  createErrorResult,
+  extractDetailString,
+} from '@/lib/dashboard-common'
 
 export type DashboardShopServiceType = 'store' | 'dispatch'
 
@@ -71,11 +77,8 @@ export type DashboardShopProfile = {
   default_slot_duration_minutes?: number | null
 }
 
-export type DashboardShopRequestOptions = {
-  cookieHeader?: string
-  signal?: AbortSignal
-  cache?: RequestCache
-}
+// Re-export shared type for backward compatibility
+export type DashboardShopRequestOptions = DashboardRequestOptions
 
 export type DashboardShopProfileFetchResult =
   | { status: 'success'; data: DashboardShopProfile }
@@ -149,24 +152,12 @@ export async function fetchDashboardShopProfile(
   }
 
   const err = result as ApiErrorResult
-  switch (err.status) {
-    case 401:
-      return { status: 'unauthorized' }
-    case 403:
-      return {
-        status: 'forbidden',
-        detail: typeof err.detail === 'object' && err.detail !== null
-          ? (err.detail as { detail?: string }).detail
-          : undefined,
-      }
-    case 404:
-      return { status: 'not_found' }
-    default:
-      return {
-        status: 'error',
-        message: err.error || `店舗情報の取得に失敗しました (status=${err.status})`,
-      }
+  const commonResult = handleCommonError(err, '店舗情報の取得に失敗しました')
+  if (commonResult) {
+    return commonResult
   }
+
+  return createErrorResult(err, '店舗情報の取得に失敗しました')
 }
 
 export async function updateDashboardShopProfile(
@@ -187,57 +178,54 @@ export async function updateDashboardShopProfile(
   }
 
   const err = result as ApiErrorResult
-  switch (err.status) {
-    case 401:
-      return { status: 'unauthorized' }
-    case 403:
-      return {
-        status: 'forbidden',
-        detail: typeof err.detail === 'object' && err.detail !== null
-          ? (err.detail as { detail?: string }).detail
-          : undefined,
-      }
-    case 404:
-      return { status: 'not_found' }
-    case 409: {
-      const conflictDetail = err.detail as
-        | { detail?: { current?: DashboardShopProfile } }
-        | undefined
-      if (conflictDetail?.detail?.current) {
-        return { status: 'conflict', current: conflictDetail.detail.current }
-      }
-      const refreshed = await fetchDashboardShopProfile(profileId, options)
-      if (refreshed.status === 'success') {
-        return { status: 'conflict', current: refreshed.data }
-      }
-      const fallback: DashboardShopProfile = {
-        id: profileId,
-        name: payload.name ?? '',
-        area: payload.area ?? '',
-        price_min: payload.price_min ?? 0,
-        price_max: payload.price_max ?? 0,
-        service_type: payload.service_type ?? 'store',
-        service_tags: payload.service_tags ?? [],
-        description: payload.description ?? null,
-        catch_copy: payload.catch_copy ?? null,
-        address: payload.address ?? null,
-        photos: payload.photos ?? [],
-        contact: payload.contact ?? null,
-        menus: payload.menus ?? [],
-        staff: payload.staff ?? [],
-        updated_at: payload.updated_at,
-        status: payload.status ?? 'draft',
-      }
-      return { status: 'conflict', current: fallback }
-    }
-    case 422:
-      return { status: 'validation_error', detail: err.detail }
-    default:
-      return {
-        status: 'error',
-        message: err.error || `店舗情報の更新に失敗しました (status=${err.status})`,
-      }
+
+  // Handle common errors (401, 403, 404)
+  const commonResult = handleCommonError(err, '店舗情報の更新に失敗しました')
+  if (commonResult) {
+    return commonResult
   }
+
+  // Handle conflict (409)
+  if (err.status === 409) {
+    const conflictDetail = err.detail as
+      | { detail?: { current?: DashboardShopProfile } }
+      | undefined
+    if (conflictDetail?.detail?.current) {
+      return { status: 'conflict', current: conflictDetail.detail.current }
+    }
+    // Fetch fresh data
+    const refreshed = await fetchDashboardShopProfile(profileId, options)
+    if (refreshed.status === 'success') {
+      return { status: 'conflict', current: refreshed.data }
+    }
+    // Fallback with payload data
+    const fallback: DashboardShopProfile = {
+      id: profileId,
+      name: payload.name ?? '',
+      area: payload.area ?? '',
+      price_min: payload.price_min ?? 0,
+      price_max: payload.price_max ?? 0,
+      service_type: payload.service_type ?? 'store',
+      service_tags: payload.service_tags ?? [],
+      description: payload.description ?? null,
+      catch_copy: payload.catch_copy ?? null,
+      address: payload.address ?? null,
+      photos: payload.photos ?? [],
+      contact: payload.contact ?? null,
+      menus: payload.menus ?? [],
+      staff: payload.staff ?? [],
+      updated_at: payload.updated_at,
+      status: payload.status ?? 'draft',
+    }
+    return { status: 'conflict', current: fallback }
+  }
+
+  // Handle validation error (422)
+  if (err.status === 422) {
+    return { status: 'validation_error', detail: err.detail }
+  }
+
+  return createErrorResult(err, '店舗情報の更新に失敗しました')
 }
 
 export async function createDashboardShopProfile(
@@ -267,29 +255,29 @@ export async function createDashboardShopProfile(
   }
 
   const err = result as ApiErrorResult
-  switch (err.status) {
-    case 401:
-      return { status: 'unauthorized' }
-    case 403:
-      return {
-        status: 'forbidden',
-        detail: typeof err.detail === 'object' && err.detail !== null
-          ? (err.detail as { detail?: string }).detail
-          : undefined,
-      }
-    case 422:
-      return {
-        status: 'validation_error',
-        detail: typeof err.detail === 'object' && err.detail !== null
-          ? (err.detail as { detail?: unknown }).detail
-          : err.detail,
-      }
-    default:
-      return {
-        status: 'error',
-        message: err.error || `店舗情報の作成に失敗しました (status=${err.status})`,
-      }
+
+  // Handle common errors (401, 403) - no 404 for create
+  if (err.status === 401) {
+    return { status: 'unauthorized' }
   }
+  if (err.status === 403) {
+    return {
+      status: 'forbidden',
+      detail: extractDetailString(err.detail),
+    }
+  }
+
+  // Handle validation error (422)
+  if (err.status === 422) {
+    return {
+      status: 'validation_error',
+      detail: typeof err.detail === 'object' && err.detail !== null
+        ? (err.detail as { detail?: unknown }).detail
+        : err.detail,
+    }
+  }
+
+  return createErrorResult(err, '店舗情報の作成に失敗しました')
 }
 
 export type DashboardShopPhotoUploadResponse = {

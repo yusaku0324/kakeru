@@ -1,4 +1,9 @@
-import { buildApiUrl, resolveApiBases } from '@/lib/api'
+import { dashboardClient, type ApiErrorResult } from '@/lib/http-clients'
+import {
+  type DashboardRequestOptions,
+  handleCommonError,
+  createErrorResult,
+} from '@/lib/dashboard-common'
 
 export type DashboardNotificationStatus =
   | 'pending'
@@ -47,11 +52,8 @@ export type DashboardNotificationSettingsTestPayload = {
   channels: DashboardNotificationChannels
 }
 
-export type DashboardNotificationsRequestOptions = {
-  cookieHeader?: string
-  signal?: AbortSignal
-  cache?: RequestCache
-}
+// Re-export shared type for backward compatibility
+export type DashboardNotificationsRequestOptions = DashboardRequestOptions
 
 export type DashboardNotificationsSuccess = {
   status: 'success'
@@ -110,128 +112,43 @@ export type DashboardNotificationsTestResult =
   | DashboardNotificationsNotFound
   | DashboardNotificationsError
 
-function createRequestInit(
-  method: string,
-  options?: DashboardNotificationsRequestOptions,
-  body?: unknown,
-): RequestInit {
-  const headers: Record<string, string> = {}
-  if (options?.cookieHeader) {
-    headers.cookie = options.cookieHeader
-  }
-  if (body !== undefined) {
-    headers['Content-Type'] = 'application/json'
-  }
-
-  const init: RequestInit = {
-    method,
-    cache: options?.cache ?? 'no-store',
-    signal: options?.signal,
-  }
-
-  if (Object.keys(headers).length) {
-    init.headers = headers
-  }
-
-  if (body !== undefined) {
-    init.body = JSON.stringify(body)
-  }
-
-  return init
-}
-
-async function requestJson<T>(
-  path: string,
-  init: RequestInit,
-  successStatuses: number[],
-): Promise<{ response: Response; data?: T }> {
-  let lastError: DashboardNotificationsError | null = null
-
-  for (const base of resolveApiBases()) {
-    try {
-      const res = await fetch(buildApiUrl(base, path), init)
-
-      if (successStatuses.includes(res.status)) {
-        let data: T | undefined
-        if (res.status !== 204 && res.headers.get('content-type')?.includes('json')) {
-          data = (await res.json()) as T
-        }
-        return { response: res, data }
-      }
-
-      switch (res.status) {
-        case 401:
-        case 403:
-        case 404:
-        case 409:
-        case 422: {
-          let data: T | undefined
-          if (res.headers.get('content-type')?.includes('json')) {
-            data = (await res.json()) as T
-          }
-          return { response: res, data }
-        }
-        default:
-          lastError = {
-            status: 'error',
-            message: `リクエストに失敗しました (status=${res.status})`,
-          }
-          continue
-      }
-    } catch (error) {
-      lastError = {
-        status: 'error',
-        message: error instanceof Error ? error.message : 'リクエスト中にエラーが発生しました',
-      }
-    }
-  }
-
-  throw (
-    lastError ?? {
-      status: 'error',
-      message: 'API リクエストが完了しませんでした',
-    }
-  )
-}
-
 export async function fetchDashboardNotificationSettings(
   profileId: string,
   options?: DashboardNotificationsRequestOptions,
 ): Promise<DashboardNotificationsFetchResult> {
-  try {
-    const { response, data } = await requestJson<DashboardNotificationSettingsResponse>(
-      `api/dashboard/shops/${profileId}/notifications`,
-      createRequestInit('GET', options),
-      [200],
-    )
+  const result = await dashboardClient.get<DashboardNotificationSettingsResponse>(
+    `shops/${profileId}/notifications`,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 200:
-        return { status: 'success', data: data! }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail ?? 'dashboard_access_denied',
-        }
-      case 404:
-        return { status: 'not_found' }
-      default:
-        return {
-          status: 'error',
-          message: `通知設定の取得に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardNotificationsError
-    }
+  if (result.ok) {
+    return { status: 'success', data: result.data }
+  }
+
+  const err = result as ApiErrorResult
+
+  // Handle common errors (401, 403, 404)
+  if (err.status === 401) {
+    return { status: 'unauthorized' }
+  }
+  if (err.status === 403) {
+    const detail = typeof err.detail === 'object' && err.detail !== null
+      ? (err.detail as { detail?: string }).detail
+      : undefined
     return {
-      status: 'error',
-      message: error instanceof Error ? error.message : '通知設定の取得に失敗しました',
+      status: 'forbidden',
+      detail: detail ?? 'dashboard_access_denied',
     }
   }
+  if (err.status === 404) {
+    return { status: 'not_found' }
+  }
+
+  return createErrorResult(err, '通知設定の取得に失敗しました')
 }
 
 export async function updateDashboardNotificationSettings(
@@ -239,65 +156,71 @@ export async function updateDashboardNotificationSettings(
   payload: DashboardNotificationSettingsUpdatePayload,
   options?: DashboardNotificationsRequestOptions,
 ): Promise<DashboardNotificationsUpdateResult> {
-  try {
-    const { response, data } = await requestJson<
-      | DashboardNotificationSettingsResponse
-      | { detail?: { current?: DashboardNotificationSettingsResponse } }
-    >(
-      `api/dashboard/shops/${profileId}/notifications`,
-      createRequestInit('PUT', options, payload),
-      [200],
-    )
+  const result = await dashboardClient.put<
+    | DashboardNotificationSettingsResponse
+    | { detail?: { current?: DashboardNotificationSettingsResponse } }
+  >(
+    `shops/${profileId}/notifications`,
+    payload,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 200:
-        return { status: 'success', data: data as DashboardNotificationSettingsResponse }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail ?? 'dashboard_access_denied',
-        }
-      case 404:
-        return { status: 'not_found' }
-      case 409: {
-        const detail = data as
-          | { detail?: { current?: DashboardNotificationSettingsResponse } }
-          | undefined
-        if (detail?.detail?.current) {
-          return { status: 'conflict', current: detail.detail.current }
-        }
-        const refreshed = await fetchDashboardNotificationSettings(profileId, options)
-        if (refreshed.status === 'success') {
-          return { status: 'conflict', current: refreshed.data }
-        }
-        const fallbackCurrent = detail?.detail?.current ??
-          (data as DashboardNotificationSettingsResponse | undefined) ?? {
-            profile_id: profileId,
-            updated_at: payload.updated_at,
-            trigger_status: payload.trigger_status,
-            channels: payload.channels,
-          }
-        return { status: 'conflict', current: fallbackCurrent }
-      }
-      case 422:
-        return { status: 'validation_error', detail: data }
-      default:
-        return {
-          status: 'error',
-          message: `通知設定の更新に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardNotificationsError
-    }
+  if (result.ok) {
+    return { status: 'success', data: result.data as DashboardNotificationSettingsResponse }
+  }
+
+  const err = result as ApiErrorResult
+
+  // Handle common errors (401, 403, 404)
+  if (err.status === 401) {
+    return { status: 'unauthorized' }
+  }
+  if (err.status === 403) {
+    const detail = typeof err.detail === 'object' && err.detail !== null
+      ? (err.detail as { detail?: string }).detail
+      : undefined
     return {
-      status: 'error',
-      message: error instanceof Error ? error.message : '通知設定の更新に失敗しました',
+      status: 'forbidden',
+      detail: detail ?? 'dashboard_access_denied',
     }
   }
+  if (err.status === 404) {
+    return { status: 'not_found' }
+  }
+
+  // Handle conflict (409)
+  if (err.status === 409) {
+    const conflictDetail = err.detail as
+      | { detail?: { current?: DashboardNotificationSettingsResponse } }
+      | undefined
+    if (conflictDetail?.detail?.current) {
+      return { status: 'conflict', current: conflictDetail.detail.current }
+    }
+    // Fetch fresh data
+    const refreshed = await fetchDashboardNotificationSettings(profileId, options)
+    if (refreshed.status === 'success') {
+      return { status: 'conflict', current: refreshed.data }
+    }
+    // Fallback with payload data
+    const fallbackCurrent: DashboardNotificationSettingsResponse = {
+      profile_id: profileId,
+      updated_at: payload.updated_at,
+      trigger_status: payload.trigger_status,
+      channels: payload.channels,
+    }
+    return { status: 'conflict', current: fallbackCurrent }
+  }
+
+  // Handle validation error (422)
+  if (err.status === 422) {
+    return { status: 'validation_error', detail: err.detail }
+  }
+
+  return createErrorResult(err, '通知設定の更新に失敗しました')
 }
 
 export async function testDashboardNotificationSettings(
@@ -305,40 +228,43 @@ export async function testDashboardNotificationSettings(
   payload: DashboardNotificationSettingsTestPayload,
   options?: DashboardNotificationsRequestOptions,
 ): Promise<DashboardNotificationsTestResult> {
-  try {
-    const { response, data } = await requestJson<unknown>(
-      `api/dashboard/shops/${profileId}/notifications/test`,
-      createRequestInit('POST', options, payload),
-      [204],
-    )
+  const result = await dashboardClient.post<undefined>(
+    `shops/${profileId}/notifications/test`,
+    payload,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 204:
-        return { status: 'success' }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail ?? 'dashboard_access_denied',
-        }
-      case 404:
-        return { status: 'not_found' }
-      case 422:
-        return { status: 'validation_error', detail: data }
-      default:
-        return {
-          status: 'error',
-          message: `テスト通知のリクエストに失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardNotificationsError
-    }
+  if (result.ok) {
+    return { status: 'success' }
+  }
+
+  const err = result as ApiErrorResult
+
+  // Handle common errors (401, 403, 404)
+  if (err.status === 401) {
+    return { status: 'unauthorized' }
+  }
+  if (err.status === 403) {
+    const detail = typeof err.detail === 'object' && err.detail !== null
+      ? (err.detail as { detail?: string }).detail
+      : undefined
     return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'テスト通知のリクエストに失敗しました',
+      status: 'forbidden',
+      detail: detail ?? 'dashboard_access_denied',
     }
   }
+  if (err.status === 404) {
+    return { status: 'not_found' }
+  }
+
+  // Handle validation error (422)
+  if (err.status === 422) {
+    return { status: 'validation_error', detail: err.detail }
+  }
+
+  return createErrorResult(err, 'テスト通知のリクエストに失敗しました')
 }

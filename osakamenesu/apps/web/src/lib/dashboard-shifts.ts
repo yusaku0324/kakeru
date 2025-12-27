@@ -1,5 +1,12 @@
-import { buildApiUrl, resolveApiBases } from '@/lib/api'
-import type { DashboardShopRequestOptions } from './dashboard-shops'
+import { dashboardClient, type ApiErrorResult } from '@/lib/http-clients'
+import {
+  type DashboardRequestOptions,
+  handleCommonError,
+  createErrorResult,
+} from '@/lib/dashboard-common'
+
+// Re-export for backward compatibility
+export type DashboardShiftRequestOptions = DashboardRequestOptions
 
 export type BreakSlot = {
   start_at: string
@@ -61,86 +68,13 @@ export type DashboardShiftDeleteResult =
   | { status: 'not_found' }
   | { status: 'error'; message: string }
 
-function createRequestInit(
-  method: string,
-  options?: DashboardShopRequestOptions,
-  body?: unknown,
-): RequestInit {
-  const headers: Record<string, string> = {}
-  if (options?.cookieHeader) {
-    headers.cookie = options.cookieHeader
+function extractDetailString(detail: unknown): string | undefined {
+  if (typeof detail === 'string') return detail
+  if (typeof detail === 'object' && detail !== null) {
+    const obj = detail as Record<string, unknown>
+    if (typeof obj.detail === 'string') return obj.detail
   }
-
-  if (body !== undefined) {
-    headers['Content-Type'] = 'application/json'
-  }
-
-  const init: RequestInit = {
-    method,
-    cache: options?.cache ?? 'no-store',
-    signal: options?.signal,
-    credentials: options?.cookieHeader ? 'omit' : 'include',
-  }
-
-  if (Object.keys(headers).length) {
-    init.headers = headers
-  }
-
-  if (body !== undefined) {
-    init.body = JSON.stringify(body)
-  }
-
-  return init
-}
-
-async function requestJson<T>(
-  path: string,
-  init: RequestInit,
-  successStatuses: number[],
-): Promise<{ response: Response; data?: T }> {
-  let lastError: { status: string; message?: string } | null = null
-
-  for (const base of resolveApiBases()) {
-    try {
-      const res = await fetch(buildApiUrl(base, path), init)
-
-      if (successStatuses.includes(res.status)) {
-        let data: T | undefined
-        const shouldParseJson =
-          res.status !== 204 && (res.headers.get('content-type')?.includes('json') ?? false)
-        if (shouldParseJson) {
-          data = (await res.json()) as T
-        }
-        return { response: res, data }
-      }
-
-      if ([401, 403, 404, 409, 422].includes(res.status)) {
-        let data: T | undefined
-        const shouldParseJson = res.headers.get('content-type')?.includes('json')
-        if (shouldParseJson) {
-          data = (await res.json()) as T
-        }
-        return { response: res, data }
-      }
-
-      lastError = {
-        status: 'error',
-        message: `リクエストに失敗しました (status=${res.status})`,
-      }
-    } catch (error) {
-      lastError = {
-        status: 'error',
-        message: error instanceof Error ? error.message : 'リクエスト中にエラーが発生しました',
-      }
-    }
-  }
-
-  throw (
-    lastError ?? {
-      status: 'error',
-      message: 'API リクエストが完了しませんでした',
-    }
-  )
+  return undefined
 }
 
 export type FetchShiftsOptions = {
@@ -152,235 +86,210 @@ export type FetchShiftsOptions = {
 export async function fetchDashboardShifts(
   profileId: string,
   filterOptions?: FetchShiftsOptions,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardShiftListResult> {
-  try {
-    let path = `api/dashboard/shops/${profileId}/shifts`
-    const params = new URLSearchParams()
-    if (filterOptions?.therapistId) {
-      params.append('therapist_id', filterOptions.therapistId)
-    }
-    if (filterOptions?.dateFrom) {
-      params.append('date_from', filterOptions.dateFrom)
-    }
-    if (filterOptions?.dateTo) {
-      params.append('date_to', filterOptions.dateTo)
-    }
-    const queryString = params.toString()
-    if (queryString) {
-      path = `${path}?${queryString}`
-    }
-
-    const { response, data } = await requestJson<DashboardShift[]>(
-      path,
-      createRequestInit('GET', options),
-      [200],
-    )
-
-    switch (response.status) {
-      case 200:
-        return { status: 'success', data: data ?? [] }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 404:
-        return { status: 'not_found' }
-      default:
-        return {
-          status: 'error',
-          message: `シフト情報の取得に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardShiftListResult
-    }
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'シフト情報の取得に失敗しました',
-    }
+  let path = `shops/${profileId}/shifts`
+  const params = new URLSearchParams()
+  if (filterOptions?.therapistId) {
+    params.append('therapist_id', filterOptions.therapistId)
   }
+  if (filterOptions?.dateFrom) {
+    params.append('date_from', filterOptions.dateFrom)
+  }
+  if (filterOptions?.dateTo) {
+    params.append('date_to', filterOptions.dateTo)
+  }
+  const queryString = params.toString()
+  if (queryString) {
+    path = `${path}?${queryString}`
+  }
+
+  const result = await dashboardClient.get<DashboardShift[]>(path, {
+    cookieHeader: options?.cookieHeader,
+    signal: options?.signal,
+    cache: options?.cache,
+  })
+
+  if (result.ok) {
+    return { status: 'success', data: result.data ?? [] }
+  }
+
+  const err = result as ApiErrorResult
+  const commonResult = handleCommonError(err, 'シフト情報の取得に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
+      return {
+        status: 'forbidden',
+        detail: extractDetailString(err.detail),
+      }
+    }
+    return commonResult
+  }
+
+  return createErrorResult(err, 'シフト情報の取得に失敗しました')
 }
 
 export async function fetchDashboardShift(
   profileId: string,
   shiftId: string,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardShiftMutationResult> {
-  try {
-    const { response, data } = await requestJson<DashboardShift>(
-      `api/dashboard/shops/${profileId}/shifts/${shiftId}`,
-      createRequestInit('GET', options),
-      [200],
-    )
+  const result = await dashboardClient.get<DashboardShift>(
+    `shops/${profileId}/shifts/${shiftId}`,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 200:
-        return { status: 'success', data: data! }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 404:
-        return { status: 'not_found' }
-      default:
-        return {
-          status: 'error',
-          message: `シフト情報の取得に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardShiftMutationResult
-    }
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'シフト情報の取得に失敗しました',
-    }
+  if (result.ok) {
+    return { status: 'success', data: result.data }
   }
+
+  const err = result as ApiErrorResult
+  const commonResult = handleCommonError(err, 'シフト情報の取得に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
+      return {
+        status: 'forbidden',
+        detail: extractDetailString(err.detail),
+      }
+    }
+    return commonResult
+  }
+
+  return createErrorResult(err, 'シフト情報の取得に失敗しました')
 }
 
 export async function createDashboardShift(
   profileId: string,
   payload: DashboardShiftCreatePayload,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardShiftMutationResult> {
-  try {
-    const { response, data } = await requestJson<DashboardShift>(
-      `api/dashboard/shops/${profileId}/shifts`,
-      createRequestInit('POST', options, payload),
-      [201],
-    )
+  const result = await dashboardClient.post<DashboardShift>(
+    `shops/${profileId}/shifts`,
+    payload,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 201:
-        return { status: 'success', data: data! }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 404:
-        return { status: 'not_found' }
-      case 409:
-        return {
-          status: 'conflict',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 422:
-        return { status: 'validation_error', detail: data }
-      default:
-        return {
-          status: 'error',
-          message: `シフトの作成に失敗しました (status=${response.status})`,
-        }
+  if (result.ok) {
+    return { status: 'success', data: result.data }
+  }
+
+  const err = result as ApiErrorResult
+
+  // Handle common errors (401, 403, 404)
+  const commonResult = handleCommonError(err, 'シフトの作成に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
+      return {
+        status: 'forbidden',
+        detail: extractDetailString(err.detail),
+      }
     }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardShiftMutationResult
-    }
+    return commonResult
+  }
+
+  // Handle conflict (409)
+  if (err.status === 409) {
     return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'シフトの作成に失敗しました',
+      status: 'conflict',
+      detail: extractDetailString(err.detail),
     }
   }
+
+  // Handle validation error (422)
+  if (err.status === 422) {
+    return { status: 'validation_error', detail: err.detail }
+  }
+
+  return createErrorResult(err, 'シフトの作成に失敗しました')
 }
 
 export async function updateDashboardShift(
   profileId: string,
   shiftId: string,
   payload: DashboardShiftUpdatePayload,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardShiftMutationResult> {
-  try {
-    const { response, data } = await requestJson<DashboardShift>(
-      `api/dashboard/shops/${profileId}/shifts/${shiftId}`,
-      createRequestInit('PATCH', options, payload),
-      [200],
-    )
+  const result = await dashboardClient.patch<DashboardShift>(
+    `shops/${profileId}/shifts/${shiftId}`,
+    payload,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 200:
-        return { status: 'success', data: data! }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 404:
-        return { status: 'not_found' }
-      case 409:
-        return {
-          status: 'conflict',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 422:
-        return { status: 'validation_error', detail: data }
-      default:
-        return {
-          status: 'error',
-          message: `シフトの更新に失敗しました (status=${response.status})`,
-        }
+  if (result.ok) {
+    return { status: 'success', data: result.data }
+  }
+
+  const err = result as ApiErrorResult
+
+  // Handle common errors (401, 403, 404)
+  const commonResult = handleCommonError(err, 'シフトの更新に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
+      return {
+        status: 'forbidden',
+        detail: extractDetailString(err.detail),
+      }
     }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardShiftMutationResult
-    }
+    return commonResult
+  }
+
+  // Handle conflict (409)
+  if (err.status === 409) {
     return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'シフトの更新に失敗しました',
+      status: 'conflict',
+      detail: extractDetailString(err.detail),
     }
   }
+
+  // Handle validation error (422)
+  if (err.status === 422) {
+    return { status: 'validation_error', detail: err.detail }
+  }
+
+  return createErrorResult(err, 'シフトの更新に失敗しました')
 }
 
 export async function deleteDashboardShift(
   profileId: string,
   shiftId: string,
-  options?: DashboardShopRequestOptions,
+  options?: DashboardRequestOptions,
 ): Promise<DashboardShiftDeleteResult> {
-  try {
-    const { response, data } = await requestJson<undefined>(
-      `api/dashboard/shops/${profileId}/shifts/${shiftId}`,
-      createRequestInit('DELETE', options),
-      [204],
-    )
+  const result = await dashboardClient.delete<undefined>(
+    `shops/${profileId}/shifts/${shiftId}`,
+    {
+      cookieHeader: options?.cookieHeader,
+      signal: options?.signal,
+      cache: options?.cache,
+    },
+  )
 
-    switch (response.status) {
-      case 204:
-        return { status: 'success' }
-      case 401:
-        return { status: 'unauthorized' }
-      case 403:
-        return {
-          status: 'forbidden',
-          detail: (data as { detail?: string } | undefined)?.detail,
-        }
-      case 404:
-        return { status: 'not_found' }
-      default:
-        return {
-          status: 'error',
-          message: `シフトの削除に失敗しました (status=${response.status})`,
-        }
-    }
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return error as DashboardShiftDeleteResult
-    }
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'シフトの削除に失敗しました',
-    }
+  if (result.ok) {
+    return { status: 'success' }
   }
+
+  const err = result as ApiErrorResult
+  const commonResult = handleCommonError(err, 'シフトの削除に失敗しました')
+  if (commonResult) {
+    if (err.status === 403) {
+      return {
+        status: 'forbidden',
+        detail: extractDetailString(err.detail),
+      }
+    }
+    return commonResult
+  }
+
+  return createErrorResult(err, 'シフトの削除に失敗しました')
 }
