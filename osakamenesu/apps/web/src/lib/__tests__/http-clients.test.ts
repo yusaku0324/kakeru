@@ -327,6 +327,215 @@ describe('http-clients', () => {
         expect.objectContaining({ method: 'DELETE' }),
       )
     })
+
+    describe('uploadFormData', () => {
+      it('uploads FormData successfully', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ url: 'https://example.com/image.jpg' }),
+        })
+
+        const formData = new FormData()
+        formData.append('file', new Blob(['test']), 'test.jpg')
+
+        const result = await dashboardClient.uploadFormData('photos', formData)
+
+        expect(result.ok).toBe(true)
+        if (result.ok) {
+          expect(result.data).toEqual({ url: 'https://example.com/image.jpg' })
+        }
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('api/dashboard/photos'),
+          expect.objectContaining({
+            method: 'POST',
+            body: formData,
+          }),
+        )
+      })
+
+      it('handles 204 response', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 204,
+          headers: new Headers(),
+        })
+
+        const formData = new FormData()
+        const result = await dashboardClient.uploadFormData('photos', formData)
+
+        expect(result.ok).toBe(true)
+        if (result.ok) {
+          expect(result.status).toBe(204)
+        }
+      })
+
+      it('handles non-JSON success response', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'text/plain' }),
+        })
+
+        const formData = new FormData()
+        const result = await dashboardClient.uploadFormData('photos', formData)
+
+        expect(result.ok).toBe(true)
+      })
+
+      it('handles error response with detail', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 400,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ detail: 'File too large' }),
+        })
+
+        const formData = new FormData()
+        const result = await dashboardClient.uploadFormData('photos', formData)
+
+        expect(result.ok).toBe(false)
+        if (!result.ok) {
+          const errorResult = result as ApiErrorResult
+          expect(errorResult.error).toBe('File too large')
+        }
+      })
+
+      it('handles error response with message', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 500,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ message: 'Upload failed' }),
+        })
+
+        const formData = new FormData()
+        const result = await dashboardClient.uploadFormData('photos', formData)
+
+        expect(result.ok).toBe(false)
+        if (!result.ok) {
+          const errorResult = result as ApiErrorResult
+          expect(errorResult.error).toBe('Upload failed')
+        }
+      })
+
+      it('handles error response without JSON', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 500,
+          headers: new Headers(),
+          json: async () => {
+            throw new Error('Not JSON')
+          },
+        })
+
+        const formData = new FormData()
+        const result = await dashboardClient.uploadFormData('photos', formData)
+
+        expect(result.ok).toBe(false)
+        if (!result.ok) {
+          const errorResult = result as ApiErrorResult
+          expect(errorResult.error).toBe('HTTP 500')
+        }
+      })
+
+      it('handles network error', async () => {
+        global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
+
+        const formData = new FormData()
+        const result = await dashboardClient.uploadFormData('photos', formData)
+
+        expect(result.ok).toBe(false)
+        if (!result.ok) {
+          const errorResult = result as ApiErrorResult
+          expect(errorResult.error).toBe('Network error')
+        }
+      })
+
+      it('includes cookie header when provided', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({}),
+        })
+
+        const formData = new FormData()
+        await dashboardClient.uploadFormData('photos', formData, {
+          cookieHeader: 'session=abc123',
+        })
+
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            credentials: 'omit',
+          }),
+        )
+      })
+
+      it('uses credentials: include when no cookie header', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({}),
+        })
+
+        const formData = new FormData()
+        await dashboardClient.uploadFormData('photos', formData)
+
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            credentials: 'include',
+          }),
+        )
+      })
+
+      it('supports AbortSignal', async () => {
+        const controller = new AbortController()
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({}),
+        })
+
+        const formData = new FormData()
+        await dashboardClient.uploadFormData('photos', formData, {
+          signal: controller.signal,
+        })
+
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            signal: controller.signal,
+          }),
+        )
+      })
+
+      it('supports custom cache option', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({}),
+        })
+
+        const formData = new FormData()
+        await dashboardClient.uploadFormData('photos', formData, {
+          cache: 'force-cache',
+        })
+
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            cache: 'force-cache',
+          }),
+        )
+      })
+    })
   })
 
   describe('authClient', () => {

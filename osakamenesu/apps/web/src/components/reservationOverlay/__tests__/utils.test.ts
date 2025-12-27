@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { calculateSchedulePages, buildTimelineTimes } from '../utils'
+import {
+  calculateSchedulePages,
+  buildTimelineTimes,
+  buildLineContactUrl,
+  buildReservationContactItems,
+} from '../utils'
 import type { NormalizedDay } from '@/components/reservation'
 import { formatLocalDate, getJaFormatter } from '@/utils/date'
 
@@ -83,3 +88,106 @@ describe('calculateSchedulePages', () => {
 function localizedIso(dateIso: string) {
   return formatLocalDate(new Date(dateIso))
 }
+
+describe('buildLineContactUrl', () => {
+  it('adds line.me prefix when lineId is just an ID', () => {
+    const result = buildLineContactUrl('my_line_id')
+    expect(result).toBe('https://line.me/R/ti/p/my_line_id')
+  })
+
+  it('uses URL as-is when lineId is already a URL', () => {
+    const result = buildLineContactUrl('https://line.me/custom/path')
+    expect(result).toBe('https://line.me/custom/path')
+  })
+
+  it('appends message as query param', () => {
+    const result = buildLineContactUrl('my_line_id', 'Hello!')
+    expect(result).toBe('https://line.me/R/ti/p/my_line_id?text=Hello!')
+  })
+
+  it('handles message with special characters', () => {
+    const result = buildLineContactUrl('my_line_id', 'こんにちは！予約希望です')
+    expect(result).toContain('text=')
+    expect(result).toContain(encodeURIComponent('こんにちは！予約希望です'))
+  })
+
+  it('appends message with & when URL already has query', () => {
+    const result = buildLineContactUrl('https://line.me/path?existing=param', 'Message')
+    expect(result).toBe('https://line.me/path?existing=param&text=Message')
+  })
+
+  it('returns base URL when message is null', () => {
+    const result = buildLineContactUrl('my_line_id', null)
+    expect(result).toBe('https://line.me/R/ti/p/my_line_id')
+  })
+
+  it('returns base URL when message is empty', () => {
+    const result = buildLineContactUrl('my_line_id', '')
+    expect(result).toBe('https://line.me/R/ti/p/my_line_id')
+  })
+})
+
+describe('buildReservationContactItems', () => {
+  it('returns array with tel and line items', () => {
+    const result = buildReservationContactItems({
+      tel: '03-1234-5678',
+      lineId: 'line_id_123',
+      telHref: 'tel:0312345678',
+      lineHref: 'https://line.me/test',
+    })
+    expect(result.length).toBe(2)
+    expect(result[0].key).toBe('tel')
+    expect(result[1].key).toBe('line')
+  })
+
+  it('includes tel value with prefix', () => {
+    const result = buildReservationContactItems({
+      tel: '03-1234-5678',
+    })
+    expect(result[0].value).toBe('TEL 03-1234-5678')
+  })
+
+  it('shows 未登録 when tel is not provided', () => {
+    const result = buildReservationContactItems({})
+    expect(result[0].value).toBe('未登録')
+  })
+
+  it('shows 準備中 when lineId is not provided', () => {
+    const result = buildReservationContactItems({})
+    expect(result[1].value).toBe('準備中')
+  })
+
+  it('includes line ID with prefix', () => {
+    const result = buildReservationContactItems({
+      lineId: 'my_line',
+    })
+    expect(result[1].value).toBe('ID my_line')
+  })
+
+  it('includes href when both value and href are provided', () => {
+    const result = buildReservationContactItems({
+      tel: '03-1234-5678',
+      telHref: 'tel:0312345678',
+    })
+    expect(result[0].href).toBe('tel:0312345678')
+  })
+
+  it('excludes href when value is not provided', () => {
+    const result = buildReservationContactItems({
+      telHref: 'tel:0312345678',
+    })
+    expect(result[0].href).toBeUndefined()
+  })
+
+  it('includes correct labels', () => {
+    const result = buildReservationContactItems({})
+    expect(result[0].label).toBe('電話予約')
+    expect(result[1].label).toBe('LINE相談')
+  })
+
+  it('includes helper text', () => {
+    const result = buildReservationContactItems({})
+    expect(result[0].helper).toBe('24時間受付（折り返し連絡）')
+    expect(result[1].helper).toBe('空き状況や指名のご相談に')
+  })
+})
