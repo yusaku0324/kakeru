@@ -1,13 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 
 import { buildApiUrl, resolveApiBases } from '../api'
-
-vi.mock('../server-config', () => ({
-  getServerConfig: () => ({
-    internalApiBase: 'http://internal-api:8000',
-    publicApiBase: '/api',
-  }),
-}))
 
 describe('api', () => {
   describe('buildApiUrl', () => {
@@ -81,10 +74,6 @@ describe('api', () => {
   describe('resolveApiBases', () => {
     const originalWindow = global.window
 
-    beforeEach(() => {
-      vi.resetModules()
-    })
-
     afterEach(() => {
       global.window = originalWindow
     })
@@ -106,6 +95,35 @@ describe('api', () => {
       global.window = { location: { origin: 'http://localhost:3000' } } as any
       const bases = resolveApiBases()
       expect(bases.length).toBeGreaterThanOrEqual(1)
+    })
+
+    // Note: Server-side path with loadServerBases() is tested via integration
+    // Cannot easily mock dynamic require('./server-config') in unit tests
+  })
+
+  describe('buildApiUrl edge cases', () => {
+    const originalWindow = global.window
+
+    afterEach(() => {
+      global.window = originalWindow
+    })
+
+    it('handles empty prefix (base normalizes to empty string)', () => {
+      global.window = { location: { origin: 'http://localhost:3000' } } as any
+      const url = buildApiUrl('/', '/test/path')
+      expect(url).toBe('http://localhost:3000/test/path')
+    })
+
+    it('handles result starting with //', () => {
+      global.window = undefined as unknown as Window & typeof globalThis
+      const url = buildApiUrl('//api.example.com/', '/test')
+      expect(url).toBe('https://api.example.com/test')
+    })
+
+    it('handles path without leading slash in relative base', () => {
+      global.window = { location: { origin: 'http://localhost:3000' } } as any
+      const url = buildApiUrl('', 'test/path')
+      expect(url).toBe('http://localhost:3000/test/path')
     })
   })
 })
