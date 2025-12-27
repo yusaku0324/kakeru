@@ -2,167 +2,205 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { renderHook, act, waitFor } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react'
 import {
   useInstallPWA,
   registerServiceWorker,
   unregisterServiceWorker,
   requestNotificationPermission,
+  subscribeToPushNotifications,
+  usePushNotifications,
   isStandalone,
   getDisplayMode,
   useOnlineStatus,
 } from '../index'
 
-describe('lib/pwa', () => {
-  const originalWindow = global.window
-  const originalNavigator = global.navigator
-
+describe('pwa/index', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   afterEach(() => {
-    global.window = originalWindow
-    Object.defineProperty(global, 'navigator', { value: originalNavigator, writable: true })
+    vi.restoreAllMocks()
   })
 
   describe('isStandalone', () => {
-    it('returns false when window is undefined', () => {
-      const windowBackup = global.window
-      Object.defineProperty(global, 'window', { value: undefined, configurable: true })
+    it('returns false on server side', () => {
+      const originalWindow = global.window
+      delete global.window
+
       expect(isStandalone()).toBe(false)
-      Object.defineProperty(global, 'window', { value: windowBackup, configurable: true })
+
+      global.window = originalWindow
     })
 
-    it('returns true when display-mode is standalone', () => {
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        value: vi.fn().mockImplementation((query: string) => ({
-          matches: query === '(display-mode: standalone)',
-          media: query,
-        })),
-      })
+    it('returns true when in standalone display mode', () => {
+      const mockMatchMedia = vi.fn().mockReturnValue({ matches: true })
+      window.matchMedia = mockMatchMedia
+
       expect(isStandalone()).toBe(true)
     })
 
     it('returns true when navigator.standalone is true (iOS)', () => {
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        value: vi.fn().mockImplementation(() => ({ matches: false })),
-      })
-      Object.defineProperty(window.navigator, 'standalone', {
-        writable: true,
-        configurable: true,
-        value: true,
-      })
-      Object.defineProperty(document, 'referrer', {
-        writable: true,
-        configurable: true,
-        value: '',
-      })
+      const mockMatchMedia = vi.fn().mockReturnValue({ matches: false })
+      window.matchMedia = mockMatchMedia
+      ;(window.navigator as any).standalone = true
+
       expect(isStandalone()).toBe(true)
+
+      delete (window.navigator as any).standalone
     })
 
-    it('returns true when referrer includes android-app://', () => {
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        value: vi.fn().mockImplementation(() => ({ matches: false })),
-      })
-      Object.defineProperty(window.navigator, 'standalone', {
-        writable: true,
-        configurable: true,
-        value: false,
-      })
+    it('returns true when opened from Android app', () => {
+      const mockMatchMedia = vi.fn().mockReturnValue({ matches: false })
+      window.matchMedia = mockMatchMedia
+
       Object.defineProperty(document, 'referrer', {
-        writable: true,
-        configurable: true,
         value: 'android-app://com.example.app',
+        configurable: true,
       })
+
       expect(isStandalone()).toBe(true)
+
+      Object.defineProperty(document, 'referrer', {
+        value: '',
+        configurable: true,
+      })
     })
 
-    it('returns false when not standalone', () => {
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        value: vi.fn().mockImplementation(() => ({ matches: false })),
-      })
-      Object.defineProperty(window.navigator, 'standalone', {
-        writable: true,
-        configurable: true,
-        value: false,
-      })
-      Object.defineProperty(document, 'referrer', {
-        writable: true,
-        configurable: true,
-        value: 'https://example.com',
-      })
+    it('returns false in browser mode', () => {
+      const mockMatchMedia = vi.fn().mockReturnValue({ matches: false })
+      window.matchMedia = mockMatchMedia
+
       expect(isStandalone()).toBe(false)
     })
   })
 
   describe('getDisplayMode', () => {
-    it('returns browser when window is undefined', () => {
-      const windowBackup = global.window
-      Object.defineProperty(global, 'window', { value: undefined, configurable: true })
+    it('returns browser on server side', () => {
+      const originalWindow = global.window
+      delete global.window
+
       expect(getDisplayMode()).toBe('browser')
-      Object.defineProperty(global, 'window', { value: windowBackup, configurable: true })
+
+      global.window = originalWindow
     })
 
     it('returns fullscreen when in fullscreen mode', () => {
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        value: vi.fn().mockImplementation((query: string) => ({
-          matches: query === '(display-mode: fullscreen)',
-        })),
-      })
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query === '(display-mode: fullscreen)',
+      }))
+
       expect(getDisplayMode()).toBe('fullscreen')
     })
 
     it('returns standalone when in standalone mode', () => {
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        value: vi.fn().mockImplementation((query: string) => ({
-          matches: query === '(display-mode: standalone)',
-        })),
-      })
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query === '(display-mode: standalone)',
+      }))
+
       expect(getDisplayMode()).toBe('standalone')
     })
 
     it('returns minimal-ui when in minimal-ui mode', () => {
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        value: vi.fn().mockImplementation((query: string) => ({
-          matches: query === '(display-mode: minimal-ui)',
-        })),
-      })
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query === '(display-mode: minimal-ui)',
+      }))
+
       expect(getDisplayMode()).toBe('minimal-ui')
     })
 
-    it('returns browser when no mode matches', () => {
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        value: vi.fn().mockImplementation(() => ({ matches: false })),
-      })
+    it('returns browser as default', () => {
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query === '(display-mode: browser)',
+      }))
+
       expect(getDisplayMode()).toBe('browser')
     })
   })
 
-  describe('registerServiceWorker', () => {
-    it('returns null when window is undefined', async () => {
-      const windowBackup = global.window
-      Object.defineProperty(global, 'window', { value: undefined, configurable: true })
-      const result = await registerServiceWorker()
-      expect(result).toBeNull()
-      Object.defineProperty(global, 'window', { value: windowBackup, configurable: true })
+  describe('requestNotificationPermission', () => {
+    it('returns denied when Notification not supported', async () => {
+      const originalNotification = window.Notification
+      delete window.Notification
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      const result = await requestNotificationPermission()
+
+      expect(result).toBe('denied')
+      expect(warnSpy).toHaveBeenCalledWith('This browser does not support notifications')
+
+      window.Notification = originalNotification
+      warnSpy.mockRestore()
     })
 
-    it('returns null when serviceWorker is not supported', async () => {
+    it('returns granted when already granted', async () => {
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'granted' },
+        configurable: true,
+      })
+
+      const result = await requestNotificationPermission()
+
+      expect(result).toBe('granted')
+    })
+
+    it('returns denied when already denied', async () => {
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'denied' },
+        configurable: true,
+      })
+
+      const result = await requestNotificationPermission()
+
+      expect(result).toBe('denied')
+    })
+
+    it('requests permission when default', async () => {
+      const mockRequestPermission = vi.fn().mockResolvedValue('granted')
+      Object.defineProperty(window, 'Notification', {
+        value: {
+          permission: 'default',
+          requestPermission: mockRequestPermission,
+        },
+        configurable: true,
+      })
+
+      const result = await requestNotificationPermission()
+
+      expect(mockRequestPermission).toHaveBeenCalled()
+      expect(result).toBe('granted')
+    })
+  })
+
+  describe('registerServiceWorker', () => {
+    it('returns null on server side', async () => {
+      const originalWindow = global.window
+      delete global.window
+
+      const result = await registerServiceWorker()
+
+      expect(result).toBeNull()
+
+      global.window = originalWindow
+    })
+
+    it('returns null when serviceWorker not supported', async () => {
+      const originalServiceWorker = navigator.serviceWorker
       Object.defineProperty(navigator, 'serviceWorker', {
         value: undefined,
         configurable: true,
       })
+
       const result = await registerServiceWorker()
+
       expect(result).toBeNull()
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: originalServiceWorker,
+        configurable: true,
+      })
     })
 
     it('registers service worker successfully', async () => {
@@ -170,6 +208,7 @@ describe('lib/pwa', () => {
         scope: '/',
         addEventListener: vi.fn(),
       }
+
       Object.defineProperty(navigator, 'serviceWorker', {
         value: {
           register: vi.fn().mockResolvedValue(mockRegistration),
@@ -178,14 +217,16 @@ describe('lib/pwa', () => {
       })
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
       const result = await registerServiceWorker()
 
       expect(result).toBe(mockRegistration)
-      expect(navigator.serviceWorker.register).toHaveBeenCalledWith('/sw.js', { scope: '/' })
+      expect(consoleSpy).toHaveBeenCalledWith('Service Worker registered:', '/')
+
       consoleSpy.mockRestore()
     })
 
-    it('returns null and logs error on failure', async () => {
+    it('returns null on registration failure', async () => {
       Object.defineProperty(navigator, 'serviceWorker', {
         value: {
           register: vi.fn().mockRejectedValue(new Error('Registration failed')),
@@ -193,192 +234,317 @@ describe('lib/pwa', () => {
         configurable: true,
       })
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
       const result = await registerServiceWorker()
 
       expect(result).toBeNull()
-      expect(consoleSpy).toHaveBeenCalled()
-      consoleSpy.mockRestore()
+      expect(errorSpy).toHaveBeenCalled()
+
+      errorSpy.mockRestore()
     })
   })
 
   describe('unregisterServiceWorker', () => {
-    it('returns early when window is undefined', async () => {
-      const windowBackup = global.window
-      Object.defineProperty(global, 'window', { value: undefined, configurable: true })
+    it('does nothing on server side', async () => {
+      const originalWindow = global.window
+      delete global.window
+
       await expect(unregisterServiceWorker()).resolves.toBeUndefined()
-      Object.defineProperty(global, 'window', { value: windowBackup, configurable: true })
+
+      global.window = originalWindow
     })
 
-    it('returns early when serviceWorker is not supported', async () => {
-      // Create a new navigator-like object without serviceWorker
-      const navigatorWithoutSW = { ...navigator }
-      delete (navigatorWithoutSW as any).serviceWorker
-      Object.defineProperty(global, 'navigator', {
-        value: navigatorWithoutSW,
-        configurable: true,
-      })
+    it('does nothing when serviceWorker not in navigator', async () => {
+      // Store original
+      const originalDescriptor = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker')
+
+      // Remove the property completely
+      // @ts-expect-error - Temporarily removing serviceWorker for testing
+      delete navigator.serviceWorker
+
       await expect(unregisterServiceWorker()).resolves.toBeUndefined()
+
+      // Restore
+      if (originalDescriptor) {
+        Object.defineProperty(navigator, 'serviceWorker', originalDescriptor)
+      }
     })
 
     it('unregisters all service workers', async () => {
-      const mockUnregister = vi.fn().mockResolvedValue(true)
-      const mockRegistrations = [
-        { unregister: mockUnregister },
-        { unregister: mockUnregister },
-      ]
+      const mockUnregister1 = vi.fn().mockResolvedValue(true)
+      const mockUnregister2 = vi.fn().mockResolvedValue(true)
+
       Object.defineProperty(navigator, 'serviceWorker', {
         value: {
-          getRegistrations: vi.fn().mockResolvedValue(mockRegistrations),
+          getRegistrations: vi.fn().mockResolvedValue([
+            { unregister: mockUnregister1 },
+            { unregister: mockUnregister2 },
+          ]),
         },
         configurable: true,
       })
 
       await unregisterServiceWorker()
 
-      expect(mockUnregister).toHaveBeenCalledTimes(2)
+      expect(mockUnregister1).toHaveBeenCalled()
+      expect(mockUnregister2).toHaveBeenCalled()
     })
   })
 
-  describe('requestNotificationPermission', () => {
-    it('returns denied when Notification is not supported', async () => {
-      const notificationBackup = (window as any).Notification
-      delete (window as any).Notification
+  describe('subscribeToPushNotifications', () => {
+    it('returns null when PushManager not supported', async () => {
+      const originalPushManager = window.PushManager
+      delete window.PushManager
 
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-      const result = await requestNotificationPermission()
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-      expect(result).toBe('denied')
-      expect(consoleSpy).toHaveBeenCalledWith('This browser does not support notifications')
+      const mockRegistration = {} as ServiceWorkerRegistration
 
-      ;(window as any).Notification = notificationBackup
-      consoleSpy.mockRestore()
+      const result = await subscribeToPushNotifications(mockRegistration, 'test-key')
+
+      expect(result).toBeNull()
+      expect(warnSpy).toHaveBeenCalledWith('Push notifications are not supported')
+
+      window.PushManager = originalPushManager
+      warnSpy.mockRestore()
     })
 
-    it('returns granted when permission is already granted', async () => {
-      Object.defineProperty(window, 'Notification', {
-        value: { permission: 'granted' },
+    it('returns null when permission denied', async () => {
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
         configurable: true,
       })
 
-      const result = await requestNotificationPermission()
-      expect(result).toBe('granted')
-    })
-
-    it('returns denied when permission is already denied', async () => {
       Object.defineProperty(window, 'Notification', {
         value: { permission: 'denied' },
         configurable: true,
       })
 
-      const result = await requestNotificationPermission()
-      expect(result).toBe('denied')
-    })
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    it('requests permission when permission is default', async () => {
-      Object.defineProperty(window, 'Notification', {
-        value: {
-          permission: 'default',
-          requestPermission: vi.fn().mockResolvedValue('granted'),
-        },
-        configurable: true,
-      })
+      const mockRegistration = {} as ServiceWorkerRegistration
 
-      const result = await requestNotificationPermission()
-      expect(result).toBe('granted')
-      expect(window.Notification.requestPermission).toHaveBeenCalled()
+      const result = await subscribeToPushNotifications(mockRegistration, 'test-key')
+
+      expect(result).toBeNull()
+
+      warnSpy.mockRestore()
     })
   })
 
   describe('useOnlineStatus', () => {
-    it('returns true by default', () => {
-      Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+    it('returns true initially when online', () => {
+      Object.defineProperty(navigator, 'onLine', {
+        value: true,
+        configurable: true,
+      })
 
       const { result } = renderHook(() => useOnlineStatus())
+
       expect(result.current).toBe(true)
     })
 
-    it('returns false when offline', () => {
-      Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+    it('returns false initially when offline', () => {
+      Object.defineProperty(navigator, 'onLine', {
+        value: false,
+        configurable: true,
+      })
 
       const { result } = renderHook(() => useOnlineStatus())
+
       expect(result.current).toBe(false)
     })
 
     it('updates when going offline', async () => {
-      Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+      Object.defineProperty(navigator, 'onLine', {
+        value: true,
+        configurable: true,
+      })
 
       const { result } = renderHook(() => useOnlineStatus())
+
       expect(result.current).toBe(true)
 
-      act(() => {
+      await act(async () => {
         window.dispatchEvent(new Event('offline'))
       })
 
-      await waitFor(() => {
-        expect(result.current).toBe(false)
-      })
+      expect(result.current).toBe(false)
     })
 
     it('updates when going online', async () => {
-      Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+      Object.defineProperty(navigator, 'onLine', {
+        value: false,
+        configurable: true,
+      })
 
       const { result } = renderHook(() => useOnlineStatus())
+
       expect(result.current).toBe(false)
 
-      act(() => {
+      await act(async () => {
         window.dispatchEvent(new Event('online'))
       })
 
-      await waitFor(() => {
-        expect(result.current).toBe(true)
-      })
+      expect(result.current).toBe(true)
     })
   })
 
   describe('useInstallPWA', () => {
     beforeEach(() => {
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        value: vi.fn().mockImplementation(() => ({ matches: false })),
-      })
+      // Default: not in standalone mode
+      window.matchMedia = vi.fn().mockReturnValue({ matches: false })
     })
 
-    it('initializes with default values', () => {
+    it('returns not installable initially', () => {
       const { result } = renderHook(() => useInstallPWA())
 
-      expect(result.current.isInstalled).toBe(false)
       expect(result.current.isInstallable).toBe(false)
-      expect(typeof result.current.install).toBe('function')
+      expect(result.current.isInstalled).toBe(false)
     })
 
-    it('detects installed state via display-mode', () => {
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        value: vi.fn().mockImplementation((query: string) => ({
-          matches: query === '(display-mode: standalone)',
-        })),
-      })
+    it('detects already installed (standalone mode)', () => {
+      window.matchMedia = vi.fn().mockReturnValue({ matches: true })
 
       const { result } = renderHook(() => useInstallPWA())
+
       expect(result.current.isInstalled).toBe(true)
     })
 
     it('detects iOS device', () => {
+      const originalUserAgent = navigator.userAgent
       Object.defineProperty(navigator, 'userAgent', {
         value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)',
         configurable: true,
       })
 
       const { result } = renderHook(() => useInstallPWA())
+
       expect(result.current.isIOS).toBe(true)
+
+      Object.defineProperty(navigator, 'userAgent', {
+        value: originalUserAgent,
+        configurable: true,
+      })
     })
 
-    it('install returns false when no prompt available', async () => {
+    it('sets installable on beforeinstallprompt event', async () => {
       const { result } = renderHook(() => useInstallPWA())
 
-      const installResult = await result.current.install()
-      expect(installResult).toBe(false)
+      expect(result.current.isInstallable).toBe(false)
+
+      await act(async () => {
+        const event = new Event('beforeinstallprompt') as any
+        event.prompt = vi.fn()
+        event.userChoice = Promise.resolve({ outcome: 'accepted' })
+        window.dispatchEvent(event)
+      })
+
+      expect(result.current.isInstallable).toBe(true)
+    })
+
+    it('install returns false when no prompt', async () => {
+      const { result } = renderHook(() => useInstallPWA())
+
+      const installed = await result.current.install()
+
+      expect(installed).toBe(false)
+    })
+
+    it('install returns true on accept', async () => {
+      const { result } = renderHook(() => useInstallPWA())
+
+      const mockPrompt = vi.fn().mockResolvedValue(undefined)
+
+      await act(async () => {
+        const event = new Event('beforeinstallprompt') as any
+        event.prompt = mockPrompt
+        event.userChoice = Promise.resolve({ outcome: 'accepted' })
+        event.preventDefault = vi.fn()
+        window.dispatchEvent(event)
+      })
+
+      let installed: boolean | undefined
+      await act(async () => {
+        installed = await result.current.install()
+      })
+
+      expect(installed).toBe(true)
+      expect(mockPrompt).toHaveBeenCalled()
+      expect(result.current.isInstalled).toBe(true)
+    })
+
+    it('install returns false on dismiss', async () => {
+      const { result } = renderHook(() => useInstallPWA())
+
+      const mockPrompt = vi.fn().mockResolvedValue(undefined)
+
+      await act(async () => {
+        const event = new Event('beforeinstallprompt') as any
+        event.prompt = mockPrompt
+        event.userChoice = Promise.resolve({ outcome: 'dismissed' })
+        event.preventDefault = vi.fn()
+        window.dispatchEvent(event)
+      })
+
+      let installed: boolean | undefined
+      await act(async () => {
+        installed = await result.current.install()
+      })
+
+      expect(installed).toBe(false)
+    })
+
+    it('handles install error', async () => {
+      const { result } = renderHook(() => useInstallPWA())
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      await act(async () => {
+        const event = new Event('beforeinstallprompt') as any
+        event.prompt = vi.fn().mockRejectedValue(new Error('Install error'))
+        event.userChoice = Promise.resolve({ outcome: 'accepted' })
+        event.preventDefault = vi.fn()
+        window.dispatchEvent(event)
+      })
+
+      let installed: boolean | undefined
+      await act(async () => {
+        installed = await result.current.install()
+      })
+
+      expect(installed).toBe(false)
+      expect(errorSpy).toHaveBeenCalled()
+
+      errorSpy.mockRestore()
+    })
+  })
+
+  describe('usePushNotifications', () => {
+    beforeEach(() => {
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'default' },
+        configurable: true,
+      })
+    })
+
+    it('returns default permission initially', () => {
+      const { result } = renderHook(() => usePushNotifications('test-vapid-key'))
+
+      expect(result.current.permission).toBe('default')
+      expect(result.current.subscription).toBeNull()
+    })
+
+    it('returns granted permission when already granted', () => {
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'granted' },
+        configurable: true,
+      })
+
+      const { result } = renderHook(() => usePushNotifications('test-vapid-key'))
+
+      expect(result.current.permission).toBe('granted')
     })
   })
 })

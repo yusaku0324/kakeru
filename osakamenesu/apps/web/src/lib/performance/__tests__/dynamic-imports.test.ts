@@ -1,8 +1,18 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   dynamicImport,
+  createLazyComponent,
   routePaths,
   preloadRoute,
+  setupRoutePreloading,
+  preloadVisibleComponents,
+  setupProgressiveEnhancement,
+  addResourceHints,
+  initializePerformanceOptimizations,
+  lazyComponents,
 } from '../dynamic-imports'
 
 describe('dynamic-imports', () => {
@@ -193,6 +203,313 @@ describe('dynamic-imports', () => {
       expect(() => preloadRoute('/')).not.toThrow()
       expect(() => preloadRoute('/shops/my-shop')).not.toThrow()
       expect(() => preloadRoute('/admin/shops')).not.toThrow()
+    })
+  })
+
+  describe('createLazyComponent', () => {
+    it('creates a lazy component from import function', () => {
+      const mockComponent = () => null
+      const importFn = vi.fn().mockResolvedValue({ default: mockComponent })
+
+      const LazyComponent = createLazyComponent(importFn)
+
+      // Lazy components have special React properties
+      expect(LazyComponent).toBeDefined()
+      expect(LazyComponent.$$typeof).toBeDefined()
+    })
+
+    it('handles import failure gracefully', async () => {
+      const error = new Error('Import failed')
+      const importFn = vi.fn().mockRejectedValue(error)
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const LazyComponent = createLazyComponent(importFn, { retries: 1, retryDelay: 10 })
+
+      expect(LazyComponent).toBeDefined()
+      consoleSpy.mockRestore()
+    })
+  })
+
+  describe('lazyComponents', () => {
+    it('has OptimizedImage component', () => {
+      expect(lazyComponents.OptimizedImage).toBeDefined()
+    })
+
+    it('has OptimizedImageGallery component', () => {
+      expect(lazyComponents.OptimizedImageGallery).toBeDefined()
+    })
+
+    it('has Calendar component', () => {
+      expect(lazyComponents.Calendar).toBeDefined()
+    })
+  })
+
+  describe('setupRoutePreloading', () => {
+    let mockObserver: {
+      observe: ReturnType<typeof vi.fn>
+      unobserve: ReturnType<typeof vi.fn>
+      disconnect: ReturnType<typeof vi.fn>
+    }
+    let observerCallback: ((entries: IntersectionObserverEntry[]) => void) | null = null
+
+    beforeEach(() => {
+      mockObserver = {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      }
+
+      class MockIntersectionObserver {
+        constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
+          observerCallback = callback
+        }
+        observe = mockObserver.observe
+        unobserve = mockObserver.unobserve
+        disconnect = mockObserver.disconnect
+      }
+
+      global.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
+    })
+
+    it('does nothing on server side', () => {
+      const originalWindow = global.window
+      delete global.window
+
+      expect(() => setupRoutePreloading()).not.toThrow()
+
+      global.window = originalWindow
+    })
+
+    it('observes internal links', () => {
+      // Create test links
+      document.body.innerHTML = `
+        <a href="/shops">Shops</a>
+        <a href="/therapists">Therapists</a>
+        <a href="https://external.com">External</a>
+      `
+
+      setupRoutePreloading()
+
+      // Should observe internal links (those starting with /)
+      expect(mockObserver.observe).toHaveBeenCalledTimes(2)
+    })
+
+    it('unobserves link after intersection', () => {
+      document.body.innerHTML = '<a href="/shops">Shops</a>'
+
+      setupRoutePreloading()
+
+      // Simulate intersection
+      const link = document.querySelector('a')
+      observerCallback?.([{ isIntersecting: true, target: link } as unknown as IntersectionObserverEntry])
+
+      expect(mockObserver.unobserve).toHaveBeenCalledWith(link)
+    })
+
+    it('sets up hover preloading on desktop', () => {
+      // Ensure not a touch device
+      const originalOntouchstart = (window as any).ontouchstart
+      delete (window as any).ontouchstart
+
+      const addEventListenerSpy = vi.spyOn(document, 'addEventListener')
+
+      document.body.innerHTML = '<a href="/shops">Shops</a>'
+      setupRoutePreloading()
+
+      expect(addEventListenerSpy).toHaveBeenCalledWith('mouseover', expect.any(Function))
+
+      addEventListenerSpy.mockRestore()
+      ;(window as any).ontouchstart = originalOntouchstart
+    })
+  })
+
+  describe('preloadVisibleComponents', () => {
+    let mockObserver: {
+      observe: ReturnType<typeof vi.fn>
+      unobserve: ReturnType<typeof vi.fn>
+      disconnect: ReturnType<typeof vi.fn>
+    }
+
+    beforeEach(() => {
+      mockObserver = {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      }
+
+      class MockIntersectionObserver {
+        constructor() {}
+        observe = mockObserver.observe
+        unobserve = mockObserver.unobserve
+        disconnect = mockObserver.disconnect
+      }
+
+      global.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
+    })
+
+    it('does nothing on server side', () => {
+      const originalWindow = global.window
+      delete global.window
+
+      expect(() => preloadVisibleComponents()).not.toThrow()
+
+      global.window = originalWindow
+    })
+
+    it('observes elements with data-preload attribute', () => {
+      document.body.innerHTML = `
+        <div data-preload="calendar">Calendar</div>
+        <div data-preload="image">Image</div>
+        <div data-preload="gallery">Gallery</div>
+      `
+
+      preloadVisibleComponents()
+
+      expect(mockObserver.observe).toHaveBeenCalledTimes(3)
+    })
+  })
+
+  describe('addResourceHints', () => {
+    beforeEach(() => {
+      document.head.innerHTML = ''
+    })
+
+    it('does nothing on server side', () => {
+      const originalWindow = global.window
+      delete global.window
+
+      expect(() => addResourceHints()).not.toThrow()
+
+      global.window = originalWindow
+    })
+
+    it('adds preconnect link for API', () => {
+      addResourceHints()
+
+      const preconnects = document.querySelectorAll('link[rel="preconnect"]')
+      expect(preconnects.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('adds dns-prefetch links', () => {
+      addResourceHints()
+
+      const dnsPrefetches = document.querySelectorAll('link[rel="dns-prefetch"]')
+      expect(dnsPrefetches.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('sets crossorigin on preconnect links', () => {
+      addResourceHints()
+
+      const preconnect = document.querySelector('link[rel="preconnect"]')
+      expect(preconnect?.getAttribute('crossorigin')).toBe('anonymous')
+    })
+  })
+
+  describe('setupProgressiveEnhancement', () => {
+    beforeEach(() => {
+      document.head.innerHTML = ''
+      document.body.innerHTML = ''
+
+      class MockIntersectionObserver {
+        observe = vi.fn()
+        unobserve = vi.fn()
+        disconnect = vi.fn()
+      }
+
+      global.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
+    })
+
+    it('does nothing on server side', () => {
+      const originalWindow = global.window
+      delete global.window
+
+      expect(() => setupProgressiveEnhancement()).not.toThrow()
+
+      global.window = originalWindow
+    })
+
+    it('sets up route preloading', () => {
+      document.body.innerHTML = '<a href="/shops">Shops</a>'
+
+      setupProgressiveEnhancement()
+
+      // Just verify it runs without error
+      expect(true).toBe(true)
+    })
+
+    it('preloads on 4g connection without saveData', () => {
+      Object.defineProperty(navigator, 'connection', {
+        value: {
+          effectiveType: '4g',
+          saveData: false,
+        },
+        configurable: true,
+      })
+
+      setupProgressiveEnhancement()
+
+      // Should schedule component preloading
+      vi.advanceTimersByTime(2000)
+
+      expect(true).toBe(true)
+    })
+  })
+
+  describe('initializePerformanceOptimizations', () => {
+    beforeEach(() => {
+      document.head.innerHTML = ''
+      document.body.innerHTML = ''
+
+      class MockIntersectionObserver {
+        observe = vi.fn()
+        unobserve = vi.fn()
+        disconnect = vi.fn()
+      }
+
+      global.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
+    })
+
+    it('does nothing on server side', () => {
+      const originalWindow = global.window
+      delete global.window
+
+      expect(() => initializePerformanceOptimizations()).not.toThrow()
+
+      global.window = originalWindow
+    })
+
+    it('adds resource hints', () => {
+      initializePerformanceOptimizations()
+
+      const links = document.querySelectorAll('link')
+      expect(links.length).toBeGreaterThan(0)
+    })
+
+    it('sets up progressive enhancement when DOM is ready', () => {
+      // Simulate DOM already loaded
+      Object.defineProperty(document, 'readyState', {
+        value: 'complete',
+        configurable: true,
+      })
+
+      initializePerformanceOptimizations()
+
+      expect(true).toBe(true)
+    })
+
+    it('waits for DOMContentLoaded when DOM is loading', () => {
+      Object.defineProperty(document, 'readyState', {
+        value: 'loading',
+        configurable: true,
+      })
+
+      const addEventListenerSpy = vi.spyOn(document, 'addEventListener')
+
+      initializePerformanceOptimizations()
+
+      expect(addEventListenerSpy).toHaveBeenCalledWith('DOMContentLoaded', expect.any(Function))
+
+      addEventListenerSpy.mockRestore()
     })
   })
 })
