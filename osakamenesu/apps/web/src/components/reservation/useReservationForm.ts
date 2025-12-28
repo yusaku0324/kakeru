@@ -2,8 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 
+import { formatTimeHM } from '@/lib/jst'
 import { formatDatetimeLocal, toZonedDayjs } from '@/lib/timezone'
-import { verifySlot, createConflictErrorMessage } from '@/lib/verify-slot'
+import { verifySlot } from '@/lib/verify-slot'
+import { createSlotConflictMessage, RESERVATION_ERRORS } from '@/lib/error-messages'
+import {
+  formatPhoneNumber,
+  isValidUUID,
+  validateName,
+  validatePhone,
+  validateEmail,
+} from '@/lib/validation'
 import type { ConflictError } from './ConflictErrorBanner'
 
 import { useToast } from '../useToast'
@@ -70,16 +79,6 @@ export type UseReservationFormProps = {
 
 const PROFILE_STORAGE_KEY = 'reservation.profile.v1'
 const MINUTES_OPTIONS = [60, 90, 120, 150, 180]
-
-/**
- * Format phone number as user types (Japanese mobile: 090-1234-5678)
- */
-function formatPhoneNumber(value: string): string {
-  const digits = value.replace(/\D/g, '')
-  if (digits.length <= 3) return digits
-  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`
-  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`
-}
 
 function nextHourIsoLocal(minutesAhead = 120) {
   const candidate = toZonedDayjs().add(minutesAhead, 'minute').second(0).millisecond(0)
@@ -165,9 +164,8 @@ export function useReservationForm({
   const [isPending, startTransition] = useTransition()
   const { toasts, push, remove } = useToast()
 
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  const shopUuid = uuidPattern.test(shopId) ? shopId : null
-  const staffUuid = staffId && uuidPattern.test(staffId) ? staffId : undefined
+  const shopUuid = isValidUUID(shopId) ? shopId : null
+  const staffUuid = isValidUUID(staffId) ? staffId : undefined
   const isDemoEnvironment = !shopUuid
   const canSubmit = allowDemoSubmission || Boolean(shopUuid)
   // Demo UUID for testing - used when allowDemoSubmission is true but shopId is not a UUID
@@ -330,24 +328,25 @@ export function useReservationForm({
     const start = primaryStartIso ? new Date(primaryStartIso) : new Date('invalid')
 
     const nextErrors: ReservationFormErrors = {}
-    if (!normalizedName) {
-      nextErrors.name = 'お名前を入力してください。'
-    } else if (normalizedName.length > 80) {
-      nextErrors.name = 'お名前は80文字以内で入力してください。'
+    const nameResult = validateName(normalizedName)
+    if (nameResult.valid === false) {
+      nextErrors.name =
+        nameResult.error === 'empty'
+          ? 'お名前を入力してください。'
+          : 'お名前は80文字以内で入力してください。'
     }
 
-    const phoneDigits = normalizedPhone.replace(/\D+/g, '')
-    if (!normalizedPhone) {
-      nextErrors.phone = 'お電話番号を入力してください。'
-    } else if (phoneDigits.length < 10 || phoneDigits.length > 13) {
-      nextErrors.phone = 'お電話番号は10〜13桁の数字で入力してください。'
+    const phoneResult = validatePhone(normalizedPhone)
+    if (phoneResult.valid === false) {
+      nextErrors.phone =
+        phoneResult.error === 'empty'
+          ? 'お電話番号を入力してください。'
+          : 'お電話番号は10〜13桁の数字で入力してください。'
     }
 
-    if (normalizedEmail) {
-      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailPattern.test(normalizedEmail)) {
-        nextErrors.email = 'メールアドレスの形式が正しくありません。'
-      }
+    const emailResult = validateEmail(normalizedEmail)
+    if (emailResult.valid === false) {
+      nextErrors.email = 'メールアドレスの形式が正しくありません。'
     }
 
     if (!primaryStartIso || Number.isNaN(start.getTime())) {
@@ -380,17 +379,10 @@ export function useReservationForm({
                 month: 'numeric',
                 day: 'numeric',
                 weekday: 'short',
+                timeZone: 'Asia/Tokyo',
               })
-              const startTime = slotStart.toLocaleTimeString('ja-JP', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })
-              const endTime = slotEnd.toLocaleTimeString('ja-JP', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })
+              const startTime = formatTimeHM(slotStart)
+              const endTime = formatTimeHM(slotEnd)
               const statusLabel =
                 slot.status === 'open'
                   ? '◎ 予約可'
@@ -419,7 +411,7 @@ export function useReservationForm({
           // Slot is no longer available - show conflict error
           const reason = 'reason' in verification ? verification.reason : undefined
           setConflictError({
-            message: createConflictErrorMessage(reason),
+            message: createSlotConflictMessage(reason),
             slotStart: primaryStartIso,
             showUntil: Date.now() + 3000, // 3 seconds
           })
@@ -429,9 +421,11 @@ export function useReservationForm({
           setIsVerifying(false)
           return
         }
-      } catch {
-        // If verification fails, continue with reservation attempt
+      } catch (err) {
+        // If verification fails, show a warning but continue with reservation attempt
         // The backend will catch any conflicts
+        console.warn('Slot verification failed, proceeding with reservation:', err)
+        push('warning', '空き状況の確認に失敗しました。予約を続行します。')
       } finally {
         setIsVerifying(false)
       }
@@ -494,7 +488,7 @@ export function useReservationForm({
             if (data?.detail && typeof data.detail === 'object' && 'msg' in data.detail) {
               return data.detail.msg
             }
-            return '予約の送信に失敗しました。しばらくしてから再度お試しください。'
+            return RESERVATION_ERRORS.SUBMIT_FAILED
           })()
           push('error', errorMessage)
           return

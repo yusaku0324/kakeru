@@ -3,7 +3,7 @@ import React, { useCallback, useRef, useState } from 'react'
 
 export type ToastMessage = {
   id: number
-  type: 'success' | 'error'
+  type: 'success' | 'error' | 'warning'
   message: string
   actionLabel?: string
   onAction?: () => void | Promise<void>
@@ -66,15 +66,26 @@ export function ToastContainer({
       aria-live="polite"
       aria-atomic="false"
     >
-      {toasts.map((toast) => (
+      {toasts.map((toast) => {
+        const styles = {
+          success: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+          error: 'bg-red-50 border-red-200 text-red-700',
+          warning: 'bg-amber-50 border-amber-200 text-amber-800',
+        }
+        const labels = {
+          success: '成功',
+          error: 'エラー',
+          warning: '警告',
+        }
+        return (
         <div
           key={toast.id}
           role="alert"
-          className={`max-w-xs rounded-lg px-4 py-3 shadow-lg text-sm border ${toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'}`}
+          className={`max-w-xs rounded-lg px-4 py-3 shadow-lg text-sm border ${styles[toast.type]}`}
         >
           <div className="flex items-start gap-2">
             <span className="font-semibold text-xs tracking-wide">
-              {toast.type === 'success' ? '成功' : 'エラー'}
+              {labels[toast.type]}
             </span>
             <button
               type="button"
@@ -99,7 +110,8 @@ export function ToastContainer({
             </button>
           ) : null}
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

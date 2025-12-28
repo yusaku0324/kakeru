@@ -1,12 +1,4 @@
-import { NextResponse } from 'next/server'
-
-import { getServerConfig } from '@/lib/server-config'
-
-const SERVER_CONFIG = getServerConfig()
-
-function resolveBases(): string[] {
-  return [SERVER_CONFIG.internalApiBase, SERVER_CONFIG.publicApiBase]
-}
+import { parseRequestBody, proxyToBackend } from '@/lib/api/route-helpers'
 
 type LegacyPayload = {
   shop_id: string
@@ -56,65 +48,37 @@ function transformPayload(legacy: LegacyPayload): GuestReservationPayload {
   }
 }
 
-export async function POST(req: Request) {
-  let payload: LegacyPayload
-  try {
-    payload = await req.json() as LegacyPayload
-  } catch {
-    return NextResponse.json({ detail: 'invalid JSON body' }, { status: 400 })
+/**
+ * Transform backend response to legacy format for frontend compatibility
+ */
+function transformResponse(json: Record<string, unknown>): Record<string, unknown> {
+  if (!json.id) return json
+  const contactInfo = json.contact_info as Record<string, unknown> | undefined
+  return {
+    id: json.id,
+    shop_id: json.shop_id,
+    status: json.status,
+    customer_name: contactInfo?.name,
+    customer_phone: contactInfo?.phone,
+    customer_email: contactInfo?.email,
+    desired_start: json.start_at,
+    desired_end: json.end_at,
+    notes: json.notes,
+    debug: json.debug,
   }
+}
+
+export async function POST(req: Request) {
+  const parsed = await parseRequestBody<LegacyPayload>(req)
+  if ('error' in parsed) return parsed.error
 
   // Transform legacy payload to GuestReservation format
-  const guestPayload = transformPayload(payload)
-  const body = JSON.stringify(guestPayload)
-  let lastError: { status?: number; body?: unknown } | null = null
+  const guestPayload = transformPayload(parsed.data)
 
-  for (const base of resolveBases()) {
-    try {
-      // Call the new GuestReservation API
-      const resp = await fetch(`${base}/api/guest/reservations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-        cache: 'no-store',
-      })
-      const text = await resp.text()
-      let json: Record<string, unknown> | null = null
-      if (text) {
-        try {
-          json = JSON.parse(text) as Record<string, unknown>
-        } catch {
-          json = { detail: text }
-        }
-      }
-      if (resp.ok) {
-        // Transform response back to legacy format for frontend compatibility
-        if (json && json.id) {
-          const legacyResponse = {
-            id: json.id,
-            shop_id: json.shop_id,
-            status: json.status,
-            customer_name: (json.contact_info as Record<string, unknown>)?.name,
-            customer_phone: (json.contact_info as Record<string, unknown>)?.phone,
-            customer_email: (json.contact_info as Record<string, unknown>)?.email,
-            desired_start: json.start_at,
-            desired_end: json.end_at,
-            notes: json.notes,
-            debug: json.debug,
-          }
-          return NextResponse.json(legacyResponse, { status: resp.status })
-        }
-        return NextResponse.json(json, { status: resp.status })
-      }
-      lastError = { status: resp.status, body: json }
-    } catch (err) {
-      lastError = { body: err }
-    }
-  }
-
-  if (lastError?.status && lastError.body) {
-    return NextResponse.json(lastError.body, { status: lastError.status })
-  }
-
-  return NextResponse.json({ detail: 'reservation service unavailable' }, { status: 503 })
+  return proxyToBackend({
+    method: 'POST',
+    path: '/api/guest/reservations',
+    body: JSON.stringify(guestPayload),
+    transformResponse,
+  })
 }

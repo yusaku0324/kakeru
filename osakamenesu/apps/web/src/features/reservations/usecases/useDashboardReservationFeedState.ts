@@ -8,6 +8,12 @@ import {
 } from '@/lib/dashboard-reservations'
 import { enqueueAsyncJob } from '@/lib/async-jobs'
 import { useToast } from '@/components/useToast'
+import {
+  RESERVATION_ERRORS,
+  CONFLICT_ERRORS,
+  NOTIFICATION_ERRORS,
+  extractErrorMessage,
+} from '@/lib/error-messages'
 
 type DashboardFilterState = {
   status: 'all' | 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'expired'
@@ -75,7 +81,7 @@ export type DashboardReservationFeedActions = {
   closeReservation: () => void
   decideReservation: (
     reservation: DashboardReservationItem,
-    decision: 'approve' | 'decline',
+    decision: 'approve' | 'decline' | 'cancel',
   ) => Promise<void>
 }
 
@@ -167,10 +173,7 @@ export function useDashboardReservationFeedState({
           push('success', '最新の予約情報を読み込みました。')
         }
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : '予約リストの取得に失敗しました。時間をおいて再度お試しください。'
+        const message = extractErrorMessage(error, RESERVATION_ERRORS.LIST_FETCH_FAILED)
         setErrorMessage(message)
         setNextCursor(null)
         setPrevCursor(null)
@@ -564,10 +567,7 @@ export function useDashboardReservationFeedState({
       }
       setTotal(data.total)
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : '追加の予約取得に失敗しました。時間をおいて再度お試しください。'
+      const message = extractErrorMessage(error, RESERVATION_ERRORS.LOAD_MORE_FAILED)
       push('error', message)
     } finally {
       setIsLoadingMore(false)
@@ -597,10 +597,7 @@ export function useDashboardReservationFeedState({
       }
       setTotal(data.total)
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : '最新の予約取得に失敗しました。時間をおいて再度お試しください。'
+      const message = extractErrorMessage(error, RESERVATION_ERRORS.LOAD_PREVIOUS_FAILED)
       push('error', message)
     } finally {
       setIsLoadingPrevious(false)
@@ -616,8 +613,18 @@ export function useDashboardReservationFeedState({
   }, [])
 
   const decideReservation = useCallback(
-    async (reservation: DashboardReservationItem, decision: 'approve' | 'decline') => {
-      const nextStatus = decision === 'approve' ? 'confirmed' : 'declined'
+    async (reservation: DashboardReservationItem, decision: 'approve' | 'decline' | 'cancel') => {
+      const statusMap: Record<typeof decision, DashboardReservationItem['status']> = {
+        approve: 'confirmed',
+        decline: 'declined',
+        cancel: 'cancelled',
+      }
+      const labelMap: Record<typeof decision, string> = {
+        approve: '承認',
+        decline: '辞退',
+        cancel: 'キャンセル',
+      }
+      const nextStatus = statusMap[decision]
       try {
         const { reservation: updated, conflict } = await updateDashboardReservation(
           profileId,
@@ -628,14 +635,14 @@ export function useDashboardReservationFeedState({
         )
         push(
           'success',
-          `「${reservation.customer_name}」の予約を${decision === 'approve' ? '承認' : '辞退'}しました。`,
+          `「${reservation.customer_name}」の予約を${labelMap[decision]}しました。`,
         )
         if (conflict) {
-          push('error', '他の予約と時間が重複しています。スケジュールをご確認ください。')
+          push('error', CONFLICT_ERRORS.RESERVATION_TIME_CONFLICT)
         }
         const asyncStatus = updated.async_job?.status
         if (asyncStatus === 'failed') {
-          push('error', '通知の登録に失敗しました。再送信をお試しください。', {
+          push('error', NOTIFICATION_ERRORS.REGISTER_FAILED, {
             ttl: 0,
             actionLabel: '再送信',
             onAction: async () => {
@@ -656,7 +663,7 @@ export function useDashboardReservationFeedState({
                 })
                 push('success', '通知を再登録しました。')
               } catch {
-                push('error', '通知の再登録に失敗しました。時間をおいて再度お試しください。')
+                push('error', NOTIFICATION_ERRORS.REREGISTER_FAILED)
               }
             },
           })
@@ -670,10 +677,7 @@ export function useDashboardReservationFeedState({
           )
         }
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : '予約の更新に失敗しました。時間をおいて再度お試しください。'
+        const message = extractErrorMessage(error, RESERVATION_ERRORS.UPDATE_FAILED)
         push('error', message)
       }
     },
@@ -682,19 +686,28 @@ export function useDashboardReservationFeedState({
 
   const conflictIds = useMemo(() => {
     const set = new Set<string>()
-    const relevant = items.filter((item) => ['pending', 'confirmed'].includes(item.status))
+    // Pre-compute timestamps and filter in one pass
+    const relevant = items
+      .filter((item) => item.status === 'pending' || item.status === 'confirmed')
+      .map((item) => ({
+        id: item.id,
+        start: new Date(item.desired_start).getTime(),
+        end: new Date(item.desired_end).getTime(),
+      }))
+      // Sort by start time for early termination
+      .sort((a, b) => a.start - b.start)
+
+    // Use sorted order to skip comparisons once no overlap is possible
     for (let i = 0; i < relevant.length; i += 1) {
       const current = relevant[i]
-      const currentStart = new Date(current.desired_start).getTime()
-      const currentEnd = new Date(current.desired_end).getTime()
       for (let j = i + 1; j < relevant.length; j += 1) {
         const other = relevant[j]
-        const otherStart = new Date(other.desired_start).getTime()
-        const otherEnd = new Date(other.desired_end).getTime()
-        if (currentStart < otherEnd && currentEnd > otherStart) {
-          set.add(current.id)
-          set.add(other.id)
-        }
+        // If other starts after current ends, no more overlaps possible for this current
+        if (other.start >= current.end) break
+        // Overlap detected: currentStart < otherEnd && currentEnd > otherStart
+        // Since sorted by start: other.start >= current.start, so we only need: current.end > other.start
+        set.add(current.id)
+        set.add(other.id)
       }
     }
     return set
