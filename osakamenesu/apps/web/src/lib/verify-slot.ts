@@ -7,6 +7,8 @@
  * before submitting a reservation.
  */
 
+import { createSlotConflictMessage } from './error-messages'
+
 export type SlotVerificationResult =
   | {
       isAvailable: true
@@ -78,16 +80,8 @@ export async function verifySlot(
 
 /**
  * Create a user-friendly error message for slot conflicts.
+ * @deprecated Use createSlotConflictMessage from error-messages.ts instead
  */
 export function createConflictErrorMessage(reason?: string): string {
-  switch (reason) {
-    case 'already_reserved':
-      return '申し訳ございません。選択された時間は他のお客様により予約されました。別の時間をお選びください。'
-    case 'past_slot':
-      return '選択された時間は既に過ぎています。別の時間をお選びください。'
-    case 'verification_failed':
-      return '空き状況の確認に失敗しました。ページを更新して再度お試しください。'
-    default:
-      return '選択された時間は予約できません。別の時間をお選びください。'
-  }
+  return createSlotConflictMessage(reason)
 }
