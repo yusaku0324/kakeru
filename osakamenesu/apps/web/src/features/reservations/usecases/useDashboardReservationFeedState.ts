@@ -1,39 +1,19 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   fetchDashboardReservations,
-  updateDashboardReservation,
   type DashboardReservationItem,
 } from '@/lib/dashboard-reservations'
-import { enqueueAsyncJob } from '@/lib/async-jobs'
 import { useToast } from '@/components/useToast'
+import { RESERVATION_ERRORS, extractErrorMessage } from '@/lib/error-messages'
 import {
-  RESERVATION_ERRORS,
-  CONFLICT_ERRORS,
-  NOTIFICATION_ERRORS,
-  extractErrorMessage,
-} from '@/lib/error-messages'
-
-type DashboardFilterState = {
-  status: 'all' | 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'expired'
-  sort: 'latest' | 'date'
-  direction: 'desc' | 'asc'
-  q: string
-  start: string
-  end: string
-  limit: number
-}
-
-const DEFAULT_FILTERS: DashboardFilterState = {
-  status: 'all',
-  sort: 'latest',
-  direction: 'desc',
-  q: '',
-  start: '',
-  end: '',
-  limit: 20,
-}
+  useFilterState,
+  usePagination,
+  useReservationDecisions,
+  useScrollRestoration,
+  DEFAULT_FILTERS,
+  type DashboardFilterState,
+} from './hooks'
 
 export type FetchStatus = 'idle' | 'loading' | 'success' | 'error'
 
@@ -73,7 +53,7 @@ export type DashboardReservationFeedActions = {
   handleEndDateChange: (value: string) => void
   handleResetDateRange: () => void
   handleSearchInputChange: (value: string) => void
-  handleSearchSubmit: (event: FormEvent<HTMLFormElement>) => void
+  handleSearchSubmit: (event: React.FormEvent<HTMLFormElement>) => void
   handleClearSearch: () => void
   handleLoadMore: () => Promise<void>
   handleLoadPrevious: () => Promise<void>
@@ -101,42 +81,17 @@ export function useDashboardReservationFeedState({
   slug,
   limit = 8,
 }: UseDashboardReservationFeedStateOptions) {
-  const [items, setItems] = useState<DashboardReservationItem[]>([])
-  const itemsRef = useRef<DashboardReservationItem[]>([])
-  const [total, setTotal] = useState(0)
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [activeReservation, setActiveReservation] = useState<DashboardReservationItem | null>(null)
 
-  const [statusFilter, setStatusFilter] = useState<DashboardFilterState['status']>('all')
-  const [sortBy, setSortBy] = useState<DashboardFilterState['sort']>('latest')
-  const [sortDirection, setSortDirection] = useState<DashboardFilterState['direction']>('desc')
-  const [searchInput, setSearchInput] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [appliedSearch, setAppliedSearch] = useState('')
-  const [pageSize, setPageSize] = useState(limit)
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [prevCursor, setPrevCursor] = useState<string | null>(null)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [isLoadingPrevious, setIsLoadingPrevious] = useState(false)
-
-  const filtersRef = useRef<DashboardFilterState>({ ...DEFAULT_FILTERS, limit })
-  const restoredRef = useRef(false)
-  const scrollKeyRef = useRef(`dashboard:reservation-feed:scroll:${profileId}`)
-
   const { toasts, push, remove } = useToast()
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const filterStorageKey = useMemo(
-    () => `dashboard:reservation-feed:filters:${profileId}`,
-    [profileId],
-  )
-  const suppressParamsSyncRef = useRef(false)
-  const lastParamsRef = useRef<string | null>(null)
 
+  // Create a stable ref for filters that will be shared with child hooks
+  const filtersRef = useRef<DashboardFilterState>({ ...DEFAULT_FILTERS, limit })
+
+  // Build fetch params from current filter state
   const buildFetchParams = useCallback(() => {
     const current = filtersRef.current
     return {
@@ -150,6 +105,14 @@ export function useDashboardReservationFeedState({
     } as const
   }, [limit])
 
+  // Pagination state and actions
+  const pagination = usePagination({
+    profileId,
+    push,
+    buildFetchParams,
+  })
+
+  // Refresh data from API
   const refreshBase = useCallback(
     async ({ silent = false, signal }: { silent?: boolean; signal?: AbortSignal } = {}) => {
       if (!silent) {
@@ -163,11 +126,11 @@ export function useDashboardReservationFeedState({
       try {
         const fetchParams = buildFetchParams()
         const data = await fetchDashboardReservations(profileId, { ...fetchParams, signal })
-        setItems(data.reservations)
-        itemsRef.current = data.reservations
-        setTotal(data.total)
-        setNextCursor(data.next_cursor ?? null)
-        setPrevCursor(data.prev_cursor ?? null)
+        pagination.setItems(data.reservations)
+        pagination.itemsRef.current = data.reservations
+        pagination.setTotal(data.total)
+        pagination.setNextCursor(data.next_cursor ?? null)
+        pagination.setPrevCursor(data.prev_cursor ?? null)
         setFetchStatus('success')
         if (!silent) {
           push('success', '最新の予約情報を読み込みました。')
@@ -175,9 +138,9 @@ export function useDashboardReservationFeedState({
       } catch (error) {
         const message = extractErrorMessage(error, RESERVATION_ERRORS.LIST_FETCH_FAILED)
         setErrorMessage(message)
-        setNextCursor(null)
-        setPrevCursor(null)
-        setFetchStatus(itemsRef.current.length ? 'success' : 'error')
+        pagination.setNextCursor(null)
+        pagination.setPrevCursor(null)
+        setFetchStatus(pagination.itemsRef.current.length ? 'success' : 'error')
         if (!silent) {
           push('error', message)
         }
@@ -187,216 +150,40 @@ export function useDashboardReservationFeedState({
         }
       }
     },
-    [buildFetchParams, profileId, push],
+    [buildFetchParams, pagination, profileId, push],
   )
 
   const refresh = useCallback(() => refreshBase({ silent: false }), [refreshBase])
 
-  const writeFiltersToStorage = useCallback(
-    (filters: DashboardFilterState) => {
-      if (typeof window === 'undefined') return
-      sessionStorage.setItem(filterStorageKey, JSON.stringify(filters))
+  // Handle filter changes callback
+  const handleFiltersChange = useCallback(
+    (_filters: DashboardFilterState, options?: { silent?: boolean }) => {
+      pagination.setNextCursor(null)
+      pagination.setPrevCursor(null)
+      void refreshBase({ silent: options?.silent ?? true })
     },
-    [filterStorageKey],
+    [pagination, refreshBase],
   )
 
-  const buildSearchParams = useCallback((filters: DashboardFilterState) => {
-    const params = new URLSearchParams()
-    if (filters.status && filters.status !== DEFAULT_FILTERS.status) {
-      params.set('status', filters.status)
-    }
-    if (filters.sort && filters.sort !== DEFAULT_FILTERS.sort) {
-      params.set('sort', filters.sort)
-    }
-    if (filters.direction && filters.direction !== DEFAULT_FILTERS.direction) {
-      params.set('direction', filters.direction)
-    }
-    if (filters.q) {
-      params.set('q', filters.q)
-    }
-    if (filters.start) {
-      params.set('start', filters.start)
-    }
-    if (filters.end) {
-      params.set('end', filters.end)
-    }
-    if (filters.limit && filters.limit !== DEFAULT_FILTERS.limit) {
-      params.set('limit', String(filters.limit))
-    }
-    return params
-  }, [])
+  // Filter state and actions
+  const filterState = useFilterState({
+    profileId,
+    limit,
+    push,
+    filtersRef,
+    onFiltersChange: handleFiltersChange,
+  })
 
-  const pushFiltersToUrl = useCallback(
-    (filters: DashboardFilterState) => {
-      const params = buildSearchParams(filters)
-      const signature = params.toString()
-      if (lastParamsRef.current === signature) {
-        return
-      }
-      const url = signature ? `${pathname}?${signature}` : pathname
-      suppressParamsSyncRef.current = true
-      router.replace(url, { scroll: false })
-      lastParamsRef.current = signature
-    },
-    [buildSearchParams, pathname, router],
-  )
-
-  const updateFilters = useCallback(
-    (partial: Partial<DashboardFilterState>, options: { silent?: boolean } = {}) => {
-      const next: DashboardFilterState = { ...filtersRef.current, ...partial }
-      filtersRef.current = next
-      if (Object.prototype.hasOwnProperty.call(partial, 'q')) {
-        const nextValue = typeof partial.q === 'string' ? partial.q : ''
-        setAppliedSearch(nextValue)
-      }
-      if (
-        Object.prototype.hasOwnProperty.call(partial, 'limit') &&
-        typeof next.limit === 'number'
-      ) {
-        setPageSize(next.limit)
-      }
-      setNextCursor(null)
-      setPrevCursor(null)
-      setIsLoadingMore(false)
-      setIsLoadingPrevious(false)
-      writeFiltersToStorage(next)
-      pushFiltersToUrl(next)
-      void refreshBase({ silent: options.silent ?? true })
-    },
-    [pushFiltersToUrl, refreshBase, writeFiltersToStorage],
-  )
-
+  // Initialize filters and fetch data on mount
   useEffect(() => {
-    const signature = searchParams.toString()
-
-    if (suppressParamsSyncRef.current) {
-      suppressParamsSyncRef.current = false
-      lastParamsRef.current = signature
-    }
-
-    let nextFilters: DashboardFilterState = { ...DEFAULT_FILTERS }
-
-    const statusParam = searchParams.get('status')
-    if (
-      statusParam &&
-      ['all', 'pending', 'confirmed', 'declined', 'cancelled', 'expired'].includes(statusParam)
-    ) {
-      nextFilters.status = statusParam as DashboardFilterState['status']
-    }
-
-    const sortParam = searchParams.get('sort')
-    if (sortParam && ['latest', 'date'].includes(sortParam)) {
-      nextFilters.sort = sortParam as DashboardFilterState['sort']
-    }
-
-    const directionParam = searchParams.get('direction')
-    if (directionParam === 'asc' || directionParam === 'desc') {
-      nextFilters.direction = directionParam
-    }
-
-    const qParam = searchParams.get('q')
-    if (qParam) {
-      nextFilters.q = qParam
-    }
-
-    const startParam = searchParams.get('start')
-    if (startParam) {
-      nextFilters.start = startParam
-    }
-
-    const endParam = searchParams.get('end')
-    if (endParam) {
-      nextFilters.end = endParam
-    }
-
-    const limitParam = searchParams.get('limit')
-    if (limitParam) {
-      const parsed = Number.parseInt(limitParam, 10)
-      if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 100) {
-        nextFilters.limit = parsed
-      }
-    }
-
-    if (!signature && typeof window !== 'undefined') {
-      const stored = sessionStorage.getItem(filterStorageKey)
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored) as Partial<DashboardFilterState>
-          if (
-            parsed.status &&
-            ['all', 'pending', 'confirmed', 'declined', 'cancelled', 'expired'].includes(
-              parsed.status,
-            )
-          ) {
-            nextFilters.status = parsed.status as DashboardFilterState['status']
-          }
-          if (parsed.sort && ['latest', 'date'].includes(parsed.sort)) {
-            nextFilters.sort = parsed.sort as DashboardFilterState['sort']
-          }
-          if (parsed.direction === 'asc' || parsed.direction === 'desc') {
-            nextFilters.direction = parsed.direction
-          }
-          if (parsed.q) {
-            nextFilters.q = parsed.q
-          }
-          if (parsed.start) {
-            nextFilters.start = parsed.start
-          }
-          if (parsed.end) {
-            nextFilters.end = parsed.end
-          }
-          if (typeof parsed.limit === 'number' && parsed.limit >= 1 && parsed.limit <= 100) {
-            nextFilters.limit = parsed.limit
-          }
-        } catch {
-          // ignore malformed storage
-        }
-      }
-    }
-
-    if (nextFilters.start && nextFilters.end && nextFilters.start > nextFilters.end) {
-      nextFilters.end = ''
-    }
-
-    filtersRef.current = nextFilters
-    setStatusFilter(nextFilters.status)
-    setSortBy(nextFilters.sort)
-    setSortDirection(nextFilters.direction)
-    setSearchInput(nextFilters.q)
-    setStartDate(nextFilters.start)
-    setEndDate(nextFilters.end)
-    setPageSize(nextFilters.limit)
-    setAppliedSearch(nextFilters.q)
-    writeFiltersToStorage(nextFilters)
-
-    if (!signature) {
-      const params = buildSearchParams(nextFilters)
-      const storedSignature = params.toString()
-      if (storedSignature) {
-        suppressParamsSyncRef.current = true
-        router.replace(`${pathname}?${storedSignature}`, { scroll: false })
-        lastParamsRef.current = storedSignature
-      } else {
-        lastParamsRef.current = ''
-      }
-    } else {
-      lastParamsRef.current = signature
-    }
-
+    filterState.initializeFilters()
     const controller = new AbortController()
     refreshBase({ silent: true, signal: controller.signal }).catch(() => undefined)
     return () => controller.abort()
-  }, [
-    searchParams,
-    buildSearchParams,
-    filterStorageKey,
-    pathname,
-    profileId,
-    refreshBase,
-    router,
-    writeFiltersToStorage,
-  ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
+  // Listen for reservation update events
   useEffect(() => {
     const handleUpdate = (event: Event) => {
       const detail = (event as CustomEvent).detail as { shopId?: string } | undefined
@@ -410,200 +197,10 @@ export function useDashboardReservationFeedState({
     return () => window.removeEventListener('reservation:updated', handleUpdate)
   }, [profileId, slug, refresh])
 
-  useEffect(() => {
-    const handleScroll = () => {
-      if (typeof window === 'undefined') return
-      sessionStorage.setItem(scrollKeyRef.current, String(window.scrollY))
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [profileId])
+  // Scroll restoration
+  useScrollRestoration({ profileId, fetchStatus })
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (restoredRef.current) return
-    if (fetchStatus !== 'success' && fetchStatus !== 'error') return
-    const stored = sessionStorage.getItem(scrollKeyRef.current)
-    if (stored) {
-      const top = Number.parseInt(stored, 10)
-      if (!Number.isNaN(top)) {
-        window.scrollTo({ top })
-      }
-    }
-    restoredRef.current = true
-  }, [fetchStatus])
-
-  const handleStatusFilterChange = useCallback(
-    (value: DashboardFilterState['status']) => {
-      setStatusFilter(value)
-      if (filtersRef.current.status === value) {
-        return
-      }
-      updateFilters({ status: value }, { silent: true })
-    },
-    [updateFilters],
-  )
-
-  const handleSortChange = useCallback(
-    (value: DashboardFilterState['sort']) => {
-      setSortBy(value)
-      if (filtersRef.current.sort === value) {
-        return
-      }
-      updateFilters({ sort: value }, { silent: true })
-    },
-    [updateFilters],
-  )
-
-  const handleDirectionChange = useCallback(
-    (value: DashboardFilterState['direction']) => {
-      setSortDirection(value)
-      if (filtersRef.current.direction === value) {
-        return
-      }
-      updateFilters({ direction: value }, { silent: true })
-    },
-    [updateFilters],
-  )
-
-  const handleLimitChange = useCallback(
-    (value: number) => {
-      if (filtersRef.current.limit === value) {
-        return
-      }
-      setPageSize(value)
-      updateFilters({ limit: value }, { silent: true })
-    },
-    [updateFilters],
-  )
-
-  const handleStartDateChange = useCallback(
-    (value: string) => {
-      const trimmed = value.trim()
-      const currentEnd = filtersRef.current.end
-      if (trimmed && currentEnd && trimmed > currentEnd) {
-        push('error', '開始日は終了日より前に設定してください。')
-        return
-      }
-      setStartDate(trimmed)
-      if (filtersRef.current.start === trimmed) {
-        return
-      }
-      updateFilters({ start: trimmed }, { silent: true })
-    },
-    [push, updateFilters],
-  )
-
-  const handleEndDateChange = useCallback(
-    (value: string) => {
-      const trimmed = value.trim()
-      const currentStart = filtersRef.current.start
-      if (trimmed && currentStart && trimmed < currentStart) {
-        push('error', '終了日は開始日と同じか後の日付を指定してください。')
-        return
-      }
-      setEndDate(trimmed)
-      if (filtersRef.current.end === trimmed) {
-        return
-      }
-      updateFilters({ end: trimmed }, { silent: true })
-    },
-    [push, updateFilters],
-  )
-
-  const handleResetDateRange = useCallback(() => {
-    if (!filtersRef.current.start && !filtersRef.current.end) {
-      return
-    }
-    setStartDate('')
-    setEndDate('')
-    updateFilters({ start: '', end: '' }, { silent: true })
-  }, [updateFilters])
-
-  const handleSearchInputChange = useCallback((value: string) => {
-    setSearchInput(value)
-  }, [])
-
-  const handleSearchSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      const trimmed = searchInput.trim()
-      setSearchInput(trimmed)
-      if (filtersRef.current.q === trimmed) {
-        return
-      }
-      updateFilters({ q: trimmed }, { silent: true })
-    },
-    [searchInput, updateFilters],
-  )
-
-  const handleClearSearch = useCallback(() => {
-    setSearchInput('')
-    if (filtersRef.current.q) {
-      updateFilters({ q: '' }, { silent: true })
-    }
-  }, [updateFilters])
-
-  const handleLoadMore = useCallback(async () => {
-    if (!nextCursor || isLoadingMore) {
-      return
-    }
-    setIsLoadingMore(true)
-    try {
-      const data = await fetchDashboardReservations(profileId, {
-        ...buildFetchParams(),
-        cursor: nextCursor,
-        cursorDirection: 'forward',
-      })
-      const existingIds = new Set(itemsRef.current.map((item) => item.id))
-      const appended = data.reservations.filter((item) => !existingIds.has(item.id))
-      if (appended.length) {
-        itemsRef.current = [...itemsRef.current, ...appended]
-        setItems((prev) => [...prev, ...appended])
-      }
-      setNextCursor(data.next_cursor ?? null)
-      if (!prevCursor && data.prev_cursor) {
-        setPrevCursor(data.prev_cursor)
-      }
-      setTotal(data.total)
-    } catch (error) {
-      const message = extractErrorMessage(error, RESERVATION_ERRORS.LOAD_MORE_FAILED)
-      push('error', message)
-    } finally {
-      setIsLoadingMore(false)
-    }
-  }, [buildFetchParams, isLoadingMore, nextCursor, prevCursor, profileId, push])
-
-  const handleLoadPrevious = useCallback(async () => {
-    if (!prevCursor || isLoadingPrevious) {
-      return
-    }
-    setIsLoadingPrevious(true)
-    try {
-      const data = await fetchDashboardReservations(profileId, {
-        ...buildFetchParams(),
-        cursor: prevCursor,
-        cursorDirection: 'backward',
-      })
-      const existingIds = new Set(itemsRef.current.map((item) => item.id))
-      const prepended = data.reservations.filter((item) => !existingIds.has(item.id))
-      if (prepended.length) {
-        itemsRef.current = [...prepended, ...itemsRef.current]
-        setItems((prev) => [...prepended, ...prev])
-      }
-      setPrevCursor(data.prev_cursor ?? null)
-      if (data.next_cursor) {
-        setNextCursor((current) => current ?? data.next_cursor ?? null)
-      }
-      setTotal(data.total)
-    } catch (error) {
-      const message = extractErrorMessage(error, RESERVATION_ERRORS.LOAD_PREVIOUS_FAILED)
-      push('error', message)
-    } finally {
-      setIsLoadingPrevious(false)
-    }
-  }, [buildFetchParams, isLoadingPrevious, prevCursor, profileId, push])
-
+  // Reservation modal actions
   const openReservation = useCallback((reservation: DashboardReservationItem) => {
     setActiveReservation(reservation)
   }, [])
@@ -612,110 +209,42 @@ export function useDashboardReservationFeedState({
     setActiveReservation(null)
   }, [])
 
-  const decideReservation = useCallback(
-    async (reservation: DashboardReservationItem, decision: 'approve' | 'decline' | 'cancel') => {
-      const statusMap: Record<typeof decision, DashboardReservationItem['status']> = {
-        approve: 'confirmed',
-        decline: 'declined',
-        cancel: 'cancelled',
-      }
-      const labelMap: Record<typeof decision, string> = {
-        approve: '承認',
-        decline: '辞退',
-        cancel: 'キャンセル',
-      }
-      const nextStatus = statusMap[decision]
-      try {
-        const { reservation: updated, conflict } = await updateDashboardReservation(
-          profileId,
-          reservation.id,
-          {
-            status: nextStatus,
-          },
-        )
-        push(
-          'success',
-          `「${reservation.customer_name}」の予約を${labelMap[decision]}しました。`,
-        )
-        if (conflict) {
-          push('error', CONFLICT_ERRORS.RESERVATION_TIME_CONFLICT)
-        }
-        const asyncStatus = updated.async_job?.status
-        if (asyncStatus === 'failed') {
-          push('error', NOTIFICATION_ERRORS.REGISTER_FAILED, {
-            ttl: 0,
-            actionLabel: '再送信',
-            onAction: async () => {
-              if (!updated.async_job?.error) return
-              try {
-                await enqueueAsyncJob({
-                  type: 'reservation_notification',
-                  notification: {
-                    reservation_id: updated.id,
-                    shop_id: profileId,
-                    shop_name: updated.customer_name,
-                    customer_name: updated.customer_name,
-                    customer_phone: updated.customer_phone,
-                    desired_start: updated.desired_start,
-                    desired_end: updated.desired_end,
-                    status: updated.status,
-                  },
-                })
-                push('success', '通知を再登録しました。')
-              } catch {
-                push('error', NOTIFICATION_ERRORS.REREGISTER_FAILED)
-              }
-            },
-          })
-        }
-        closeReservation()
-        await refresh()
-        router.refresh()
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent('reservation:updated', { detail: { shopId: profileId } }),
-          )
-        }
-      } catch (error) {
-        const message = extractErrorMessage(error, RESERVATION_ERRORS.UPDATE_FAILED)
-        push('error', message)
-      }
-    },
-    [closeReservation, profileId, push, refresh, router],
-  )
+  // Reservation decision actions
+  const { decideReservation } = useReservationDecisions({
+    profileId,
+    push,
+    refresh,
+    closeReservation,
+  })
 
+  // Compute conflict IDs
   const conflictIds = useMemo(() => {
     const set = new Set<string>()
-    // Pre-compute timestamps and filter in one pass
-    const relevant = items
+    const relevant = pagination.items
       .filter((item) => item.status === 'pending' || item.status === 'confirmed')
       .map((item) => ({
         id: item.id,
         start: new Date(item.desired_start).getTime(),
         end: new Date(item.desired_end).getTime(),
       }))
-      // Sort by start time for early termination
       .sort((a, b) => a.start - b.start)
 
-    // Use sorted order to skip comparisons once no overlap is possible
     for (let i = 0; i < relevant.length; i += 1) {
       const current = relevant[i]
       for (let j = i + 1; j < relevant.length; j += 1) {
         const other = relevant[j]
-        // If other starts after current ends, no more overlaps possible for this current
         if (other.start >= current.end) break
-        // Overlap detected: currentStart < otherEnd && currentEnd > otherStart
-        // Since sorted by start: other.start >= current.start, so we only need: current.end > other.start
         set.add(current.id)
         set.add(other.id)
       }
     }
     return set
-  }, [items])
+  }, [pagination.items])
 
+  // Compute filter summary
   const filterSummary = useMemo(() => {
     const segments: string[] = []
-    if (statusFilter !== DEFAULT_FILTERS.status) {
+    if (filterState.statusFilter !== DEFAULT_FILTERS.status) {
       const labelMap: Record<DashboardFilterState['status'], string> = {
         all: 'すべて',
         pending: '承認待ち',
@@ -724,37 +253,37 @@ export function useDashboardReservationFeedState({
         cancelled: 'キャンセル',
         expired: '期限切れ',
       }
-      segments.push(`ステータス: ${labelMap[statusFilter]}`)
+      segments.push(`ステータス: ${labelMap[filterState.statusFilter]}`)
     }
-    if (startDate || endDate) {
-      const startLabel = startDate || '指定なし'
-      const endLabel = endDate || '指定なし'
+    if (filterState.startDate || filterState.endDate) {
+      const startLabel = filterState.startDate || '指定なし'
+      const endLabel = filterState.endDate || '指定なし'
       segments.push(`期間: ${startLabel}〜${endLabel}`)
     }
-    if (appliedSearch) {
-      segments.push(`検索: "${appliedSearch}"`)
+    if (filterState.appliedSearch) {
+      segments.push(`検索: "${filterState.appliedSearch}"`)
     }
     return segments.length ? segments.join(' / ') : null
-  }, [appliedSearch, endDate, startDate, statusFilter])
+  }, [filterState.appliedSearch, filterState.endDate, filterState.startDate, filterState.statusFilter])
 
   const state: DashboardReservationFeedState = {
-    items,
-    total,
+    items: pagination.items,
+    total: pagination.total,
     fetchStatus,
     errorMessage,
     isRefreshing,
-    isLoadingMore,
-    isLoadingPrevious,
-    nextCursor,
-    prevCursor,
-    statusFilter,
-    sortBy,
-    sortDirection,
-    startDate,
-    endDate,
-    searchInput,
-    appliedSearch,
-    pageSize,
+    isLoadingMore: pagination.isLoadingMore,
+    isLoadingPrevious: pagination.isLoadingPrevious,
+    nextCursor: pagination.nextCursor,
+    prevCursor: pagination.prevCursor,
+    statusFilter: filterState.statusFilter,
+    sortBy: filterState.sortBy,
+    sortDirection: filterState.sortDirection,
+    startDate: filterState.startDate,
+    endDate: filterState.endDate,
+    searchInput: filterState.searchInput,
+    appliedSearch: filterState.appliedSearch,
+    pageSize: filterState.pageSize,
     activeReservation,
   }
 
@@ -765,18 +294,18 @@ export function useDashboardReservationFeedState({
 
   const actions: DashboardReservationFeedActions = {
     refresh,
-    handleStatusFilterChange,
-    handleSortChange,
-    handleDirectionChange,
-    handleLimitChange,
-    handleStartDateChange,
-    handleEndDateChange,
-    handleResetDateRange,
-    handleSearchInputChange,
-    handleSearchSubmit,
-    handleClearSearch,
-    handleLoadMore,
-    handleLoadPrevious,
+    handleStatusFilterChange: filterState.handleStatusFilterChange,
+    handleSortChange: filterState.handleSortChange,
+    handleDirectionChange: filterState.handleDirectionChange,
+    handleLimitChange: filterState.handleLimitChange,
+    handleStartDateChange: filterState.handleStartDateChange,
+    handleEndDateChange: filterState.handleEndDateChange,
+    handleResetDateRange: filterState.handleResetDateRange,
+    handleSearchInputChange: filterState.handleSearchInputChange,
+    handleSearchSubmit: filterState.handleSearchSubmit,
+    handleClearSearch: filterState.handleClearSearch,
+    handleLoadMore: pagination.handleLoadMore,
+    handleLoadPrevious: pagination.handleLoadPrevious,
     openReservation,
     closeReservation,
     decideReservation,
