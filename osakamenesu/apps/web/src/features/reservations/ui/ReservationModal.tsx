@@ -8,6 +8,7 @@ import {
   RESERVATION_STATUS_BADGES,
 } from '@/components/reservations/status'
 import type { DashboardReservationItem } from '@/lib/dashboard-reservations'
+import { formatTimeHM } from '@/lib/jst'
 
 type ReservationModalProps = {
   open: boolean
@@ -15,6 +16,7 @@ type ReservationModalProps = {
   onClose: () => void
   onApprove: (reservation: DashboardReservationItem) => Promise<void>
   onDecline: (reservation: DashboardReservationItem) => Promise<void>
+  onCancel?: (reservation: DashboardReservationItem) => Promise<void>
   filterSummary?: string | null
 }
 
@@ -24,10 +26,11 @@ export function ReservationModal({
   onClose,
   onApprove,
   onDecline,
+  onCancel,
   filterSummary,
 }: ReservationModalProps) {
   const [copyState, setCopyState] = useState<'idle' | 'copying' | 'copied'>('idle')
-  const [actionState, setActionState] = useState<'idle' | 'approving' | 'declining'>('idle')
+  const [actionState, setActionState] = useState<'idle' | 'approving' | 'declining' | 'cancelling'>('idle')
 
   const statusLabel = useMemo(() => {
     if (!reservation) return null
@@ -48,12 +51,9 @@ export function ReservationModal({
         month: 'numeric',
         day: 'numeric',
         weekday: 'short',
-      })} ${start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-      const endLabel = end.toLocaleTimeString('ja-JP', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
+        timeZone: 'Asia/Tokyo',
+      })} ${formatTimeHM(start)}`
+      const endLabel = formatTimeHM(end)
       const status =
         slot.status === 'open'
           ? '◎ 予約可'
@@ -69,8 +69,8 @@ export function ReservationModal({
     const lines = [
       `予約ID: ${reservation.id}`,
       `ステータス: ${getReservationStatusLabel(reservation.status) ?? reservation.status}`,
-      `希望開始: ${new Date(reservation.desired_start).toLocaleString('ja-JP')}`,
-      `希望終了: ${new Date(reservation.desired_end).toLocaleString('ja-JP')}`,
+      `希望開始: ${new Date(reservation.desired_start).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+      `希望終了: ${new Date(reservation.desired_end).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
       `顧客名: ${reservation.customer_name}`,
       `電話番号: ${reservation.customer_phone}`,
       reservation.customer_email ? `メールアドレス: ${reservation.customer_email}` : null,
@@ -116,6 +116,21 @@ export function ReservationModal({
     }
   }, [onDecline, reservation])
 
+  const handleCancel = useCallback(async () => {
+    if (!reservation || !onCancel) return
+    setActionState('cancelling')
+    try {
+      await onCancel(reservation)
+    } catch {
+      /* noop - エラーは親でトースト表示済み */
+    } finally {
+      setActionState('idle')
+    }
+  }, [onCancel, reservation])
+
+  // キャンセルボタンを表示するかどうか（確定済みの予約のみ）
+  const showCancelButton = onCancel && reservation?.status === 'confirmed'
+
   if (!open || !reservation) {
     return null
   }
@@ -153,7 +168,7 @@ export function ReservationModal({
             <div className="space-y-1 text-sm">
               <div className="font-semibold text-neutral-900">{reservation.customer_name}</div>
               <div className="text-neutral-600">
-                送信日時: {new Date(reservation.created_at).toLocaleString('ja-JP')}
+                送信日時: {new Date(reservation.created_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
               </div>
             </div>
             <span
@@ -169,11 +184,8 @@ export function ReservationModal({
                 希望日時
               </div>
               <div>
-                {new Date(reservation.desired_start).toLocaleString('ja-JP')}〜
-                {new Date(reservation.desired_end).toLocaleTimeString('ja-JP', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {new Date(reservation.desired_start).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}〜
+                {formatTimeHM(new Date(reservation.desired_end))}
               </div>
             </div>
             <div className="space-y-1">
@@ -221,22 +233,35 @@ export function ReservationModal({
                   : '詳細をコピー'}
             </button>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handleDecline}
-                disabled={actionState === 'declining' || actionState === 'approving'}
-                className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {actionState === 'declining' ? '辞退処理中…' : '辞退する'}
-              </button>
-              <button
-                type="button"
-                onClick={handleApprove}
-                disabled={actionState === 'approving' || actionState === 'declining'}
-                className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-300/40 transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {actionState === 'approving' ? '承認処理中…' : '承認する'}
-              </button>
+              {showCancelButton ? (
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={actionState !== 'idle'}
+                  className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {actionState === 'cancelling' ? 'キャンセル処理中…' : 'キャンセルする'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleDecline}
+                    disabled={actionState !== 'idle'}
+                    className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {actionState === 'declining' ? '辞退処理中…' : '辞退する'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApprove}
+                    disabled={actionState !== 'idle'}
+                    className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-300/40 transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {actionState === 'approving' ? '承認処理中…' : '承認する'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

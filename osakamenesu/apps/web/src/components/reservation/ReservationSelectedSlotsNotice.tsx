@@ -1,3 +1,5 @@
+import { formatTimeHM } from '@/lib/jst'
+
 import type { ReservationSelectedSlot } from './useReservationForm'
 
 type ReservationSelectedSlotsNoticeProps = {
@@ -23,18 +25,11 @@ export default function ReservationSelectedSlotsNotice({
                 month: 'numeric',
                 day: 'numeric',
                 weekday: 'short',
+                timeZone: 'Asia/Tokyo',
               })}{' '}
-              {start.toLocaleTimeString('ja-JP', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })}
+              {formatTimeHM(start)}
               〜
-              {end.toLocaleTimeString('ja-JP', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })}
+              {formatTimeHM(end)}
               （{slot.status === 'open' ? '即予約可' : '要確認'}）
             </li>
           )

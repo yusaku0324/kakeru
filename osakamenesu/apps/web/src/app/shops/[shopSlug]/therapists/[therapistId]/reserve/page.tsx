@@ -212,15 +212,17 @@ export default function ShopReservePage() {
                       <div>
                         <p className="font-medium">選択された時間</p>
                         <p className="text-sm text-gray-600">
-                          {new Date(slotData.starts_at).toLocaleDateString('ja-JP')}
+                          {new Date(slotData.starts_at).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' })}
                         </p>
                         <p className="text-sm text-gray-600">
                           {new Date(slotData.starts_at).toLocaleTimeString('ja-JP', {
                             hour: '2-digit',
-                            minute: '2-digit'
+                            minute: '2-digit',
+                            timeZone: 'Asia/Tokyo'
                           })} - {new Date(slotData.ends_at).toLocaleTimeString('ja-JP', {
                             hour: '2-digit',
-                            minute: '2-digit'
+                            minute: '2-digit',
+                            timeZone: 'Asia/Tokyo'
                           })}
                         </p>
                       </div>

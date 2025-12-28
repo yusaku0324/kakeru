@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { useMemo } from 'react'
 
 import { ToastContainer } from '@/components/useToast'
+import { RESERVATION_ERRORS } from '@/lib/error-messages'
 import { DashboardReservationFilters } from '@/features/reservations/ui/DashboardReservationFilters'
 import { useDashboardReservationFeedState } from '@/features/reservations/usecases/useDashboardReservationFeedState'
 import { DashboardReservationToolbar } from '@/features/reservations/ui/DashboardReservationToolbar'
@@ -83,7 +84,7 @@ export default function DashboardReservationFeed({
     if (fetchStatus === 'error' && items.length === 0) {
       return (
         <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {errorMessage ?? '予約リストの取得に失敗しました。時間をおいて再度お試しください。'}
+          {errorMessage ?? RESERVATION_ERRORS.LIST_FETCH_FAILED}
         </div>
       )
     }
@@ -154,6 +155,7 @@ export default function DashboardReservationFeed({
         onClose={closeReservation}
         onApprove={(reservation) => decideReservation(reservation, 'approve')}
         onDecline={(reservation) => decideReservation(reservation, 'decline')}
+        onCancel={(reservation) => decideReservation(reservation, 'cancel')}
         filterSummary={filterSummary}
       />
     </section>

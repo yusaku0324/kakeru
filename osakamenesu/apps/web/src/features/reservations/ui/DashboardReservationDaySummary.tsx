@@ -8,6 +8,7 @@ import {
   getReservationStatusDisplay,
 } from '@/components/reservations/status'
 import { Card } from '@/components/ui/Card'
+import { formatTimeHM } from '@/lib/jst'
 import type { DashboardReservationItem } from '@/lib/dashboard-reservations'
 import { fetchDashboardReservations } from '@/lib/dashboard-reservations'
 import {
@@ -32,12 +33,17 @@ const CANCELLED_STATUSES: Array<DashboardReservationItem['status']> = [
 function formatTimeRange(item: DashboardReservationItem) {
   const start = new Date(item.desired_start)
   const end = new Date(item.desired_end)
-  return `${start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`
+  return `${formatTimeHM(start)}〜${formatTimeHM(end)}`
 }
 
 function formatDateLabel(item: DashboardReservationItem) {
   const date = new Date(item.desired_start)
-  return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
+  return date.toLocaleDateString('ja-JP', {
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+    timeZone: 'Asia/Tokyo',
+  })
 }
 
 type DayState = {

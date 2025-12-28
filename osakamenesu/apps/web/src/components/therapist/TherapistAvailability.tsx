@@ -39,7 +39,7 @@ export default function TherapistAvailability({
     const grouped: Record<string, AvailabilitySlot[]> = {}
 
     availability.slots.forEach(slot => {
-      const date = new Date(slot.starts_at).toLocaleDateString('ja-JP')
+      const date = new Date(slot.starts_at).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' })
       if (!grouped[date]) {
         grouped[date] = []
       }
@@ -60,14 +60,15 @@ export default function TherapistAvailability({
     return date.toLocaleTimeString('ja-JP', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hour12: false,
+      timeZone: 'Asia/Tokyo'
     })
   }
 
   const formatDateHeader = (dateString: string) => {
     const [year, month, day] = dateString.split('/')
     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-    const weekday = date.toLocaleDateString('ja-JP', { weekday: 'short' })
+    const weekday = date.toLocaleDateString('ja-JP', { weekday: 'short', timeZone: 'Asia/Tokyo' })
     return `${month}/${day} (${weekday})`
   }
 

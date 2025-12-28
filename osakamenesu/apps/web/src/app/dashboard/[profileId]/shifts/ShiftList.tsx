@@ -29,6 +29,7 @@ function formatDate(dateStr: string): string {
     month: 'short',
     day: 'numeric',
     weekday: 'short',
+    timeZone: 'Asia/Tokyo',
   })
 }
 
@@ -137,7 +138,7 @@ function ShiftCard({
           {new Date(shift.date).getDate()}
         </div>
         <div className="text-xs font-medium text-neutral-500">
-          {new Date(shift.date).toLocaleDateString('ja-JP', { month: 'short', weekday: 'short' })}
+          {new Date(shift.date).toLocaleDateString('ja-JP', { month: 'short', weekday: 'short', timeZone: 'Asia/Tokyo' })}
         </div>
       </div>
 
