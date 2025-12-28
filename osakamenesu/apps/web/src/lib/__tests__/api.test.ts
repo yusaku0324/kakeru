@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 
 import { buildApiUrl, resolveApiBases } from '../api'
 
@@ -97,8 +97,9 @@ describe('api', () => {
       expect(bases.length).toBeGreaterThanOrEqual(1)
     })
 
-    // Note: Server-side path with loadServerBases() is tested via integration
-    // Cannot easily mock dynamic require('./server-config') in unit tests
+    // Note: Server-side tests with loadServerBases() require complex module mocking
+    // The dynamic require('./server-config') is difficult to mock in ESM/vitest
+    // These paths are tested via integration tests
   })
 
   describe('buildApiUrl edge cases', () => {
@@ -124,6 +125,15 @@ describe('api', () => {
       global.window = { location: { origin: 'http://localhost:3000' } } as any
       const url = buildApiUrl('', 'test/path')
       expect(url).toBe('http://localhost:3000/test/path')
+    })
+
+    it('handles protocol-relative result from relative path', () => {
+      // When candidate becomes protocol-relative (starts with //)
+      // and needs https prefix
+      global.window = undefined as unknown as Window & typeof globalThis
+      const url = buildApiUrl('', '//api.example.com/test')
+      expect(url).toContain('https:')
+      expect(url).toContain('api.example.com/test')
     })
   })
 })

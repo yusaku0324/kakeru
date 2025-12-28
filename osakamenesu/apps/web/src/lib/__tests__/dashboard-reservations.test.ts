@@ -181,7 +181,7 @@ describe('dashboard-reservations', () => {
       })
 
       await expect(fetchDashboardReservations('profile-1')).rejects.toThrow(
-        '予約リストの取得に失敗しました (status=404)',
+        '予約の取得に失敗しました (status=404)',
       )
     })
 
@@ -192,7 +192,7 @@ describe('dashboard-reservations', () => {
       })
 
       await expect(fetchDashboardReservations('profile-1')).rejects.toThrow(
-        '予約リストの取得に失敗しました (status=500)',
+        '予約の取得に失敗しました (status=500)',
       )
     })
 

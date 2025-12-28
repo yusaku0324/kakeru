@@ -13,6 +13,8 @@ import {
   ProgressiveHydration,
   VirtualList,
   useProgressiveImage,
+  useScrollOptimizedValue,
+  useSkipRenderOnInteraction,
 } from '../render-optimization'
 
 describe('render-optimization', () => {
@@ -461,6 +463,315 @@ describe('render-optimization', () => {
         expect(result.current).toBe('/placeholder.jpg')
       })
     })
+  })
+})
+
+describe('useScrollOptimizedValue', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('returns computed value when not scrolling', async () => {
+    const computeValue = vi.fn(() => 'computed')
+    const { result } = renderHook(() =>
+      useScrollOptimizedValue(computeValue, [], { scrollThreshold: 50, debounceMs: 100 })
+    )
+
+    // Wait for initial computation
+    await act(async () => {
+      vi.advanceTimersByTime(0)
+    })
+
+    expect(result.current).toBe('computed')
+  })
+
+  it('returns null during fast scrolling', async () => {
+    const computeValue = vi.fn(() => 'computed')
+    const { result } = renderHook(() =>
+      useScrollOptimizedValue(computeValue, [], { scrollThreshold: 50, debounceMs: 100 })
+    )
+
+    // Wait for initial computation
+    await act(async () => {
+      vi.advanceTimersByTime(0)
+    })
+
+    // Simulate fast scroll
+    await act(async () => {
+      // Set initial scroll position
+      Object.defineProperty(window, 'scrollY', { value: 0, configurable: true })
+      window.dispatchEvent(new Event('scroll'))
+      // Fast scroll
+      Object.defineProperty(window, 'scrollY', { value: 100, configurable: true })
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    expect(result.current).toBeNull()
+  })
+
+  it('returns value after scroll debounce', async () => {
+    const computeValue = vi.fn(() => 'computed')
+    const { result } = renderHook(() =>
+      useScrollOptimizedValue(computeValue, [], { scrollThreshold: 50, debounceMs: 100 })
+    )
+
+    // Wait for initial computation
+    await act(async () => {
+      vi.advanceTimersByTime(0)
+    })
+
+    // Simulate fast scroll
+    await act(async () => {
+      Object.defineProperty(window, 'scrollY', { value: 0, configurable: true })
+      window.dispatchEvent(new Event('scroll'))
+      Object.defineProperty(window, 'scrollY', { value: 100, configurable: true })
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    // Wait for debounce
+    await act(async () => {
+      vi.advanceTimersByTime(100)
+    })
+
+    expect(result.current).toBe('computed')
+  })
+
+  it('clears timeout on multiple fast scrolls', async () => {
+    const computeValue = vi.fn(() => 'computed')
+    const { result } = renderHook(() =>
+      useScrollOptimizedValue(computeValue, [], { scrollThreshold: 50, debounceMs: 100 })
+    )
+
+    // Wait for initial computation
+    await act(async () => {
+      vi.advanceTimersByTime(0)
+    })
+
+    // Multiple fast scrolls
+    await act(async () => {
+      Object.defineProperty(window, 'scrollY', { value: 0, configurable: true })
+      window.dispatchEvent(new Event('scroll'))
+      Object.defineProperty(window, 'scrollY', { value: 100, configurable: true })
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    // Partial wait
+    await act(async () => {
+      vi.advanceTimersByTime(50)
+    })
+
+    // Another fast scroll - should reset timeout
+    await act(async () => {
+      Object.defineProperty(window, 'scrollY', { value: 200, configurable: true })
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    // Still null because timeout was reset
+    expect(result.current).toBeNull()
+
+    // Complete wait
+    await act(async () => {
+      vi.advanceTimersByTime(100)
+    })
+
+    expect(result.current).toBe('computed')
+  })
+
+  it('uses default options when not provided', async () => {
+    const computeValue = vi.fn(() => 'default')
+    const { result } = renderHook(() =>
+      useScrollOptimizedValue(computeValue, [])
+    )
+
+    await act(async () => {
+      vi.advanceTimersByTime(0)
+    })
+
+    expect(result.current).toBe('default')
+  })
+})
+
+describe('useSkipRenderOnInteraction', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('returns value when not interacting', () => {
+    const { result } = renderHook(() =>
+      useSkipRenderOnInteraction('test value')
+    )
+
+    expect(result.current).toBe('test value')
+  })
+
+  it('returns null during wheel interaction', async () => {
+    const { result } = renderHook(() =>
+      useSkipRenderOnInteraction('test value', { events: ['wheel'], delay: 100 })
+    )
+
+    // Simulate wheel event
+    await act(async () => {
+      window.dispatchEvent(new Event('wheel'))
+    })
+
+    expect(result.current).toBeNull()
+  })
+
+  it('returns null during touchmove interaction', async () => {
+    const { result } = renderHook(() =>
+      useSkipRenderOnInteraction('test value', { events: ['touchmove'], delay: 100 })
+    )
+
+    // Simulate touchmove event
+    await act(async () => {
+      window.dispatchEvent(new Event('touchmove'))
+    })
+
+    expect(result.current).toBeNull()
+  })
+
+  it('cleans up event listeners on unmount', async () => {
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
+
+    const { unmount } = renderHook(() =>
+      useSkipRenderOnInteraction('test value', { events: ['wheel', 'touchmove'], delay: 100 })
+    )
+
+    unmount()
+
+    // Should remove listeners for both events
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('wheel', expect.any(Function))
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('touchmove', expect.any(Function))
+
+    removeEventListenerSpy.mockRestore()
+  })
+
+  it('handles multiple events', async () => {
+    const { result } = renderHook(() =>
+      useSkipRenderOnInteraction('test value', { events: ['wheel', 'scroll'], delay: 100 })
+    )
+
+    expect(result.current).toBe('test value')
+
+    // Simulate scroll event
+    await act(async () => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    expect(result.current).toBeNull()
+  })
+
+  it('resets timeout on repeated interactions', async () => {
+    vi.useRealTimers() // Use real timers for this test
+
+    const { result } = renderHook(() =>
+      useSkipRenderOnInteraction('test value', { events: ['wheel'], delay: 50 })
+    )
+
+    // First interaction
+    await act(async () => {
+      window.dispatchEvent(new Event('wheel'))
+    })
+
+    // Partial wait
+    await new Promise(resolve => setTimeout(resolve, 20))
+
+    // Second interaction - resets timeout
+    await act(async () => {
+      window.dispatchEvent(new Event('wheel'))
+    })
+
+    // Still null
+    expect(result.current).toBeNull()
+
+    // Wait for the value to return after interaction ends
+    await waitFor(() => {
+      expect(result.current).toBe('test value')
+    }, { timeout: 200 })
+
+    vi.useFakeTimers() // Restore fake timers
+  })
+
+  it('updates value when not interacting', async () => {
+    const { result, rerender } = renderHook(
+      ({ value }) => useSkipRenderOnInteraction(value, { events: ['wheel'], delay: 100 }),
+      { initialProps: { value: 'initial' } }
+    )
+
+    expect(result.current).toBe('initial')
+
+    rerender({ value: 'updated' })
+
+    expect(result.current).toBe('updated')
+  })
+
+  it('uses default options when not provided', async () => {
+    const { result } = renderHook(() =>
+      useSkipRenderOnInteraction('default value')
+    )
+
+    expect(result.current).toBe('default value')
+
+    // Simulate wheel event (default event)
+    await act(async () => {
+      window.dispatchEvent(new Event('wheel'))
+    })
+
+    expect(result.current).toBeNull()
+  })
+})
+
+describe('useProgressiveImage advanced', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('updates to full image after load event', async () => {
+    let imageOnload: (() => void) | null = null
+
+    // Mock Image constructor
+    const originalImage = global.Image
+    global.Image = class MockImage {
+      src = ''
+      onload: (() => void) | null = null
+
+      constructor() {
+        setTimeout(() => {
+          imageOnload = this.onload
+        }, 0)
+      }
+    } as unknown as typeof Image
+
+    const { result } = renderHook(() =>
+      useProgressiveImage('/full-image.jpg', '/placeholder.jpg')
+    )
+
+    expect(result.current).toBe('/placeholder.jpg')
+
+    // Trigger image load
+    await act(async () => {
+      vi.advanceTimersByTime(10)
+      if (imageOnload) {
+        imageOnload()
+      }
+    })
+
+    expect(result.current).toBe('/full-image.jpg')
+
+    // Restore Image
+    global.Image = originalImage
   })
 })
 

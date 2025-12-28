@@ -65,10 +65,32 @@ describe('ShopDetailForm', () => {
       expect(input).toHaveValue('test-shop')
     })
 
+    it('calls onChangeField when slug changes', async () => {
+      const onChangeField = vi.fn()
+      render(<ShopDetailForm {...defaultProps} onChangeField={onChangeField} />)
+
+      const input = screen.getByPlaceholderText('例: aroma-namba')
+      await userEvent.clear(input)
+      await userEvent.type(input, 'new-slug')
+
+      expect(onChangeField).toHaveBeenCalledWith('slug', expect.any(String))
+    })
+
     it('renders area input', () => {
       render(<ShopDetailForm {...defaultProps} />)
       const input = screen.getByPlaceholderText('例: 難波/日本橋')
       expect(input).toHaveValue('Tokyo')
+    })
+
+    it('calls onChangeField when area changes', async () => {
+      const onChangeField = vi.fn()
+      render(<ShopDetailForm {...defaultProps} onChangeField={onChangeField} />)
+
+      const input = screen.getByPlaceholderText('例: 難波/日本橋')
+      await userEvent.clear(input)
+      await userEvent.type(input, 'Osaka')
+
+      expect(onChangeField).toHaveBeenCalledWith('area', expect.any(String))
     })
 
     it('renders price inputs', () => {
@@ -78,7 +100,7 @@ describe('ShopDetailForm', () => {
       expect(inputs[1]).toHaveValue(10000) // priceMax
     })
 
-    it('calls onChangeField when price changes', async () => {
+    it('calls onChangeField when priceMin changes', async () => {
       const onChangeField = vi.fn()
       render(<ShopDetailForm {...defaultProps} onChangeField={onChangeField} />)
 
@@ -86,6 +108,16 @@ describe('ShopDetailForm', () => {
       fireEvent.change(inputs[0], { target: { value: '6000' } })
 
       expect(onChangeField).toHaveBeenCalledWith('priceMin', 6000)
+    })
+
+    it('calls onChangeField when priceMax changes', async () => {
+      const onChangeField = vi.fn()
+      render(<ShopDetailForm {...defaultProps} onChangeField={onChangeField} />)
+
+      const inputs = screen.getAllByRole('spinbutton')
+      fireEvent.change(inputs[1], { target: { value: '15000' } })
+
+      expect(onChangeField).toHaveBeenCalledWith('priceMax', 15000)
     })
   })
 
@@ -120,16 +152,49 @@ describe('ShopDetailForm', () => {
       expect(textarea).toHaveValue('Test description')
     })
 
+    it('calls onChangeField when description changes', async () => {
+      const onChangeField = vi.fn()
+      render(<ShopDetailForm {...defaultProps} onChangeField={onChangeField} />)
+
+      const textarea = screen.getByTestId('shop-description')
+      await userEvent.clear(textarea)
+      await userEvent.type(textarea, 'New description')
+
+      expect(onChangeField).toHaveBeenCalledWith('description', expect.any(String))
+    })
+
     it('renders catch copy textarea', () => {
       render(<ShopDetailForm {...defaultProps} />)
       const textarea = screen.getByTestId('shop-catch-copy')
       expect(textarea).toHaveValue('Test catch copy')
     })
 
+    it('calls onChangeField when catch copy changes', async () => {
+      const onChangeField = vi.fn()
+      render(<ShopDetailForm {...defaultProps} onChangeField={onChangeField} />)
+
+      const textarea = screen.getByTestId('shop-catch-copy')
+      await userEvent.clear(textarea)
+      await userEvent.type(textarea, 'New catch copy')
+
+      expect(onChangeField).toHaveBeenCalledWith('catchCopy', expect.any(String))
+    })
+
     it('renders address input', () => {
       render(<ShopDetailForm {...defaultProps} />)
       const input = screen.getByTestId('shop-address')
       expect(input).toHaveValue('Tokyo, Japan')
+    })
+
+    it('calls onChangeField when address changes', async () => {
+      const onChangeField = vi.fn()
+      render(<ShopDetailForm {...defaultProps} onChangeField={onChangeField} />)
+
+      const input = screen.getByTestId('shop-address')
+      await userEvent.clear(input)
+      await userEvent.type(input, 'New address')
+
+      expect(onChangeField).toHaveBeenCalledWith('address', expect.any(String))
     })
   })
 
@@ -253,6 +318,28 @@ describe('ShopDetailForm', () => {
       await userEvent.type(input, '@newline')
 
       expect(onUpdateContact).toHaveBeenCalledWith({ line_id: expect.any(String) })
+    })
+
+    it('calls onUpdateContact when website url changes', async () => {
+      const onUpdateContact = vi.fn()
+      render(<ShopDetailForm {...defaultProps} onUpdateContact={onUpdateContact} />)
+
+      const input = screen.getByPlaceholderText('公式サイトURL')
+      await userEvent.clear(input)
+      await userEvent.type(input, 'https://newsite.com')
+
+      expect(onUpdateContact).toHaveBeenCalledWith({ website_url: expect.any(String) })
+    })
+
+    it('calls onUpdateContact when reservation form url changes', async () => {
+      const onUpdateContact = vi.fn()
+      render(<ShopDetailForm {...defaultProps} onUpdateContact={onUpdateContact} />)
+
+      const input = screen.getByPlaceholderText('WEB予約フォームURL')
+      await userEvent.clear(input)
+      await userEvent.type(input, 'https://reserve.example.com')
+
+      expect(onUpdateContact).toHaveBeenCalledWith({ reservation_form_url: expect.any(String) })
     })
 
     it('handles null contact gracefully', () => {

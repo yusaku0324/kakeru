@@ -357,6 +357,152 @@ describe('PhotoGrid', () => {
 
       expect(onChange).not.toHaveBeenCalled()
     })
+
+    it('moves photo right with ArrowRight key', () => {
+      const onChange = vi.fn()
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg', 'photo3.jpg']}
+          onChange={onChange}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      fireEvent.keyDown(photos[0], { key: 'ArrowRight' })
+
+      expect(onChange).toHaveBeenCalledWith(['photo2.jpg', 'photo1.jpg', 'photo3.jpg'])
+    })
+
+    it('moves photo down with ArrowDown key', () => {
+      const onChange = vi.fn()
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg', 'photo3.jpg']}
+          onChange={onChange}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      fireEvent.keyDown(photos[0], { key: 'ArrowDown' })
+
+      expect(onChange).toHaveBeenCalledWith(['photo2.jpg', 'photo1.jpg', 'photo3.jpg'])
+    })
+
+    it('moves photo left with ArrowLeft key', () => {
+      const onChange = vi.fn()
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg', 'photo3.jpg']}
+          onChange={onChange}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      fireEvent.keyDown(photos[1], { key: 'ArrowLeft' })
+
+      expect(onChange).toHaveBeenCalledWith(['photo2.jpg', 'photo1.jpg', 'photo3.jpg'])
+    })
+
+    it('moves photo up with ArrowUp key', () => {
+      const onChange = vi.fn()
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg', 'photo3.jpg']}
+          onChange={onChange}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      fireEvent.keyDown(photos[1], { key: 'ArrowUp' })
+
+      expect(onChange).toHaveBeenCalledWith(['photo2.jpg', 'photo1.jpg', 'photo3.jpg'])
+    })
+
+    it('moves photo to first with Home key', () => {
+      const onChange = vi.fn()
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg', 'photo3.jpg']}
+          onChange={onChange}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      fireEvent.keyDown(photos[2], { key: 'Home' })
+
+      expect(onChange).toHaveBeenCalledWith(['photo3.jpg', 'photo1.jpg', 'photo2.jpg'])
+    })
+
+    it('moves photo to last with End key', () => {
+      const onChange = vi.fn()
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg', 'photo3.jpg']}
+          onChange={onChange}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      fireEvent.keyDown(photos[0], { key: 'End' })
+
+      expect(onChange).toHaveBeenCalledWith(['photo2.jpg', 'photo3.jpg', 'photo1.jpg'])
+    })
+
+    it('opens delete dialog with Backspace key', async () => {
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg']}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      fireEvent.keyDown(photos[0], { key: 'Backspace' })
+
+      await waitFor(() => {
+        expect(screen.getByText('写真を削除')).toBeInTheDocument()
+      })
+    })
+
+    it('does not move beyond boundaries left', () => {
+      const onChange = vi.fn()
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg']}
+          onChange={onChange}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      // Try to move first photo to left (should not work)
+      fireEvent.keyDown(photos[0], { key: 'ArrowLeft' })
+
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('does not move beyond boundaries right', () => {
+      const onChange = vi.fn()
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg']}
+          onChange={onChange}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      // Try to move last photo to right (should not work)
+      fireEvent.keyDown(photos[1], { key: 'ArrowRight' })
+
+      expect(onChange).not.toHaveBeenCalled()
+    })
   })
 
   describe('photo drag and drop reorder', () => {
@@ -398,11 +544,157 @@ describe('PhotoGrid', () => {
         />,
       )
 
-      const photos = screen.getAllByRole('button', { name: /写真/ })
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
       fireEvent.dragStart(photos[0])
       fireEvent.dragEnd(photos[0])
 
       expect(photos[0]).not.toHaveClass('opacity-50')
+    })
+
+    it('reorders photos on complete drag and drop', () => {
+      const onChange = vi.fn()
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg', 'photo3.jpg']}
+          onChange={onChange}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      // Drag photo1 to photo2's position
+      fireEvent.dragStart(photos[0])
+      fireEvent.dragOver(photos[1], { preventDefault: vi.fn() })
+      fireEvent.dragEnd(photos[0])
+
+      expect(onChange).toHaveBeenCalledWith(['photo2.jpg', 'photo1.jpg', 'photo3.jpg'])
+    })
+
+    it('handles drag over on same index (no change)', () => {
+      const onChange = vi.fn()
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg']}
+          onChange={onChange}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      // Drag photo1 over itself
+      fireEvent.dragStart(photos[0])
+      fireEvent.dragOver(photos[0], { preventDefault: vi.fn() })
+      fireEvent.dragEnd(photos[0])
+
+      // Should not call onChange since same index
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('handles drag over without drag start (no-op)', () => {
+      const onChange = vi.fn()
+      render(
+        <PhotoGrid
+          {...defaultProps}
+          photos={['photo1.jpg', 'photo2.jpg']}
+          onChange={onChange}
+        />,
+      )
+
+      const photos = screen.getAllByRole('button', { name: /矢印キーで並べ替え/ })
+      // Drag over without starting drag
+      fireEvent.dragOver(photos[1], { preventDefault: vi.fn() })
+      fireEvent.dragEnd(photos[0])
+
+      expect(onChange).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('file drop', () => {
+    it('handles file drop on upload zone', async () => {
+      const onUpload = vi.fn().mockResolvedValue(undefined)
+      const { container } = render(
+        <PhotoGrid
+          {...defaultProps}
+          onUpload={onUpload}
+        />,
+      )
+
+      const dropZone = container.querySelector('.rounded-2xl.border-2.border-dashed')
+      const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' })
+
+      fireEvent.drop(dropZone!, {
+        dataTransfer: { files: [file] },
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      })
+
+      await waitFor(() => {
+        expect(onUpload).toHaveBeenCalled()
+      })
+    })
+
+    it('ignores drop when disabled', async () => {
+      const onUpload = vi.fn()
+      const { container } = render(
+        <PhotoGrid
+          {...defaultProps}
+          onUpload={onUpload}
+          disabled={true}
+        />,
+      )
+
+      const dropZone = container.querySelector('.rounded-2xl.border-2.border-dashed')
+      const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' })
+
+      fireEvent.drop(dropZone!, {
+        dataTransfer: { files: [file] },
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      })
+
+      expect(onUpload).not.toHaveBeenCalled()
+    })
+
+    it('ignores drop when uploading', async () => {
+      const onUpload = vi.fn()
+      const { container } = render(
+        <PhotoGrid
+          {...defaultProps}
+          onUpload={onUpload}
+          isUploading={true}
+        />,
+      )
+
+      const dropZone = container.querySelector('.rounded-2xl.border-2.border-dashed')
+      const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' })
+
+      fireEvent.drop(dropZone!, {
+        dataTransfer: { files: [file] },
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      })
+
+      expect(onUpload).not.toHaveBeenCalled()
+    })
+
+    it('ignores drop with no files', async () => {
+      const onUpload = vi.fn()
+      const { container } = render(
+        <PhotoGrid
+          {...defaultProps}
+          onUpload={onUpload}
+        />,
+      )
+
+      const dropZone = container.querySelector('.rounded-2xl.border-2.border-dashed')
+
+      fireEvent.drop(dropZone!, {
+        dataTransfer: { files: [] },
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      })
+
+      expect(onUpload).not.toHaveBeenCalled()
     })
   })
 })

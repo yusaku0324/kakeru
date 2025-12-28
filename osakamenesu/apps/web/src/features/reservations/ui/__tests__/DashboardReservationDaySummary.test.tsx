@@ -76,6 +76,11 @@ describe('DashboardReservationDaySummary', () => {
 
       expect(screen.getByText('直近の予約状況')).toBeInTheDocument()
       expect(screen.getByText('今日は誰が来店しますか？')).toBeInTheDocument()
+
+      // Wait for async operations to complete
+      await waitFor(() => {
+        expect(screen.queryByText('読み込み中...')).not.toBeInTheDocument()
+      })
     })
 
     it('renders day tabs', async () => {
@@ -84,12 +89,22 @@ describe('DashboardReservationDaySummary', () => {
       expect(screen.getByRole('button', { name: '今日' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '明日' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '日付指定' })).toBeInTheDocument()
+
+      // Wait for async operations to complete
+      await waitFor(() => {
+        expect(screen.queryByText('読み込み中...')).not.toBeInTheDocument()
+      })
     })
 
-    it('shows loading state initially', () => {
+    it('shows loading state initially', async () => {
       render(<DashboardReservationDaySummary profileId={mockProfileId} />)
 
       expect(screen.getByText('読み込み中...')).toBeInTheDocument()
+
+      // Wait for async operations to complete to avoid act() warning
+      await waitFor(() => {
+        expect(screen.queryByText('読み込み中...')).not.toBeInTheDocument()
+      })
     })
 
     it('shows empty state when no reservations', async () => {

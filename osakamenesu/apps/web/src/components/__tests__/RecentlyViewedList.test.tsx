@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 import RecentlyViewedList from '../RecentlyViewedList'
@@ -197,7 +197,10 @@ describe('RecentlyViewedList', () => {
     ).toBeInTheDocument()
 
     mockLocalStorage[RECENTLY_VIEWED_STORAGE_KEY] = JSON.stringify([sampleEntry])
-    window.dispatchEvent(new CustomEvent(RECENTLY_VIEWED_UPDATE_EVENT))
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(RECENTLY_VIEWED_UPDATE_EVENT))
+    })
 
     await waitFor(() => {
       expect(screen.getByText('テストショップ')).toBeInTheDocument()
@@ -212,9 +215,12 @@ describe('RecentlyViewedList', () => {
     ).toBeInTheDocument()
 
     mockLocalStorage[RECENTLY_VIEWED_STORAGE_KEY] = JSON.stringify([sampleEntry])
-    window.dispatchEvent(
-      new StorageEvent('storage', { key: RECENTLY_VIEWED_STORAGE_KEY }),
-    )
+
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: RECENTLY_VIEWED_STORAGE_KEY }),
+      )
+    })
 
     await waitFor(() => {
       expect(screen.getByText('テストショップ')).toBeInTheDocument()
