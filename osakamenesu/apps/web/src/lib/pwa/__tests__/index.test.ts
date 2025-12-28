@@ -117,6 +117,15 @@ describe('pwa/index', () => {
 
       expect(getDisplayMode()).toBe('browser')
     })
+
+    it('returns browser when no display mode matches', () => {
+      // None of the display modes match
+      window.matchMedia = vi.fn().mockImplementation(() => ({
+        matches: false,
+      }))
+
+      expect(getDisplayMode()).toBe('browser')
+    })
   })
 
   describe('requestNotificationPermission', () => {
@@ -545,6 +554,599 @@ describe('pwa/index', () => {
       const { result } = renderHook(() => usePushNotifications('test-vapid-key'))
 
       expect(result.current.permission).toBe('granted')
+    })
+
+    it('subscribe creates subscription and sends to server', async () => {
+      const mockSubscription = {
+        endpoint: 'https://push.example.com/endpoint',
+        unsubscribe: vi.fn().mockResolvedValue(true),
+        toJSON: vi.fn().mockReturnValue({ endpoint: 'https://push.example.com/endpoint' }),
+      }
+
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'granted', requestPermission: vi.fn() },
+        configurable: true,
+      })
+
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
+        configurable: true,
+      })
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          ready: Promise.resolve({
+            pushManager: {
+              subscribe: vi.fn().mockResolvedValue(mockSubscription),
+            },
+          }),
+        },
+        configurable: true,
+      })
+
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true })
+      global.fetch = mockFetch
+
+      const { result } = renderHook(() => usePushNotifications('test-vapid-key'))
+
+      await act(async () => {
+        await result.current.subscribe()
+      })
+
+      expect(result.current.subscription).toBe(mockSubscription)
+      expect(result.current.permission).toBe('granted')
+      expect(mockFetch).toHaveBeenCalledWith('/api/push/subscribe', expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }))
+    })
+
+    it('unsubscribe removes subscription and notifies server', async () => {
+      const mockUnsubscribe = vi.fn().mockResolvedValue(true)
+      const mockSubscription = {
+        endpoint: 'https://push.example.com/endpoint',
+        unsubscribe: mockUnsubscribe,
+        toJSON: vi.fn().mockReturnValue({ endpoint: 'https://push.example.com/endpoint' }),
+      }
+
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'granted', requestPermission: vi.fn() },
+        configurable: true,
+      })
+
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
+        configurable: true,
+      })
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          ready: Promise.resolve({
+            pushManager: {
+              subscribe: vi.fn().mockResolvedValue(mockSubscription),
+            },
+          }),
+        },
+        configurable: true,
+      })
+
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true })
+      global.fetch = mockFetch
+
+      const { result } = renderHook(() => usePushNotifications('test-vapid-key'))
+
+      // First subscribe
+      await act(async () => {
+        await result.current.subscribe()
+      })
+
+      expect(result.current.subscription).toBe(mockSubscription)
+
+      // Then unsubscribe
+      await act(async () => {
+        await result.current.unsubscribe()
+      })
+
+      expect(mockUnsubscribe).toHaveBeenCalled()
+      expect(result.current.subscription).toBeNull()
+      expect(mockFetch).toHaveBeenCalledWith('/api/push/unsubscribe', expect.objectContaining({
+        method: 'POST',
+      }))
+    })
+
+    it('unsubscribe does nothing when no subscription', async () => {
+      const { result } = renderHook(() => usePushNotifications('test-vapid-key'))
+
+      await act(async () => {
+        await result.current.unsubscribe()
+      })
+
+      // Should not throw
+      expect(result.current.subscription).toBeNull()
+    })
+
+    it('handles unsubscribe error gracefully', async () => {
+      const mockUnsubscribe = vi.fn().mockRejectedValue(new Error('Unsubscribe failed'))
+      const mockSubscription = {
+        endpoint: 'https://push.example.com/endpoint',
+        unsubscribe: mockUnsubscribe,
+        toJSON: vi.fn(),
+      }
+
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'granted', requestPermission: vi.fn() },
+        configurable: true,
+      })
+
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
+        configurable: true,
+      })
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          ready: Promise.resolve({
+            pushManager: {
+              subscribe: vi.fn().mockResolvedValue(mockSubscription),
+            },
+          }),
+        },
+        configurable: true,
+      })
+
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true })
+      global.fetch = mockFetch
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const { result } = renderHook(() => usePushNotifications('test-vapid-key'))
+
+      await act(async () => {
+        await result.current.subscribe()
+      })
+
+      await act(async () => {
+        await result.current.unsubscribe()
+      })
+
+      expect(errorSpy).toHaveBeenCalledWith('Error unsubscribing:', expect.any(Error))
+
+      errorSpy.mockRestore()
+    })
+  })
+
+  describe('registerServiceWorker update handling', () => {
+    it('handles updatefound event', async () => {
+      const mockNewWorker = {
+        state: 'installing',
+        addEventListener: vi.fn(),
+      }
+
+      const mockRegistration = {
+        scope: '/',
+        installing: mockNewWorker,
+        addEventListener: vi.fn(),
+      }
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          register: vi.fn().mockResolvedValue(mockRegistration),
+          controller: {},
+        },
+        configurable: true,
+      })
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      await registerServiceWorker()
+
+      // Check that updatefound listener was added
+      expect(mockRegistration.addEventListener).toHaveBeenCalledWith('updatefound', expect.any(Function))
+
+      // Simulate updatefound event
+      const updateFoundHandler = mockRegistration.addEventListener.mock.calls[0][1]
+      updateFoundHandler()
+
+      // Check that statechange listener was added to new worker
+      expect(mockNewWorker.addEventListener).toHaveBeenCalledWith('statechange', expect.any(Function))
+
+      consoleSpy.mockRestore()
+    })
+
+    it('shows update prompt when new worker is installed', async () => {
+      const mockNewWorker = {
+        state: 'installed',
+        addEventListener: vi.fn(),
+      }
+
+      const mockRegistration = {
+        scope: '/',
+        installing: mockNewWorker,
+        addEventListener: vi.fn(),
+      }
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          register: vi.fn().mockResolvedValue(mockRegistration),
+          controller: {}, // Existing controller indicates update scenario
+        },
+        configurable: true,
+      })
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+      await registerServiceWorker()
+
+      // Simulate updatefound and statechange events
+      const updateFoundHandler = mockRegistration.addEventListener.mock.calls[0][1]
+      updateFoundHandler()
+
+      const stateChangeHandler = mockNewWorker.addEventListener.mock.calls[0][1]
+      stateChangeHandler()
+
+      expect(consoleSpy).toHaveBeenCalledWith('New service worker available')
+      expect(confirmSpy).toHaveBeenCalled()
+
+      consoleSpy.mockRestore()
+      confirmSpy.mockRestore()
+    })
+
+    it('reloads page when user confirms update', async () => {
+      const mockNewWorker = {
+        state: 'installed',
+        addEventListener: vi.fn(),
+      }
+
+      const mockRegistration = {
+        scope: '/',
+        installing: mockNewWorker,
+        addEventListener: vi.fn(),
+      }
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          register: vi.fn().mockResolvedValue(mockRegistration),
+          controller: {},
+        },
+        configurable: true,
+      })
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+      const originalLocation = window.location
+      const mockReload = vi.fn()
+      Object.defineProperty(window, 'location', {
+        value: { ...originalLocation, reload: mockReload },
+        writable: true,
+        configurable: true,
+      })
+
+      await registerServiceWorker()
+
+      const updateFoundHandler = mockRegistration.addEventListener.mock.calls[0][1]
+      updateFoundHandler()
+
+      const stateChangeHandler = mockNewWorker.addEventListener.mock.calls[0][1]
+      stateChangeHandler()
+
+      expect(mockReload).toHaveBeenCalled()
+
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      })
+      consoleSpy.mockRestore()
+      confirmSpy.mockRestore()
+    })
+
+    it('skips update prompt when no controller exists', async () => {
+      const mockNewWorker = {
+        state: 'installed',
+        addEventListener: vi.fn(),
+      }
+
+      const mockRegistration = {
+        scope: '/',
+        installing: mockNewWorker,
+        addEventListener: vi.fn(),
+      }
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          register: vi.fn().mockResolvedValue(mockRegistration),
+          controller: null, // No controller = first install
+        },
+        configurable: true,
+      })
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const confirmSpy = vi.spyOn(window, 'confirm')
+
+      await registerServiceWorker()
+
+      const updateFoundHandler = mockRegistration.addEventListener.mock.calls[0][1]
+      updateFoundHandler()
+
+      const stateChangeHandler = mockNewWorker.addEventListener.mock.calls[0][1]
+      stateChangeHandler()
+
+      expect(confirmSpy).not.toHaveBeenCalled()
+
+      consoleSpy.mockRestore()
+      confirmSpy.mockRestore()
+    })
+
+    it('handles null installing worker in updatefound', async () => {
+      const mockRegistration = {
+        scope: '/',
+        installing: null, // No installing worker
+        addEventListener: vi.fn(),
+      }
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          register: vi.fn().mockResolvedValue(mockRegistration),
+          controller: {},
+        },
+        configurable: true,
+      })
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      await registerServiceWorker()
+
+      const updateFoundHandler = mockRegistration.addEventListener.mock.calls[0][1]
+      updateFoundHandler()
+
+      // Should not throw
+      expect(true).toBe(true)
+
+      consoleSpy.mockRestore()
+    })
+  })
+
+  describe('useInstallPWA appinstalled event', () => {
+    it('updates state on appinstalled event', async () => {
+      window.matchMedia = vi.fn().mockReturnValue({ matches: false })
+
+      const { result } = renderHook(() => useInstallPWA())
+
+      expect(result.current.isInstalled).toBe(false)
+
+      await act(async () => {
+        window.dispatchEvent(new Event('appinstalled'))
+      })
+
+      expect(result.current.isInstalled).toBe(true)
+      expect(result.current.isInstallable).toBe(false)
+    })
+  })
+
+  describe('sendSubscriptionToServer', () => {
+    it('handles server error response', async () => {
+      const mockSubscription = {
+        endpoint: 'https://push.example.com/endpoint',
+        unsubscribe: vi.fn().mockResolvedValue(true),
+        toJSON: vi.fn().mockReturnValue({ endpoint: 'https://push.example.com/endpoint' }),
+      }
+
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'granted', requestPermission: vi.fn() },
+        configurable: true,
+      })
+
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
+        configurable: true,
+      })
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          ready: Promise.resolve({
+            pushManager: {
+              subscribe: vi.fn().mockResolvedValue(mockSubscription),
+            },
+          }),
+        },
+        configurable: true,
+      })
+
+      // Return error response
+      const mockFetch = vi.fn().mockResolvedValue({ ok: false })
+      global.fetch = mockFetch
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const { result } = renderHook(() => usePushNotifications('test-vapid-key'))
+
+      await act(async () => {
+        await result.current.subscribe()
+      })
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        'Error sending subscription to server:',
+        expect.any(Error)
+      )
+
+      errorSpy.mockRestore()
+    })
+
+    it('handles fetch error', async () => {
+      const mockSubscription = {
+        endpoint: 'https://push.example.com/endpoint',
+        unsubscribe: vi.fn().mockResolvedValue(true),
+        toJSON: vi.fn().mockReturnValue({ endpoint: 'https://push.example.com/endpoint' }),
+      }
+
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'granted', requestPermission: vi.fn() },
+        configurable: true,
+      })
+
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
+        configurable: true,
+      })
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          ready: Promise.resolve({
+            pushManager: {
+              subscribe: vi.fn().mockResolvedValue(mockSubscription),
+            },
+          }),
+        },
+        configurable: true,
+      })
+
+      // Fetch throws error
+      const mockFetch = vi.fn().mockRejectedValue(new Error('Network error'))
+      global.fetch = mockFetch
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const { result } = renderHook(() => usePushNotifications('test-vapid-key'))
+
+      await act(async () => {
+        await result.current.subscribe()
+      })
+
+      expect(errorSpy).toHaveBeenCalled()
+
+      errorSpy.mockRestore()
+    })
+  })
+
+  describe('removeSubscriptionFromServer', () => {
+    it('handles fetch error gracefully', async () => {
+      const mockUnsubscribe = vi.fn().mockResolvedValue(true)
+      const mockSubscription = {
+        endpoint: 'https://push.example.com/endpoint',
+        unsubscribe: mockUnsubscribe,
+        toJSON: vi.fn(),
+      }
+
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'granted', requestPermission: vi.fn() },
+        configurable: true,
+      })
+
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
+        configurable: true,
+      })
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          ready: Promise.resolve({
+            pushManager: {
+              subscribe: vi.fn().mockResolvedValue(mockSubscription),
+            },
+          }),
+        },
+        configurable: true,
+      })
+
+      // First call succeeds (subscribe), second call fails (unsubscribe)
+      const mockFetch = vi.fn()
+        .mockResolvedValueOnce({ ok: true })
+        .mockRejectedValueOnce(new Error('Network error'))
+      global.fetch = mockFetch
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const { result } = renderHook(() => usePushNotifications('test-vapid-key'))
+
+      await act(async () => {
+        await result.current.subscribe()
+      })
+
+      await act(async () => {
+        await result.current.unsubscribe()
+      })
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        'Error removing subscription from server:',
+        expect.any(Error)
+      )
+
+      errorSpy.mockRestore()
+    })
+  })
+
+  describe('subscribeToPushNotifications with urlBase64ToUint8Array', () => {
+    it('subscribes with converted VAPID key', async () => {
+      const mockSubscription = {
+        endpoint: 'https://push.example.com/endpoint',
+      }
+
+      const mockSubscribe = vi.fn().mockResolvedValue(mockSubscription)
+
+      const mockRegistration = {
+        pushManager: {
+          subscribe: mockSubscribe,
+        },
+      } as unknown as ServiceWorkerRegistration
+
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
+        configurable: true,
+      })
+
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'granted', requestPermission: vi.fn().mockResolvedValue('granted') },
+        configurable: true,
+      })
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      // Use a valid base64 string
+      const vapidKey = 'BNbxGYNMhEIi7iGnhfL7K1H4v6S9d7c0Y0t2jLqOqZMj1E4p5H8k2E8hQ6w9xJfQgWdK3nZmPpRtVuWsYaObCdE'
+
+      const result = await subscribeToPushNotifications(mockRegistration, vapidKey)
+
+      expect(result).toBe(mockSubscription)
+      expect(mockSubscribe).toHaveBeenCalledWith({
+        userVisibleOnly: true,
+        applicationServerKey: expect.any(Uint8Array),
+      })
+
+      consoleSpy.mockRestore()
+    })
+
+    it('handles subscription error', async () => {
+      const mockSubscribe = vi.fn().mockRejectedValue(new Error('Subscription failed'))
+
+      const mockRegistration = {
+        pushManager: {
+          subscribe: mockSubscribe,
+        },
+      } as unknown as ServiceWorkerRegistration
+
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
+        configurable: true,
+      })
+
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'granted', requestPermission: vi.fn().mockResolvedValue('granted') },
+        configurable: true,
+      })
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const result = await subscribeToPushNotifications(mockRegistration, 'test-key')
+
+      expect(result).toBeNull()
+      expect(errorSpy).toHaveBeenCalledWith(
+        'Error subscribing to push notifications:',
+        expect.any(Error)
+      )
+
+      errorSpy.mockRestore()
     })
   })
 })

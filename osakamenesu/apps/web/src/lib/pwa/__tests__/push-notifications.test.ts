@@ -152,6 +152,125 @@ describe('push-notifications', () => {
       expect(errorSpy).toHaveBeenCalledWith('VAPID公開鍵が設定されていません')
       errorSpy.mockRestore()
     })
+
+    it('returns existing subscription when already subscribed', async () => {
+      // Set VAPID key via module re-import with mocked env
+      vi.stubEnv('NEXT_PUBLIC_VAPID_PUBLIC_KEY', 'BNbxGYNMhEIi7iGnhfL7K1H4v6S9d7c0Y0t2jLqOqZMj1E4p5H8k2E8hQ6w9xJfQgWdK3nZmPpRtVuWsYaObCdE')
+
+      // Re-import the module to pick up the mocked env
+      vi.resetModules()
+      const { subscribeToPushNotifications: subscribe } = await import('../push-notifications')
+
+      const mockExistingSubscription = { endpoint: 'https://push.example.com/existing' }
+      const mockRegistration = {
+        pushManager: {
+          getSubscription: vi.fn().mockResolvedValue(mockExistingSubscription),
+        },
+      }
+      Object.defineProperty(global, 'navigator', {
+        value: {
+          serviceWorker: {
+            ready: Promise.resolve(mockRegistration),
+          },
+        },
+        writable: true,
+      })
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
+        writable: true,
+      })
+      // @ts-expect-error - Notification mock
+      global.Notification = class Notification {}
+
+      const result = await subscribe()
+
+      expect(result).toBe(mockExistingSubscription)
+      expect(mockRegistration.pushManager.getSubscription).toHaveBeenCalled()
+
+      vi.unstubAllEnvs()
+    })
+
+    it('creates new subscription when no existing subscription', async () => {
+      vi.stubEnv('NEXT_PUBLIC_VAPID_PUBLIC_KEY', 'BNbxGYNMhEIi7iGnhfL7K1H4v6S9d7c0Y0t2jLqOqZMj1E4p5H8k2E8hQ6w9xJfQgWdK3nZmPpRtVuWsYaObCdE')
+
+      vi.resetModules()
+      const { subscribeToPushNotifications: subscribe } = await import('../push-notifications')
+
+      const mockNewSubscription = { endpoint: 'https://push.example.com/new' }
+      const mockSubscribe = vi.fn().mockResolvedValue(mockNewSubscription)
+      const mockRegistration = {
+        pushManager: {
+          getSubscription: vi.fn().mockResolvedValue(null),
+          subscribe: mockSubscribe,
+        },
+      }
+      Object.defineProperty(global, 'navigator', {
+        value: {
+          serviceWorker: {
+            ready: Promise.resolve(mockRegistration),
+          },
+        },
+        writable: true,
+      })
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
+        writable: true,
+      })
+      // @ts-expect-error - Notification mock
+      global.Notification = class Notification {}
+
+      const result = await subscribe()
+
+      expect(result).toBe(mockNewSubscription)
+      expect(mockSubscribe).toHaveBeenCalledWith({
+        userVisibleOnly: true,
+        applicationServerKey: expect.any(Uint8Array),
+      })
+
+      vi.unstubAllEnvs()
+    })
+
+    it('returns null and logs error on subscription failure', async () => {
+      vi.stubEnv('NEXT_PUBLIC_VAPID_PUBLIC_KEY', 'BNbxGYNMhEIi7iGnhfL7K1H4v6S9d7c0Y0t2jLqOqZMj1E4p5H8k2E8hQ6w9xJfQgWdK3nZmPpRtVuWsYaObCdE')
+
+      vi.resetModules()
+      const { subscribeToPushNotifications: subscribe } = await import('../push-notifications')
+
+      const mockError = new Error('Subscription failed')
+      const mockRegistration = {
+        pushManager: {
+          getSubscription: vi.fn().mockResolvedValue(null),
+          subscribe: vi.fn().mockRejectedValue(mockError),
+        },
+      }
+      Object.defineProperty(global, 'navigator', {
+        value: {
+          serviceWorker: {
+            ready: Promise.resolve(mockRegistration),
+          },
+        },
+        writable: true,
+      })
+      Object.defineProperty(window, 'PushManager', {
+        value: class PushManager {},
+        writable: true,
+      })
+      // @ts-expect-error - Notification mock
+      global.Notification = class Notification {}
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      const result = await subscribe()
+
+      expect(result).toBeNull()
+      expect(errorSpy).toHaveBeenCalledWith('プッシュ通知の購読に失敗:', mockError)
+      expect(warnSpy).toHaveBeenCalledWith('プッシュ通知の登録に失敗しました: 時間をおいて再度お試しください')
+
+      errorSpy.mockRestore()
+      warnSpy.mockRestore()
+      vi.unstubAllEnvs()
+    })
   })
 
   describe('unsubscribeFromPushNotifications', () => {
@@ -319,7 +438,19 @@ describe('push-notifications', () => {
   })
 
   describe('sendTestNotification', () => {
-    // Note: Cannot remove Notification from window in jsdom, so we skip this edge case test
+    it('throws error when Notification not supported', async () => {
+      // Save original and delete Notification
+      const originalNotification = window.Notification
+      // @ts-ignore - Temporarily delete for testing
+      delete window.Notification
+
+      await expect(sendTestNotification()).rejects.toThrow(
+        'このブラウザは通知をサポートしていません'
+      )
+
+      // Restore
+      window.Notification = originalNotification
+    })
 
     it('throws error when permission not granted', async () => {
       Object.defineProperty(window, 'Notification', {
