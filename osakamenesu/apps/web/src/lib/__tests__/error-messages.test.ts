@@ -12,8 +12,13 @@ import {
   NOTIFICATION_ERRORS,
   REVIEW_ERRORS,
   CONFLICT_ERRORS,
+  REJECTION_REASON_MESSAGES,
+  DEFAULT_REJECTION_MESSAGE,
   createSlotConflictMessage,
+  extractDetailMessage,
   extractErrorMessage,
+  createRejectionMessage,
+  formatRejectionReasons,
 } from '../error-messages'
 
 describe('error-messages', () => {
@@ -159,9 +164,9 @@ describe('error-messages', () => {
       expect(extractErrorMessage(error, 'default')).toBe('Detail message')
     })
 
-    it('prefers message over detail', () => {
+    it('prefers detail over message', () => {
       const error = { message: 'Message', detail: 'Detail' }
-      expect(extractErrorMessage(error, 'default')).toBe('Message')
+      expect(extractErrorMessage(error, 'default')).toBe('Detail')
     })
 
     it('returns default message for null', () => {
@@ -182,6 +187,168 @@ describe('error-messages', () => {
 
     it('returns default message for empty object', () => {
       expect(extractErrorMessage({}, 'default')).toBe('default')
+    })
+
+    it('handles array detail (FastAPI validation errors)', () => {
+      const error = {
+        detail: [
+          { msg: 'Field is required', loc: ['body', 'name'] },
+          { msg: 'Invalid email', loc: ['body', 'email'] },
+        ],
+      }
+      expect(extractErrorMessage(error, 'default')).toBe('Field is required\nInvalid email')
+    })
+
+    it('handles object detail with msg field', () => {
+      const error = { detail: { msg: 'Object detail message' } }
+      expect(extractErrorMessage(error, 'default')).toBe('Object detail message')
+    })
+
+    it('extracts error property from object', () => {
+      const error = { error: 'Error field message' }
+      expect(extractErrorMessage(error, 'default')).toBe('Error field message')
+    })
+  })
+
+  describe('extractDetailMessage', () => {
+    it('returns null for undefined', () => {
+      expect(extractDetailMessage(undefined)).toBeNull()
+    })
+
+    it('returns string as-is', () => {
+      expect(extractDetailMessage('Simple string')).toBe('Simple string')
+    })
+
+    it('extracts msg from array of objects', () => {
+      const detail = [
+        { msg: 'Error 1' },
+        { msg: 'Error 2' },
+      ]
+      expect(extractDetailMessage(detail)).toBe('Error 1\nError 2')
+    })
+
+    it('extracts message from array of objects', () => {
+      const detail = [
+        { message: 'Message 1' },
+        { message: 'Message 2' },
+      ]
+      expect(extractDetailMessage(detail)).toBe('Message 1\nMessage 2')
+    })
+
+    it('handles mixed msg and message in array', () => {
+      const detail = [
+        { msg: 'From msg' },
+        { message: 'From message' },
+      ]
+      expect(extractDetailMessage(detail)).toBe('From msg\nFrom message')
+    })
+
+    it('returns null for empty array', () => {
+      expect(extractDetailMessage([])).toBeNull()
+    })
+
+    it('extracts msg from object', () => {
+      expect(extractDetailMessage({ msg: 'Object msg' })).toBe('Object msg')
+    })
+
+    it('extracts message from object', () => {
+      expect(extractDetailMessage({ message: 'Object message' })).toBe('Object message')
+    })
+
+    it('prefers msg over message in object', () => {
+      expect(extractDetailMessage({ msg: 'From msg', message: 'From message' })).toBe('From msg')
+    })
+
+    it('returns null for object without msg or message', () => {
+      expect(extractDetailMessage({} as { msg?: string; message?: string })).toBeNull()
+    })
+  })
+
+  describe('REJECTION_REASON_MESSAGES', () => {
+    it('has messages for all known rejection reasons', () => {
+      const expectedReasons = [
+        'slot_conflict',
+        'overlap_existing_reservation',
+        'past_slot',
+        'no_availability',
+        'no_available_therapist',
+        'therapist_unavailable',
+        'staff_unavailable',
+        'shop_closed',
+        'outside_business_hours',
+        'room_full',
+        'shop_not_found',
+        'deadline_over',
+        'internal_error',
+      ]
+
+      for (const reason of expectedReasons) {
+        expect(REJECTION_REASON_MESSAGES[reason]).toBeDefined()
+      }
+    })
+  })
+
+  describe('createRejectionMessage', () => {
+    it('returns CREATE_FAILED for empty array', () => {
+      expect(createRejectionMessage([])).toBe(RESERVATION_ERRORS.CREATE_FAILED)
+    })
+
+    it('returns CREATE_FAILED for undefined', () => {
+      expect(createRejectionMessage(undefined)).toBe(RESERVATION_ERRORS.CREATE_FAILED)
+    })
+
+    it('returns first matching message for known reasons', () => {
+      expect(createRejectionMessage(['deadline_over'])).toContain('予約締め切り')
+      expect(createRejectionMessage(['outside_business_hours'])).toContain('営業時間外')
+      expect(createRejectionMessage(['no_available_therapist'])).toContain('セラピストがいません')
+      expect(createRejectionMessage(['room_full'])).toContain('満室')
+    })
+
+    it('returns first message when multiple reasons provided', () => {
+      const result = createRejectionMessage(['deadline_over', 'room_full'])
+      expect(result).toContain('予約締め切り')
+    })
+
+    it('returns CREATE_FAILED for all unknown reasons', () => {
+      expect(createRejectionMessage(['unknown_reason'])).toBe(RESERVATION_ERRORS.CREATE_FAILED)
+    })
+
+    it('handles mixed known and unknown reasons', () => {
+      const result = createRejectionMessage(['unknown_reason', 'deadline_over'])
+      expect(result).toContain('予約締め切り')
+    })
+  })
+
+  describe('formatRejectionReasons', () => {
+    it('returns DEFAULT_REJECTION_MESSAGE for empty array', () => {
+      expect(formatRejectionReasons([])).toBe(DEFAULT_REJECTION_MESSAGE)
+    })
+
+    it('returns DEFAULT_REJECTION_MESSAGE for undefined', () => {
+      expect(formatRejectionReasons(undefined)).toBe(DEFAULT_REJECTION_MESSAGE)
+    })
+
+    it('returns formatted message for single known reason', () => {
+      const result = formatRejectionReasons(['deadline_over'])
+      expect(result).toContain('予約締め切り')
+    })
+
+    it('joins multiple messages with newlines', () => {
+      const result = formatRejectionReasons(['deadline_over', 'room_full'])
+      expect(result).toContain('予約締め切り')
+      expect(result).toContain('満室')
+      expect(result).toContain('\n')
+    })
+
+    it('keeps unknown reasons as-is', () => {
+      const result = formatRejectionReasons(['custom_reason'])
+      expect(result).toBe('custom_reason')
+    })
+
+    it('handles mixed known and unknown reasons', () => {
+      const result = formatRejectionReasons(['deadline_over', 'custom_reason'])
+      expect(result).toContain('予約締め切り')
+      expect(result).toContain('custom_reason')
     })
   })
 })

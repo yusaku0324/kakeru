@@ -185,19 +185,151 @@ export function createSlotConflictMessage(reason?: string): string {
 }
 
 /**
+ * APIエラーレスポンスの detail フィールドの型定義
+ */
+export type ApiErrorDetail =
+  | string
+  | Array<{ msg?: string; message?: string; loc?: string[] }>
+  | { msg?: string; message?: string }
+
+/**
+ * APIエラーレスポンスの型定義
+ */
+export type ApiErrorResponse = {
+  detail?: ApiErrorDetail
+  message?: string
+  error?: string
+  debug?: { rejected_reasons?: string[] }
+}
+
+/**
+ * APIエラーの detail フィールドからメッセージを抽出する
+ *
+ * FastAPI のバリデーションエラーなど、様々な形式に対応:
+ * - 文字列: そのまま返す
+ * - 配列: 各要素の msg を結合
+ * - オブジェクト: msg または message を返す
+ */
+export function extractDetailMessage(detail: ApiErrorDetail | undefined): string | null {
+  if (!detail) return null
+
+  // 文字列の場合
+  if (typeof detail === 'string') {
+    return detail
+  }
+
+  // 配列の場合（FastAPI バリデーションエラー形式）
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => item?.msg || item?.message)
+      .filter((msg): msg is string => typeof msg === 'string')
+    return messages.length > 0 ? messages.join('\n') : null
+  }
+
+  // オブジェクトの場合
+  if (typeof detail === 'object' && detail !== null) {
+    return detail.msg || detail.message || null
+  }
+
+  return null
+}
+
+/**
  * APIエラーレスポンスからエラーメッセージを抽出する
+ *
+ * 優先順位:
+ * 1. detail フィールド（様々な形式に対応）
+ * 2. message フィールド
+ * 3. error フィールド
+ * 4. Error インスタンスの message
+ * 5. デフォルトメッセージ
  */
 export function extractErrorMessage(
   error: unknown,
   defaultMessage: string,
 ): string {
+  // Error インスタンスの場合
   if (error instanceof Error) {
     return error.message
   }
+
+  // オブジェクトの場合
   if (typeof error === 'object' && error !== null) {
-    const obj = error as Record<string, unknown>
+    const obj = error as ApiErrorResponse
+
+    // detail フィールドを最優先
+    const detailMessage = extractDetailMessage(obj.detail)
+    if (detailMessage) return detailMessage
+
+    // その他のフィールド
     if (typeof obj.message === 'string') return obj.message
-    if (typeof obj.detail === 'string') return obj.detail
+    if (typeof obj.error === 'string') return obj.error
   }
+
   return defaultMessage
+}
+
+/**
+ * 予約拒否理由のメッセージマッピング
+ * バックエンドから返される拒否理由をユーザー向けメッセージに変換
+ */
+export const REJECTION_REASON_MESSAGES: Record<string, string> = {
+  // スロット競合関連
+  slot_conflict: SLOT_ERRORS.CONFLICT_ALREADY_RESERVED,
+  overlap_existing_reservation: 'その時間帯は既に予約が入っています',
+  past_slot: SLOT_ERRORS.CONFLICT_PAST_SLOT,
+
+  // 可用性関連
+  no_availability: '選択された時間は予約を受け付けていません。',
+  no_available_therapist: '選択した時間帯に対応可能なセラピストがいません',
+  therapist_unavailable: 'セラピストがその時間は対応できません',
+  staff_unavailable: '担当スタッフが対応できません。別の時間をお選びください。',
+
+  // 営業・施設関連
+  shop_closed: '選択された時間は営業時間外です。',
+  outside_business_hours: '営業時間外です',
+  room_full: '満室のため予約できません',
+  shop_not_found: 'この店舗は現在予約を受け付けていません。',
+
+  // 予約ルール関連
+  deadline_over: '予約締め切り時間を過ぎています（1時間以上前にご予約ください）',
+
+  // システムエラー
+  internal_error: `システムエラーが発生しました。${RETRY_MESSAGE}`,
+} as const
+
+/**
+ * デフォルトの拒否メッセージ
+ */
+export const DEFAULT_REJECTION_MESSAGE = '予約を受け付けられませんでした。別の時間帯をお試しください。'
+
+/**
+ * 予約拒否理由からユーザー向けメッセージを生成する
+ */
+export function createRejectionMessage(reasons: string[] | undefined): string {
+  if (!reasons || reasons.length === 0) {
+    return RESERVATION_ERRORS.CREATE_FAILED
+  }
+
+  const messages = reasons
+    .map((reason) => REJECTION_REASON_MESSAGES[reason])
+    .filter((msg): msg is string => !!msg)
+
+  return messages.length > 0 ? messages[0] : RESERVATION_ERRORS.CREATE_FAILED
+}
+
+/**
+ * 複数の拒否理由をまとめてメッセージに変換する
+ * 改行区切りで複数のメッセージを返す
+ */
+export function formatRejectionReasons(reasons: string[] | undefined): string {
+  if (!reasons || reasons.length === 0) {
+    return DEFAULT_REJECTION_MESSAGE
+  }
+
+  const messages = reasons
+    .map((reason) => REJECTION_REASON_MESSAGES[reason] ?? reason)
+    .filter(Boolean)
+
+  return messages.length > 0 ? messages.join('\n') : DEFAULT_REJECTION_MESSAGE
 }
