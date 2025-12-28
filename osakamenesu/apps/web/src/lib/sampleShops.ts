@@ -28,7 +28,8 @@ function getLocalDateISO(offset = 0): string {
 }
 
 // Helper to build a slot time for a given day offset and hour (JST)
-function buildSlotTime(dayOffset: number, hour: number, minute = 0): string {
+// Exported for testing purposes
+export function buildSlotTime(dayOffset: number, hour: number, minute = 0): string {
   const dateStr = getLocalDateISO(dayOffset)
   const hourStr = String(hour).padStart(2, '0')
   const minuteStr = String(minute).padStart(2, '0')

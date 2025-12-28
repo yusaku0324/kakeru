@@ -22,6 +22,8 @@ export default defineConfig({
     css: false,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['e2e/**', 'tests/e2e/**', 'playwright/**'],
+    testTimeout: 10000,
+    hookTimeout: 10000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json-summary'],

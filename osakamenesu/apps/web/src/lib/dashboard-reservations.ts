@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/http'
+import { RESERVATION_ERRORS } from '@/lib/error-messages'
 
 export type DashboardReservationPreferredSlot = {
   desired_start: string
@@ -102,7 +103,7 @@ export async function fetchDashboardReservations(
     },
   )
   if (!res.ok) {
-    throw new Error(`予約リストの取得に失敗しました (status=${res.status})`)
+    throw new Error(`${RESERVATION_ERRORS.FETCH_FAILED} (status=${res.status})`)
   }
   return res.json() as Promise<DashboardReservationListResponse>
 }
@@ -129,9 +130,8 @@ export async function updateDashboardReservation(
   if (!res.ok) {
     const detail = await res.json().catch(() => null)
     const message =
-      (detail && (detail.message || detail.detail)) ||
-      '予約の更新に失敗しました。時間をおいて再度お試しください。'
-    throw new Error(typeof message === 'string' ? message : '予約の更新に失敗しました。')
+      (detail && (detail.message || detail.detail)) || RESERVATION_ERRORS.UPDATE_FAILED
+    throw new Error(typeof message === 'string' ? message : RESERVATION_ERRORS.UPDATE_FAILED)
   }
 
   const data = (await res.json()) as DashboardReservationItem
