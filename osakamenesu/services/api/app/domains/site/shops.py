@@ -133,6 +133,7 @@ async def search_shops(
         default=None, description="Required availability date"
     ),
     open_now: bool | None = Query(default=None),
+    today: bool | None = Query(default=None, description="Alias for open_now"),
     price_band: str | None = Query(
         default=None, description="Comma separated price band keys"
     ),
@@ -176,7 +177,7 @@ async def search_shops(
         price_min=price_min,
         price_max=price_max,
         available_date=available_date,
-        open_now=open_now,
+        open_now=open_now if open_now is not None else today,
         price_band=price_band,
         ranking_badges_param=ranking_badges_param,
         promotions_only=promotions_only,

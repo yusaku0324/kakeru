@@ -874,6 +874,10 @@ async def _search_shops_impl(
                     shop_next_slot.start_at if shop_next_slot else None
                 )
 
+    # Post-filter: remove shops with today_available=False when open_now filter is active
+    if open_now is True:
+        results = [shop for shop in results if shop.today_available]
+
     selected_facets: Dict[str, Set[str]] = {}
     if area:
         selected_facets["area"] = {area}
@@ -898,12 +902,15 @@ async def _search_shops_impl(
 
     # Build response - handle both Meili and PostgreSQL fallback cases
     if res is not None:
+        # Use actual count when post-filtering is applied (available_date or open_now)
         response_total = (
-            len(results) if available_date else res.get("estimatedTotalHits", 0)
+            len(results)
+            if (available_date or open_now is True)
+            else res.get("estimatedTotalHits", 0)
         )
         response_facets = _build_facets(res.get("facetDistribution"), selected_facets)
     else:
-        response_total = total
+        response_total = total if open_now is not True else len(results)
         response_facets = {}
 
     response = ShopSearchResponse(
