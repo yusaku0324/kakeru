@@ -406,11 +406,35 @@ def _create_therapist(
         return None
 
 
+def _update_shop_photos(
+    base: str,
+    headers: Dict[str, str],
+    shop_id: str,
+    photos: List[str],
+) -> bool:
+    """Update shop photos. Returns True on success."""
+    try:
+        _request_json(
+            base,
+            "PATCH",
+            f"/api/admin/shops/{shop_id}/content",
+            headers=headers,
+            payload={"photos": photos},
+            expected=(200, 201, 204),
+        )
+        _log(f"updated photos for shop {shop_id}")
+        return True
+    except Exception as exc:
+        _log(f"failed to update photos for shop {shop_id}: {exc}")
+        return False
+
+
 def _create_shop(
     base: str,
     headers: Dict[str, str],
     shop_def: Dict[str, Any],
     therapist_ids: List[str],
+    update_photos: bool = False,
 ) -> str:
     """Create a shop with staff. Returns shop_id."""
     slug = shop_def["slug"]
@@ -419,6 +443,14 @@ def _create_shop(
     existing_id = _find_shop_by_slug(base, headers, slug)
     if existing_id:
         _log(f"shop {slug} already exists (id={existing_id})")
+        # Update photos if requested
+        if update_photos:
+            photos = [
+                "/images/demo-shop-1.svg",
+                "/images/demo-shop-2.svg",
+                "/images/demo-shop-3.svg",
+            ]
+            _update_shop_photos(base, headers, existing_id, photos)
         return existing_id
 
     # Build staff list with fixed IDs
@@ -734,6 +766,11 @@ def main(argv: Sequence[str]) -> int:
         action="store_true",
         help="Skip creating sample reservations",
     )
+    parser.add_argument(
+        "--update-photos",
+        action="store_true",
+        help="Update photos for existing shops to use local demo images",
+    )
     args = parser.parse_args(list(argv))
 
     base = _resolve_api_base(args.api_base)
@@ -760,7 +797,13 @@ def main(argv: Sequence[str]) -> int:
             slug = shop_def["slug"]
             predefined_therapist_ids = SAMPLE_THERAPIST_IDS.get(slug, [])
 
-            shop_id = _create_shop(base, headers, shop_def, predefined_therapist_ids)
+            shop_id = _create_shop(
+                base,
+                headers,
+                shop_def,
+                predefined_therapist_ids,
+                update_photos=args.update_photos,
+            )
             created_shops.append({"slug": slug, "id": shop_id})
 
             # Create therapists in Therapist table (required for shifts)
