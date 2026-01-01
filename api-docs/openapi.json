@@ -14804,7 +14804,7 @@
           },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/app__domains__site__guest_matching__schemas__SimilarTherapistItem"
+              "$ref": "#/components/schemas/SimilarTherapistItem"
             },
             "type": "array",
             "title": "Items"
@@ -14827,29 +14827,16 @@
             "type": "string",
             "title": "Name"
           },
-          "photos": {
+          "age": {
             "anyOf": [
               {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Photos"
-          },
-          "tags": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SimilarTherapistTags"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "title": "Age"
           },
           "price_rank": {
             "anyOf": [
@@ -14862,24 +14849,96 @@
             ],
             "title": "Price Rank"
           },
-          "similarity_score": {
-            "type": "number",
-            "title": "Similarity Score"
+          "mood_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mood Tag"
           },
-          "available_today": {
+          "style_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Tag"
+          },
+          "look_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Look Type"
+          },
+          "contact_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Style"
+          },
+          "hobby_tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hobby Tags"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "is_available_now": {
             "type": "boolean",
-            "title": "Available Today"
+            "title": "Is Available Now",
+            "default": true
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "photo_similarity": {
+            "type": "number",
+            "title": "Photo Similarity"
+          },
+          "tag_similarity": {
+            "type": "number",
+            "title": "Tag Similarity"
           }
         },
         "type": "object",
         "required": [
           "id",
           "name",
-          "similarity_score",
-          "available_today"
+          "score",
+          "photo_similarity",
+          "tag_similarity"
         ],
         "title": "SimilarTherapistItem",
-        "description": "Similar therapist item for frontend display."
+        "description": "Response item for /similar. All scores are normalized to 0..1.\n\nphoto_similarity is a placeholder that will later be replaced with an embedding\nsimilarity score; v1 mirrors tag_similarity."
       },
       "SimilarTherapistTags": {
         "properties": {
@@ -14914,7 +14973,7 @@
         "properties": {
           "therapists": {
             "items": {
-              "$ref": "#/components/schemas/SimilarTherapistItem"
+              "$ref": "#/components/schemas/app__domains__site__therapists__schemas__SimilarTherapistItem"
             },
             "type": "array",
             "title": "Therapists"
@@ -16141,129 +16200,6 @@
         ],
         "title": "ValidationError"
       },
-      "app__domains__site__guest_matching__schemas__SimilarTherapistItem": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "age": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Age"
-          },
-          "price_rank": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Price Rank"
-          },
-          "mood_tag": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mood Tag"
-          },
-          "style_tag": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Style Tag"
-          },
-          "look_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Look Type"
-          },
-          "contact_style": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contact Style"
-          },
-          "hobby_tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Hobby Tags"
-          },
-          "photo_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Photo Url"
-          },
-          "is_available_now": {
-            "type": "boolean",
-            "title": "Is Available Now",
-            "default": true
-          },
-          "score": {
-            "type": "number",
-            "title": "Score"
-          },
-          "photo_similarity": {
-            "type": "number",
-            "title": "Photo Similarity"
-          },
-          "tag_similarity": {
-            "type": "number",
-            "title": "Tag Similarity"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "score",
-          "photo_similarity",
-          "tag_similarity"
-        ],
-        "title": "SimilarTherapistItem",
-        "description": "Response item for /similar. All scores are normalized to 0..1.\n\nphoto_similarity is a placeholder that will later be replaced with an embedding\nsimilarity score; v1 mirrors tag_similarity."
-      },
       "app__domains__site__therapist_availability__schemas__AvailabilitySlot": {
         "properties": {
           "start_at": {
@@ -16296,6 +16232,70 @@
           "end_at"
         ],
         "title": "AvailabilitySlot"
+      },
+      "app__domains__site__therapists__schemas__SimilarTherapistItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "photos": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photos"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SimilarTherapistTags"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "price_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Rank"
+          },
+          "similarity_score": {
+            "type": "number",
+            "title": "Similarity Score"
+          },
+          "available_today": {
+            "type": "boolean",
+            "title": "Available Today"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "similarity_score",
+          "available_today"
+        ],
+        "title": "SimilarTherapistItem",
+        "description": "Similar therapist item for frontend display."
       }
     },
     "securitySchemes": {
