@@ -2,11 +2,18 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { SlidersHorizontal } from 'lucide-react'
+import { SlidersHorizontal, X } from 'lucide-react'
+import clsx from 'clsx'
 import SearchFilters from '@/components/SearchFilters'
 import { FilterSummaryBar, type FilterBadgeData } from '@/components/filters/FilterSummaryBar'
-import { FilterToggleButton } from '@/components/filters/FilterToggleButton'
-import { MobileFilterDrawer } from '@/components/filters/MobileFilterDrawer'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from '@/components/ui/Sheet'
 
 type FacetValue = {
   value: string
@@ -68,13 +75,15 @@ export function SearchPageClientWrapper({
   activeTab,
   children,
 }: Props) {
-  const [isFilterOpen, setIsFilterOpen] = useState(true)
+  // Mobile drawer state - default closed
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
+  // Desktop sidebar collapsed state
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const toggleFilter = useCallback(() => {
-    setIsFilterOpen((prev) => !prev)
+  const toggleDesktopSidebar = useCallback(() => {
+    setIsDesktopSidebarCollapsed((prev) => !prev)
   }, [])
 
   const activeBadges = useMemo<FilterBadgeData[]>(() => {
@@ -122,60 +131,116 @@ export function SearchPageClientWrapper({
     router.push(`/search${params.toString() ? `?${params.toString()}` : ''}`)
   }, [searchParams, router])
 
-  const handleMobileSearch = useCallback(() => {
-    setIsFilterOpen(false)
-    const resultsEl = document.getElementById('search-results')
-    if (resultsEl) {
-      resultsEl.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [])
-
   const resultCount = activeTab === 'therapists' ? therapistTotal : shopTotal
   const resultUnit = activeTab === 'therapists' ? '名' : '件'
 
   return (
     <>
-      {/* Sticky Filter Summary Bar */}
-      <FilterSummaryBar
-        badges={activeBadges}
-        isFilterOpen={isFilterOpen}
-        onToggleFilter={toggleFilter}
-        resultCount={resultCount}
-        resultUnit={resultUnit}
-        onClearAll={activeBadges.length > 0 ? handleClearAll : undefined}
-        sticky
-        className="mb-4"
-      />
+      {/* Desktop: Two-column layout with left sidebar */}
+      <div className="flex gap-6">
+        {/* Desktop Sidebar - Hidden on mobile */}
+        <aside
+          className={clsx(
+            'hidden lg:block transition-all duration-300 ease-in-out',
+            isDesktopSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'w-80 flex-shrink-0'
+          )}
+        >
+          <div className="sticky top-20">
+            <SearchFilters
+              init={init}
+              facets={facets}
+              resultSummaryLabel={resultSummaryLabel}
+              sticky
+            />
+          </div>
+        </aside>
 
-      {/* Filter Section (collapsible) - Desktop only */}
-      {isFilterOpen && (
-        <div className="mb-6 hidden animate-in slide-in-from-top-2 duration-200 md:block">
+        {/* Main Content Area */}
+        <div className="flex-1 min-w-0">
+          {/* Filter Summary Bar */}
+          <FilterSummaryBar
+            badges={activeBadges}
+            isFilterOpen={!isDesktopSidebarCollapsed}
+            onToggleFilter={toggleDesktopSidebar}
+            resultCount={resultCount}
+            resultUnit={resultUnit}
+            onClearAll={activeBadges.length > 0 ? handleClearAll : undefined}
+            sticky
+            className="mb-4 hidden lg:flex"
+          />
+
+          {/* Mobile Filter Summary - Shows active filters */}
+          {activeBadges.length > 0 && (
+            <div className="mb-4 lg:hidden">
+              <div className="flex flex-wrap gap-2">
+                {activeBadges.map((badge) => (
+                  <span
+                    key={badge.key}
+                    className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-medium text-brand-primary"
+                  >
+                    {badge.label}
+                    <button
+                      type="button"
+                      onClick={badge.onRemove}
+                      className="ml-1 rounded-full p-0.5 hover:bg-brand-primary/20"
+                      aria-label={`${badge.label}を削除`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                {activeBadges.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAll}
+                    className="text-xs font-medium text-brand-primary hover:underline"
+                  >
+                    すべてクリア
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Search Results */}
+          <div id="search-results">
+            {children}
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Filter Sheet - Opens from bottom */}
+      <Sheet open={isMobileDrawerOpen} onOpenChange={setIsMobileDrawerOpen}>
+        <SheetContent side="bottom" className="h-[85vh] overflow-y-auto rounded-t-3xl">
+          <SheetHeader className="mb-4 text-left">
+            <SheetTitle>絞り込み検索</SheetTitle>
+            <SheetDescription>
+              お好みの条件でセラピストや店舗を探せます
+            </SheetDescription>
+          </SheetHeader>
+
           <SearchFilters
             init={init}
             facets={facets}
             resultSummaryLabel={resultSummaryLabel}
           />
-        </div>
-      )}
 
-      {/* Search Results */}
-      <div id="search-results">
-        {children}
-      </div>
+          <SheetFooter className="mt-6 pb-safe">
+            <button
+              onClick={() => setIsMobileDrawerOpen(false)}
+              className="w-full rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary py-3.5 font-bold text-white shadow-lg transition-transform active:scale-95"
+            >
+              {resultCount}{resultUnit}を表示
+            </button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      {/* Bottom Filter Toggle Button (desktop) */}
-      <div className="mt-8 hidden justify-center md:flex">
-        <FilterToggleButton
-          onClick={toggleFilter}
-          variant="secondary"
-        />
-      </div>
-
-      {/* Mobile Filter FAB */}
+      {/* Mobile Filter FAB - Bottom center */}
       <button
         type="button"
         onClick={() => setIsMobileDrawerOpen(true)}
-        className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-5 py-3 text-sm font-bold text-white shadow-[0_4px_20px_rgba(37,99,235,0.35)] transition-all duration-200 hover:shadow-[0_6px_24px_rgba(37,99,235,0.45)] active:scale-95 md:hidden"
+        className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-5 py-3 text-sm font-bold text-white shadow-[0_4px_20px_rgba(37,99,235,0.35)] transition-all duration-200 hover:shadow-[0_6px_24px_rgba(37,99,235,0.45)] active:scale-95 lg:hidden"
         aria-label="フィルターを開く"
       >
         <SlidersHorizontal className="h-4 w-4" />
@@ -186,22 +251,6 @@ export function SearchPageClientWrapper({
           </span>
         )}
       </button>
-
-      {/* Mobile Filter Drawer */}
-      <MobileFilterDrawer
-        isOpen={isMobileDrawerOpen}
-        onClose={() => setIsMobileDrawerOpen(false)}
-        onApply={handleMobileSearch}
-        resultCount={resultCount}
-        resultUnit={resultUnit}
-        activeFilterCount={activeBadges.length}
-      >
-        <SearchFilters
-          init={init}
-          facets={facets}
-          resultSummaryLabel={resultSummaryLabel}
-        />
-      </MobileFilterDrawer>
     </>
   )
 }

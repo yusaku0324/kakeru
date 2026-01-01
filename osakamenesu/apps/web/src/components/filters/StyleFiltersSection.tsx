@@ -109,16 +109,16 @@ export function StyleFiltersSection({
       ) : null}
 
       <div className={clsx('space-y-8', showHeader ? 'mt-6' : 'mt-0')}>
-        <div className="space-y-5 rounded-[32px] border border-white/55 bg-white/75 p-6 shadow-[0_22px_60px_rgba(37,99,235,0.2)]">
-          <div className="flex items-center justify-between text-sm font-semibold text-neutral-text">
-            <span>バストサイズ（カップ）</span>
-            <span className="text-brand-primary">{`${bustSizes[bustMinIndex]} - ${bustSizes[bustMaxIndex]} カップ`}</span>
+        <div className="space-y-3 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
+          <div className="flex items-center justify-between gap-2 text-sm font-medium text-neutral-700">
+            <span className="whitespace-nowrap">バストサイズ</span>
+            <span className="whitespace-nowrap text-brand-primary">{`${bustSizes[bustMinIndex]} - ${bustSizes[bustMaxIndex]}カップ`}</span>
           </div>
-          <div className="relative h-24 overflow-visible rounded-[28px] border border-brand-primary/25 bg-gradient-to-b from-white via-white/95 to-[#eef4ff] px-6 py-6 shadow-[0_18px_54px_rgba(59,130,246,0.24)]">
-            <div className="pointer-events-none absolute inset-x-6 top-1/2 -translate-y-1/2">
-              <div className="relative h-3 rounded-full bg-white/85 shadow-[0_12px_28px_rgba(37,99,235,0.18)]">
+          <div className="relative h-14 overflow-visible rounded-xl border border-neutral-200 bg-white px-4 py-3">
+            <div className="pointer-events-none absolute inset-x-4 top-1/2 -translate-y-1/2">
+              <div className="relative h-2 rounded-full bg-neutral-100">
                 <div
-                  className="absolute inset-y-0 rounded-full bg-gradient-to-r from-[#3b82f6] via-[#2563eb] to-[#22d3ee] shadow-[0_0_32px_rgba(37,99,235,0.5)]"
+                  className="absolute inset-y-0 rounded-full bg-brand-primary"
                   style={{ left: bustHighlightStyle.left, right: bustHighlightStyle.right }}
                 />
               </div>
@@ -132,27 +132,26 @@ export function StyleFiltersSection({
               accentColor="#3b82f6"
               minLabel="バストサイズの下限"
               maxLabel="バストサイズの上限"
-              trackInset={6}
+              trackInset={4}
             />
           </div>
-          <div className="flex items-center justify-between text-[11px] text-neutral-textMuted uppercase">
-            <span>A カップ</span>
-            <span>{`${bustSizes[bustMinIndex]} → ${bustSizes[bustMaxIndex]}`}</span>
-            <span>Z カップ</span>
+          <div className="flex items-center justify-between text-[10px] text-neutral-400">
+            <span>A</span>
+            <span>Z</span>
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-5 rounded-[32px] border border-white/55 bg-gradient-to-b from-white via-white/96 to-[#fde7f4] p-6 shadow-[0_22px_60px_rgba(236,72,153,0.24)]">
-            <div className="flex items-center justify-between text-sm font-semibold text-[#ec4899]">
-              <span>年齢</span>
-              <span>{`${ageMin}歳 - ${ageMax}歳`}</span>
+        <div className="grid gap-4">
+          <div className="space-y-3 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
+            <div className="flex items-center justify-between gap-2 text-sm font-medium text-neutral-700">
+              <span className="whitespace-nowrap">年齢</span>
+              <span className="whitespace-nowrap text-brand-primary">{`${ageMin}歳 - ${ageMax}歳`}</span>
             </div>
-            <div className="relative h-24 overflow-visible rounded-[28px] border border-[#f472b6]/35 bg-gradient-to-b from-white via-[#fff5fb] to-[#fde2f4] px-6 py-6 shadow-[0_18px_54px_rgba(236,72,153,0.34)]">
-              <div className="pointer-events-none absolute inset-x-6 top-1/2 -translate-y-1/2">
-                <div className="relative h-3 rounded-full bg-white/85 shadow-[0_12px_28px_rgba(236,72,153,0.2)]">
+            <div className="relative h-14 overflow-visible rounded-xl border border-neutral-200 bg-white px-4 py-3">
+              <div className="pointer-events-none absolute inset-x-4 top-1/2 -translate-y-1/2">
+                <div className="relative h-2 rounded-full bg-neutral-100">
                   <div
-                    className="absolute inset-y-0 rounded-full bg-gradient-to-r from-[#f9a8d4] via-[#f472b6] to-[#ec4899] shadow-[0_0_32px_rgba(236,72,153,0.5)]"
+                    className="absolute inset-y-0 rounded-full bg-brand-primary"
                     style={{ left: ageHighlightStyle.left, right: ageHighlightStyle.right }}
                   />
                 </div>
@@ -163,28 +162,28 @@ export function StyleFiltersSection({
                 minValue={ageMin}
                 maxValue={ageMax}
                 onChange={onAgeChange}
-                accentColor="#ec4899"
+                accentColor="#3b82f6"
                 minLabel="年齢の下限"
                 maxLabel="年齢の上限"
-                trackInset={6}
+                trackInset={4}
               />
             </div>
-            <div className="flex items-center justify-between text-[11px] text-[#ec4899]">
-              <span>最小 {ageMinLimit}歳</span>
-              <span>最大 {ageMaxLimit}歳</span>
+            <div className="flex items-center justify-between text-[10px] text-neutral-400">
+              <span>{ageMinLimit}歳</span>
+              <span>{ageMaxLimit}歳</span>
             </div>
           </div>
 
-          <div className="space-y-5 rounded-[32px] border border-white/55 bg-gradient-to-b from-white via-white/96 to-[#dcfce7] p-6 shadow-[0_22px_60px_rgba(16,185,129,0.24)]">
-            <div className="flex items-center justify-between text-sm font-semibold text-[#10b981]">
-              <span>身長</span>
-              <span>{`${heightMin}cm - ${heightMax}cm`}</span>
+          <div className="space-y-3 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
+            <div className="flex items-center justify-between gap-2 text-sm font-medium text-neutral-700">
+              <span className="whitespace-nowrap">身長</span>
+              <span className="whitespace-nowrap text-brand-primary">{`${heightMin}cm - ${heightMax}cm`}</span>
             </div>
-            <div className="relative h-24 overflow-visible rounded-[28px] border border-[#34d399]/35 bg-gradient-to-b from-white via-[#f0fff7] to-[#dcfce7] px-6 py-6 shadow-[0_18px_54px_rgba(16,185,129,0.32)]">
-              <div className="pointer-events-none absolute inset-x-6 top-1/2 -translate-y-1/2">
-                <div className="relative h-3 rounded-full bg-white/85 shadow-[0_12px_28px_rgba(16,185,129,0.2)]">
+            <div className="relative h-14 overflow-visible rounded-xl border border-neutral-200 bg-white px-4 py-3">
+              <div className="pointer-events-none absolute inset-x-4 top-1/2 -translate-y-1/2">
+                <div className="relative h-2 rounded-full bg-neutral-100">
                   <div
-                    className="absolute inset-y-0 rounded-full bg-gradient-to-r from-[#34d399] via-[#10b981] to-[#059669] shadow-[0_0_32px_rgba(16,185,129,0.48)]"
+                    className="absolute inset-y-0 rounded-full bg-brand-primary"
                     style={{ left: heightHighlightStyle.left, right: heightHighlightStyle.right }}
                   />
                 </div>
@@ -195,15 +194,15 @@ export function StyleFiltersSection({
                 minValue={heightMin}
                 maxValue={heightMax}
                 onChange={onHeightChange}
-                accentColor="#10b981"
+                accentColor="#3b82f6"
                 minLabel="身長の下限"
                 maxLabel="身長の上限"
-                trackInset={6}
+                trackInset={4}
               />
             </div>
-            <div className="flex items-center justify-between text-[11px] text-[#10b981]">
-              <span>最小 {heightMinLimit}cm</span>
-              <span>最大 {heightMaxLimit}cm</span>
+            <div className="flex items-center justify-between text-[10px] text-neutral-400">
+              <span>{heightMinLimit}cm</span>
+              <span>{heightMaxLimit}cm</span>
             </div>
           </div>
         </div>
@@ -324,7 +323,7 @@ export function DualSlider({
   const baseHandleClass =
     'absolute top-1/2 -translate-y-1/2 translate-x-[-50%] touch-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2'
   const knobClass = clsx(
-    'relative flex h-11 w-11 sm:h-7 sm:w-7 items-center justify-center rounded-full border-[3px] bg-white text-[0] shadow-[0_12px_32px_rgba(37,99,235,0.35)] transition',
+    'relative flex h-6 w-6 items-center justify-center rounded-full border-2 bg-white text-[0] shadow-md transition hover:scale-110',
   )
 
   useEffect(() => {
@@ -362,7 +361,7 @@ export function DualSlider({
             boxShadow: `0 12px 32px ${hexToRgba(accentColor, 0.4)}, 0 0 0 6px ${hexToRgba(accentColor, 0.22)}`,
           }}
         >
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: accentColor }} />
+          <span className="h-2 w-2 rounded-full" style={{ background: accentColor }} />
         </span>
       </button>
       <button
@@ -387,7 +386,7 @@ export function DualSlider({
             boxShadow: `0 12px 32px ${hexToRgba(accentColor, 0.4)}, 0 0 0 6px ${hexToRgba(accentColor, 0.22)}`,
           }}
         >
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: accentColor }} />
+          <span className="h-2 w-2 rounded-full" style={{ background: accentColor }} />
         </span>
       </button>
     </div>

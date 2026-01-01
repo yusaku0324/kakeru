@@ -4,7 +4,7 @@
  * Handles offline functionality, caching, and background sync
  */
 
-const CACHE_NAME = 'osakamenesu-v1';
+const CACHE_NAME = 'osakamenesu-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache on install
@@ -13,8 +13,8 @@ const STATIC_CACHE_URLS = [
   '/offline.html',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
-  '/fonts/noto-sans-jp-v42-japanese-regular.woff2',
-  '/fonts/noto-sans-jp-v42-japanese-700.woff2',
+  '/fonts/NotoSansJP-400.woff2',
+  '/fonts/NotoSansJP-700.woff2',
 ];
 
 // API routes to cache with network-first strategy

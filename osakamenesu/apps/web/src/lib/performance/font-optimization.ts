@@ -337,8 +337,8 @@ export async function adaptiveFontLoading(): Promise<void> {
     // Load only essential font weights
     await loadFonts([
       {
-        family: 'CustomFont',
-        src: '/fonts/custom-400.woff2',
+        family: 'Noto Sans JP',
+        src: '/fonts/NotoSansJP-400.woff2',
         weight: 400,
         preload: true,
       },
@@ -350,14 +350,14 @@ export async function adaptiveFontLoading(): Promise<void> {
   document.documentElement.classList.add('all-fonts')
   await loadFonts([
     {
-      family: 'CustomFont',
-      src: ['/fonts/custom-400.woff2', '/fonts/custom-400.woff'],
+      family: 'Noto Sans JP',
+      src: '/fonts/NotoSansJP-400.woff2',
       weight: 400,
       preload: true,
     },
     {
-      family: 'CustomFont',
-      src: ['/fonts/custom-700.woff2', '/fonts/custom-700.woff'],
+      family: 'Noto Sans JP',
+      src: '/fonts/NotoSansJP-700.woff2',
       weight: 700,
       preload: false,
     },
@@ -374,8 +374,8 @@ export const fontLoadingCSS = `
   }
 
   /* When custom font loads */
-  .font-customfont-loaded body {
-    font-family: 'CustomFont', ${systemFontStack.sansSerif};
+  .font-noto-sans-jp-loaded body {
+    font-family: 'Noto Sans JP', ${systemFontStack.sansSerif};
   }
 
   /* Japanese text optimization */
