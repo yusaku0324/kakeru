@@ -2976,6 +2976,24 @@
             }
           },
           {
+            "name": "today",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Alias for open_now",
+              "title": "Today"
+            },
+            "description": "Alias for open_now"
+          },
+          {
             "name": "price_band",
             "in": "query",
             "required": false,
@@ -8758,7 +8776,7 @@
           },
           "slots": {
             "items": {
-              "$ref": "#/components/schemas/AvailabilitySlot"
+              "$ref": "#/components/schemas/app__schemas__shop__AvailabilitySlot"
             },
             "type": "array",
             "title": "Slots"
@@ -8801,45 +8819,25 @@
           "start_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Start At"
+            "title": "Start At",
+            "description": "ISO datetime of the available start"
           },
           "end_at": {
             "type": "string",
             "format": "date-time",
-            "title": "End At"
+            "title": "End At",
+            "description": "ISO datetime of the available end"
           },
           "status": {
             "type": "string",
             "enum": [
               "open",
+              "tentative",
               "blocked"
             ],
             "title": "Status",
+            "description": "Slot status: open=available, tentative=needs confirmation, blocked=unavailable",
             "default": "open"
-          },
-          "staff_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Staff Id"
-          },
-          "menu_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Menu Id"
           }
         },
         "type": "object",
@@ -8953,7 +8951,7 @@
           },
           "slots": {
             "items": {
-              "$ref": "#/components/schemas/app__domains__site__therapist_availability__schemas__AvailabilitySlot"
+              "$ref": "#/components/schemas/AvailabilitySlot"
             },
             "type": "array",
             "title": "Slots"
@@ -14804,7 +14802,7 @@
           },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/SimilarTherapistItem"
+              "$ref": "#/components/schemas/app__domains__site__guest_matching__schemas__SimilarTherapistItem"
             },
             "type": "array",
             "title": "Items"
@@ -14827,16 +14825,29 @@
             "type": "string",
             "title": "Name"
           },
-          "age": {
+          "photos": {
             "anyOf": [
               {
-                "type": "integer"
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Age"
+            "title": "Photos"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SimilarTherapistTags"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "price_rank": {
             "anyOf": [
@@ -14849,96 +14860,24 @@
             ],
             "title": "Price Rank"
           },
-          "mood_tag": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mood Tag"
+          "similarity_score": {
+            "type": "number",
+            "title": "Similarity Score"
           },
-          "style_tag": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Style Tag"
-          },
-          "look_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Look Type"
-          },
-          "contact_style": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contact Style"
-          },
-          "hobby_tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Hobby Tags"
-          },
-          "photo_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Photo Url"
-          },
-          "is_available_now": {
+          "available_today": {
             "type": "boolean",
-            "title": "Is Available Now",
-            "default": true
-          },
-          "score": {
-            "type": "number",
-            "title": "Score"
-          },
-          "photo_similarity": {
-            "type": "number",
-            "title": "Photo Similarity"
-          },
-          "tag_similarity": {
-            "type": "number",
-            "title": "Tag Similarity"
+            "title": "Available Today"
           }
         },
         "type": "object",
         "required": [
           "id",
           "name",
-          "score",
-          "photo_similarity",
-          "tag_similarity"
+          "similarity_score",
+          "available_today"
         ],
         "title": "SimilarTherapistItem",
-        "description": "Response item for /similar. All scores are normalized to 0..1.\n\nphoto_similarity is a placeholder that will later be replaced with an embedding\nsimilarity score; v1 mirrors tag_similarity."
+        "description": "Similar therapist item for frontend display."
       },
       "SimilarTherapistTags": {
         "properties": {
@@ -14973,7 +14912,7 @@
         "properties": {
           "therapists": {
             "items": {
-              "$ref": "#/components/schemas/app__domains__site__therapists__schemas__SimilarTherapistItem"
+              "$ref": "#/components/schemas/SimilarTherapistItem"
             },
             "type": "array",
             "title": "Therapists"
@@ -16200,40 +16139,7 @@
         ],
         "title": "ValidationError"
       },
-      "app__domains__site__therapist_availability__schemas__AvailabilitySlot": {
-        "properties": {
-          "start_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Start At",
-            "description": "ISO datetime of the available start"
-          },
-          "end_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "End At",
-            "description": "ISO datetime of the available end"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "open",
-              "tentative",
-              "blocked"
-            ],
-            "title": "Status",
-            "description": "Slot status: open=available, tentative=needs confirmation, blocked=unavailable",
-            "default": "open"
-          }
-        },
-        "type": "object",
-        "required": [
-          "start_at",
-          "end_at"
-        ],
-        "title": "AvailabilitySlot"
-      },
-      "app__domains__site__therapists__schemas__SimilarTherapistItem": {
+      "app__domains__site__guest_matching__schemas__SimilarTherapistItem": {
         "properties": {
           "id": {
             "type": "string",
@@ -16243,29 +16149,16 @@
             "type": "string",
             "title": "Name"
           },
-          "photos": {
+          "age": {
             "anyOf": [
               {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Photos"
-          },
-          "tags": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SimilarTherapistTags"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "title": "Age"
           },
           "price_rank": {
             "anyOf": [
@@ -16278,24 +16171,149 @@
             ],
             "title": "Price Rank"
           },
-          "similarity_score": {
-            "type": "number",
-            "title": "Similarity Score"
+          "mood_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mood Tag"
           },
-          "available_today": {
+          "style_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Tag"
+          },
+          "look_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Look Type"
+          },
+          "contact_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Style"
+          },
+          "hobby_tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hobby Tags"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "is_available_now": {
             "type": "boolean",
-            "title": "Available Today"
+            "title": "Is Available Now",
+            "default": true
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "photo_similarity": {
+            "type": "number",
+            "title": "Photo Similarity"
+          },
+          "tag_similarity": {
+            "type": "number",
+            "title": "Tag Similarity"
           }
         },
         "type": "object",
         "required": [
           "id",
           "name",
-          "similarity_score",
-          "available_today"
+          "score",
+          "photo_similarity",
+          "tag_similarity"
         ],
         "title": "SimilarTherapistItem",
-        "description": "Similar therapist item for frontend display."
+        "description": "Response item for /similar. All scores are normalized to 0..1.\n\nphoto_similarity is a placeholder that will later be replaced with an embedding\nsimilarity score; v1 mirrors tag_similarity."
+      },
+      "app__schemas__shop__AvailabilitySlot": {
+        "properties": {
+          "start_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start At"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "blocked"
+            ],
+            "title": "Status",
+            "default": "open"
+          },
+          "staff_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Id"
+          },
+          "menu_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Menu Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_at",
+          "end_at"
+        ],
+        "title": "AvailabilitySlot"
       }
     },
     "securitySchemes": {

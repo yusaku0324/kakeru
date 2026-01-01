@@ -2129,6 +2129,7 @@ Search Shops
 - `price_max` (query, optional): No description
 - `available_date` (query, optional): Required availability date
 - `open_now` (query, optional): No description
+- `today` (query, optional): Alias for open_now
 - `price_band` (query, optional): Comma separated price band keys
 - `ranking_badges_param` (query, optional): Comma separated ranking badge keys
 - `promotions_only` (query, optional): Filter shops with promotions
