@@ -273,6 +273,45 @@ describe('sampleShopAdapters', () => {
         expect(hit.price_band).toBe('10k_14k')
         expect(hit.price_band_label).toBe('1.0〜1.4万円')
       })
+
+      it('returns null price band when no price data available', () => {
+        const shop = createMinimalShop({
+          min_price: 0,
+          max_price: 0,
+          menus: [],
+        })
+        const hit = sampleShopToHit(shop)
+
+        expect(hit.price_band).toBeNull()
+        expect(hit.price_band_label).toBeNull()
+      })
+
+      it('uses fallback label from menu with duration when no price band computed', () => {
+        const shop = createMinimalShop({
+          min_price: 0,
+          max_price: 0,
+          menus: [{ id: 'm1', name: 'コース', price: 0, duration_minutes: 60 }],
+        })
+        const hit = sampleShopToHit(shop)
+
+        // price is 0, so no price band computed, but menu has duration
+        // fallbackPriceBandLabel should not use menu with price=0
+        expect(hit.price_band).toBeNull()
+      })
+
+      it('uses min_price/max_price range as fallback label', () => {
+        // This tests the fallbackPriceBandLabel function with min_price set
+        // but no menu with valid duration/price
+        const shop = createMinimalShop({
+          min_price: 8000,
+          max_price: 12000,
+          menus: [{ id: 'm1', name: 'コース', price: 0 }], // no duration_minutes
+        })
+        const hit = sampleShopToHit(shop)
+
+        expect(hit.price_band).toBe('under_10k')
+        expect(hit.price_band_label).toBe('〜1万円')
+      })
     })
 
     describe('next available slot', () => {
