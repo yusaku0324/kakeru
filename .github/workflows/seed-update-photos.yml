@@ -15,7 +15,6 @@ jobs:
   update-photos:
     name: Update Sample Shop Photos
     runs-on: ubuntu-latest
-    environment: Preview
     steps:
       - uses: actions/checkout@v4
 
