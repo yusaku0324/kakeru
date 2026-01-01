@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from 'react'
 
 import SafeImage from '@/components/SafeImage'
 import { openReservationOverlay } from '@/components/reservationOverlayBus'
-import { normalizeAvailabilityDays, hasTodayAvailability } from '@/lib/availability'
+import { normalizeAvailabilityDays } from '@/lib/availability'
 import { type NextAvailableSlotPayload } from '@/lib/nextAvailableSlot'
 import { formatSlotJp, type ScheduleSlot } from '@/lib/schedule'
 import { useTherapistFavorites } from '@/features/favorites'
@@ -157,21 +157,14 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus, allow
   const availabilityLabel = formatNextSlotLabel(nextSlotPayload, hit.todayAvailable ?? null)
   const todayLabelTestId = availabilityLabel?.includes('本日') ? 'today-label' : undefined
 
+  // ラベルに「本日」が含まれていれば今日の空きあり（色判定用）
+  const isTodayAvailable = availabilityLabel?.includes('本日') ?? false
+
   // API から取得した availabilitySlots を availabilityDays 形式に変換（統一ユーティリティ使用）
   const availabilityDays = useMemo(
     () => normalizeAvailabilityDays(hit.availabilitySlots),
     [hit.availabilitySlots],
   )
-
-  // todayAvailable を availabilityDays からも判定（より正確）
-  const isTodayAvailable = useMemo(() => {
-    // availabilityDays がある場合はそこから判定
-    if (availabilityDays) {
-      return hasTodayAvailability(availabilityDays)
-    }
-    // fallback: hit.todayAvailable を使用
-    return hit.todayAvailable ?? false
-  }, [availabilityDays, hit.todayAvailable])
 
   const handleOverlayReserve = useCallback(async () => {
     // hit.availabilitySlots がある場合はそれを使用、ない場合は API から取得
