@@ -1,0 +1,87 @@
+name: Nightly Reindex
+
+on:
+  schedule:
+    # Run daily at 0:00 AM JST (15:00 UTC previous day)
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  reindex:
+    name: Reindex Meilisearch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      matrix:
+        include:
+          - env_name: production
+            api_base: https://api.osakamenesu.com
+          - env_name: staging
+            api_base: https://osakamenesu-api-staging.up.railway.app
+
+    steps:
+      - name: Skip if manual and not matching
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment != matrix.env_name
+        run: echo "Skipping ${{ matrix.env_name }} (manual run for ${{ github.event.inputs.environment }} only)"
+
+      - name: Reindex ${{ matrix.env_name }}
+        if: github.event_name == 'schedule' || github.event.inputs.environment == matrix.env_name
+        env:
+          API_BASE: ${{ matrix.api_base }}
+          ADMIN_API_KEY: ${{ secrets.E2E_ADMIN_KEY }}
+        run: |
+          echo "Triggering reindex for ${{ matrix.env_name }}..."
+          echo "API Base: $API_BASE"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${API_BASE}/api/admin/reindex" \
+            -H "X-Admin-Key: ${ADMIN_API_KEY}" \
+            -H "Content-Type: application/json")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "Response: $BODY"
+          echo "HTTP Code: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "✅ Reindex successful for ${{ matrix.env_name }}"
+            INDEXED=$(echo "$BODY" | jq -r '.indexed // "unknown"')
+            echo "Indexed: $INDEXED profiles"
+          else
+            echo "❌ Reindex failed for ${{ matrix.env_name }}"
+            exit 1
+          fi
+
+      - name: Summary
+        if: github.event_name == 'schedule' || github.event.inputs.environment == matrix.env_name
+        run: |
+          echo "## Nightly Reindex - ${{ matrix.env_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "Reindexed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This updates the \`today\` field in Meilisearch to reflect current availability." >> $GITHUB_STEP_SUMMARY
+
+  notify-failure:
+    needs: reindex
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Slack on failure
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{"text":"⚠️ Nightly reindex failed! Check GitHub Actions for details."}' \
+              "$SLACK_WEBHOOK"
+          fi
