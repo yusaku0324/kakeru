@@ -1,0 +1,41 @@
+name: Update Sample Shop Photos
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+
+jobs:
+  update-photos:
+    name: Update Sample Shop Photos
+    runs-on: ubuntu-latest
+    environment: Preview
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Seed Script with --update-photos
+        env:
+          OSAKAMENESU_API_INTERNAL_BASE: https://api.osakamenesu.com
+          ADMIN_API_KEY: ${{ secrets.E2E_ADMIN_KEY }}
+        run: |
+          python osakamenesu/services/api/scripts/seed_e2e_sample_data.py \
+            --api-base https://api.osakamenesu.com \
+            --admin-key "$ADMIN_API_KEY" \
+            --update-photos \
+            --skip-reservations
+
+      - name: Summary
+        run: |
+          echo "## Sample Shop Photos Updated" >> $GITHUB_STEP_SUMMARY
+          echo "Photos have been updated to use local demo images (/images/demo-shop-*.svg)" >> $GITHUB_STEP_SUMMARY
