@@ -57,14 +57,14 @@ function staffMemberToTherapistHit(
   const availabilitySlots: Array<{ start_at: string; end_at: string; status?: string }> | null =
     nextAvailableSlot?.start_at
       ? [
-          {
-            start_at: nextAvailableSlot.start_at,
-            end_at:
-              nextAvailableSlot.end_at ??
-              new Date(new Date(nextAvailableSlot.start_at).getTime() + 90 * 60 * 1000).toISOString(),
-            status: nextAvailableSlot.status === 'ok' ? 'open' : 'tentative',
-          },
-        ]
+        {
+          start_at: nextAvailableSlot.start_at,
+          end_at:
+            nextAvailableSlot.end_at ??
+            new Date(new Date(nextAvailableSlot.start_at).getTime() + 90 * 60 * 1000).toISOString(),
+          status: nextAvailableSlot.status === 'ok' ? 'open' : 'tentative',
+        },
+      ]
       : null
   return {
     id: member.id,
@@ -105,7 +105,7 @@ export default function StaffSectionClient({ staff, shopId, shopSlug, shopName, 
         subtitle="人気のセラピストを一部ご紹介"
         className="shadow-none border border-neutral-borderLight bg-neutral-surface"
       >
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3">
           {staff.map((member) => {
             const hit = staffMemberToTherapistHit(
               member,

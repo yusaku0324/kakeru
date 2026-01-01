@@ -229,7 +229,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus, allow
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-[0_8px_32px_rgba(37,99,235,0.12)] backdrop-blur-sm transition-all duration-300 hover:shadow-[0_16px_48px_rgba(37,99,235,0.22)] hover:border-brand-primary/30 focus-within:ring-2 focus-within:ring-brand-primary/40 focus-within:ring-offset-2 ${isClickableCard ? 'cursor-pointer' : ''}`}
+      className={`group relative overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-[0_8px_32px_rgba(37,99,235,0.12)] backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_20px_48px_rgba(37,99,235,0.22)] hover:border-brand-primary/30 focus-within:ring-2 focus-within:ring-brand-primary/40 focus-within:ring-offset-2 ${isClickableCard ? 'cursor-pointer' : ''}`}
       data-testid="therapist-card"
       data-therapist-id={dataTherapistId ?? undefined}
       onClick={isClickableCard ? handleCardClick : undefined}
@@ -238,7 +238,7 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus, allow
       onKeyDown={isClickableCard ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick() } } : undefined}
     >
       {/* Glassmorphic background effect */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.08),transparent_50%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.08),transparent_50%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
       {/* Favorite button */}
       <button
@@ -256,9 +256,8 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus, allow
             void toggleFavorite({ therapistId, shopId: hit.shopId })
           }
         }}
-        className={`absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/70 bg-white/90 shadow-[0_4px_12px_rgba(0,0,0,0.1)] backdrop-blur-sm transition-all duration-200 hover:scale-110 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary focus-visible:ring-2 focus-visible:ring-brand-primary/30 ${
-          favorite ? 'text-red-500 border-red-200 bg-red-50/90' : 'text-neutral-400 hover:text-red-400 hover:border-red-200'
-        } ${processing ? 'opacity-60' : ''}`}
+        className={`absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/70 bg-white/90 shadow-[0_4px_12px_rgba(0,0,0,0.1)] backdrop-blur-sm transition-all duration-200 hover:scale-110 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary focus-visible:ring-2 focus-visible:ring-brand-primary/30 ${favorite ? 'text-red-500 border-red-200 bg-red-50/90' : 'text-neutral-400 hover:text-red-400 hover:border-red-200'
+          } ${processing ? 'opacity-60' : ''}`}
         data-testid="therapist-favorite-toggle"
         data-therapist-id={dataTherapistId ?? undefined}
       >
@@ -287,11 +286,10 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus, allow
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/40 to-transparent" />
           {/* Availability badge on image */}
           {availabilityLabel && (
-            <div className={`absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-lg backdrop-blur-sm ${
-              isTodayAvailable
+            <div className={`absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-lg backdrop-blur-sm ${isTodayAvailable
                 ? 'bg-emerald-500/90 text-white'
                 : 'bg-amber-500/90 text-white'
-            }`} data-testid="therapist-availability-badge">
+              }`} data-testid="therapist-availability-badge">
               <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} aria-hidden="true" />
               <span data-testid={todayLabelTestId}>{availabilityLabel}</span>
             </div>
@@ -318,11 +316,10 @@ export function TherapistCard({ hit, onReserve, useOverlay = false, menus, allow
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/40 to-transparent" />
             {/* Availability badge on image */}
             {availabilityLabel && (
-              <div className={`absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-lg backdrop-blur-sm ${
-                isTodayAvailable
+              <div className={`absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-lg backdrop-blur-sm ${isTodayAvailable
                   ? 'bg-emerald-500/90 text-white'
                   : 'bg-amber-500/90 text-white'
-              }`} data-testid="therapist-availability-badge">
+                }`} data-testid="therapist-availability-badge">
                 <span className={`h-1.5 w-1.5 rounded-full ${isTodayAvailable ? 'bg-white animate-pulse' : 'bg-white/80'}`} aria-hidden="true" />
                 <span data-testid={todayLabelTestId}>{availabilityLabel}</span>
               </div>

@@ -1,10 +1,33 @@
 @import "tailwindcss";
 
+@theme {
+  /* Brand colors with Tailwind v4 @theme syntax */
+  --color-brand-primary: #155dfc;
+  --color-brand-primary-dark: #0b4aa6;
+  --color-brand-secondary: #00b8db;
+  --color-brand-secondary-dark: #008ab5;
+
+  /* Neutral colors */
+  --color-neutral-surface: #ffffff;
+  --color-neutral-surface-alt: #f0f8ff;
+  --color-neutral-border-light: #f3f4f6;
+  --color-neutral-text: #1a1a1a;
+  --color-neutral-text-muted: #6a7282;
+
+  /* State colors */
+  --color-state-success-bg: #e6f8ef;
+  --color-state-success-text: #0e9f6e;
+  --color-state-danger-bg: #fee2e2;
+  --color-state-danger-text: #b91c1c;
+}
+
 @layer base {
   :root {
+    /* Legacy CSS variables for direct usage */
     --color-brand-primary: #155dfc;
     --color-brand-primary-dark: #0b4aa6;
     --color-brand-secondary: #00b8db;
+    --color-brand-secondary-dark: #008ab5;
     --color-surface: #ffffff;
     --color-surface-alt: #f0f8ff;
     --color-border-light: #f3f4f6;
@@ -22,7 +45,11 @@
   }
 
   body {
-    @apply bg-[var(--color-surface-alt)] text-[var(--color-text)] font-sans antialiased;
+    background-color: var(--color-surface-alt);
+    color: var(--color-text);
+    font-family: var(--font-sans), sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   *:focus-visible {

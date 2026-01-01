@@ -28,147 +28,34 @@ import ShopReservationCardClient from './ShopReservationCardClient'
 import ShopSectionNav from './ShopSectionNav'
 import StickyReservationCTA from './StickyReservationCTA'
 import StaffSectionClient from './StaffSectionClient'
+import { ShopHero } from './_components/ShopHero'
+import { ShopContentLayout } from './_components/ShopContentLayout'
 
 type Props = {
   params: Promise<{ id: string }>
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-type MediaImage = { url: string; kind?: string | null; caption?: string | null }
-type Contact = {
-  phone?: string | null
-  line_id?: string | null
-  website_url?: string | null
-  reservation_form_url?: string | null
-  sns?: Array<{ platform: string; url: string; label?: string | null }> | null
-}
-type MenuItem = {
-  id: string
-  name: string
-  description?: string | null
-  duration_minutes?: number | null
-  price: number
-  currency?: string | null
-  is_reservable_online?: boolean | null
-  tags?: string[] | null
-}
-type Promotion = {
-  label: string
-  description?: string | null
-  expires_at?: string | null
-  highlight?: string | null
-}
-export type StaffSummary = {
-  id: string
-  name: string
-  alias?: string | null
-  avatar_url?: string | null
-  headline?: string | null
-  rating?: number | null
-  review_count?: number | null
-  specialties?: string[] | null
-  today_available?: boolean | null
-  next_available_slot?: NextAvailableSlotPayload | null
-  next_available_at?: string | null
-  mood_tag?: string | null
-  talk_level?: string | null
-  style_tag?: string | null
-  look_type?: string | null
-  contact_style?: string | null
-  hobby_tags?: string[] | null
-}
-type AvailabilitySlot = {
-  start_at: string
-  end_at: string
-  status: 'open' | 'tentative' | 'blocked'
-  staff_id?: string | null
-  menu_id?: string | null
-}
-type AvailabilityDay = { date: string; is_today?: boolean | null; slots: AvailabilitySlot[] }
-type AvailabilityCalendar = { shop_id: string; generated_at: string; days: AvailabilityDay[] }
-type ReviewAspectKey = 'therapist_service' | 'staff_response' | 'room_cleanliness'
-type ReviewAspect = { score: number; note?: string | null }
-type ReviewAspects = Partial<Record<ReviewAspectKey, ReviewAspect>>
-type HighlightedReview = {
-  review_id?: string | null
-  title: string
-  body: string
-  score: number
-  visited_at?: string | null
-  author_alias?: string | null
-  aspects?: ReviewAspects | null
-}
-type ReviewSummary = {
-  average_score?: number | null
-  review_count?: number | null
-  highlighted?: HighlightedReview[] | null
-  aspect_averages?: Partial<Record<ReviewAspectKey, number>> | null
-  aspect_counts?: Partial<Record<ReviewAspectKey, number>> | null
-}
-type DiaryEntry = {
-  id?: string | null
-  title?: string | null
-  body: string
-  photos?: string[] | null
-  hashtags?: string[] | null
-  published_at?: string | null
-}
+import {
+  fetchShop,
+  type ShopDetail,
+  type MediaImage,
+  type Contact,
+  type MenuItem,
+  type Promotion,
+  type StaffSummary,
+  type AvailabilitySlot,
+  type AvailabilityDay,
+  type AvailabilityCalendar,
+  type ReviewAspectKey,
+  type ReviewAspect,
+  type ReviewAspects,
+  type HighlightedReview,
+  type ReviewSummary,
+  type DiaryEntry,
+} from '@/lib/shops'
 
-export type ShopDetail = {
-  id: string
-  slug?: string | null
-  name: string
-  area: string
-  area_name?: string | null
-  min_price: number
-  max_price: number
-  description?: string | null
-  catch_copy?: string | null
-  photos?: MediaImage[] | null
-  contact?: Contact | null
-  menus?: MenuItem[] | null
-  staff?: StaffSummary[] | null
-  availability_calendar?: AvailabilityCalendar | null
-  badges?: string[] | null
-  today_available?: boolean | null
-  service_tags?: string[] | null
-  metadata?: Record<string, unknown> | null
-  store_name?: string | null
-  promotions?: Promotion[] | null
-  ranking_reason?: string | null
-  reviews?: ReviewSummary | null
-  diary_count?: number | null
-  has_diaries?: boolean | null
-  diaries?: DiaryEntry[] | null
-  business_hours?: string | null
-  address?: string | null
-}
 
-async function fetchShop(id: string, preferApi = false): Promise<ShopDetail> {
-  // Always try API first when API base is configured (e.g., local development)
-  const hasApiBase = Boolean(process.env.OSAKAMENESU_API_BASE || process.env.OSAKAMENESU_API_INTERNAL_BASE)
-  if (preferApi || hasApiBase) {
-    const targets = resolveApiBases()
-    const endpoint = `/api/v1/shops/${id}`
-    for (const base of targets) {
-      try {
-        const response = await fetch(buildApiUrl(base, endpoint), { cache: 'no-store' })
-        if (response.ok) {
-          return (await response.json()) as ShopDetail
-        }
-      } catch {
-        // try next base
-      }
-    }
-  }
-
-  const fallback = getSampleShops().find((shop) => shop.id === id || shop.slug === id)
-  if (fallback) {
-    return sampleShopToDetail(fallback)
-  }
-
-  notFound()
-}
 
 function uuidFromString(input: string): string {
   const hash = createHash('sha1').update(input).digest('hex')
@@ -332,8 +219,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const shopPrimaryPhoto = shopGallerySources[0] ?? null
   const reservationTags = Array.isArray(shop.service_tags)
     ? shop.service_tags
-        .filter((tag): tag is string => typeof tag === 'string' && Boolean(tag.trim()))
-        .map((tag) => tag.trim())
+      .filter((tag): tag is string => typeof tag === 'string' && Boolean(tag.trim()))
+      .map((tag) => tag.trim())
     : []
 
   const reservationHit: TherapistHit = {
@@ -355,9 +242,9 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     todayAvailable: shop.today_available ?? null,
     nextAvailableSlot: nextReservableStartIso
       ? {
-          start_at: nextReservableStartIso,
-          status: 'ok' as const,
-        }
+        start_at: nextReservableStartIso,
+        status: 'ok' as const,
+      }
       : null,
   }
 
@@ -469,8 +356,135 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://osakamenesu.com'
   const shopUrl = `${siteUrl}/profiles/${shop.slug || shop.id}`
 
+  const sidebarContent = (
+    <div className="space-y-6">
+      <Card className="space-y-4 p-5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-bold text-neutral-text">ウェブ予約</div>
+          {shop.today_available && <Badge variant="success">本日空きあり</Badge>}
+        </div>
+        <p className="text-xs leading-relaxed text-neutral-textMuted">
+          WEBから24時間いつでも予約リクエストを送れます。
+        </p>
+        <ShopReservationCardClient
+          tel={phone}
+          lineId={lineId}
+          shopName={shop.name}
+          overlay={reservationOverlayConfig}
+        />
+      </Card>
+
+      <Card className="space-y-4 p-5 shadow-sm">
+        <div className="text-sm font-bold text-neutral-text border-b border-neutral-border pb-2 mb-2">料金・お問い合わせ</div>
+        <div className="space-y-1">
+          <div className="text-xs font-semibold uppercase tracking-wide text-neutral-textMuted">
+            料金目安 (60分)
+          </div>
+          <div className="text-2xl font-bold text-brand-primaryDark font-mono">
+            {formatYen(shop.min_price) || formatYen(shop.max_price) ? (
+              <>
+                {formatYen(shop.min_price) ?? '−'}{' '}
+                <span className="text-sm text-neutral-textMuted font-sans font-normal">
+                  〜 {formatYen(shop.max_price) ?? '−'}
+                </span>
+              </>
+            ) : (
+              <span className="text-neutral-textMuted text-base">店舗にお問い合わせ</span>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-3 pt-2">
+          {contactLinks.map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              target={item.external ? '_blank' : undefined}
+              rel={item.external ? 'noopener noreferrer' : undefined}
+              className="flex items-center justify-center gap-2 rounded-full border border-neutral-borderLight bg-neutral-surface/50 py-2.5 text-sm font-medium text-neutral-text transition hover:bg-neutral-surface hover:text-brand-primaryDark"
+            >
+              {item.label}
+              {item.external && (
+                <svg className="h-3 w-3 opacity-50" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+              )}
+            </a>
+          ))}
+          {contact.line_id && (
+            <div className="flex items-center justify-between rounded-lg border border-neutral-borderLight bg-neutral-surface/30 px-3 py-2">
+              <span className="text-xs font-bold text-neutral-text">LINE ID</span>
+              <span className="font-mono text-sm tracking-wide select-all">{contact.line_id}</span>
+            </div>
+          )}
+        </div>
+
+        {contact.sns?.length ? (
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-neutral-borderLight">
+            {contact.sns.map((sns) => (
+              <a
+                key={sns.url}
+                href={sns.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-neutral-textMuted hover:text-brand-primary"
+              >
+                {sns.label || sns.platform}
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </Card>
+
+      {shop.business_hours || shop.address ? (
+        <Card className="space-y-4 p-5 shadow-sm">
+          <div className="text-sm font-bold text-neutral-text border-b border-neutral-border pb-2 mb-2">アクセス・営業時間</div>
+          {shop.business_hours && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs font-semibold text-neutral-textMuted">
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                営業時間
+              </div>
+              <p className="text-sm text-neutral-text pl-5.5">{shop.business_hours}</p>
+            </div>
+          )}
+          {shop.address && (
+            <div className="space-y-1 mt-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-neutral-textMuted">
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg>
+                住所
+              </div>
+              <p className="text-sm text-neutral-text pl-5.5">{shop.address}</p>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shop.address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-brand-primaryDark hover:underline pl-5.5 mt-1"
+              >
+                Google Mapで見る
+              </a>
+            </div>
+          )}
+        </Card>
+      ) : null}
+    </div>
+  )
+
   return (
-    <main className="mx-auto max-w-6xl space-y-8 px-4 pb-24">
+    <main className="min-h-screen bg-neutral-50 pb-20">
+      <ShopHero
+        name={shop.name}
+        catchCopy={shop.catch_copy}
+        areaName={shop.area_name || shop.area}
+        storeName={shop.store_name}
+        imageUrl={shopPrimaryPhoto}
+        badges={badges}
+        serviceTags={reservationTags}
+      />
+
+      <div className="mx-auto max-w-7xl px-4 lg:px-8">
+        <Breadcrumb items={breadcrumbItems} className="py-4" />
+      </div>
+
       {/* JSON-LD Structured Data for SEO */}
       <LocalBusinessJsonLd
         name={shop.name}
@@ -485,9 +499,9 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         aggregateRating={
           shop.reviews?.average_score && shop.reviews?.review_count
             ? {
-                ratingValue: shop.reviews.average_score,
-                reviewCount: shop.reviews.review_count,
-              }
+              ratingValue: shop.reviews.average_score,
+              reviewCount: shop.reviews.review_count,
+            }
             : null
         }
       />
@@ -499,7 +513,6 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         ]}
       />
 
-      <Breadcrumb items={breadcrumbItems} className="pt-4" />
       <ShopSectionNav sections={navSections} />
       <ReservationOverlayRoot />
       <RecentlyViewedRecorder
@@ -509,295 +522,56 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         area={shop.area_name ?? shop.area ?? null}
         imageUrl={photos[0] ?? null}
       />
-      <section id="overview" className="grid items-start gap-6 lg:grid-cols-[3fr_2fr]">
-        <Card className="overflow-hidden p-0">
-          {photos.length > 0 ? (
-            <Gallery photos={photos} altBase={shop.name} />
-          ) : (
-            <div className="flex aspect-[4/3] flex-col items-center justify-center gap-3 bg-gradient-to-br from-neutral-100 to-neutral-50">
-              <svg
-                className="h-16 w-16 text-neutral-300"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1}
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
-                />
-              </svg>
-              <span className="text-sm font-medium text-neutral-400">画像準備中</span>
-            </div>
-          )}
-        </Card>
-        <div className="space-y-4">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-medium tracking-wide text-neutral-textMuted">
-              <span>{shop.area_name || shop.area}</span>
-              {shop.store_name ? (
-                <span className="rounded-badge bg-neutral-surfaceAlt px-2 py-0.5 text-[11px] text-neutral-text">
-                  {shop.store_name}
-                </span>
-              ) : null}
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-neutral-text">{shop.name}</h1>
-            {shop.catch_copy ? (
-              <p className="text-sm leading-relaxed text-neutral-textMuted">{shop.catch_copy}</p>
-            ) : null}
-            {badges.length ? (
-              <div className="flex flex-wrap gap-2">
-                {badges.map((badge) => (
-                  <Badge key={badge} variant="brand">
-                    {badge}
-                  </Badge>
+
+      <ShopContentLayout aside={sidebarContent}>
+        <div id="overview" className="space-y-8">
+          {/* Description Section */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold tracking-tight text-neutral-text">
+              {shop.catch_copy || '店舗紹介'}
+            </h2>
+            {shop.description && (
+              <div className="prose prose-neutral max-w-none text-neutral-textMuted leading-relaxed">
+                {shop.description.split('\n').map((line, i) => (
+                  <p key={i} className="mb-2">{line}</p>
                 ))}
               </div>
-            ) : null}
-            {shop.service_tags?.length ? (
-              <div className="flex flex-wrap gap-2">
-                {shop.service_tags.slice(0, 6).map((tag) => (
-                  <Chip key={tag} variant="neutral">
-                    {tag}
-                  </Chip>
-                ))}
+            )}
+
+            {/* Ranking/Awards */}
+            {shop.ranking_reason && (
+              <div className="mt-4 rounded-lg bg-yellow-50/50 p-4 border border-yellow-100 flex gap-3 text-sm text-yellow-800">
+                <span className="text-xl">👑</span>
+                <span className="font-semibold pt-0.5">{shop.ranking_reason}</span>
               </div>
-            ) : null}
-            {shop.ranking_reason ? (
-              <p className="text-xs text-brand-primaryDark">{shop.ranking_reason}</p>
-            ) : null}
+            )}
           </div>
 
-          <Card className="space-y-2 p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-neutral-textMuted">
-              料金目安 (60分)
-            </div>
-            <div className="text-2xl font-semibold text-brand-primaryDark">
-              {formatYen(shop.min_price) || formatYen(shop.max_price) ? (
-                <>
-                  {formatYen(shop.min_price) ?? '−'}{' '}
-                  <span className="text-sm text-neutral-textMuted">
-                    〜 {formatYen(shop.max_price) ?? '−'}
-                  </span>
-                </>
-              ) : (
-                <span className="text-neutral-textMuted">料金は店舗にお問い合わせください</span>
-              )}
-            </div>
-            <p className="text-xs leading-relaxed text-neutral-textMuted">
-              表示料金は掲載時点の目安です。最新の割引や延長料金は直接店舗へお問い合わせください。
-            </p>
-          </Card>
-
-          <Card className="space-y-4 p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-neutral-text">お問い合わせ</div>
-              {shop.today_available ? <Badge variant="success">本日空きあり</Badge> : null}
-            </div>
-            <div className="space-y-2 text-sm text-neutral-text">
-              {contactLinks.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  target={item.external ? '_blank' : undefined}
-                  rel={item.external ? 'noopener noreferrer' : undefined}
-                  className="inline-flex items-center gap-1 text-brand-primaryDark underline-offset-2 hover:underline"
-                >
-                  {item.label}
-                </a>
-              ))}
-              {contact.line_id ? (
-                <div>
-                  LINE:{' '}
-                  <span className="rounded-badge bg-neutral-surfaceAlt px-2 py-0.5 font-mono text-[12px] text-neutral-text">
-                    {contact.line_id}
-                  </span>
-                </div>
-              ) : null}
-              {!contactLinks.length && !contact.line_id ? (
-                <p className="text-xs text-neutral-textMuted">
-                  店舗への直接連絡先は掲載準備中です。
-                </p>
-              ) : null}
-            </div>
-            {contact.sns?.length ? (
-              <div className="flex flex-wrap gap-2 text-sm">
-                {contact.sns.map((sns) => (
-                  <a
-                    key={sns.url}
-                    href={sns.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center rounded-badge border border-brand-primary/20 bg-brand-primary/10 px-2 py-0.5 text-[12px] font-medium text-brand-primaryDark hover:bg-brand-primary/15"
-                  >
-                    {sns.label || sns.platform}
-                  </a>
-                ))}
-              </div>
-            ) : null}
-          </Card>
-
-          {shop.business_hours || shop.address ? (
-            <Card className="space-y-4 p-4">
-              {shop.business_hours ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-neutral-text">
-                    <svg
-                      className="h-4 w-4 text-neutral-textMuted"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-                      />
-                    </svg>
-                    営業時間
-                  </div>
-                  <p className="text-sm text-neutral-text">{shop.business_hours}</p>
-                </div>
-              ) : null}
-              {shop.address ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-neutral-text">
-                    <svg
-                      className="h-4 w-4 text-neutral-textMuted"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
-                      />
-                    </svg>
-                    アクセス
-                  </div>
-                  <p className="text-sm text-neutral-text">{shop.address}</p>
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shop.address)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-brand-primaryDark hover:underline"
-                  >
-                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                    </svg>
-                    Google Mapで見る
-                  </a>
-                </div>
-              ) : null}
-            </Card>
-          ) : null}
-
+          {/* Promotions */}
           {Array.isArray(shop.promotions) && shop.promotions.length ? (
-            <Card className="space-y-3 p-4">
-              <div className="text-sm font-semibold text-neutral-text">キャンペーン / 特典</div>
-              <ul className="space-y-2 text-sm text-neutral-text">
-                {shop.promotions.slice(0, 3).map((promo, index) => (
-                  <li
-                    key={`${promo.label}-${index}`}
-                    className="rounded-card border border-brand-primary/20 bg-brand-primary/5 p-3"
-                  >
-                    <div className="font-semibold text-brand-primaryDark">{promo.label}</div>
-                    {promo.description ? (
-                      <p className="text-xs text-neutral-textMuted">{promo.description}</p>
-                    ) : null}
-                    {promo.expires_at ? (
-                      <p className="text-[11px] text-neutral-textMuted mt-1">
-                        終了予定: {promo.expires_at}
-                      </p>
-                    ) : null}
-                    {promo.highlight ? (
-                      <Badge variant="outline" className="mt-2">
-                        {promo.highlight}
-                      </Badge>
-                    ) : null}
+            <Section title="キャンペーン" className="shadow-none border border-neutral-borderLight bg-white p-6 rounded-2xl">
+              <ul className="grid gap-4 sm:grid-cols-2">
+                {shop.promotions.map((promo, index) => (
+                  <li key={`${promo.label}-${index}`} className="relative overflow-hidden rounded-xl border border-brand-primary/20 bg-gradient-to-br from-brand-primary/5 to-white p-4 transition-shadow hover:shadow-md">
+                    <div className="font-bold text-brand-primaryDark mb-1">{promo.label}</div>
+                    {promo.description && <p className="text-xs text-neutral-textMuted leading-relaxed">{promo.description}</p>}
+                    {promo.highlight && <Badge variant="brand" className="absolute top-2 right-2 text-[10px] py-0 px-2 h-auto">{promo.highlight}</Badge>}
                   </li>
                 ))}
               </ul>
-            </Card>
-          ) : null}
-
-          {diaries.length ? (
-            <Section
-              title="写メ日記"
-              subtitle={shop.diary_count ? `公開 ${shop.diary_count}件` : undefined}
-              className="shadow-none border border-neutral-borderLight bg-neutral-surface"
-            >
-              <div className="grid gap-3 md:grid-cols-2">
-                {diaries.slice(0, 4).map((diary, idx) => (
-                  <Card key={diary.id ?? idx} className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-neutral-text">
-                          {diary.title || '写メ日記'}
-                        </div>
-                        {diary.published_at ? (
-                          <span className="text-[11px] text-neutral-textMuted">
-                            {formatDayLabel(diary.published_at)}
-                          </span>
-                        ) : null}
-                      </div>
-                      {diary.photos?.length ? (
-                        <div className="relative aspect-[4/3] overflow-hidden rounded-card bg-neutral-surfaceAlt">
-                          <SafeImage
-                            src={diary.photos[0]}
-                            alt={diary.title || '写メ日記'}
-                            fill
-                            sizes="(max-width: 768px) 100vw, 50vw"
-                            className="object-cover"
-                          />
-                        </div>
-                      ) : null}
-                      <p className="text-sm leading-relaxed text-neutral-textMuted whitespace-pre-line">
-                        {shorten(diary.body, 180)}
-                      </p>
-                      {diary.hashtags?.length ? (
-                        <div className="flex flex-wrap gap-1">
-                          {diary.hashtags.slice(0, 6).map((tag) => (
-                            <Chip key={tag} variant="neutral" className="text-[11px]">
-                              #{tag}
-                            </Chip>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </Card>
-                ))}
-              </div>
             </Section>
           ) : null}
 
-          <Card id="web-reservation" className="space-y-4 p-4">
-            <div className="space-y-2">
-              <div className="text-sm font-semibold text-neutral-text">WEB予約リクエスト</div>
-              <p className="text-xs leading-relaxed text-neutral-textMuted">
-                送信内容をもとに担当者が折り返しご連絡します。返信をもって予約成立となります。
-              </p>
-            </div>
-            <ShopReservationCardClient
-              tel={phone}
-              lineId={lineId}
-              shopName={shop.name}
-              overlay={reservationOverlayConfig}
-            />
-          </Card>
+          {/* Photo Gallery (if more than 1 photo) */}
+          {photos.length > 1 && (
+            <Section title="フォトギャラリー" className="shadow-none bg-transparent p-0 border-0">
+              <Gallery photos={photos} altBase={shop.name} />
+            </Section>
+          )}
         </div>
-      </section>
 
-      {shop.description || shop.catch_copy ? (
+        {/* Navigation content placeholders - Staff/Menus are rendered by other components or below */}
+
         <Section
           id="about"
           title="店舗紹介"
@@ -812,169 +586,169 @@ export default async function ProfilePage({ params, searchParams }: Props) {
             <p className="text-sm text-neutral-textMuted">{shop.catch_copy}</p>
           )}
         </Section>
-      ) : null}
 
-      {shop.reviews ? (
-        <Section
-          id="reviews"
-          title="口コミ"
-          subtitle={
-            shop.reviews.review_count ? `公開件数 ${shop.reviews.review_count}件` : undefined
-          }
-          className="shadow-none border border-neutral-borderLight bg-neutral-surface"
-          actions={
-            shop.reviews.average_score ? (
-              <Badge variant="brand">平均 {shop.reviews.average_score.toFixed(1)}★</Badge>
-            ) : undefined
-          }
-        >
-          <ShopReviews
-            shopId={shop.id}
-            summary={shop.reviews}
-            forceRemoteFetch={forceReviewsFetch}
-          />
-        </Section>
-      ) : null}
+        {shop.reviews ? (
+          <Section
+            id="reviews"
+            title="口コミ"
+            subtitle={
+              shop.reviews.review_count ? `公開件数 ${shop.reviews.review_count}件` : undefined
+            }
+            className="shadow-none border border-neutral-borderLight bg-neutral-surface"
+            actions={
+              shop.reviews.average_score ? (
+                <Badge variant="brand">平均 {shop.reviews.average_score.toFixed(1)}★</Badge>
+              ) : undefined
+            }
+          >
+            <ShopReviews
+              shopId={shop.id}
+              summary={shop.reviews}
+              forceRemoteFetch={forceReviewsFetch}
+            />
+          </Section>
+        ) : null}
 
-      {menus.length ? (
-        <Section
-          id="menus"
-          title="メニュー"
-          subtitle="編集部が確認した代表的なコースと料金"
-          className="shadow-none border border-neutral-borderLight bg-neutral-surface"
-        >
-          <div className="grid gap-4 md:grid-cols-2">
-            {menus.map((menu) => (
-              <Card key={menu.id} className="space-y-3 p-4">
-                <div className="flex items-baseline justify-between gap-3">
-                  <div className="text-base font-semibold text-neutral-text">{menu.name}</div>
-                  <div className="text-sm font-medium text-brand-primaryDark">
-                    {formatYen(menu.price)}
-                  </div>
-                </div>
-                {menu.duration_minutes ? (
-                  <div className="text-xs text-neutral-textMuted">
-                    所要時間: 約{menu.duration_minutes}分
-                  </div>
-                ) : null}
-                {menu.description ? (
-                  <p className="text-sm leading-relaxed text-neutral-textMuted">
-                    {shorten(menu.description, 140)}
-                  </p>
-                ) : null}
-                {menu.tags?.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {menu.tags.map((tag) => (
-                      <Chip key={tag} variant="subtle">
-                        {tag}
-                      </Chip>
-                    ))}
-                  </div>
-                ) : null}
-              </Card>
-            ))}
-          </div>
-        </Section>
-      ) : null}
-
-      <StaffSectionClient
-        staff={staff}
-        shopId={shop.id}
-        shopSlug={shop.slug ?? null}
-        shopName={shop.store_name || shop.name}
-        shopArea={shop.area}
-        shopAreaName={shop.area_name}
-        menus={menus}
-        allowDemoSubmission={allowDemoSubmission}
-      />
-
-      {filteredAvailability.length ? (
-        <Section
-          id="availability"
-          title="出勤・空き状況"
-          subtitle={
-            availabilityUpdatedLabel
-              ? `最終更新: ${availabilityUpdatedLabel}`
-              : '最新の出勤枠は店舗提供情報に基づきます'
-          }
-          className="shadow-none border border-neutral-borderLight bg-neutral-surface"
-        >
-          {todaySlots.length ? (
-            <Card className="mb-4 space-y-3 border border-brand-primary/20 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
-              <div className="flex items-center justify-between gap-2">
-                <div className="font-semibold">本日の枠</div>
-                <span className="text-xs text-brand-primaryDark/80">
-                  {formatDayLabel(todayIso)}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {upcomingOpenToday.length ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-600">
-                    ◎ 空き {upcomingOpenToday.length}枠
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-600">
-                    空き枠なし
-                  </span>
-                )}
-                {reservedToday.length ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-600">
-                    × 予約済 {reservedToday.length}枠
-                  </span>
-                ) : null}
-              </div>
-            </Card>
-          ) : null}
-          <div className="grid gap-4 md:grid-cols-2">
-            {filteredAvailability.slice(0, 6).map((day) => {
-              // Filter slots to only show bookable ones (or blocked for display)
-              const bookableSlots = (day.slots || []).filter(isSlotBookable)
-              return (
-                <Card key={day.date} className="space-y-3 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-neutral-text">
-                      {formatDayLabel(day.date)}
+        {menus.length ? (
+          <Section
+            id="menus"
+            title="メニュー"
+            subtitle="編集部が確認した代表的なコースと料金"
+            className="shadow-none border border-neutral-borderLight bg-neutral-surface"
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              {menus.map((menu) => (
+                <Card key={menu.id} className="space-y-3 p-4">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div className="text-base font-semibold text-neutral-text">{menu.name}</div>
+                    <div className="text-sm font-medium text-brand-primaryDark">
+                      {formatYen(menu.price)}
                     </div>
-                    {day.is_today ? <Badge variant="brand">本日</Badge> : null}
                   </div>
-                  {bookableSlots.length ? (
-                    <div className="space-y-2 text-sm text-neutral-text">
-                      {bookableSlots.slice(0, 6).map((slot, idx) => {
-                        const display = slotStatusMap[slot.status]
-                        const waitLabel =
-                          slot.status !== 'blocked' ? formatWaitLabel(slot.start_at) : null
-                        return (
-                          <div
-                            key={`${slot.start_at}-${idx}`}
-                            className="flex items-center gap-3 rounded-card border border-neutral-borderLight/70 bg-neutral-surfaceAlt px-3 py-2"
-                          >
-                            <span className="font-medium text-neutral-text">
-                              {toTimeLabel(slot.start_at)}〜{toTimeLabel(slot.end_at)}
-                            </span>
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${display.badgeClass}`}
-                            >
-                              {display.icon ? <span aria-hidden>{display.icon}</span> : null}
-                              {display.label}
-                            </span>
-                            {waitLabel ? (
-                              <span className="text-[11px] font-medium text-brand-primary">
-                                {waitLabel}
-                              </span>
-                            ) : null}
-                          </div>
-                        )
-                      })}
+                  {menu.duration_minutes ? (
+                    <div className="text-xs text-neutral-textMuted">
+                      所要時間: 約{menu.duration_minutes}分
                     </div>
-                  ) : (
-                    <p className="text-xs text-neutral-textMuted">公開された枠はありません</p>
-                  )}
+                  ) : null}
+                  {menu.description ? (
+                    <p className="text-sm leading-relaxed text-neutral-textMuted">
+                      {shorten(menu.description, 140)}
+                    </p>
+                  ) : null}
+                  {menu.tags?.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {menu.tags.map((tag) => (
+                        <Chip key={tag} variant="subtle">
+                          {tag}
+                        </Chip>
+                      ))}
+                    </div>
+                  ) : null}
                 </Card>
-              )
-            })}
-          </div>
-        </Section>
-      ) : null}
+              ))}
+            </div>
+          </Section>
+        ) : null}
+
+        <StaffSectionClient
+          staff={staff}
+          shopId={shop.id}
+          shopSlug={shop.slug ?? null}
+          shopName={shop.store_name || shop.name}
+          shopArea={shop.area}
+          shopAreaName={shop.area_name}
+          menus={menus}
+          allowDemoSubmission={allowDemoSubmission}
+        />
+
+        {filteredAvailability.length ? (
+          <Section
+            id="availability"
+            title="出勤・空き状況"
+            subtitle={
+              availabilityUpdatedLabel
+                ? `最終更新: ${availabilityUpdatedLabel}`
+                : '最新の出勤枠は店舗提供情報に基づきます'
+            }
+            className="shadow-none border border-neutral-borderLight bg-neutral-surface"
+          >
+            {todaySlots.length ? (
+              <Card className="mb-4 space-y-3 border border-brand-primary/20 bg-brand-primary/5 p-4 text-sm text-brand-primaryDark">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-semibold">本日の枠</div>
+                  <span className="text-xs text-brand-primaryDark/80">
+                    {formatDayLabel(todayIso)}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {upcomingOpenToday.length ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-600">
+                      ◎ 空き {upcomingOpenToday.length}枠
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-600">
+                      空き枠なし
+                    </span>
+                  )}
+                  {reservedToday.length ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-600">
+                      × 予約済 {reservedToday.length}枠
+                    </span>
+                  ) : null}
+                </div>
+              </Card>
+            ) : null}
+            <div className="grid gap-4 md:grid-cols-2">
+              {filteredAvailability.slice(0, 6).map((day) => {
+                // Filter slots to only show bookable ones (or blocked for display)
+                const bookableSlots = (day.slots || []).filter(isSlotBookable)
+                return (
+                  <Card key={day.date} className="space-y-3 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-neutral-text">
+                        {formatDayLabel(day.date)}
+                      </div>
+                      {day.is_today ? <Badge variant="brand">本日</Badge> : null}
+                    </div>
+                    {bookableSlots.length ? (
+                      <div className="space-y-2 text-sm text-neutral-text">
+                        {bookableSlots.slice(0, 6).map((slot, idx) => {
+                          const display = slotStatusMap[slot.status]
+                          const waitLabel =
+                            slot.status !== 'blocked' ? formatWaitLabel(slot.start_at) : null
+                          return (
+                            <div
+                              key={`${slot.start_at}-${idx}`}
+                              className="flex items-center gap-3 rounded-card border border-neutral-borderLight/70 bg-neutral-surfaceAlt px-3 py-2"
+                            >
+                              <span className="font-medium text-neutral-text">
+                                {toTimeLabel(slot.start_at)}〜{toTimeLabel(slot.end_at)}
+                              </span>
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${display.badgeClass}`}
+                              >
+                                {display.icon ? <span aria-hidden>{display.icon}</span> : null}
+                                {display.label}
+                              </span>
+                              {waitLabel ? (
+                                <span className="text-[11px] font-medium text-brand-primary">
+                                  {waitLabel}
+                                </span>
+                              ) : null}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-neutral-textMuted">公開された枠はありません</p>
+                    )}
+                  </Card>
+                )
+              })}
+            </div>
+          </Section>
+        ) : null}
+      </ShopContentLayout>
 
       <StickyReservationCTA overlay={reservationOverlayConfig} tel={phone} />
     </main>
@@ -1022,5 +796,3 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
   }
 }
-
-export { fetchShop }

@@ -116,20 +116,20 @@ export function ShopCard({ hit }: { hit: ShopHit }) {
   const promotionLabel = primaryPromotion?.label || (hit.has_promotions ? '特典あり' : null)
   const additionalPromotionCount = Math.max(
     (hit.promotion_count ?? (primaryPromotion ? (hit.promotions?.length ?? 1) : 0)) -
-      (primaryPromotion ? 1 : 0),
+    (primaryPromotion ? 1 : 0),
     0,
   )
 
   return (
-    <Link href={getProfileHref(hit)} className="block focus:outline-none" prefetch>
-      <Card interactive className="h-full" data-testid="shop-card">
+    <Link href={getProfileHref(hit)} className="group block h-full focus:outline-none" prefetch>
+      <Card interactive className="h-full transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]" data-testid="shop-card">
         <div className="relative aspect-[4/3] overflow-hidden rounded-t-card bg-neutral-surfaceAlt">
           <SafeImage
             src={hit.lead_image_url || undefined}
             alt={`${hit.name} の写真`}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
             priority={false}
           />
 

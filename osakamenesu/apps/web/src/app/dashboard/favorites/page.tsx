@@ -6,34 +6,15 @@ import { Card } from '@/components/ui/Card'
 import { buildApiUrl, resolveApiBases } from '@/lib/api'
 import { getJaFormatter } from '@/utils/date'
 
+import {
+  fetchShop,
+  type ShopDetail,
+  type StaffSummary,
+} from '@/lib/shops'
+
 type FavoriteRecord = {
   shop_id: string
   created_at: string
-}
-
-type ShopSummary = {
-  id: string
-  name: string
-  area?: string | null
-  slug?: string | null
-  min_price?: number | null
-  max_price?: number | null
-  address?: string | null
-  staff?: StaffSummary[]
-}
-
-type StaffSummary = {
-  id: string | null
-  name: string
-  alias: string | null
-  headline: string | null
-  avatarUrl: string | null
-  mood_tag?: string | null
-  style_tag?: string | null
-  look_type?: string | null
-  contact_style?: string | null
-  hobby_tags?: string[] | null
-  talk_level?: string | null
 }
 
 type FavoritesResult =
@@ -54,7 +35,7 @@ type TherapistFavoritesResult =
 
 type TherapistFavoriteEntry = {
   favorite: TherapistFavoriteRecord
-  summary: ShopSummary | null
+  summary: ShopDetail | null
   staff: StaffSummary | null
 }
 
@@ -191,83 +172,6 @@ async function fetchTherapistFavorites(cookieHeader?: string): Promise<Therapist
   }
 }
 
-async function fetchShopSummary(
-  shopId: string,
-  cookieHeader?: string,
-): Promise<ShopSummary | null> {
-  for (const base of resolveApiBases()) {
-    try {
-      const res = await fetch(buildApiUrl(base, `api/v1/shops/${shopId}`), {
-        headers: cookieHeader ? { cookie: cookieHeader } : undefined,
-        credentials: cookieHeader ? 'omit' : 'include',
-        cache: 'no-store',
-      })
-
-      if (!res.ok) {
-        continue
-      }
-
-      const data = await res.json()
-      const parseId = (value: unknown): string | null => {
-        if (value == null) return null
-        const str = String(value).trim()
-        return str.length ? str : null
-      }
-      const parseText = (value: unknown): string | null => {
-        if (typeof value !== 'string') return null
-        const trimmed = value.trim()
-        return trimmed.length ? trimmed : null
-      }
-      const staff: StaffSummary[] = Array.isArray(data.staff)
-        ? (
-            data.staff as Array<{
-              id?: unknown
-              name?: unknown
-              alias?: unknown
-              headline?: unknown
-              avatar_url?: unknown
-            }>
-          )
-            .map((member) => {
-              const record = member as Record<string, unknown>
-              const name = parseText(record['name'])
-              if (!name) return null
-              const id = parseId(record['id'])
-              const alias = parseText(record['alias'])
-              const headline = parseText(record['headline'])
-              const avatarCandidate =
-                parseText(record['avatar_url']) ??
-                parseText(record['avatarUrl']) ??
-                parseText(record['photo_url']) ??
-                parseText(record['image'])
-              return {
-                id,
-                name,
-                alias,
-                headline,
-                avatarUrl: avatarCandidate,
-              }
-            })
-            .filter((entry): entry is StaffSummary => entry !== null)
-        : []
-      return {
-        id: data.id ?? shopId,
-        name: data.name ?? '名称未設定',
-        area: data.area_name ?? data.area ?? null,
-        slug: data.slug ?? null,
-        min_price: data.price_min ?? null,
-        max_price: data.price_max ?? null,
-        address: data.address ?? null,
-        staff,
-      }
-    } catch (error) {
-      continue
-    }
-  }
-
-  return null
-}
-
 function formatPriceRange(min?: number | null, max?: number | null): string {
   if (!min && !max) return '—'
   if (min && max && min === max) {
@@ -335,12 +239,17 @@ export default async function FavoritesDashboardPage() {
   const therapistFavoritesError =
     therapistFavoritesResult.status === 'error' ? therapistFavoritesResult.message : null
 
-  const shopDetailMap = new Map<string, ShopSummary | null>()
+  const shopDetailMap = new Map<string, ShopDetail | null>()
 
   const shopFavorites = favoritesResult.status === 'ok' ? favoritesResult.favorites : []
   const summaries = await Promise.all(
     shopFavorites.map(async (favorite) => {
-      const summary = await fetchShopSummary(favorite.shop_id, cookieHeader)
+      let summary: ShopDetail | null = null
+      try {
+        summary = await fetchShop(favorite.shop_id)
+      } catch {
+        summary = null
+      }
       shopDetailMap.set(favorite.shop_id, summary)
       return { favorite, summary }
     }),
@@ -351,7 +260,12 @@ export default async function FavoritesDashboardPage() {
   const therapistEntries: TherapistFavoriteEntry[] = await Promise.all(
     therapistFavorites.map(async (favorite) => {
       if (!shopDetailMap.has(favorite.shop_id)) {
-        const detail = await fetchShopSummary(favorite.shop_id, cookieHeader)
+        let detail: ShopDetail | null = null
+        try {
+          detail = await fetchShop(favorite.shop_id)
+        } catch {
+          detail = null
+        }
         shopDetailMap.set(favorite.shop_id, detail)
       }
       const summary = shopDetailMap.get(favorite.shop_id) ?? null

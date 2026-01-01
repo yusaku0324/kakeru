@@ -14,7 +14,7 @@ import { ProfileTagList } from '@/components/staff/ProfileTagList'
 import { buildStaffIdentifier, staffMatchesIdentifier, slugifyStaffIdentifier } from '@/lib/staff'
 import { formatDatetimeLocal, toZonedDayjs } from '@/lib/timezone'
 import { SimilarTherapistsSection } from '@/features/matching/ui/SimilarTherapistsSection'
-import { fetchShop, type ShopDetail, type StaffSummary } from '../../page'
+import { fetchShop, type ShopDetail, type StaffSummary } from '@/lib/shops'
 import StaffReservationClient from './StaffReservationClient'
 
 function findStaff(shop: ShopDetail, staffId: string): StaffSummary | null {

@@ -12,6 +12,7 @@ export default {
           primary: 'var(--color-brand-primary)',
           primaryDark: 'var(--color-brand-primary-dark)',
           secondary: 'var(--color-brand-secondary)',
+          secondaryDark: 'var(--color-brand-secondary-dark)',
         },
         neutral: {
           surface: 'var(--color-surface)',

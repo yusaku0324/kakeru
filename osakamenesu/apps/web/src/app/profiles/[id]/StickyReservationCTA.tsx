@@ -16,14 +16,14 @@ export default function StickyReservationCTA({ overlay, tel }: StickyReservation
 
   useEffect(() => {
     const handleScroll = () => {
-      // Show after scrolling past 400px
-      const shouldShow = window.scrollY > 400
+      // Show after scrolling past 100px (quicker access)
+      const shouldShow = window.scrollY > 100
       setIsVisible(shouldShow)
 
-      // Hide when near the footer (last 200px of page)
+      // Hide when near the footer (last 100px of page)
       const scrollBottom = window.scrollY + window.innerHeight
       const documentHeight = document.documentElement.scrollHeight
-      const nearBottom = documentHeight - scrollBottom < 200
+      const nearBottom = documentHeight - scrollBottom < 100
       setIsAtBottom(nearBottom)
     }
 
@@ -35,20 +35,24 @@ export default function StickyReservationCTA({ overlay, tel }: StickyReservation
   if (!isVisible || isAtBottom) return null
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-borderLight bg-white/95 px-4 py-3 backdrop-blur-sm md:hidden">
-      <div className="mx-auto flex max-w-lg items-center gap-3">
+    <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 md:hidden">
+      <div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/80 p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-md">
         <button
           type="button"
           onClick={() => openReservationOverlay(overlay)}
-          className="flex-1 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-brand-primary/90 hover:to-brand-secondary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary/60"
+          className="flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary px-6 py-3 text-sm font-bold text-white transition-all active:scale-95"
         >
-          Web予約する
+          <span>Web予約</span>
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+          </svg>
         </button>
-        {tel ? (
+
+        {tel && (
           <a
             href={`tel:${tel}`}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-neutral-borderLight bg-white text-neutral-text shadow-sm transition hover:bg-neutral-surface"
-            aria-label="電話する"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 active:scale-95"
+            aria-label="電話予約"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path
@@ -58,7 +62,7 @@ export default function StickyReservationCTA({ overlay, tel }: StickyReservation
               />
             </svg>
           </a>
-        ) : null}
+        )}
       </div>
     </div>
   )

@@ -17,6 +17,7 @@ import { normalizeHobbyTags } from '@/features/therapist/profileTags'
 import { SearchAvailableToday, type SpotlightItem } from './_components/SearchHeroSections'
 import { SearchTabs, type SearchTabValue } from './_components/SearchTabs'
 import { SearchPageClientWrapper } from './_components/SearchPageClientWrapper'
+import { SearchHero } from './_components/SearchHero'
 
 // Cache search results for 30 seconds to improve performance
 // This allows Next.js to serve cached SSR results for subsequent requests
@@ -79,7 +80,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.3,
         review_count: 47,
         specialties: ['リンパ', 'ホットストーン'],
-        avatar_url: '/images/demo-therapist-1.svg',
+        avatar_url: '/images/sample-therapist-aoi.png',
         today_available: true,
         next_available_at: nextSlotAlignedTime(2),
       },
@@ -91,7 +92,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.1,
         review_count: 35,
         specialties: ['ストレッチ', '指圧'],
-        avatar_url: '/images/demo-therapist-2.svg',
+        avatar_url: '/images/sample-therapist-rin.png',
         today_available: true,
         next_available_at: nextSlotAlignedTime(3),
       },
@@ -130,7 +131,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.1,
         review_count: 35,
         specialties: ['ホットストーン', 'ディープリンパ'],
-        avatar_url: '/images/demo-therapist-3.svg',
+        avatar_url: '/images/sample-therapist-mao.png',
         today_available: false,
         next_available_at: '2025-12-10T14:00:00+09:00',
       },
@@ -169,7 +170,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.4,
         review_count: 38,
         specialties: ['ドライヘッドスパ', 'ストレッチ'],
-        avatar_url: '/images/demo-therapist-1.svg',
+        avatar_url: '/images/sample-therapist-aoi.png',
         today_available: true,
         next_available_at: nextSlotAlignedTime(1),
       },
@@ -180,7 +181,7 @@ const SAMPLE_RESULTS: ShopHit[] = [
         rating: 4.5,
         review_count: 44,
         specialties: ['肩こりケア', 'アロマトリートメント'],
-        avatar_url: '/images/demo-therapist-2.svg',
+        avatar_url: '/images/sample-therapist-rin.png',
         today_available: false,
         next_available_at: '2025-12-11T10:00:00+09:00',
       },
@@ -415,9 +416,9 @@ function buildTherapistHits(hits: ShopHit[]): TherapistHit[] {
         const uniqueId = `${hit.id}-${staffIdentifier}`
         const specialties = Array.isArray(staff.specialties)
           ? staff.specialties
-              .filter((tag): tag is string => Boolean(tag))
-              .map((tag) => tag.trim())
-              .filter(Boolean)
+            .filter((tag): tag is string => Boolean(tag))
+            .map((tag) => tag.trim())
+            .filter(Boolean)
           : []
         const hobbyTags = normalizeHobbyTags(staff.hobby_tags)
         const todayAvailable =
@@ -541,9 +542,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const heroShop =
     activeTab === 'shops' && normalizedKeyword
       ? (displayHits.find((hit) => {
-          const target = `${hit.store_name || ''} ${hit.name || ''}`.toLowerCase()
-          return target.includes(normalizedKeyword)
-        }) ?? null)
+        const target = `${hit.store_name || ''} ${hit.name || ''}`.toLowerCase()
+        return target.includes(normalizedKeyword)
+      }) ?? null)
       : null
   const prioritizedShopHits =
     heroShop && displayHits.length
@@ -597,76 +598,49 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         aria-hidden
       />
       <div className="relative mx-auto max-w-6xl space-y-8 px-4 py-10 lg:space-y-10 lg:px-6">
-        <header className="relative overflow-hidden rounded-section border border-white/60 bg-gradient-to-br from-white/90 via-white/80 to-brand-primary/5 px-6 py-10 shadow-2xl shadow-brand-primary/10 backdrop-blur-xl supports-[backdrop-filter]:bg-white/70 lg:px-10 lg:py-14">
-          <div
-            className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-br from-brand-primary/20 to-brand-secondary/20 blur-3xl"
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-gradient-to-tr from-brand-secondary/15 to-brand-primary/10 blur-3xl"
-            aria-hidden
-          />
-
-          <div className="relative z-10 mx-auto max-w-4xl text-center">
-            <h1 className="text-3xl font-bold tracking-tight text-neutral-text sm:text-4xl lg:text-5xl">
-              あなたにぴったりの
-              <br className="sm:hidden" />
-              <span className="inline-block whitespace-nowrap">
-                <span className="bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text text-transparent">
-                  セラピスト
-                </span>
-                を見つけよう
+        <SearchHero>
+          <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
+            <Link
+              href="/search?tab=therapists&today=1"
+              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-brand-primary to-brand-primaryDark px-6 py-8 text-white shadow-[0_20px_60px_rgba(37,99,235,0.35)] transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_25px_70px_rgba(37,99,235,0.45)] sm:py-10"
+            >
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
+              <svg className="mb-3 h-10 w-10 sm:h-12 sm:w-12" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+              </svg>
+              <span className="text-lg font-bold sm:text-xl">本日予約できる</span>
+              <span className="text-lg font-bold sm:text-xl">セラピストを見る</span>
+              <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-white/80 transition-colors group-hover:text-white">
+                今すぐチェック
+                <svg className="h-4 w-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
               </span>
-            </h1>
-            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-neutral-textMuted sm:text-lg">
-              今日の気分や好みを伝えるだけで、
-              <br className="hidden sm:inline" />
-              AIがあなたに合ったセラピストをご提案します
-            </p>
+            </Link>
 
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 sm:gap-6 lg:mt-12">
-              <Link
-                href="/search?tab=therapists&today=1"
-                className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-brand-primary to-brand-primaryDark px-6 py-8 text-white shadow-[0_20px_60px_rgba(37,99,235,0.35)] transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_25px_70px_rgba(37,99,235,0.45)] sm:py-10"
-              >
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
-                <svg className="mb-3 h-10 w-10 sm:h-12 sm:w-12" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+            <Link
+              href="/guest/match-chat"
+              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-brand-secondary/30 bg-gradient-to-br from-brand-secondary/10 via-white to-brand-primary/5 px-6 py-8 text-brand-secondaryDark shadow-[0_15px_50px_rgba(147,51,234,0.15)] transition-all duration-300 hover:scale-[1.02] hover:border-brand-secondary/50 hover:shadow-[0_20px_60px_rgba(147,51,234,0.25)] sm:py-10"
+            >
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(147,51,234,0.1),transparent_50%)]" />
+              <svg className="mb-3 h-10 w-10 text-brand-secondary sm:h-12 sm:w-12" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+              </svg>
+              <span className="text-lg font-bold sm:text-xl">本能AI</span>
+              <span className="text-lg font-bold sm:text-xl">マッチング</span>
+              <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-secondary/70 transition-colors group-hover:text-brand-secondary">
+                好みを伝えてマッチング
+                <svg className="h-4 w-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
-                <span className="text-lg font-bold sm:text-xl">本日予約できる</span>
-                <span className="text-lg font-bold sm:text-xl">セラピストを見る</span>
-                <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-white/80 transition-colors group-hover:text-white">
-                  今すぐチェック
-                  <svg className="h-4 w-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                  </svg>
-                </span>
-              </Link>
-
-              <Link
-                href="/guest/match-chat"
-                className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-brand-secondary/30 bg-gradient-to-br from-brand-secondary/10 via-white to-brand-primary/5 px-6 py-8 text-brand-secondaryDark shadow-[0_15px_50px_rgba(147,51,234,0.15)] transition-all duration-300 hover:scale-[1.02] hover:border-brand-secondary/50 hover:shadow-[0_20px_60px_rgba(147,51,234,0.25)] sm:py-10"
-              >
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(147,51,234,0.1),transparent_50%)]" />
-                <svg className="mb-3 h-10 w-10 text-brand-secondary sm:h-12 sm:w-12" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
-                </svg>
-                <span className="text-lg font-bold sm:text-xl">本能AI</span>
-                <span className="text-lg font-bold sm:text-xl">マッチング</span>
-                <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-secondary/70 transition-colors group-hover:text-brand-secondary">
-                  好みを伝えてマッチング
-                  <svg className="h-4 w-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                  </svg>
-                </span>
-              </Link>
-            </div>
-
-            <p className="mt-8 text-xs text-neutral-textMuted">
-              {Intl.NumberFormat('ja-JP').format(heroResultCount)}{heroResultUnit}のセラピストが登録中
-            </p>
+              </span>
+            </Link>
           </div>
-        </header>
+
+          <p className="text-xs text-neutral-textMuted">
+            {Intl.NumberFormat('ja-JP').format(heroResultCount)}{heroResultUnit}のセラピストが登録中
+          </p>
+        </SearchHero>
 
         {_error ? (
           <Card role="alert" aria-live="polite" className="border-state-dangerBg bg-state-dangerBg/60 p-4 text-sm text-state-dangerText">
@@ -713,8 +687,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                         className={clsx(
                           'h-full',
                           heroShop &&
-                            heroShop.id === hit.id &&
-                            'relative rounded-card ring-2 ring-brand-primary/40 sm:col-span-2 lg:col-span-3',
+                          heroShop.id === hit.id &&
+                          'relative rounded-card ring-2 ring-brand-primary/40 sm:col-span-2 lg:col-span-3',
                         )}
                       >
                         {heroShop && heroShop.id === hit.id ? (
