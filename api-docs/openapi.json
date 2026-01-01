@@ -8758,7 +8758,7 @@
           },
           "slots": {
             "items": {
-              "$ref": "#/components/schemas/app__schemas__shop__AvailabilitySlot"
+              "$ref": "#/components/schemas/AvailabilitySlot"
             },
             "type": "array",
             "title": "Slots"
@@ -8795,6 +8795,59 @@
           "window"
         ],
         "title": "AvailabilityInfo"
+      },
+      "AvailabilitySlot": {
+        "properties": {
+          "start_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start At"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "blocked"
+            ],
+            "title": "Status",
+            "default": "open"
+          },
+          "staff_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Id"
+          },
+          "menu_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Menu Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_at",
+          "end_at"
+        ],
+        "title": "AvailabilitySlot"
       },
       "AvailabilitySlotIn": {
         "properties": {
@@ -9420,6 +9473,26 @@
           "file"
         ],
         "title": "Body_upload_shop_photo_api_dashboard_shops__profile_id__photos_upload_post"
+      },
+      "BreakSlot": {
+        "properties": {
+          "start_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start At"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_at",
+          "end_at"
+        ],
+        "title": "BreakSlot"
       },
       "BreakdownInfo": {
         "properties": {
@@ -13805,7 +13878,7 @@
           },
           "break_slots": {
             "items": {
-              "$ref": "#/components/schemas/app__domains__dashboard__shifts__router__BreakSlot"
+              "$ref": "#/components/schemas/BreakSlot"
             },
             "type": "array",
             "title": "Break Slots"
@@ -13962,7 +14035,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/app__domains__dashboard__shifts__router__BreakSlot"
+                  "$ref": "#/components/schemas/BreakSlot"
                 },
                 "type": "array"
               },
@@ -14744,6 +14817,70 @@
         ],
         "title": "SimilarResponse"
       },
+      "SimilarTherapistItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "photos": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photos"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SimilarTherapistTags"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "price_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Rank"
+          },
+          "similarity_score": {
+            "type": "number",
+            "title": "Similarity Score"
+          },
+          "available_today": {
+            "type": "boolean",
+            "title": "Available Today"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "similarity_score",
+          "available_today"
+        ],
+        "title": "SimilarTherapistItem",
+        "description": "Similar therapist item for frontend display."
+      },
       "SimilarTherapistTags": {
         "properties": {
           "mood": {
@@ -14777,7 +14914,7 @@
         "properties": {
           "therapists": {
             "items": {
-              "$ref": "#/components/schemas/app__domains__site__therapists__schemas__SimilarTherapistItem"
+              "$ref": "#/components/schemas/SimilarTherapistItem"
             },
             "type": "array",
             "title": "Therapists"
@@ -15534,7 +15671,7 @@
           },
           "break_slots": {
             "items": {
-              "$ref": "#/components/schemas/app__domains__dashboard__shifts__router__BreakSlot"
+              "$ref": "#/components/schemas/BreakSlot"
             },
             "type": "array",
             "title": "Break Slots"
@@ -16004,26 +16141,6 @@
         ],
         "title": "ValidationError"
       },
-      "app__domains__dashboard__shifts__router__BreakSlot": {
-        "properties": {
-          "start_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Start At"
-          },
-          "end_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "End At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "start_at",
-          "end_at"
-        ],
-        "title": "BreakSlot"
-      },
       "app__domains__site__guest_matching__schemas__SimilarTherapistItem": {
         "properties": {
           "id": {
@@ -16171,123 +16288,6 @@
             "title": "Status",
             "description": "Slot status: open=available, tentative=needs confirmation, blocked=unavailable",
             "default": "open"
-          }
-        },
-        "type": "object",
-        "required": [
-          "start_at",
-          "end_at"
-        ],
-        "title": "AvailabilitySlot"
-      },
-      "app__domains__site__therapists__schemas__SimilarTherapistItem": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "photos": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Photos"
-          },
-          "tags": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SimilarTherapistTags"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "price_rank": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Price Rank"
-          },
-          "similarity_score": {
-            "type": "number",
-            "title": "Similarity Score"
-          },
-          "available_today": {
-            "type": "boolean",
-            "title": "Available Today"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "similarity_score",
-          "available_today"
-        ],
-        "title": "SimilarTherapistItem",
-        "description": "Similar therapist item for frontend display."
-      },
-      "app__schemas__shop__AvailabilitySlot": {
-        "properties": {
-          "start_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Start At"
-          },
-          "end_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "End At"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "open",
-              "blocked"
-            ],
-            "title": "Status",
-            "default": "open"
-          },
-          "staff_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Staff Id"
-          },
-          "menu_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Menu Id"
           }
         },
         "type": "object",
