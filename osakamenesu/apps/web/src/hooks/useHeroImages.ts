@@ -29,9 +29,11 @@ export function useHeroImages({
       seen.add(src)
       sources.push(src)
     }
+    // Priority: gallery (API) > avatar (actual photo) > fallbackGallery (demo data)
+    // This ensures real therapist photos take precedence over hardcoded fallback data
     if (Array.isArray(gallery)) gallery.forEach((src) => push(src))
-    if (Array.isArray(fallbackGallery)) fallbackGallery.forEach((src) => push(src))
     push(avatar ?? null)
+    if (Array.isArray(fallbackGallery)) fallbackGallery.forEach((src) => push(src))
     return sources.length ? sources : [null]
   }, [avatar, fallbackGallery, gallery])
 

@@ -90,10 +90,10 @@ export function BasicSearchSection({
         ) : null}
 
         {showSelects ? (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             {showAreaField ? (
               <div className="space-y-2 text-sm text-neutral-text">
-                <span className="font-semibold">エリア</span>
+                <span className="font-semibold whitespace-nowrap">エリア</span>
                 <GlassSelect
                   name="area"
                   value={area}
@@ -108,7 +108,7 @@ export function BasicSearchSection({
             ) : null}
             {showServiceField ? (
               <div className="space-y-2 text-sm text-neutral-text">
-                <span className="font-semibold">サービス形態</span>
+                <span className="font-semibold whitespace-nowrap">サービス形態</span>
                 <GlassSelect
                   name="service"
                   value={service}

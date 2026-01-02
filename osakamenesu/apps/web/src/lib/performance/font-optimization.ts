@@ -24,11 +24,31 @@ class FontFaceObserverLight {
   }
 
   async load(timeout = 3000): Promise<void> {
+    // Use native Font Loading API if available (widely supported)
+    if ('fonts' in document) {
+      const fontString = `${this.style || 'normal'} ${this.weight || 'normal'} 16px "${this.family}"`
+      try {
+        await Promise.race([
+          document.fonts.load(fontString),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Font loading timeout: ${this.family}`)), timeout)
+          ),
+        ])
+        return
+      } catch {
+        // Font loading failed or timed out - gracefully resolve
+        // The fallback font will be used instead
+        return
+      }
+    }
+
+    // Fallback for older browsers
     const startTime = Date.now()
 
     // Create a test element
     const testString = 'BESbswy' // Characters with distinct widths
-    const testElement = document.createElement('span')
+    const doc = globalThis.document as Document
+    const testElement = doc.createElement('span')
     testElement.innerHTML = testString
     testElement.style.position = 'absolute'
     testElement.style.left = '-9999px'
@@ -42,24 +62,25 @@ class FontFaceObserverLight {
       testElement.style.fontStyle = this.style
     }
 
-    document.body.appendChild(testElement)
+    doc.body.appendChild(testElement)
 
     // Get initial width
     const initialWidth = testElement.offsetWidth
 
     // Check if font has loaded
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const checkInterval = 50
 
       const check = () => {
         if (Date.now() - startTime > timeout) {
-          document.body.removeChild(testElement)
-          reject(new Error(`Font loading timeout: ${this.family}`))
+          doc.body.removeChild(testElement)
+          // Gracefully resolve instead of rejecting - fallback font will be used
+          resolve()
           return
         }
 
         if (testElement.offsetWidth !== initialWidth) {
-          document.body.removeChild(testElement)
+          doc.body.removeChild(testElement)
           resolve()
           return
         }
@@ -149,16 +170,17 @@ export async function loadFonts(
 
       await observer.load(timeout)
 
-      // Add loaded class for CSS hooks
-      document.documentElement.classList.add(`font-${font.family.toLowerCase()}-loaded`)
+      // Add loaded class for CSS hooks (replace spaces with hyphens for valid class names)
+      document.documentElement.classList.add(`font-${font.family.toLowerCase().replace(/\s+/g, '-')}-loaded`)
 
       onFontLoad?.(font.family)
     } catch (error) {
-      console.error(`Failed to load font: ${font.family}`, error)
+      // Silently handle font loading failures - fallback font will be used
+      // Only call onError callback if provided, don't log to console
       onError?.(error as Error)
 
-      // Add fallback class
-      document.documentElement.classList.add(`font-${font.family.toLowerCase()}-fallback`)
+      // Add fallback class (replace spaces with hyphens for valid class names)
+      document.documentElement.classList.add(`font-${font.family.toLowerCase().replace(/\s+/g, '-')}-fallback`)
     }
   })
 

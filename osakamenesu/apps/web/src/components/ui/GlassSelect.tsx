@@ -258,7 +258,7 @@ export function GlassSelect({
               style={{
                 top: menuPosition.top,
                 left: menuPosition.left,
-                width: menuPosition.width,
+                minWidth: Math.max(menuPosition.width, 160),
               }}
               onKeyDown={handleListKeyDown}
             >
